@@ -43,7 +43,7 @@ ccxt>=4.3,<4.5.65
 
 # --- numerics and modelling -------------------------------------------------
 numpy>=2.4.6,<3.0
-pandas>=2.2,<3.0
+pandas>=3.0.6,<4.0
 scipy>=1.13,<2.0
 scikit-learn>=1.9.1,<2.0
 statsmodels>=0.15,<1.0   # 0.15 removed grangercausalitytests(verbose=)
