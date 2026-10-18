@@ -14,7 +14,7 @@ requests>=2.34.2,<3.0
 urllib3>=2.8.0,<3.0
 # 13.0 is the first release with websockets.asyncio.server, which the terminal
 # service's loopback listener uses (src/terminal/server.py); 12.x lacks it.
-websockets>=13.0,<16.0
+websockets>=17.2,<18.0
 
 # --- API surface ------------------------------------------------------------
 fastapi>=0.142.2,<1.0
