@@ -1082,7 +1082,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 1012 | P1 | tests/test_runtime_monitor_concurrent_probes.py | Python | 182 | e340073b |  |
 | 1013 | P1 | tests/test_runtime_monitor_coverage.py | Python | 409 | b0f81a51 |  |
 | 1014 | P1 | tests/test_safe_primes.py | Python | 438 | 1d4ae1d2 |  |
-| 1015 | P1 | tests/test_script_fixes_scr018.py | Python | 183 | e40ca75c |  |
+| 1015 | P1 | tests/test_script_fixes_scr018.py | Python | 181 | 0bf6674c |  |
 | 1016 | P1 | tests/test_scripts_path_bootstrap.py | Python | 95 | c4c1c928 |  |
 | 1017 | P1 | tests/test_secp256k1.py | Python | 448 | c4cb6103 |  |
 | 1018 | P1 | tests/test_security_pqc_posture.py | Python | 76 | 00928e99 |  |

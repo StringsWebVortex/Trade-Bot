@@ -59,9 +59,7 @@ def _stages(monkeypatch, resolver: ModuleType, stages: dict[int, dict]) -> None:
     monkeypatch.setattr(resolver, "_stage", stage)
 
 
-def test_an_add_add_conflict_merges_against_an_empty_base(
-    resolver, monkeypatch, tmp_path
-) -> None:
+def test_an_add_add_conflict_merges_against_an_empty_base(resolver, monkeypatch, tmp_path) -> None:
     _stages(monkeypatch, resolver, {2: _doc("A", "OURS"), 3: _doc("A", "THEIRS")})
     path = tmp_path / "registry.json"
     assert resolver.main(["resolve_registry_merge.py", str(path)]) == 0
