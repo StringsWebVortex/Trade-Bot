@@ -20,6 +20,13 @@ proposed the candidate is refused, and only the system (the evaluator that
 ran the stage) or a human approver may record one. Stages are recorded in
 order and none can be skipped, so a candidate reaches the change manager
 only with every stage passed.
+
+Status: planned, not wired (audit API-022). ``build_runtime_platform``
+constructs one instance, but nothing in ``src`` calls ``propose``,
+``record``, ``request_promotion`` or ``on_watchdog`` yet: tuning, retraining
+and strategy generation still promote through their own paths. The stage
+ordering above is enforced only for callers of this class, which today are
+the tests.
 """
 
 from __future__ import annotations
