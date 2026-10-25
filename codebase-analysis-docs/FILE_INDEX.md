@@ -1106,7 +1106,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 1036 | P1 | tests/test_strategy_filters.py | Python | 468 | fafe1bb8 |  |
 | 1037 | P1 | tests/test_strategy_kill_switch.py | Python | 208 | aa5fdd2f |  |
 | 1038 | P1 | tests/test_strategy_kill_switch_wiring.py | Python | 251 | 5a1e83cb |  |
-| 1039 | P1 | tests/test_strategy_portfolio.py | Python | 778 | 1214fcc0 |  |
+| 1039 | P1 | tests/test_strategy_portfolio.py | Python | 781 | dfdccba9 |  |
 | 1040 | P1 | tests/test_strategy_registry.py | Python | 175 | fa7a81fa |  |
 | 1041 | P1 | tests/test_stress_simulator.py | Python | 138 | 6d469112 |  |
 | 1042 | P1 | tests/test_stress_test_endpoint.py | Python | 168 | a7216740 |  |

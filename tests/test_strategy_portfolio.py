@@ -6,6 +6,9 @@ unpolled: that every registered strategy produces a *verdict* (so silence is
 visible), that regime_fit == 0 is a hard gate rather than a small weight, and
 that a raising strategy cannot take the evaluation — and therefore the tick —
 down with it.
+
+REG-1704 (STR-21): the measured execution cost reaches the cost-hurdled
+families, and without it they stay flat.
 """
 
 from __future__ import annotations
