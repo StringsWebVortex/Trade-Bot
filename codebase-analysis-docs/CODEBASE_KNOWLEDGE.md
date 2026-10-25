@@ -508,8 +508,8 @@ See **codebase-analysis-docs/STATE_BLOCKS.md** for Phase 1–6 checkpoints: inde
 
 Use these anchors with the matching current hash in codebase-analysis-docs/CHUNK_INDEX.md. Regenerate the index after source modifications.
 
-- API lifespan and resource ownership: [[F:src/api/main.py#584-621#7ba8db9e]]
-- WebSocket authentication/fan-out entry: [[F:src/api/main.py#2007-2044#7ba8db9e]]
+- API lifespan and resource ownership: [[F:src/api/main.py#584-621#90d92734]]
+- WebSocket authentication/fan-out entry: [[F:src/api/main.py#2007-2044#90d92734]]
 - API key validation and role selection: [[F:src/api/auth.py#94-133#49ad08ee]]
 - Primary configuration model: [[F:src/config.py#1013-1050#566fc015]]
 - Atomic live risk-control update: [[F:src/config.py#1419-1458#566fc015]]

@@ -3444,7 +3444,9 @@ async def get_intelligence_coverage() -> dict:
         return {"symbol": symbol, "timeframe": timeframe, **cov}
     except Exception as exc:
         # API-009: log the cause; the 200 body must not carry DSNs or paths.
-        log.warning("api.endpoint_failed", endpoint="intelligence_coverage", error=str(exc), exc_info=True)
+        log.warning(
+            "api.endpoint_failed", endpoint="intelligence_coverage", error=str(exc), exc_info=True
+        )
         return {"error": GENERIC_ERROR_DETAIL}
 
 
@@ -3498,7 +3500,9 @@ async def get_intelligence_providers() -> dict:
         return {"providers": providers}
     except Exception as exc:
         # API-009: log the cause; the 200 body must not carry DSNs or paths.
-        log.warning("api.endpoint_failed", endpoint="intelligence_providers", error=str(exc), exc_info=True)
+        log.warning(
+            "api.endpoint_failed", endpoint="intelligence_providers", error=str(exc), exc_info=True
+        )
         return {"error": GENERIC_ERROR_DETAIL}
 
 
@@ -3651,8 +3655,7 @@ async def _venue_action_recorded(
     storage = getattr(_state, "storage", None)
     if storage is not None:
         await _audit_event(
-            storage,
-            event_type=f"venue_{action}", operator=operator, details={**record, **details}
+            storage, event_type=f"venue_{action}", operator=operator, details={**record, **details}
         )
     log.info(f"api.venue_{action}", operator=operator, **record)
     # Out of band, like control_changed: every open dashboard re-reads the
@@ -3997,7 +4000,9 @@ async def runtime_changes() -> list[dict[str, Any]]:
 
 @app.get("/runtime/changes/{change_id}", dependencies=_RUNTIME_READ)
 async def runtime_change(change_id: str) -> dict[str, Any]:
-    result: dict[str, Any] = await _runtime_call(runtime_control.change, require_runtime(), change_id)
+    result: dict[str, Any] = await _runtime_call(
+        runtime_control.change, require_runtime(), change_id
+    )
     return result
 
 
@@ -4044,7 +4049,9 @@ async def runtime_component_action(
 ) -> dict[str, Any]:
     _state.check_endpoint_rate_limit("runtime", request.client.host if request.client else "")
     platform = require_runtime()
-    result = await _runtime_call(runtime_control.component_action, platform, component_id, action, body)
+    result = await _runtime_call(
+        runtime_control.component_action, platform, component_id, action, body
+    )
     await platform.flush()
     return cast(dict[str, Any], result)
 

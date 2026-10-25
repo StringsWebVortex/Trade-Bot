@@ -71,29 +71,29 @@ Total app-decorator routes discovered: 68.
 | GET | /strategies/stress-test | get_allocation_stress_test | 3281 | Depends(api_key_header) | |
 | GET | /performance-drift | get_performance_drift | 3371 | Depends(api_key_header) | |
 | GET | /intelligence/coverage | get_intelligence_coverage | 3413 | Depends(api_key_header) | |
-| GET | /intelligence/providers | get_intelligence_providers | 3452 | Depends(api_key_header) | |
-| POST | /risk/size-check | risk_size_check | 3531 | Depends(api_key_header) | body : SizeCheckRequest, request : Request |
-| GET | /venues | venues_status | 3665 | Depends(api_key_header) | |
-| POST | /venues/{venue}/reconnect | reconnect_venue | 3685 | | venue : str, body : VenueReconnectRequest, request : Request |
-| POST | /venues/{venue}/connect | connect_venue | 3709 | | venue : str, body : VenueReconnectRequest, request : Request |
-| POST | /venues/{venue}/disconnect | disconnect_venue | 3733 | | venue : str, body : VenueReconnectRequest, request : Request |
-| POST | /venues/{venue}/verify | verify_venue_account | 3759 | | venue : str, body : VenueReconnectRequest, request : Request |
-| GET | /controls | control_surface | 3775 | Depends(api_key_header) | |
-| POST | /controls/{name} | set_control | 3802 | Depends(api_key_header) | name : str, body : SetControlRequest, request : Request |
-| GET | /runtime | runtime_overview | 3963 | | |
-| GET | /runtime/components | runtime_components | 3969 | | component_type : Optional[str] = None |
-| GET | /runtime/components/{component_id} | runtime_component | 3982 | | component_id : str |
-| GET | /runtime/dependencies | runtime_dependencies | 3989 | | |
-| GET | /runtime/changes | runtime_changes | 3994 | | |
-| GET | /runtime/changes/{change_id} | runtime_change | 3999 | | change_id : str |
-| GET | /runtime/traces | runtime_traces | 4005 | | limit : int = Query(default=20, ge=1, le=200) |
-| GET | /runtime/traces/{trace_id} | runtime_trace | 4010 | | trace_id : str |
-| GET | /runtime/agent | runtime_agent_ledgers | 4016 | | |
-| POST | /runtime/changes | runtime_submit_change | 4022 | | body : RuntimeChangeBody, request : Request |
-| POST | /runtime/changes/{change_id}/{verb} | runtime_decide | 4031 | | change_id : str, verb : str, body : RuntimeDecisionBody, request : Request |
-| POST | /runtime/components/{component_id}/{action} | runtime_component_action | 4042 | | component_id : str, action : str, body : RuntimeActionBody, request : Request |
-| POST | /runtime/desired | runtime_set_desired | 4053 | | body : RuntimeDesiredBody, request : Request |
-| POST | /runtime/reconcile | runtime_reconcile | 4062 | | body : OperatorFactor, request : Request |
+| GET | /intelligence/providers | get_intelligence_providers | 3454 | Depends(api_key_header) | |
+| POST | /risk/size-check | risk_size_check | 3535 | Depends(api_key_header) | body : SizeCheckRequest, request : Request |
+| GET | /venues | venues_status | 3668 | Depends(api_key_header) | |
+| POST | /venues/{venue}/reconnect | reconnect_venue | 3688 | | venue : str, body : VenueReconnectRequest, request : Request |
+| POST | /venues/{venue}/connect | connect_venue | 3712 | | venue : str, body : VenueReconnectRequest, request : Request |
+| POST | /venues/{venue}/disconnect | disconnect_venue | 3736 | | venue : str, body : VenueReconnectRequest, request : Request |
+| POST | /venues/{venue}/verify | verify_venue_account | 3762 | | venue : str, body : VenueReconnectRequest, request : Request |
+| GET | /controls | control_surface | 3778 | Depends(api_key_header) | |
+| POST | /controls/{name} | set_control | 3805 | Depends(api_key_header) | name : str, body : SetControlRequest, request : Request |
+| GET | /runtime | runtime_overview | 3966 | | |
+| GET | /runtime/components | runtime_components | 3972 | | component_type : Optional[str] = None |
+| GET | /runtime/components/{component_id} | runtime_component | 3985 | | component_id : str |
+| GET | /runtime/dependencies | runtime_dependencies | 3992 | | |
+| GET | /runtime/changes | runtime_changes | 3997 | | |
+| GET | /runtime/changes/{change_id} | runtime_change | 4002 | | change_id : str |
+| GET | /runtime/traces | runtime_traces | 4010 | | limit : int = Query(default=20, ge=1, le=200) |
+| GET | /runtime/traces/{trace_id} | runtime_trace | 4015 | | trace_id : str |
+| GET | /runtime/agent | runtime_agent_ledgers | 4021 | | |
+| POST | /runtime/changes | runtime_submit_change | 4027 | | body : RuntimeChangeBody, request : Request |
+| POST | /runtime/changes/{change_id}/{verb} | runtime_decide | 4036 | | change_id : str, verb : str, body : RuntimeDecisionBody, request : Request |
+| POST | /runtime/components/{component_id}/{action} | runtime_component_action | 4047 | | component_id : str, action : str, body : RuntimeActionBody, request : Request |
+| POST | /runtime/desired | runtime_set_desired | 4060 | | body : RuntimeDesiredBody, request : Request |
+| POST | /runtime/reconcile | runtime_reconcile | 4069 | | body : OperatorFactor, request : Request |
 
 ## Route families
 

@@ -42,7 +42,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 27 | P0 | src/api/__main__.py | Python | 42 | f07796d2 | API entrypoint |
 | 28 | P0 | src/api/access_control.py | Python | 84 | 263fe5ed | Permission/role definitions |
 | 29 | P0 | src/api/auth.py | Python | 183 | 49ad08ee | API key and role authentication |
-| 30 | P0 | src/api/main.py | Python | 4067 | 7ba8db9e | FastAPI lifecycle, REST and WebSocket routes |
+| 30 | P0 | src/api/main.py | Python | 4074 | 90d92734 | FastAPI lifecycle, REST and WebSocket routes |
 | 31 | P0 | src/config.py | Python | 1472 | 566fc015 | Primary Pydantic settings and runtime config |
 | 32 | P0 | src/data/clock.py | Python | 125 | 768bcae5 | UTC and venue clock helpers |
 | 33 | P0 | src/data/fetcher.py | Python | 1282 | 26cf972e | CCXT data, retries, orderbook, reconnect |
@@ -96,7 +96,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 26 | P0 | src/api/__main__.py | Python | 42 | f07796d2 | API entrypoint |
 | 27 | P0 | src/api/access_control.py | Python | 84 | 263fe5ed | Permission/role definitions |
 | 28 | P0 | src/api/auth.py | Python | 183 | 49ad08ee | API key and role authentication |
-| 29 | P0 | src/api/main.py | Python | 4067 | 7ba8db9e | FastAPI lifecycle, REST and WebSocket routes |
+| 29 | P0 | src/api/main.py | Python | 4074 | 90d92734 | FastAPI lifecycle, REST and WebSocket routes |
 | 30 | P0 | src/config.py | Python | 1472 | 566fc015 | Primary Pydantic settings and runtime config |
 | 31 | P0 | src/data/clock.py | Python | 125 | 768bcae5 | UTC and venue clock helpers |
 | 32 | P0 | src/data/fetcher.py | Python | 1282 | 26cf972e | CCXT data, retries, orderbook, reconnect |
@@ -597,7 +597,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 527 | P1 | tests/agent_control/test_store.py | Python | 148 | 3d540971 |  |
 | 528 | P1 | tests/agent_control/test_workspace.py | Python | 354 | 57897d20 |  |
 | 529 | P1 | tests/api/__init__.py | Python | 0 | e3b0c442 |  |
-| 530 | P1 | tests/api/test_api_runtime_hardening.py | Python | 234 | 3d25aa7d |  |
+| 530 | P1 | tests/api/test_api_runtime_hardening.py | Python | 238 | 0e14a37a |  |
 | 531 | P1 | tests/api/test_error_hygiene.py | Python | 288 | 749686a5 |  |
 | 532 | P1 | tests/api/test_fail_closed_controls.py | Python | 181 | f3a5af5f |  |
 | 533 | P1 | tests/api/test_injection_and_rate_limiting.py | Python | 283 | 7dc17358 |  |
@@ -705,7 +705,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 635 | P1 | tests/regime/test_garch.py | Python | 148 | 8a4195c0 |  |
 | 636 | P1 | tests/regression/__init__.py | Python | 0 | e3b0c442 |  |
 | 637 | P1 | tests/regression/test_metrics_payload.py | Python | 120 | 094976c7 |  |
-| 638 | P1 | tests/regression/test_regression_registry_contract.py | Python | 654 | 9f54fed1 |  |
+| 638 | P1 | tests/regression/test_regression_registry_contract.py | Python | 664 | 52a087ee |  |
 | 639 | P1 | tests/risk/__init__.py | Python | 0 | e3b0c442 |  |
 | 640 | P1 | tests/risk/test_probability_bounds.py | Python | 137 | a3b65a78 |  |
 | 641 | P1 | tests/risk/test_risk_limit_boundaries.py | Python | 300 | 37b9b36e |  |

@@ -135,7 +135,11 @@ def test_readiness_report_does_not_echo_raw_orchestrator_errors() -> None:
         stopping=False,
         runtime_ready=True,
         reconcile_passes=1,
-        orchestrator={"warm_up": "failed", "error": f"connect failed {dsn}", "loops_started": False},
+        orchestrator={
+            "warm_up": "failed",
+            "error": f"connect failed {dsn}",
+            "loops_started": False,
+        },
         trading_mode="paper",
     )
     blob = json.dumps(report)
