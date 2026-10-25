@@ -79,7 +79,11 @@ RUN apt-get update \
 # their METADATA, and the base image's copy lags the fixed release. Upgrading
 # it here is cheaper than carrying an ignore file that somebody has to
 # remember to prune.
-RUN python -m pip install --no-cache-dir --upgrade pip setuptools
+# The base image also carries an old filelock dist-info record. The build
+# stage installs the patched library under /install, which does not uninstall
+# packages preinstalled in this runtime base. Upgrade it here first so the
+# subsequent COPY cannot leave vulnerable stale metadata beside the fixed copy.
+RUN python -m pip install --no-cache-dir --upgrade pip setuptools "filelock>=4.2.1,<5.0"
 
 # A fixed uid/gid rather than whatever the base assigns: a volume mounted from
 # the host has to match something, and "whatever useradd picked" is not a
