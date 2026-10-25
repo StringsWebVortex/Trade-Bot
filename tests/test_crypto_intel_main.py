@@ -144,9 +144,11 @@ class TestCollectECC:
         from src.intel import CryptoIntelligence
 
         cfg = tmp_path / "i.yaml"
+        # With the ECC thread off nothing can report, so there is no ECC state to
+        # expose. Left on, it publishes a cycle immediately and the result races it.
+        cfg.write_text("ecc_enabled: false\n", encoding="utf-8")
         intel = CryptoIntelligence(config_path=cfg)
         intel.start()
         result = intel._collect_ecc()
-        # No worker has reported yet, so there is no ECC state to expose.
         assert result == {}
         intel.close()

@@ -14,10 +14,10 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | # | Priority | Path | Type | Lines | SHA8 | Why it matters |
 | ---: | --- | --- | --- | ---: | --- | --- |
 | 1 | P0 | .github/workflows/ci-diagnostics.yml | YAML | 44 | 00c6ca90 | SHA-bound CI diagnostics collector |
-| 2 | P0 | .github/workflows/ci.yml | YAML | 408 | 1afd1d2e | CI jobs and gate composition |
+| 2 | P0 | .github/workflows/ci.yml | YAML | 408 | 157db505 | CI jobs and gate composition |
 | 3 | P0 | AGENTS.md | Markdown | 46 | c98828a6 | Engineering workflow and safety contract |
 | 4 | P0 | CLAUDE.md | Markdown | 658 | 17e4fd71 | Architecture, quality, CI and project policy |
-| 5 | P0 | Dockerfile | Other text/source | 142 | 63505f02 | Container runtime, identity, healthcheck and entrypoint |
+| 5 | P0 | Dockerfile | Other text/source | 145 | db5c42f1 | Container runtime, identity, healthcheck and entrypoint |
 | 6 | P0 | Makefile | Other text/source | 45 | f5f88b46 | Developer commands governed by repository policy |
 | 7 | P0 | README.md | Markdown | 471 | 9d351b5a | Purpose, usage and declared architecture |
 | 8 | P0 | config/architecture_layers.json | JSON | 78 | 734d6397 | Enforced import layering |
@@ -31,7 +31,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 16 | P0 | docs/runtime/RUNTIME_PLATFORM.md | Markdown | 296 | 37fde0ad | Runtime control plane architecture |
 | 17 | P0 | docs/security/THREAT_MODEL.md | Markdown | 341 | ab52c113 | Threat model |
 | 18 | P0 | docs/terminal/ARCHITECTURE.md | Markdown | 217 | ac1b11e0 | Terminal/workspace architecture; historical baseline clearly labeled |
-| 19 | P0 | frontend/package.json | JSON | 77 | 397d38f6 | Node toolchain and frontend scripts |
+| 19 | P0 | frontend/package.json | JSON | 77 | 7053d5e5 | Node toolchain and frontend scripts |
 | 20 | P0 | frontend/src/App.jsx | React JSX | 470 | babdff7e | Dashboard composition |
 | 21 | P0 | frontend/src/hooks/useApi.js | JavaScript | 463 | 79cc9d3c | HTTP and WebSocket client |
 | 22 | P0 | frontend/src/main.jsx | React JSX | 10 | b57d0e84 | React entrypoint |
@@ -68,10 +68,10 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 
 | # | Priority | Path | Type | Lines | SHA8 | Notes |
 | ---: | --- | --- | --- | ---: | --- | --- |
-| 1 | P0 | .github/workflows/ci.yml | YAML | 408 | 1afd1d2e | CI jobs and gate composition |
+| 1 | P0 | .github/workflows/ci.yml | YAML | 408 | 157db505 | CI jobs and gate composition |
 | 2 | P0 | AGENTS.md | Markdown | 46 | c98828a6 | Engineering workflow and safety contract |
 | 3 | P0 | CLAUDE.md | Markdown | 658 | 17e4fd71 | Architecture, quality, CI and project policy |
-| 4 | P0 | Dockerfile | Other text/source | 142 | 63505f02 | Container runtime, identity, healthcheck and entrypoint |
+| 4 | P0 | Dockerfile | Other text/source | 145 | db5c42f1 | Container runtime, identity, healthcheck and entrypoint |
 | 5 | P0 | Makefile | Other text/source | 45 | f5f88b46 | Developer commands governed by repository policy |
 | 6 | P0 | README.md | Markdown | 471 | 9d351b5a | Purpose, usage and declared architecture |
 | 7 | P0 | config/architecture_layers.json | JSON | 78 | 734d6397 | Enforced import layering |
@@ -85,7 +85,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 15 | P0 | docs/runtime/RUNTIME_PLATFORM.md | Markdown | 296 | 37fde0ad | Runtime control plane architecture |
 | 16 | P0 | docs/security/THREAT_MODEL.md | Markdown | 341 | ab52c113 | Threat model |
 | 17 | P0 | docs/terminal/ARCHITECTURE.md | Markdown | 217 | ac1b11e0 | Terminal/workspace architecture; historical baseline clearly labeled |
-| 18 | P0 | frontend/package.json | JSON | 77 | 397d38f6 | Node toolchain and frontend scripts |
+| 18 | P0 | frontend/package.json | JSON | 77 | 7053d5e5 | Node toolchain and frontend scripts |
 | 19 | P0 | frontend/src/App.jsx | React JSX | 470 | babdff7e | Dashboard composition |
 | 20 | P0 | frontend/src/hooks/useApi.js | JavaScript | 463 | 79cc9d3c | HTTP and WebSocket client |
 | 21 | P0 | frontend/src/main.jsx | React JSX | 10 | b57d0e84 | React entrypoint |
@@ -135,13 +135,13 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 65 | P1 | .github/pull_request_template.md | Markdown | 15 | e8ad60ce |  |
 | 66 | P1 | .github/rulesets/main-protection.json | JSON | 110 | 585c7190 |  |
 | 67 | P1 | .github/workflows/ci-diagnostics.yml | YAML | 44 | 00c6ca90 |  |
-| 68 | P1 | .github/workflows/codeql.yml | YAML | 118 | 0a720b76 |  |
-| 69 | P1 | .github/workflows/deploy.yml | YAML | 173 | 0a5699c6 |  |
-| 70 | P1 | .github/workflows/nightly-quality.yml | YAML | 141 | 44436fa9 |  |
-| 71 | P1 | .github/workflows/pr-auto-update.yml | YAML | 309 | 35b663ab |  |
-| 72 | P1 | .github/workflows/rag-ingest.yml | YAML | 54 | 61ce5844 |  |
-| 73 | P1 | .github/workflows/release.yml | YAML | 133 | dfddb74d |  |
-| 74 | P1 | .github/workflows/security.yml | YAML | 476 | 6337eba3 |  |
+| 68 | P1 | .github/workflows/codeql.yml | YAML | 118 | 92cec6ba |  |
+| 69 | P1 | .github/workflows/deploy.yml | YAML | 173 | b4b44dc3 |  |
+| 70 | P1 | .github/workflows/nightly-quality.yml | YAML | 141 | 08f2db1b |  |
+| 71 | P1 | .github/workflows/pr-auto-update.yml | YAML | 309 | 9122095b |  |
+| 72 | P1 | .github/workflows/rag-ingest.yml | YAML | 54 | 3ef87ddd |  |
+| 73 | P1 | .github/workflows/release.yml | YAML | 133 | b595cd54 |  |
+| 74 | P1 | .github/workflows/security.yml | YAML | 476 | fa6294fe |  |
 | 75 | P1 | .github/workflows/workflow-lint.yml | YAML | 112 | efae0a17 |  |
 | 76 | P1 | config/arch_baseline.json | JSON | 39 | e87a9ea6 |  |
 | 77 | P1 | config/exchange_key_posture.json | JSON | 23 | eed97927 |  |
@@ -845,7 +845,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 775 | P1 | tests/test_cross_exchange_arb.py | Python | 105 | 74948a3a |  |
 | 776 | P1 | tests/test_crt.py | Python | 236 | dd77ffd3 |  |
 | 777 | P1 | tests/test_crypto_architect_skill.py | Python | 317 | bbaaaf83 |  |
-| 778 | P1 | tests/test_crypto_intel_main.py | Python | 152 | e2870933 |  |
+| 778 | P1 | tests/test_crypto_intel_main.py | Python | 154 | f7527415 |  |
 | 779 | P1 | tests/test_crypto_intel_signal_path.py | Python | 720 | 6f1adb26 |  |
 | 780 | P1 | tests/test_crypto_intel_v6_coverage.py | Python | 819 | 346198a8 |  |
 | 781 | P1 | tests/test_crypto_predictor_regressions.py | Python | 193 | 5bc94b4c |  |
@@ -1249,7 +1249,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 1179 | P2 | frontend/electron/terminalBridge.cjs | CommonJS | 221 | df9b68c6 |  |
 | 1180 | P2 | frontend/index.html | HTML | 14 | 937890f7 |  |
 | 1181 | P2 | frontend/linux/tradebot-dashboard.desktop | Desktop-entry config | 9 | d8c53c4f |  |
-| 1182 | P2 | frontend/package-lock.json | JSON | 4826 | 980cdc25 |  |
+| 1182 | P2 | frontend/package-lock.json | JSON | 4844 | 75e544ea |  |
 | 1183 | P2 | frontend/postcss.config.js | JavaScript | 7 | ad943233 |  |
 | 1184 | P2 | frontend/public/icon.svg | Vector asset | 15 | 9a6da623 |  |
 | 1185 | P2 | frontend/scripts/build-icons.mjs | ES module | 36 | 4489c079 |  |
