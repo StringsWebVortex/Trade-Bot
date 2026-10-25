@@ -3633,6 +3633,27 @@
       "notes": "layer: test-suite"
     },
     {
+      "id": "SEC-0012",
+      "kind": "security_regression",
+      "title": "The runtime manifest never resolves a vulnerable filelock",
+      "statement": "requirements.txt declares filelock>=4.2.1, so pip cannot resolve filelock 3.32.3 (CVE-2026-112940) into the runtime or the container image.",
+      "criticality": "high",
+      "subsystem": "security",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "filelock was only a transitive dependency of torch and huggingface-hub, both unbounded, so pip kept filelock 3.32.3; the container scan reported CVE-2026-112940 and every PR's Security gate went red.",
+      "owning_modules": [
+        "requirements.txt"
+      ],
+      "verification": [
+        {
+          "test": "tests/security/test_filelock_cve_floor.py",
+          "test_type": "security"
+        }
+      ],
+      "notes": "The advisory was published against a release nobody here chose, so no commit or review could have seen it arrive. layer: supply-chain"
+    },
+    {
       "id": "GOV-022",
       "kind": "requirement",
       "title": "diagnostics stays within its layer",
