@@ -1382,109 +1382,113 @@ SHA8 ad764291; total lines 504.
 
 ## src/runtime/registry.py
 
-SHA8 13b95c94; total lines 513.
+SHA8 c2307736; total lines 537.
 
-- DuplicateComponentError (class, lines 54-55): CHUNK_ID = src/runtime/registry.py#54-55#13b95c94 — [[F:src/runtime/registry.py#54-55#13b95c94]].
-- UnknownComponentError (class, lines 58-59): CHUNK_ID = src/runtime/registry.py#58-59#13b95c94 — [[F:src/runtime/registry.py#58-59#13b95c94]].
-- _utc_now (function, lines 62-63): CHUNK_ID = src/runtime/registry.py#62-63#13b95c94 — [[F:src/runtime/registry.py#62-63#13b95c94]].
-- RuntimeRegistry (class, lines 66-103, slice 1): CHUNK_ID = src/runtime/registry.py#66-103#13b95c94 — [[F:src/runtime/registry.py#66-103#13b95c94]].
-- RuntimeRegistry (class, lines 104-141, slice 2): CHUNK_ID = src/runtime/registry.py#104-141#13b95c94 — [[F:src/runtime/registry.py#104-141#13b95c94]].
-- RuntimeRegistry (class, lines 142-179, slice 3): CHUNK_ID = src/runtime/registry.py#142-179#13b95c94 — [[F:src/runtime/registry.py#142-179#13b95c94]].
-- RuntimeRegistry (class, lines 180-217, slice 4): CHUNK_ID = src/runtime/registry.py#180-217#13b95c94 — [[F:src/runtime/registry.py#180-217#13b95c94]].
-- RuntimeRegistry (class, lines 218-255, slice 5): CHUNK_ID = src/runtime/registry.py#218-255#13b95c94 — [[F:src/runtime/registry.py#218-255#13b95c94]].
-- RuntimeRegistry (class, lines 256-293, slice 6): CHUNK_ID = src/runtime/registry.py#256-293#13b95c94 — [[F:src/runtime/registry.py#256-293#13b95c94]].
-- RuntimeRegistry (class, lines 294-331, slice 7): CHUNK_ID = src/runtime/registry.py#294-331#13b95c94 — [[F:src/runtime/registry.py#294-331#13b95c94]].
-- RuntimeRegistry (class, lines 332-369, slice 8): CHUNK_ID = src/runtime/registry.py#332-369#13b95c94 — [[F:src/runtime/registry.py#332-369#13b95c94]].
-- RuntimeRegistry (class, lines 370-407, slice 9): CHUNK_ID = src/runtime/registry.py#370-407#13b95c94 — [[F:src/runtime/registry.py#370-407#13b95c94]].
-- RuntimeRegistry (class, lines 408-445, slice 10): CHUNK_ID = src/runtime/registry.py#408-445#13b95c94 — [[F:src/runtime/registry.py#408-445#13b95c94]].
-- RuntimeRegistry (class, lines 446-483, slice 11): CHUNK_ID = src/runtime/registry.py#446-483#13b95c94 — [[F:src/runtime/registry.py#446-483#13b95c94]].
-- RuntimeRegistry (class, lines 484-513, slice 12): CHUNK_ID = src/runtime/registry.py#484-513#13b95c94 — [[F:src/runtime/registry.py#484-513#13b95c94]].
-- RuntimeRegistry.__init__ (method, lines 67-83): CHUNK_ID = src/runtime/registry.py#67-83#13b95c94 — [[F:src/runtime/registry.py#67-83#13b95c94]].
-- RuntimeRegistry.register (method, lines 87-128): CHUNK_ID = src/runtime/registry.py#87-128#13b95c94 — [[F:src/runtime/registry.py#87-128#13b95c94]].
-- RuntimeRegistry.register_all (method, lines 130-142): CHUNK_ID = src/runtime/registry.py#130-142#13b95c94 — [[F:src/runtime/registry.py#130-142#13b95c94]].
-- RuntimeRegistry.get (method, lines 146-151): CHUNK_ID = src/runtime/registry.py#146-151#13b95c94 — [[F:src/runtime/registry.py#146-151#13b95c94]].
-- RuntimeRegistry.find (method, lines 153-155): CHUNK_ID = src/runtime/registry.py#153-155#13b95c94 — [[F:src/runtime/registry.py#153-155#13b95c94]].
-- RuntimeRegistry.components (method, lines 157-165): CHUNK_ID = src/runtime/registry.py#157-165#13b95c94 — [[F:src/runtime/registry.py#157-165#13b95c94]].
-- RuntimeRegistry.dependents (method, lines 167-173): CHUNK_ID = src/runtime/registry.py#167-173#13b95c94 — [[F:src/runtime/registry.py#167-173#13b95c94]].
-- RuntimeRegistry.history (method, lines 175-179): CHUNK_ID = src/runtime/registry.py#175-179#13b95c94 — [[F:src/runtime/registry.py#175-179#13b95c94]].
-- RuntimeRegistry.versions (method, lines 181-185): CHUNK_ID = src/runtime/registry.py#181-185#13b95c94 — [[F:src/runtime/registry.py#181-185#13b95c94]].
-- RuntimeRegistry.snapshot (method, lines 187-189): CHUNK_ID = src/runtime/registry.py#187-189#13b95c94 — [[F:src/runtime/registry.py#187-189#13b95c94]].
-- RuntimeRegistry.add_transition_listener (method, lines 193-196): CHUNK_ID = src/runtime/registry.py#193-196#13b95c94 — [[F:src/runtime/registry.py#193-196#13b95c94]].
-- RuntimeRegistry._remember (method, lines 198-208): CHUNK_ID = src/runtime/registry.py#198-208#13b95c94 — [[F:src/runtime/registry.py#198-208#13b95c94]].
-- RuntimeRegistry.add_desired_listener (method, lines 210-213): CHUNK_ID = src/runtime/registry.py#210-213#13b95c94 — [[F:src/runtime/registry.py#210-213#13b95c94]].
-- RuntimeRegistry.set_desired (method, lines 215-238): CHUNK_ID = src/runtime/registry.py#215-238#13b95c94 — [[F:src/runtime/registry.py#215-238#13b95c94]].
-- RuntimeRegistry.record_health (method, lines 240-242): CHUNK_ID = src/runtime/registry.py#240-242#13b95c94 — [[F:src/runtime/registry.py#240-242#13b95c94]].
-- RuntimeRegistry.apply (method, lines 244-283): CHUNK_ID = src/runtime/registry.py#244-283#13b95c94 — [[F:src/runtime/registry.py#244-283#13b95c94]].
-- RuntimeRegistry.preview (method, lines 285-298): CHUNK_ID = src/runtime/registry.py#285-298#13b95c94 — [[F:src/runtime/registry.py#285-298#13b95c94]].
-- RuntimeRegistry._plan (method, lines 300-334): CHUNK_ID = src/runtime/registry.py#300-334#13b95c94 — [[F:src/runtime/registry.py#300-334#13b95c94]].
-- RuntimeRegistry.observe (method, lines 336-369): CHUNK_ID = src/runtime/registry.py#336-369#13b95c94 — [[F:src/runtime/registry.py#336-369#13b95c94]].
-- RuntimeRegistry.mark_failed (method, lines 371-404): CHUNK_ID = src/runtime/registry.py#371-404#13b95c94 — [[F:src/runtime/registry.py#371-404#13b95c94]].
-- RuntimeRegistry.resync (method, lines 406-443, slice 1): CHUNK_ID = src/runtime/registry.py#406-443#13b95c94 — [[F:src/runtime/registry.py#406-443#13b95c94]].
-- RuntimeRegistry.resync (method, lines 444-460, slice 2): CHUNK_ID = src/runtime/registry.py#444-460#13b95c94 — [[F:src/runtime/registry.py#444-460#13b95c94]].
-- RuntimeRegistry.retire (method, lines 462-489): CHUNK_ID = src/runtime/registry.py#462-489#13b95c94 — [[F:src/runtime/registry.py#462-489#13b95c94]].
-- RuntimeRegistry.note_restart (method, lines 491-494): CHUNK_ID = src/runtime/registry.py#491-494#13b95c94 — [[F:src/runtime/registry.py#491-494#13b95c94]].
-- RuntimeRegistry._store (method, lines 496-513): CHUNK_ID = src/runtime/registry.py#496-513#13b95c94 — [[F:src/runtime/registry.py#496-513#13b95c94]].
+- DuplicateComponentError (class, lines 59-60): CHUNK_ID = src/runtime/registry.py#59-60#c2307736 — [[F:src/runtime/registry.py#59-60#c2307736]].
+- UnknownComponentError (class, lines 63-64): CHUNK_ID = src/runtime/registry.py#63-64#c2307736 — [[F:src/runtime/registry.py#63-64#c2307736]].
+- _utc_now (function, lines 67-68): CHUNK_ID = src/runtime/registry.py#67-68#c2307736 — [[F:src/runtime/registry.py#67-68#c2307736]].
+- RuntimeRegistry (class, lines 71-108, slice 1): CHUNK_ID = src/runtime/registry.py#71-108#c2307736 — [[F:src/runtime/registry.py#71-108#c2307736]].
+- RuntimeRegistry (class, lines 109-146, slice 2): CHUNK_ID = src/runtime/registry.py#109-146#c2307736 — [[F:src/runtime/registry.py#109-146#c2307736]].
+- RuntimeRegistry (class, lines 147-184, slice 3): CHUNK_ID = src/runtime/registry.py#147-184#c2307736 — [[F:src/runtime/registry.py#147-184#c2307736]].
+- RuntimeRegistry (class, lines 185-222, slice 4): CHUNK_ID = src/runtime/registry.py#185-222#c2307736 — [[F:src/runtime/registry.py#185-222#c2307736]].
+- RuntimeRegistry (class, lines 223-260, slice 5): CHUNK_ID = src/runtime/registry.py#223-260#c2307736 — [[F:src/runtime/registry.py#223-260#c2307736]].
+- RuntimeRegistry (class, lines 261-298, slice 6): CHUNK_ID = src/runtime/registry.py#261-298#c2307736 — [[F:src/runtime/registry.py#261-298#c2307736]].
+- RuntimeRegistry (class, lines 299-336, slice 7): CHUNK_ID = src/runtime/registry.py#299-336#c2307736 — [[F:src/runtime/registry.py#299-336#c2307736]].
+- RuntimeRegistry (class, lines 337-374, slice 8): CHUNK_ID = src/runtime/registry.py#337-374#c2307736 — [[F:src/runtime/registry.py#337-374#c2307736]].
+- RuntimeRegistry (class, lines 375-412, slice 9): CHUNK_ID = src/runtime/registry.py#375-412#c2307736 — [[F:src/runtime/registry.py#375-412#c2307736]].
+- RuntimeRegistry (class, lines 413-450, slice 10): CHUNK_ID = src/runtime/registry.py#413-450#c2307736 — [[F:src/runtime/registry.py#413-450#c2307736]].
+- RuntimeRegistry (class, lines 451-488, slice 11): CHUNK_ID = src/runtime/registry.py#451-488#c2307736 — [[F:src/runtime/registry.py#451-488#c2307736]].
+- RuntimeRegistry (class, lines 489-526, slice 12): CHUNK_ID = src/runtime/registry.py#489-526#c2307736 — [[F:src/runtime/registry.py#489-526#c2307736]].
+- RuntimeRegistry (class, lines 527-537, slice 13): CHUNK_ID = src/runtime/registry.py#527-537#c2307736 — [[F:src/runtime/registry.py#527-537#c2307736]].
+- RuntimeRegistry.__init__ (method, lines 72-88): CHUNK_ID = src/runtime/registry.py#72-88#c2307736 — [[F:src/runtime/registry.py#72-88#c2307736]].
+- RuntimeRegistry.register (method, lines 92-133): CHUNK_ID = src/runtime/registry.py#92-133#c2307736 — [[F:src/runtime/registry.py#92-133#c2307736]].
+- RuntimeRegistry.register_all (method, lines 135-147): CHUNK_ID = src/runtime/registry.py#135-147#c2307736 — [[F:src/runtime/registry.py#135-147#c2307736]].
+- RuntimeRegistry.get (method, lines 151-156): CHUNK_ID = src/runtime/registry.py#151-156#c2307736 — [[F:src/runtime/registry.py#151-156#c2307736]].
+- RuntimeRegistry.find (method, lines 158-160): CHUNK_ID = src/runtime/registry.py#158-160#c2307736 — [[F:src/runtime/registry.py#158-160#c2307736]].
+- RuntimeRegistry.components (method, lines 162-170): CHUNK_ID = src/runtime/registry.py#162-170#c2307736 — [[F:src/runtime/registry.py#162-170#c2307736]].
+- RuntimeRegistry.dependents (method, lines 172-178): CHUNK_ID = src/runtime/registry.py#172-178#c2307736 — [[F:src/runtime/registry.py#172-178#c2307736]].
+- RuntimeRegistry.history (method, lines 180-184): CHUNK_ID = src/runtime/registry.py#180-184#c2307736 — [[F:src/runtime/registry.py#180-184#c2307736]].
+- RuntimeRegistry.versions (method, lines 186-190): CHUNK_ID = src/runtime/registry.py#186-190#c2307736 — [[F:src/runtime/registry.py#186-190#c2307736]].
+- RuntimeRegistry.snapshot (method, lines 192-194): CHUNK_ID = src/runtime/registry.py#192-194#c2307736 — [[F:src/runtime/registry.py#192-194#c2307736]].
+- RuntimeRegistry.add_transition_listener (method, lines 198-201): CHUNK_ID = src/runtime/registry.py#198-201#c2307736 — [[F:src/runtime/registry.py#198-201#c2307736]].
+- RuntimeRegistry._remember (method, lines 203-213): CHUNK_ID = src/runtime/registry.py#203-213#c2307736 — [[F:src/runtime/registry.py#203-213#c2307736]].
+- RuntimeRegistry._prune_versions (method, lines 215-229): CHUNK_ID = src/runtime/registry.py#215-229#c2307736 — [[F:src/runtime/registry.py#215-229#c2307736]].
+- RuntimeRegistry.add_desired_listener (method, lines 231-234): CHUNK_ID = src/runtime/registry.py#231-234#c2307736 — [[F:src/runtime/registry.py#231-234#c2307736]].
+- RuntimeRegistry.set_desired (method, lines 236-259): CHUNK_ID = src/runtime/registry.py#236-259#c2307736 — [[F:src/runtime/registry.py#236-259#c2307736]].
+- RuntimeRegistry.record_health (method, lines 261-263): CHUNK_ID = src/runtime/registry.py#261-263#c2307736 — [[F:src/runtime/registry.py#261-263#c2307736]].
+- RuntimeRegistry.apply (method, lines 265-305): CHUNK_ID = src/runtime/registry.py#265-305#c2307736 — [[F:src/runtime/registry.py#265-305#c2307736]].
+- RuntimeRegistry.preview (method, lines 307-320): CHUNK_ID = src/runtime/registry.py#307-320#c2307736 — [[F:src/runtime/registry.py#307-320#c2307736]].
+- RuntimeRegistry._plan (method, lines 322-356): CHUNK_ID = src/runtime/registry.py#322-356#c2307736 — [[F:src/runtime/registry.py#322-356#c2307736]].
+- RuntimeRegistry.observe (method, lines 358-391): CHUNK_ID = src/runtime/registry.py#358-391#c2307736 — [[F:src/runtime/registry.py#358-391#c2307736]].
+- RuntimeRegistry.mark_failed (method, lines 393-426): CHUNK_ID = src/runtime/registry.py#393-426#c2307736 — [[F:src/runtime/registry.py#393-426#c2307736]].
+- RuntimeRegistry.resync (method, lines 428-465, slice 1): CHUNK_ID = src/runtime/registry.py#428-465#c2307736 — [[F:src/runtime/registry.py#428-465#c2307736]].
+- RuntimeRegistry.resync (method, lines 466-484, slice 2): CHUNK_ID = src/runtime/registry.py#466-484#c2307736 — [[F:src/runtime/registry.py#466-484#c2307736]].
+- RuntimeRegistry.retire (method, lines 486-513): CHUNK_ID = src/runtime/registry.py#486-513#c2307736 — [[F:src/runtime/registry.py#486-513#c2307736]].
+- RuntimeRegistry.note_restart (method, lines 515-518): CHUNK_ID = src/runtime/registry.py#515-518#c2307736 — [[F:src/runtime/registry.py#515-518#c2307736]].
+- RuntimeRegistry._store (method, lines 520-537): CHUNK_ID = src/runtime/registry.py#520-537#c2307736 — [[F:src/runtime/registry.py#520-537#c2307736]].
 
 ## src/runtime/changes.py
 
-SHA8 9aa272d8; total lines 764.
+SHA8 310891d5; total lines 783.
 
-- ActorKind (class, lines 66-69): CHUNK_ID = src/runtime/changes.py#66-69#9aa272d8 — [[F:src/runtime/changes.py#66-69#9aa272d8]].
-- Actor (class, lines 73-79): CHUNK_ID = src/runtime/changes.py#73-79#9aa272d8 — [[F:src/runtime/changes.py#73-79#9aa272d8]].
-- Actor.to_dict (method, lines 78-79): CHUNK_ID = src/runtime/changes.py#78-79#9aa272d8 — [[F:src/runtime/changes.py#78-79#9aa272d8]].
-- ChangeStatus (class, lines 86-96): CHUNK_ID = src/runtime/changes.py#86-96#9aa272d8 — [[F:src/runtime/changes.py#86-96#9aa272d8]].
-- ChangeError (class, lines 130-131): CHUNK_ID = src/runtime/changes.py#130-131#9aa272d8 — [[F:src/runtime/changes.py#130-131#9aa272d8]].
-- RuntimeLifecycleUnavailableError (class, lines 134-135): CHUNK_ID = src/runtime/changes.py#134-135#9aa272d8 — [[F:src/runtime/changes.py#134-135#9aa272d8]].
-- UnauthorizedError (class, lines 138-139): CHUNK_ID = src/runtime/changes.py#138-139#9aa272d8 — [[F:src/runtime/changes.py#138-139#9aa272d8]].
-- ChangeRequest (class, lines 143-161): CHUNK_ID = src/runtime/changes.py#143-161#9aa272d8 — [[F:src/runtime/changes.py#143-161#9aa272d8]].
-- ChangeRequest.to_dict (method, lines 152-161): CHUNK_ID = src/runtime/changes.py#152-161#9aa272d8 — [[F:src/runtime/changes.py#152-161#9aa272d8]].
-- StageResult (class, lines 165-170): CHUNK_ID = src/runtime/changes.py#165-170#9aa272d8 — [[F:src/runtime/changes.py#165-170#9aa272d8]].
-- ChangeRecord (class, lines 174-211): CHUNK_ID = src/runtime/changes.py#174-211#9aa272d8 — [[F:src/runtime/changes.py#174-211#9aa272d8]].
-- ChangeRecord.change_id (method, lines 190-191): CHUNK_ID = src/runtime/changes.py#190-191#9aa272d8 — [[F:src/runtime/changes.py#190-191#9aa272d8]].
-- ChangeRecord.to_dict (method, lines 193-211): CHUNK_ID = src/runtime/changes.py#193-211#9aa272d8 — [[F:src/runtime/changes.py#193-211#9aa272d8]].
-- AuditEntry (class, lines 215-231): CHUNK_ID = src/runtime/changes.py#215-231#9aa272d8 — [[F:src/runtime/changes.py#215-231#9aa272d8]].
-- AuditEntry.to_dict (method, lines 223-231): CHUNK_ID = src/runtime/changes.py#223-231#9aa272d8 — [[F:src/runtime/changes.py#223-231#9aa272d8]].
-- _utc_now (function, lines 237-238): CHUNK_ID = src/runtime/changes.py#237-238#9aa272d8 — [[F:src/runtime/changes.py#237-238#9aa272d8]].
-- ChangeManager (class, lines 241-278, slice 1): CHUNK_ID = src/runtime/changes.py#241-278#9aa272d8 — [[F:src/runtime/changes.py#241-278#9aa272d8]].
-- ChangeManager (class, lines 279-316, slice 2): CHUNK_ID = src/runtime/changes.py#279-316#9aa272d8 — [[F:src/runtime/changes.py#279-316#9aa272d8]].
-- ChangeManager (class, lines 317-354, slice 3): CHUNK_ID = src/runtime/changes.py#317-354#9aa272d8 — [[F:src/runtime/changes.py#317-354#9aa272d8]].
-- ChangeManager (class, lines 355-392, slice 4): CHUNK_ID = src/runtime/changes.py#355-392#9aa272d8 — [[F:src/runtime/changes.py#355-392#9aa272d8]].
-- ChangeManager (class, lines 393-430, slice 5): CHUNK_ID = src/runtime/changes.py#393-430#9aa272d8 — [[F:src/runtime/changes.py#393-430#9aa272d8]].
-- ChangeManager (class, lines 431-468, slice 6): CHUNK_ID = src/runtime/changes.py#431-468#9aa272d8 — [[F:src/runtime/changes.py#431-468#9aa272d8]].
-- ChangeManager (class, lines 469-506, slice 7): CHUNK_ID = src/runtime/changes.py#469-506#9aa272d8 — [[F:src/runtime/changes.py#469-506#9aa272d8]].
-- ChangeManager (class, lines 507-544, slice 8): CHUNK_ID = src/runtime/changes.py#507-544#9aa272d8 — [[F:src/runtime/changes.py#507-544#9aa272d8]].
-- ChangeManager (class, lines 545-582, slice 9): CHUNK_ID = src/runtime/changes.py#545-582#9aa272d8 — [[F:src/runtime/changes.py#545-582#9aa272d8]].
-- ChangeManager (class, lines 583-620, slice 10): CHUNK_ID = src/runtime/changes.py#583-620#9aa272d8 — [[F:src/runtime/changes.py#583-620#9aa272d8]].
-- ChangeManager (class, lines 621-658, slice 11): CHUNK_ID = src/runtime/changes.py#621-658#9aa272d8 — [[F:src/runtime/changes.py#621-658#9aa272d8]].
-- ChangeManager (class, lines 659-696, slice 12): CHUNK_ID = src/runtime/changes.py#659-696#9aa272d8 — [[F:src/runtime/changes.py#659-696#9aa272d8]].
-- ChangeManager (class, lines 697-734, slice 13): CHUNK_ID = src/runtime/changes.py#697-734#9aa272d8 — [[F:src/runtime/changes.py#697-734#9aa272d8]].
-- ChangeManager (class, lines 735-764, slice 14): CHUNK_ID = src/runtime/changes.py#735-764#9aa272d8 — [[F:src/runtime/changes.py#735-764#9aa272d8]].
-- ChangeManager.__init__ (method, lines 242-260): CHUNK_ID = src/runtime/changes.py#242-260#9aa272d8 — [[F:src/runtime/changes.py#242-260#9aa272d8]].
-- ChangeManager.get (method, lines 264-269): CHUNK_ID = src/runtime/changes.py#264-269#9aa272d8 — [[F:src/runtime/changes.py#264-269#9aa272d8]].
-- ChangeManager.changes (method, lines 271-277): CHUNK_ID = src/runtime/changes.py#271-277#9aa272d8 — [[F:src/runtime/changes.py#271-277#9aa272d8]].
-- ChangeManager.audit_log (method, lines 279-281): CHUNK_ID = src/runtime/changes.py#279-281#9aa272d8 — [[F:src/runtime/changes.py#279-281#9aa272d8]].
-- ChangeManager.open_change (method, lines 283-288): CHUNK_ID = src/runtime/changes.py#283-288#9aa272d8 — [[F:src/runtime/changes.py#283-288#9aa272d8]].
-- ChangeManager.submit (method, lines 292-329, slice 1): CHUNK_ID = src/runtime/changes.py#292-329#9aa272d8 — [[F:src/runtime/changes.py#292-329#9aa272d8]].
-- ChangeManager.submit (method, lines 330-367, slice 2): CHUNK_ID = src/runtime/changes.py#330-367#9aa272d8 — [[F:src/runtime/changes.py#330-367#9aa272d8]].
-- ChangeManager.submit (method, lines 368-369, slice 3): CHUNK_ID = src/runtime/changes.py#368-369#9aa272d8 — [[F:src/runtime/changes.py#368-369#9aa272d8]].
-- ChangeManager._precheck (method, lines 371-384): CHUNK_ID = src/runtime/changes.py#371-384#9aa272d8 — [[F:src/runtime/changes.py#371-384#9aa272d8]].
-- ChangeManager.request_desired (method, lines 386-417): CHUNK_ID = src/runtime/changes.py#386-417#9aa272d8 — [[F:src/runtime/changes.py#386-417#9aa272d8]].
-- ChangeManager.approve (method, lines 419-430): CHUNK_ID = src/runtime/changes.py#419-430#9aa272d8 — [[F:src/runtime/changes.py#419-430#9aa272d8]].
-- ChangeManager.record_stage (method, lines 432-466): CHUNK_ID = src/runtime/changes.py#432-466#9aa272d8 — [[F:src/runtime/changes.py#432-466#9aa272d8]].
-- ChangeManager.execute (method, lines 468-505, slice 1): CHUNK_ID = src/runtime/changes.py#468-505#9aa272d8 — [[F:src/runtime/changes.py#468-505#9aa272d8]].
-- ChangeManager.execute (method, lines 506-530, slice 2): CHUNK_ID = src/runtime/changes.py#506-530#9aa272d8 — [[F:src/runtime/changes.py#506-530#9aa272d8]].
-- ChangeManager.promote (method, lines 532-541): CHUNK_ID = src/runtime/changes.py#532-541#9aa272d8 — [[F:src/runtime/changes.py#532-541#9aa272d8]].
-- ChangeManager.decide_lifecycle (method, lines 543-580, slice 1): CHUNK_ID = src/runtime/changes.py#543-580#9aa272d8 — [[F:src/runtime/changes.py#543-580#9aa272d8]].
-- ChangeManager.decide_lifecycle (method, lines 581-615, slice 2): CHUNK_ID = src/runtime/changes.py#581-615#9aa272d8 — [[F:src/runtime/changes.py#581-615#9aa272d8]].
-- ChangeManager.rollback (method, lines 617-622): CHUNK_ID = src/runtime/changes.py#617-622#9aa272d8 — [[F:src/runtime/changes.py#617-622#9aa272d8]].
-- ChangeManager.cancel (method, lines 624-631): CHUNK_ID = src/runtime/changes.py#624-631#9aa272d8 — [[F:src/runtime/changes.py#624-631#9aa272d8]].
-- ChangeManager._observe (method, lines 635-652): CHUNK_ID = src/runtime/changes.py#635-652#9aa272d8 — [[F:src/runtime/changes.py#635-652#9aa272d8]].
-- ChangeManager._rollback (method, lines 654-692): CHUNK_ID = src/runtime/changes.py#654-692#9aa272d8 — [[F:src/runtime/changes.py#654-692#9aa272d8]].
-- ChangeManager._expect (method, lines 694-698): CHUNK_ID = src/runtime/changes.py#694-698#9aa272d8 — [[F:src/runtime/changes.py#694-698#9aa272d8]].
-- ChangeManager._new (method, lines 700-727): CHUNK_ID = src/runtime/changes.py#700-727#9aa272d8 — [[F:src/runtime/changes.py#700-727#9aa272d8]].
-- ChangeManager._move (method, lines 729-736): CHUNK_ID = src/runtime/changes.py#729-736#9aa272d8 — [[F:src/runtime/changes.py#729-736#9aa272d8]].
-- ChangeManager._audit_entry (method, lines 738-739): CHUNK_ID = src/runtime/changes.py#738-739#9aa272d8 — [[F:src/runtime/changes.py#738-739#9aa272d8]].
-- ChangeManager._append_audit (method, lines 741-764): CHUNK_ID = src/runtime/changes.py#741-764#9aa272d8 — [[F:src/runtime/changes.py#741-764#9aa272d8]].
+- ActorKind (class, lines 67-70): CHUNK_ID = src/runtime/changes.py#67-70#310891d5 — [[F:src/runtime/changes.py#67-70#310891d5]].
+- Actor (class, lines 74-80): CHUNK_ID = src/runtime/changes.py#74-80#310891d5 — [[F:src/runtime/changes.py#74-80#310891d5]].
+- Actor.to_dict (method, lines 79-80): CHUNK_ID = src/runtime/changes.py#79-80#310891d5 — [[F:src/runtime/changes.py#79-80#310891d5]].
+- ChangeStatus (class, lines 87-97): CHUNK_ID = src/runtime/changes.py#87-97#310891d5 — [[F:src/runtime/changes.py#87-97#310891d5]].
+- ChangeError (class, lines 131-132): CHUNK_ID = src/runtime/changes.py#131-132#310891d5 — [[F:src/runtime/changes.py#131-132#310891d5]].
+- RuntimeLifecycleUnavailableError (class, lines 135-136): CHUNK_ID = src/runtime/changes.py#135-136#310891d5 — [[F:src/runtime/changes.py#135-136#310891d5]].
+- UnauthorizedError (class, lines 139-140): CHUNK_ID = src/runtime/changes.py#139-140#310891d5 — [[F:src/runtime/changes.py#139-140#310891d5]].
+- ChangeRequest (class, lines 144-162): CHUNK_ID = src/runtime/changes.py#144-162#310891d5 — [[F:src/runtime/changes.py#144-162#310891d5]].
+- ChangeRequest.to_dict (method, lines 153-162): CHUNK_ID = src/runtime/changes.py#153-162#310891d5 — [[F:src/runtime/changes.py#153-162#310891d5]].
+- StageResult (class, lines 166-171): CHUNK_ID = src/runtime/changes.py#166-171#310891d5 — [[F:src/runtime/changes.py#166-171#310891d5]].
+- ChangeRecord (class, lines 175-212): CHUNK_ID = src/runtime/changes.py#175-212#310891d5 — [[F:src/runtime/changes.py#175-212#310891d5]].
+- ChangeRecord.change_id (method, lines 191-192): CHUNK_ID = src/runtime/changes.py#191-192#310891d5 — [[F:src/runtime/changes.py#191-192#310891d5]].
+- ChangeRecord.to_dict (method, lines 194-212): CHUNK_ID = src/runtime/changes.py#194-212#310891d5 — [[F:src/runtime/changes.py#194-212#310891d5]].
+- AuditEntry (class, lines 216-232): CHUNK_ID = src/runtime/changes.py#216-232#310891d5 — [[F:src/runtime/changes.py#216-232#310891d5]].
+- AuditEntry.to_dict (method, lines 224-232): CHUNK_ID = src/runtime/changes.py#224-232#310891d5 — [[F:src/runtime/changes.py#224-232#310891d5]].
+- _utc_now (function, lines 238-239): CHUNK_ID = src/runtime/changes.py#238-239#310891d5 — [[F:src/runtime/changes.py#238-239#310891d5]].
+- ChangeManager (class, lines 251-288, slice 1): CHUNK_ID = src/runtime/changes.py#251-288#310891d5 — [[F:src/runtime/changes.py#251-288#310891d5]].
+- ChangeManager (class, lines 289-326, slice 2): CHUNK_ID = src/runtime/changes.py#289-326#310891d5 — [[F:src/runtime/changes.py#289-326#310891d5]].
+- ChangeManager (class, lines 327-364, slice 3): CHUNK_ID = src/runtime/changes.py#327-364#310891d5 — [[F:src/runtime/changes.py#327-364#310891d5]].
+- ChangeManager (class, lines 365-402, slice 4): CHUNK_ID = src/runtime/changes.py#365-402#310891d5 — [[F:src/runtime/changes.py#365-402#310891d5]].
+- ChangeManager (class, lines 403-440, slice 5): CHUNK_ID = src/runtime/changes.py#403-440#310891d5 — [[F:src/runtime/changes.py#403-440#310891d5]].
+- ChangeManager (class, lines 441-478, slice 6): CHUNK_ID = src/runtime/changes.py#441-478#310891d5 — [[F:src/runtime/changes.py#441-478#310891d5]].
+- ChangeManager (class, lines 479-516, slice 7): CHUNK_ID = src/runtime/changes.py#479-516#310891d5 — [[F:src/runtime/changes.py#479-516#310891d5]].
+- ChangeManager (class, lines 517-554, slice 8): CHUNK_ID = src/runtime/changes.py#517-554#310891d5 — [[F:src/runtime/changes.py#517-554#310891d5]].
+- ChangeManager (class, lines 555-592, slice 9): CHUNK_ID = src/runtime/changes.py#555-592#310891d5 — [[F:src/runtime/changes.py#555-592#310891d5]].
+- ChangeManager (class, lines 593-630, slice 10): CHUNK_ID = src/runtime/changes.py#593-630#310891d5 — [[F:src/runtime/changes.py#593-630#310891d5]].
+- ChangeManager (class, lines 631-668, slice 11): CHUNK_ID = src/runtime/changes.py#631-668#310891d5 — [[F:src/runtime/changes.py#631-668#310891d5]].
+- ChangeManager (class, lines 669-706, slice 12): CHUNK_ID = src/runtime/changes.py#669-706#310891d5 — [[F:src/runtime/changes.py#669-706#310891d5]].
+- ChangeManager (class, lines 707-744, slice 13): CHUNK_ID = src/runtime/changes.py#707-744#310891d5 — [[F:src/runtime/changes.py#707-744#310891d5]].
+- ChangeManager (class, lines 745-782, slice 14): CHUNK_ID = src/runtime/changes.py#745-782#310891d5 — [[F:src/runtime/changes.py#745-782#310891d5]].
+- ChangeManager (class, lines 783-783, slice 15): CHUNK_ID = src/runtime/changes.py#783-783#310891d5 — [[F:src/runtime/changes.py#783-783#310891d5]].
+- ChangeManager.__init__ (method, lines 252-270): CHUNK_ID = src/runtime/changes.py#252-270#310891d5 — [[F:src/runtime/changes.py#252-270#310891d5]].
+- ChangeManager.get (method, lines 274-279): CHUNK_ID = src/runtime/changes.py#274-279#310891d5 — [[F:src/runtime/changes.py#274-279#310891d5]].
+- ChangeManager.changes (method, lines 281-287): CHUNK_ID = src/runtime/changes.py#281-287#310891d5 — [[F:src/runtime/changes.py#281-287#310891d5]].
+- ChangeManager.audit_log (method, lines 289-291): CHUNK_ID = src/runtime/changes.py#289-291#310891d5 — [[F:src/runtime/changes.py#289-291#310891d5]].
+- ChangeManager.open_change (method, lines 293-298): CHUNK_ID = src/runtime/changes.py#293-298#310891d5 — [[F:src/runtime/changes.py#293-298#310891d5]].
+- ChangeManager.submit (method, lines 302-339, slice 1): CHUNK_ID = src/runtime/changes.py#302-339#310891d5 — [[F:src/runtime/changes.py#302-339#310891d5]].
+- ChangeManager.submit (method, lines 340-377, slice 2): CHUNK_ID = src/runtime/changes.py#340-377#310891d5 — [[F:src/runtime/changes.py#340-377#310891d5]].
+- ChangeManager.submit (method, lines 378-379, slice 3): CHUNK_ID = src/runtime/changes.py#378-379#310891d5 — [[F:src/runtime/changes.py#378-379#310891d5]].
+- ChangeManager._precheck (method, lines 381-394): CHUNK_ID = src/runtime/changes.py#381-394#310891d5 — [[F:src/runtime/changes.py#381-394#310891d5]].
+- ChangeManager.request_desired (method, lines 396-427): CHUNK_ID = src/runtime/changes.py#396-427#310891d5 — [[F:src/runtime/changes.py#396-427#310891d5]].
+- ChangeManager.approve (method, lines 429-440): CHUNK_ID = src/runtime/changes.py#429-440#310891d5 — [[F:src/runtime/changes.py#429-440#310891d5]].
+- ChangeManager.record_stage (method, lines 442-476): CHUNK_ID = src/runtime/changes.py#442-476#310891d5 — [[F:src/runtime/changes.py#442-476#310891d5]].
+- ChangeManager.execute (method, lines 478-515, slice 1): CHUNK_ID = src/runtime/changes.py#478-515#310891d5 — [[F:src/runtime/changes.py#478-515#310891d5]].
+- ChangeManager.execute (method, lines 516-540, slice 2): CHUNK_ID = src/runtime/changes.py#516-540#310891d5 — [[F:src/runtime/changes.py#516-540#310891d5]].
+- ChangeManager.promote (method, lines 542-551): CHUNK_ID = src/runtime/changes.py#542-551#310891d5 — [[F:src/runtime/changes.py#542-551#310891d5]].
+- ChangeManager.decide_lifecycle (method, lines 553-590, slice 1): CHUNK_ID = src/runtime/changes.py#553-590#310891d5 — [[F:src/runtime/changes.py#553-590#310891d5]].
+- ChangeManager.decide_lifecycle (method, lines 591-625, slice 2): CHUNK_ID = src/runtime/changes.py#591-625#310891d5 — [[F:src/runtime/changes.py#591-625#310891d5]].
+- ChangeManager.rollback (method, lines 627-632): CHUNK_ID = src/runtime/changes.py#627-632#310891d5 — [[F:src/runtime/changes.py#627-632#310891d5]].
+- ChangeManager.cancel (method, lines 634-641): CHUNK_ID = src/runtime/changes.py#634-641#310891d5 — [[F:src/runtime/changes.py#634-641#310891d5]].
+- ChangeManager._observe (method, lines 645-662): CHUNK_ID = src/runtime/changes.py#645-662#310891d5 — [[F:src/runtime/changes.py#645-662#310891d5]].
+- ChangeManager._rollback (method, lines 664-702): CHUNK_ID = src/runtime/changes.py#664-702#310891d5 — [[F:src/runtime/changes.py#664-702#310891d5]].
+- ChangeManager._expect (method, lines 704-708): CHUNK_ID = src/runtime/changes.py#704-708#310891d5 — [[F:src/runtime/changes.py#704-708#310891d5]].
+- ChangeManager._new (method, lines 710-738): CHUNK_ID = src/runtime/changes.py#710-738#310891d5 — [[F:src/runtime/changes.py#710-738#310891d5]].
+- ChangeManager._move (method, lines 740-748): CHUNK_ID = src/runtime/changes.py#740-748#310891d5 — [[F:src/runtime/changes.py#740-748#310891d5]].
+- ChangeManager._forget_unexecuted (method, lines 750-755): CHUNK_ID = src/runtime/changes.py#750-755#310891d5 — [[F:src/runtime/changes.py#750-755#310891d5]].
+- ChangeManager._audit_entry (method, lines 757-758): CHUNK_ID = src/runtime/changes.py#757-758#310891d5 — [[F:src/runtime/changes.py#757-758#310891d5]].
+- ChangeManager._append_audit (method, lines 760-783): CHUNK_ID = src/runtime/changes.py#760-783#310891d5 — [[F:src/runtime/changes.py#760-783#310891d5]].
 
 ## src/runtime/reconcile.py
 
@@ -1541,15 +1545,15 @@ SHA8 55696d76; total lines 418.
 
 ## src/runtime/platform.py
 
-SHA8 237c4251; total lines 144.
+SHA8 1c7162da; total lines 145.
 
-- RuntimePlatform (class, lines 46-83, slice 1): CHUNK_ID = src/runtime/platform.py#46-83#237c4251 — [[F:src/runtime/platform.py#46-83#237c4251]].
-- RuntimePlatform (class, lines 84-97, slice 2): CHUNK_ID = src/runtime/platform.py#84-97#237c4251 — [[F:src/runtime/platform.py#84-97#237c4251]].
-- RuntimePlatform.flush (method, lines 57-62): CHUNK_ID = src/runtime/platform.py#57-62#237c4251 — [[F:src/runtime/platform.py#57-62#237c4251]].
-- RuntimePlatform.restore (method, lines 64-66): CHUNK_ID = src/runtime/platform.py#64-66#237c4251 — [[F:src/runtime/platform.py#64-66#237c4251]].
-- RuntimePlatform.summary (method, lines 68-83): CHUNK_ID = src/runtime/platform.py#68-83#237c4251 — [[F:src/runtime/platform.py#68-83#237c4251]].
-- RuntimePlatform.dependencies (method, lines 85-97): CHUNK_ID = src/runtime/platform.py#85-97#237c4251 — [[F:src/runtime/platform.py#85-97#237c4251]].
-- build_runtime_platform (function, lines 100-144): CHUNK_ID = src/runtime/platform.py#100-144#237c4251 — [[F:src/runtime/platform.py#100-144#237c4251]].
+- RuntimePlatform (class, lines 47-84, slice 1): CHUNK_ID = src/runtime/platform.py#47-84#1c7162da — [[F:src/runtime/platform.py#47-84#1c7162da]].
+- RuntimePlatform (class, lines 85-98, slice 2): CHUNK_ID = src/runtime/platform.py#85-98#1c7162da — [[F:src/runtime/platform.py#85-98#1c7162da]].
+- RuntimePlatform.flush (method, lines 58-63): CHUNK_ID = src/runtime/platform.py#58-63#1c7162da — [[F:src/runtime/platform.py#58-63#1c7162da]].
+- RuntimePlatform.restore (method, lines 65-67): CHUNK_ID = src/runtime/platform.py#65-67#1c7162da — [[F:src/runtime/platform.py#65-67#1c7162da]].
+- RuntimePlatform.summary (method, lines 69-84): CHUNK_ID = src/runtime/platform.py#69-84#1c7162da — [[F:src/runtime/platform.py#69-84#1c7162da]].
+- RuntimePlatform.dependencies (method, lines 86-98): CHUNK_ID = src/runtime/platform.py#86-98#1c7162da — [[F:src/runtime/platform.py#86-98#1c7162da]].
+- build_runtime_platform (function, lines 101-145): CHUNK_ID = src/runtime/platform.py#101-145#1c7162da — [[F:src/runtime/platform.py#101-145#1c7162da]].
 
 ## src/terminal/server.py
 
@@ -2040,27 +2044,26 @@ SHA8 df9b68c6; total lines 221.
 
 ### frontend/package.json
 
-SHA8 97ec20a4; total lines 77.
+SHA8 397d38f6; total lines 77.
 
-- CHUNK_ID = frontend/package.json#1-38#97ec20a4 — [[F:frontend/package.json#1-38#97ec20a4]].
-- CHUNK_ID = frontend/package.json#39-76#97ec20a4 — [[F:frontend/package.json#39-76#97ec20a4]].
-- CHUNK_ID = frontend/package.json#77-77#97ec20a4 — [[F:frontend/package.json#77-77#97ec20a4]].
+- CHUNK_ID = frontend/package.json#1-38#397d38f6 — [[F:frontend/package.json#1-38#397d38f6]].
+- CHUNK_ID = frontend/package.json#39-77#397d38f6 — [[F:frontend/package.json#39-77#397d38f6]].
 
 ### .github/workflows/ci.yml
 
-SHA8 da238171; total lines 404.
+SHA8 1afd1d2e; total lines 408.
 
-- CHUNK_ID = .github/workflows/ci.yml#1-38#da238171 — [[F:.github/workflows/ci.yml#1-38#da238171]].
-- CHUNK_ID = .github/workflows/ci.yml#39-76#da238171 — [[F:.github/workflows/ci.yml#39-76#da238171]].
-- CHUNK_ID = .github/workflows/ci.yml#77-114#da238171 — [[F:.github/workflows/ci.yml#77-114#da238171]].
-- CHUNK_ID = .github/workflows/ci.yml#115-152#da238171 — [[F:.github/workflows/ci.yml#115-152#da238171]].
-- CHUNK_ID = .github/workflows/ci.yml#153-190#da238171 — [[F:.github/workflows/ci.yml#153-190#da238171]].
-- CHUNK_ID = .github/workflows/ci.yml#191-228#da238171 — [[F:.github/workflows/ci.yml#191-228#da238171]].
-- CHUNK_ID = .github/workflows/ci.yml#229-266#da238171 — [[F:.github/workflows/ci.yml#229-266#da238171]].
-- CHUNK_ID = .github/workflows/ci.yml#267-304#da238171 — [[F:.github/workflows/ci.yml#267-304#da238171]].
-- CHUNK_ID = .github/workflows/ci.yml#305-342#da238171 — [[F:.github/workflows/ci.yml#305-342#da238171]].
-- CHUNK_ID = .github/workflows/ci.yml#343-380#da238171 — [[F:.github/workflows/ci.yml#343-380#da238171]].
-- CHUNK_ID = .github/workflows/ci.yml#381-404#da238171 — [[F:.github/workflows/ci.yml#381-404#da238171]].
+- CHUNK_ID = .github/workflows/ci.yml#1-38#1afd1d2e — [[F:.github/workflows/ci.yml#1-38#1afd1d2e]].
+- CHUNK_ID = .github/workflows/ci.yml#39-76#1afd1d2e — [[F:.github/workflows/ci.yml#39-76#1afd1d2e]].
+- CHUNK_ID = .github/workflows/ci.yml#77-114#1afd1d2e — [[F:.github/workflows/ci.yml#77-114#1afd1d2e]].
+- CHUNK_ID = .github/workflows/ci.yml#115-152#1afd1d2e — [[F:.github/workflows/ci.yml#115-152#1afd1d2e]].
+- CHUNK_ID = .github/workflows/ci.yml#153-190#1afd1d2e — [[F:.github/workflows/ci.yml#153-190#1afd1d2e]].
+- CHUNK_ID = .github/workflows/ci.yml#191-228#1afd1d2e — [[F:.github/workflows/ci.yml#191-228#1afd1d2e]].
+- CHUNK_ID = .github/workflows/ci.yml#229-266#1afd1d2e — [[F:.github/workflows/ci.yml#229-266#1afd1d2e]].
+- CHUNK_ID = .github/workflows/ci.yml#267-304#1afd1d2e — [[F:.github/workflows/ci.yml#267-304#1afd1d2e]].
+- CHUNK_ID = .github/workflows/ci.yml#305-342#1afd1d2e — [[F:.github/workflows/ci.yml#305-342#1afd1d2e]].
+- CHUNK_ID = .github/workflows/ci.yml#343-380#1afd1d2e — [[F:.github/workflows/ci.yml#343-380#1afd1d2e]].
+- CHUNK_ID = .github/workflows/ci.yml#381-408#1afd1d2e — [[F:.github/workflows/ci.yml#381-408#1afd1d2e]].
 ### docs/terminal/ARCHITECTURE.md
 
 SHA8 ac1b11e0; total lines 217.
