@@ -5757,6 +5757,48 @@
         }
       ],
       "notes": "Audit OPS-009. No test ran an ingest script against a failure mid-run, so only a suite check could catch it. layer: test-suite"
+    },
+    {
+      "id": "REG-1704",
+      "kind": "regression",
+      "title": "Carry and arbitrage entries clear a measured-cost hurdle, never a fixed threshold",
+      "statement": "The basis-trade, funding-carry and cross-exchange families enter only when their gross edge (raw spot-perp gap, funding expected over the measured same-sign holding horizon, cross-venue spread) exceeds ExecutionCost.hurdle_bps: the measured per-leg fee, half-spread and impact over the trade's legs plus a one-sided 95% margin on the cost's measured variability. With no measured cost, or no measured horizon for funding, they abstain.",
+      "criticality": "high",
+      "subsystem": "signal",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "A fixed threshold calibrated to no venue signals trades whose edge the round trip consumes: a 1.4 bp perp premium cleared the old 5%-a-year basis gate at the 1-day horizon though four taker legs cost far more, and a persistent funding rate below the fixed 0.01% floor was refused whatever it would have earned.",
+      "owning_modules": [
+        "src/risk/execution_cost.py",
+        "src/strategies/basis_trade.py",
+        "src/strategies/funding_carry.py",
+        "src/strategies/cross_exchange_arb.py",
+        "src/engine/strategy_portfolio.py"
+      ],
+      "depends_on": [],
+      "verification": [
+        {
+          "test": "tests/test_execution_cost.py",
+          "test_type": "regression"
+        },
+        {
+          "test": "tests/test_basis_trade.py",
+          "test_type": "regression"
+        },
+        {
+          "test": "tests/test_funding_carry.py",
+          "test_type": "regression"
+        },
+        {
+          "test": "tests/test_cross_exchange_arb.py",
+          "test_type": "regression"
+        },
+        {
+          "test": "tests/test_strategy_portfolio.py",
+          "test_type": "regression"
+        }
+      ],
+      "notes": "Audit STR-21. Part 1: the cost model and the strategies. The orchestrator does not yet fill PortfolioInputs.execution_cost, so the three families (all disabled by default) stay flat until part 2 wires the account's fills, the live half-spread and the calibrated impact in, adds the measured fee to check_slippage_veto, and replaces the fixed fee constants in paper.py, live.py, rl_agent.py and e15_rl.py. Those files are in open PRs. layer: unit"
     }
   ]
 }

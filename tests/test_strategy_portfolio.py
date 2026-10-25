@@ -29,10 +29,14 @@ from src.engine.strategy_portfolio import (
     build_xsec_momentum_context,
     default_context_builders,
     get_portfolio_runner,
+    mean_same_sign_run,
     required_inputs,
     reset_portfolio_runner,
 )
+from src.risk.execution_cost import ExecutionCost
 from src.strategies.registry import Signal, StrategyRegistry
+
+_COST = ExecutionCost(fee_bps=4.5, half_spread_bps=1.0, impact_bps=0.5, uncertainty_bps=1.0)
 
 
 class _StubStrategy:
@@ -386,12 +390,17 @@ def test_real_breakout_strategy_votes_through_the_runner() -> None:
 # ------------------------------------------------- cross-exchange builder
 
 
-def _venues(prices: dict[str, float], stamps: dict[str, float] | None = None) -> PortfolioInputs:
+def _venues(
+    prices: dict[str, float],
+    stamps: dict[str, float] | None = None,
+    cost: ExecutionCost | None = None,
+) -> PortfolioInputs:
     return PortfolioInputs(
         symbol="BTC/USDT",
         timeframe="15m",
         venue_prices=prices,
         venue_price_ts=stamps or {},
+        execution_cost=cost,
     )
 
 
@@ -443,13 +452,28 @@ def test_cross_exchange_arb_votes_through_the_runner() -> None:
     reg = StrategyRegistry()
     reg.register(CrossExchangeArbStrategy(0.10))
     ev = StrategyPortfolioRunner(registry=reg).evaluate(
-        _venues({"binance": 101.0, "okx": 100.0}, {"binance": 5.0, "okx": 5.1})
+        _venues({"binance": 101.0, "okx": 100.0}, {"binance": 5.0, "okx": 5.1}, cost=_COST)
     )
     (verdict,) = ev.verdicts
     assert verdict.status is VerdictStatus.SIGNAL
     assert verdict.signal is not None
     # venue_a richer than venue_b -> short venue_a.
     assert verdict.signal.direction == -1
+
+
+def test_cross_exchange_arb_abstains_through_the_runner_without_a_cost() -> None:
+    """REG-1704 (STR-21): until a measured cost is supplied the family is flat."""
+    from src.strategies.cross_exchange_arb import CrossExchangeArbStrategy
+
+    reg = StrategyRegistry()
+    reg.register(CrossExchangeArbStrategy(0.10))
+    ev = StrategyPortfolioRunner(registry=reg).evaluate(
+        _venues({"binance": 101.0, "okx": 100.0}, {"binance": 5.0, "okx": 5.1})
+    )
+    (verdict,) = ev.verdicts
+    assert verdict.status is VerdictStatus.FLAT
+    assert verdict.signal is not None
+    assert verdict.signal.direction == 0
 
 
 # ------------------------------------------------- cross-sectional builder
@@ -609,6 +633,45 @@ def test_basis_builder_threads_the_convergence_horizon() -> None:
     assert ctx is not None
     horizon = ctx.days_to_perp_funding_normalization  # type: ignore[attr-defined]
     assert horizon == pytest.approx(7.0)
+
+
+def test_builders_thread_the_measured_cost() -> None:
+    """REG-1704 (STR-21): the cost reaches every cost-hurdled family."""
+    inputs = PortfolioInputs(
+        symbol="B",
+        timeframe="15m",
+        spot_price=100.0,
+        perp_price=101.0,
+        venue_prices={"a": 100.0, "b": 101.0},
+        funding_rate_pct=0.05,
+        funding_history_pct=[0.0] * 30 + [0.01] * 5 + [0.0] * 4 + [0.05],
+        execution_cost=_COST,
+    )
+    for build in (build_basis_trade_context, build_cross_exchange_context, build_funding_context):
+        ctx = build(inputs)
+        assert ctx is not None
+        assert ctx.cost is _COST  # type: ignore[attr-defined]
+    funding = build_funding_context(inputs)
+    assert funding.expected_periods == pytest.approx(3.0)  # type: ignore[union-attr]
+
+
+@pytest.mark.parametrize(
+    ("history", "rate", "expected"),
+    [
+        ([0.01, 0.01, 0.0, 0.02, 0.02, 0.02, 0.02], 0.03, 3.0),
+        ([-0.01, 0.01, -0.01, -0.01, -0.01], -0.02, 2.0),
+        ([0.01, 0.01], -0.02, None),
+        ([0.01, 0.01], 0.0, None),
+        ([0.01, float("nan"), 0.01], 0.01, 1.0),
+    ],
+)
+def test_mean_same_sign_run(history: list[float], rate: float, expected: float | None) -> None:
+    """How long funding of the current sign has persisted, in periods."""
+    got = mean_same_sign_run(history, rate)
+    if expected is None:
+        assert got is None
+    else:
+        assert got == pytest.approx(expected)
 
 
 # ------------------------------------------------------- input needs

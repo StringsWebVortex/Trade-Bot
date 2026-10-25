@@ -24,7 +24,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 9 | P0 | config/command_policy.json | JSON | 264 | 84e63848 | Tool command and CI observation policy |
 | 10 | P0 | config/horizons.yaml | YAML | 53 | 2ede87ec | Auxiliary prediction horizon definitions |
 | 11 | P0 | config/math_registry.json | JSON | 1903 | 8fa18ffc | Mathematical object registry |
-| 12 | P0 | config/quality_registry.json | JSON | 5762 | de5d334c | Requirements, regressions and deciding tests |
+| 12 | P0 | config/quality_registry.json | JSON | 5804 | 0b546d23 | Requirements, regressions and deciding tests |
 | 13 | P0 | config/risk.yaml | YAML | 26 | dd4766f8 | Horizon/intelligence risk, distinct from core Settings |
 | 14 | P0 | docker-compose.yml | YAML | 82 | 80ec3eca | API/Timescale/optional-worker composition |
 | 15 | P0 | docs/quality/CI_GATE_ARCHITECTURE.md | Markdown | 255 | 02726345 | CI gates |
@@ -78,7 +78,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 8 | P0 | config/command_policy.json | JSON | 264 | 84e63848 | Tool command and CI observation policy |
 | 9 | P0 | config/horizons.yaml | YAML | 53 | 2ede87ec | Auxiliary prediction horizon definitions |
 | 10 | P0 | config/math_registry.json | JSON | 1903 | 8fa18ffc | Mathematical object registry |
-| 11 | P0 | config/quality_registry.json | JSON | 5762 | de5d334c | Requirements, regressions and deciding tests |
+| 11 | P0 | config/quality_registry.json | JSON | 5804 | 0b546d23 | Requirements, regressions and deciding tests |
 | 12 | P0 | config/risk.yaml | YAML | 26 | dd4766f8 | Horizon/intelligence risk, distinct from core Settings |
 | 13 | P0 | docker-compose.yml | YAML | 82 | 80ec3eca | API/Timescale/optional-worker composition |
 | 14 | P0 | docs/quality/CI_GATE_ARCHITECTURE.md | Markdown | 255 | 02726345 | CI gates |
@@ -183,7 +183,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 113 | P1 | docs/quality/QUALITY_BASELINE.md | Markdown | 125 | bbc75e22 |  |
 | 114 | P1 | docs/quality/QUALITY_METRICS.md | Markdown | 122 | 386b71a5 |  |
 | 115 | P1 | docs/quality/QUALITY_POLICY.md | Markdown | 232 | 8c4629b8 |  |
-| 116 | P1 | docs/quality/REQUIREMENTS_TRACEABILITY.md | Markdown | 2922 | 0b0a8e7a |  |
+| 116 | P1 | docs/quality/REQUIREMENTS_TRACEABILITY.md | Markdown | 2939 | 6cb03401 |  |
 | 117 | P1 | docs/quality/ROOT_CAUSE_TEMPLATE.md | Markdown | 84 | a55b20e9 |  |
 | 118 | P1 | docs/quality/TEST_STRATEGY.md | Markdown | 252 | efbde1ba |  |
 | 119 | P1 | docs/runtime/IMPLEMENTATION_MATRIX.md | Markdown | 79 | 7e5cd563 |  |
@@ -327,7 +327,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 257 | P1 | src/ecc/zksnark_detect.py | Python | 223 | 7be8c6ba |  |
 | 258 | P1 | src/engine/__init__.py | Python | 1 | 01ba4719 |  |
 | 259 | P1 | src/engine/crypto_box_adapter.py | Python | 72 | 7189101b |  |
-| 260 | P1 | src/engine/strategy_portfolio.py | Python | 716 | 5196155e |  |
+| 260 | P1 | src/engine/strategy_portfolio.py | Python | 755 | 18445303 |  |
 | 261 | P1 | src/engine/universe_returns.py | Python | 318 | b7ecd613 |  |
 | 262 | P1 | src/engines/__init__.py | Python | 7 | 2334de46 |  |
 | 263 | P1 | src/engines/consensus.py | Python | 463 | e9cd1a5b |  |
@@ -530,12 +530,12 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 460 | P1 | src/security/ssrf.py | Python | 191 | 4e5bd58c |  |
 | 461 | P1 | src/security/tls.py | Python | 121 | 4eef92c8 |  |
 | 462 | P1 | src/strategies/__init__.py | Python | 0 | e3b0c442 |  |
-| 463 | P1 | src/strategies/basis_trade.py | Python | 111 | 4299502f |  |
+| 463 | P1 | src/strategies/basis_trade.py | Python | 116 | adffe19c |  |
 | 464 | P1 | src/strategies/breakout.py | Python | 106 | dddeb580 |  |
 | 465 | P1 | src/strategies/capital_allocator.py | Python | 267 | db5ed6db |  |
-| 466 | P1 | src/strategies/cross_exchange_arb.py | Python | 99 | 84c13c40 |  |
+| 466 | P1 | src/strategies/cross_exchange_arb.py | Python | 88 | 87eaa25e |  |
 | 467 | P1 | src/strategies/filters.py | Python | 609 | 2725db78 |  |
-| 468 | P1 | src/strategies/funding_carry.py | Python | 80 | 1fce8e96 |  |
+| 468 | P1 | src/strategies/funding_carry.py | Python | 103 | ffb40e4c |  |
 | 469 | P1 | src/strategies/mean_reversion.py | Python | 128 | b70d10f8 |  |
 | 470 | P1 | src/strategies/options_carry.py | Python | 170 | ccb47143 |  |
 | 471 | P1 | src/strategies/position_sizing.py | Python | 437 | 2de26394 |  |
@@ -799,7 +799,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 729 | P1 | tests/test_audit_chain_integrity_endpoint.py | Python | 167 | eeb84b92 |  |
 | 730 | P1 | tests/test_audit_trail.py | Python | 81 | ce39ac7b |  |
 | 731 | P1 | tests/test_audit_trail_bounded.py | Python | 87 | 7f027a79 |  |
-| 732 | P1 | tests/test_basis_trade.py | Python | 145 | 0d64cdfb |  |
+| 732 | P1 | tests/test_basis_trade.py | Python | 141 | 91778723 |  |
 | 733 | P1 | tests/test_binary_field.py | Python | 279 | f9f3d0af |  |
 | 734 | P1 | tests/test_bip32.py | Python | 673 | c15f0915 |  |
 | 735 | P1 | tests/test_birthday.py | Python | 134 | 90ef283f |  |
@@ -840,7 +840,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 770 | P1 | tests/test_coverage_boost5.py | Python | 572 | 7908050d |  |
 | 771 | P1 | tests/test_coverage_boost6.py | Python | 196 | 3ab4d6b6 |  |
 | 772 | P1 | tests/test_coverage_mid_batch.py | Python | 254 | 94b0772c |  |
-| 773 | P1 | tests/test_cross_exchange_arb.py | Python | 97 | 2040edf1 |  |
+| 773 | P1 | tests/test_cross_exchange_arb.py | Python | 105 | 74948a3a |  |
 | 774 | P1 | tests/test_crt.py | Python | 236 | dd77ffd3 |  |
 | 775 | P1 | tests/test_crypto_architect_skill.py | Python | 317 | bbaaaf83 |  |
 | 776 | P1 | tests/test_crypto_intel_main.py | Python | 145 | a4922355 |  |
@@ -899,7 +899,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 829 | P1 | tests/test_fetcher_venue_degradation.py | Python | 195 | 505ce832 |  |
 | 830 | P1 | tests/test_folklore_gate.py | Python | 213 | 3c91b2db |  |
 | 831 | P1 | tests/test_frontend_audit_scope.py | Python | 155 | 89d0f9a5 |  |
-| 832 | P1 | tests/test_funding_carry.py | Python | 65 | 9ea0f477 |  |
+| 832 | P1 | tests/test_funding_carry.py | Python | 101 | cc7256d7 |  |
 | 833 | P1 | tests/test_gap015_backfill.py | Python | 394 | 1b36ebf2 |  |
 | 834 | P1 | tests/test_gap015_intelligence_training.py | Python | 150 | 5f0a0cbc |  |
 | 835 | P1 | tests/test_garch_unit.py | Python | 194 | 3803a805 |  |
@@ -1103,7 +1103,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 1033 | P1 | tests/test_strategy_filters.py | Python | 468 | fafe1bb8 |  |
 | 1034 | P1 | tests/test_strategy_kill_switch.py | Python | 208 | aa5fdd2f |  |
 | 1035 | P1 | tests/test_strategy_kill_switch_wiring.py | Python | 251 | 5a1e83cb |  |
-| 1036 | P1 | tests/test_strategy_portfolio.py | Python | 715 | ab3e7b23 |  |
+| 1036 | P1 | tests/test_strategy_portfolio.py | Python | 778 | 1214fcc0 |  |
 | 1037 | P1 | tests/test_strategy_registry.py | Python | 175 | fa7a81fa |  |
 | 1038 | P1 | tests/test_stress_simulator.py | Python | 138 | 6d469112 |  |
 | 1039 | P1 | tests/test_stress_test_endpoint.py | Python | 168 | a7216740 |  |
