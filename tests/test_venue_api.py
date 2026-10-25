@@ -62,7 +62,7 @@ class _FakeStorage:
 
 
 @pytest.fixture()
-def api_client(monkeypatch):
+def api_client(monkeypatch, healthy_security_controls):
     os.environ["API_SECRET_KEY"] = "test-key-" + "a" * 32  # pragma: allowlist secret
     os.environ["OPERATOR_SECRET"] = _TEST_SECRET
 
