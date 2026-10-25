@@ -730,7 +730,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 660 | P1 | tests/runtime/test_engine_tracing.py | Python | 165 | 6f6e13d9 |  |
 | 661 | P1 | tests/runtime/test_failure_injection.py | Python | 204 | 149ddccb |  |
 | 662 | P1 | tests/runtime/test_impact_analysis.py | Python | 91 | ba6dd5c1 |  |
-| 663 | P1 | tests/runtime/test_integration.py | Python | 116 | 1af73002 |  |
+| 663 | P1 | tests/runtime/test_integration.py | Python | 118 | 861b84cd |  |
 | 664 | P1 | tests/runtime/test_lifecycle.py | Python | 98 | 53c2bc30 |  |
 | 665 | P1 | tests/runtime/test_production_controllers.py | Python | 210 | 9f0ce0c6 |  |
 | 666 | P1 | tests/runtime/test_production_runtime.py | Python | 312 | 67f5b0db |  |
@@ -743,7 +743,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 673 | P1 | tests/runtime/test_registry_resync.py | Python | 217 | 1e61af91 |  |
 | 674 | P1 | tests/runtime/test_rollback.py | Python | 84 | 1d543635 |  |
 | 675 | P1 | tests/runtime/test_rollout.py | Python | 128 | b69600b3 |  |
-| 676 | P1 | tests/runtime/test_runtime_endpoints.py | Python | 272 | e598bffe |  |
+| 676 | P1 | tests/runtime/test_runtime_endpoints.py | Python | 272 | 0823b183 |  |
 | 677 | P1 | tests/runtime/test_runtime_loop_resilience.py | Python | 184 | 878f7724 |  |
 | 678 | P1 | tests/runtime/test_runtime_safety.py | Python | 340 | 7b3cb9d3 |  |
 | 679 | P1 | tests/runtime/test_runtime_state.py | Python | 47 | 2bd44e1f |  |
@@ -1150,9 +1150,9 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 1080 | P1 | tests/test_upgrade_optuna_wf.py | Python | 122 | 5d224880 |  |
 | 1081 | P1 | tests/test_upgrade_registry.py | Python | 211 | f4a8a163 |  |
 | 1082 | P1 | tests/test_upgrade_shadow_deploy.py | Python | 186 | d41a29fc |  |
-| 1083 | P1 | tests/test_venue_api.py | Python | 331 | f72a5e5e |  |
+| 1083 | P1 | tests/test_venue_api.py | Python | 331 | 4eb22c22 |  |
 | 1084 | P1 | tests/test_venue_controls.py | Python | 271 | 7f06c733 |  |
-| 1085 | P1 | tests/test_venue_controls_api.py | Python | 220 | 2a9ad18a |  |
+| 1085 | P1 | tests/test_venue_controls_api.py | Python | 220 | b94cea38 |  |
 | 1086 | P1 | tests/test_vol_target_sizer.py | Python | 213 | 2fbf4ca2 |  |
 | 1087 | P1 | tests/test_whale_gate_advisory.py | Python | 103 | f93c3d14 |  |
 | 1088 | P1 | tests/test_whale_ratio_failure_path.py | Python | 77 | 4bdd41b9 |  |
