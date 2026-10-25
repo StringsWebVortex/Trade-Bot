@@ -5685,6 +5685,53 @@
       "notes": "Follow-up to REG-1604: once failures were published, the first one seen was this. No test fed the collector a failing log download. layer: test-suite"
     },
     {
+      "id": "REG-1610",
+      "kind": "regression",
+      "title": "Repository scripts do what their names and docs say (resolver add/add, fixture --check, coverage metric, index refresh)",
+      "statement": "resolve_registry_merge.py merges an add/add conflict against an empty base instead of calling it unconflicted; generate_signal_fixtures.py --check creates nothing and reports a fixture whose case was removed, and a write removes it; collect_quality_metrics.py names coverage's combined line and branch total line_and_branch_coverage_pct; codebase_knowledge_index.py --refresh-file-index keeps content after the file table.",
+      "criticality": "low",
+      "subsystem": "governance",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "An add/add registry conflict was left for a person with a misleading message; --check wrote a directory and missed stale golden fixtures; a combined coverage figure was read as branch coverage; a refresh silently deleted anything written after the index table.",
+      "owning_modules": [
+        "scripts/resolve_registry_merge.py",
+        "scripts/generate_signal_fixtures.py",
+        "scripts/collect_quality_metrics.py",
+        "scripts/codebase_knowledge_index.py"
+      ],
+      "depends_on": [],
+      "verification": [
+        {
+          "test": "tests/test_script_fixes_scr018.py",
+          "test_type": "regression"
+        }
+      ],
+      "notes": "Audit SCR-018 (rest). The provenance traversal part is in #502 and the validation.py empty-list part in #501. layer: test-suite"
+    },
+    {
+      "id": "REG-1611",
+      "kind": "regression",
+      "title": "jsonschema and cryptography tests fail in CI when the dependency is missing",
+      "statement": "The registry-schema, QE-skill, ID-allocation and API-signer tests import jsonschema and cryptography through required_import.require, which skips only when CI is unset; in CI a missing module fails collection.",
+      "criticality": "medium",
+      "subsystem": "governance",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "pytest.importorskip turned a broken CI install into skips, so security and quality tests stopped running while the job stayed green.",
+      "owning_modules": [
+        "tests/required_import.py"
+      ],
+      "depends_on": [],
+      "verification": [
+        {
+          "test": "tests/test_required_import_in_ci.py",
+          "test_type": "regression"
+        }
+      ],
+      "notes": "Audit TSA-07 (rest). The arch-baseline skip is in #502. py_ecc stays optional: it is not in requirements.txt. layer: test-suite"
+    },
+    {
       "id": "REG-1600",
       "kind": "regression",
       "title": "The CPU torch pre-pass uses the same version spec as requirements.txt",

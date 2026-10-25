@@ -236,6 +236,9 @@ class TestTheRegistryHasAPlaceForDefects:
             "REG-1608",
             # REG-1609: one failed job-log download failed the whole report.
             "REG-1609",
+            # REG-1610, REG-1611: audits SCR-018 and TSA-07 (section D rest).
+            "REG-1610",
+            "REG-1611",
             # REG-1700..1703: audit OPS-011 (digest pins, rag-ingest torch
             # floor), DOC-015 and API-031 -- block C of the phase 7 findings.
             "REG-1700",
@@ -542,7 +545,8 @@ class TestTheMetricsCollector:
         # REG-1605..1608 add four more audit findings no test exercised -- test-suite, 39.
         # REG-1700..1703 add four block C audit regressions no test exercised --
         # test-suite, 43.
-        assert metric["value"] == {"test-suite": 43, "review": 1, "supply-chain": 3}
+        # REG-1610 and REG-1611 add the section D script and CI-skip regressions -- test-suite, 45.
+        assert metric["value"] == {"test-suite": 45, "review": 1, "supply-chain": 3}
 
     def test_zero_escaped_defects_would_be_stated_explicitly(self, collector, monkeypatch):
         # "We have not measured this" and "this is zero" are different

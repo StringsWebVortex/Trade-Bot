@@ -176,6 +176,10 @@ class TestInitializeAndClose:
         sb = StorageBackend(db_path=path)
         await sb.close()  # should not raise
 
+        assert sb._conn is None
+        # Closing a backend that never opened must not create its database file.
+        assert not os.path.exists(path)
+
     @pytest.mark.asyncio
     async def test_get_lock_double_checked_race_reuses_winner(self):
         """VF-004-style guard: if a second caller acquires the init guard
@@ -386,6 +390,8 @@ class TestTrades:
         await backend.update_trade_ensemble_fields(
             "does_not_exist", ensemble_point_estimate=0.5, ensemble_blend_weight=0.5
         )
+
+        assert await backend.fetch_trades() == []
 
     @pytest.mark.asyncio
     async def test_update_trade_exit_success(self, backend):
@@ -721,6 +727,10 @@ class TestValidateSymbol:
     async def test_valid_symbol_exists(self, backend):
         await backend.upsert_bars([make_bar(symbol="BTC/USDT")])
         await backend.validate_symbol("BTC/USDT")  # should not raise
+
+        # The check reads stored bars: a well-formed symbol with none is refused.
+        with pytest.raises(ValueError, match="Unknown symbol"):
+            await backend.validate_symbol("ETH/USDT")
 
     @pytest.mark.asyncio
     async def test_invalid_format_raises(self, backend):
