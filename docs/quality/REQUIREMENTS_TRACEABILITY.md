@@ -752,7 +752,7 @@ kg.db builds its MongoClient through rag_mongo.db._client_for and checks MONGODB
 - **Verification:**
   - `tests/test_mongo_client_reuse.py` (regression)
 
-> Audit DOC-015. Skill/MCP duplicates were removed by #511. The kg/query._subgraph vs review/retrieval.graph duplication waits for open PR #502. layer: unit
+> Audit DOC-015. Skill/MCP duplicates were removed by #511. The kg/query._subgraph vs review/retrieval.graph duplication waits for open PR #502. layer: test-suite
 
 ## API and WebSocket
 

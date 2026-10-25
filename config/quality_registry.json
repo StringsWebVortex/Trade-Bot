@@ -5828,7 +5828,7 @@
           "test_type": "regression"
         }
       ],
-      "notes": "Audit DOC-015. Skill/MCP duplicates were removed by #511. The kg/query._subgraph vs review/retrieval.graph duplication waits for open PR #502. layer: unit"
+      "notes": "Audit DOC-015. Skill/MCP duplicates were removed by #511. The kg/query._subgraph vs review/retrieval.graph duplication waits for open PR #502. layer: test-suite"
     },
     {
       "id": "REG-1703",
