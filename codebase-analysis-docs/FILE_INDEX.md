@@ -24,7 +24,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 9 | P0 | config/command_policy.json | JSON | 264 | 84e63848 | Tool command and CI observation policy |
 | 10 | P0 | config/horizons.yaml | YAML | 53 | 2ede87ec | Auxiliary prediction horizon definitions |
 | 11 | P0 | config/math_registry.json | JSON | 1903 | 8fa18ffc | Mathematical object registry |
-| 12 | P0 | config/quality_registry.json | JSON | 5618 | f4b5c4df | Requirements, regressions and deciding tests |
+| 12 | P0 | config/quality_registry.json | JSON | 5706 | 4e34945d | Requirements, regressions and deciding tests |
 | 13 | P0 | config/risk.yaml | YAML | 26 | dd4766f8 | Horizon/intelligence risk, distinct from core Settings |
 | 14 | P0 | docker-compose.yml | YAML | 82 | 80ec3eca | API/Timescale/optional-worker composition |
 | 15 | P0 | docs/quality/CI_GATE_ARCHITECTURE.md | Markdown | 255 | 02726345 | CI gates |
@@ -53,7 +53,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 38 | P0 | src/execution/live.py | Python | 1504 | 7db21651 | Live executor boundary |
 | 39 | P0 | src/execution/order_fsm.py | Python | 375 | 14f635a5 | Order state machine and fill aggregation |
 | 40 | P0 | src/execution/unified_ledger.py | Python | 89 | 86392a2d | Cross-venue book ledger |
-| 41 | P0 | src/features/pipeline.py | Python | 1204 | 32403b07 | Features, labels and train/inference alignment |
+| 41 | P0 | src/features/pipeline.py | Python | 1212 | bcd874ac | Features, labels and train/inference alignment |
 | 42 | P0 | src/intelligence/client.py | Python | 706 | e799d7be | Provider aggregator and caches |
 | 43 | P0 | src/models/model_registry.py | Python | 156 | 91ea9f0b | Model bundle and promotion |
 | 44 | P0 | src/models/online_trainer.py | Python | 366 | 6c961c51 | Online prediction/outcome learning |
@@ -78,7 +78,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 8 | P0 | config/command_policy.json | JSON | 264 | 84e63848 | Tool command and CI observation policy |
 | 9 | P0 | config/horizons.yaml | YAML | 53 | 2ede87ec | Auxiliary prediction horizon definitions |
 | 10 | P0 | config/math_registry.json | JSON | 1903 | 8fa18ffc | Mathematical object registry |
-| 11 | P0 | config/quality_registry.json | JSON | 5618 | f4b5c4df | Requirements, regressions and deciding tests |
+| 11 | P0 | config/quality_registry.json | JSON | 5706 | 4e34945d | Requirements, regressions and deciding tests |
 | 12 | P0 | config/risk.yaml | YAML | 26 | dd4766f8 | Horizon/intelligence risk, distinct from core Settings |
 | 13 | P0 | docker-compose.yml | YAML | 82 | 80ec3eca | API/Timescale/optional-worker composition |
 | 14 | P0 | docs/quality/CI_GATE_ARCHITECTURE.md | Markdown | 255 | 02726345 | CI gates |
@@ -107,7 +107,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 37 | P0 | src/execution/live.py | Python | 1504 | 7db21651 | Live executor boundary |
 | 38 | P0 | src/execution/order_fsm.py | Python | 375 | 14f635a5 | Order state machine and fill aggregation |
 | 39 | P0 | src/execution/unified_ledger.py | Python | 89 | 86392a2d | Cross-venue book ledger |
-| 40 | P0 | src/features/pipeline.py | Python | 1204 | 32403b07 | Features, labels and train/inference alignment |
+| 40 | P0 | src/features/pipeline.py | Python | 1212 | bcd874ac | Features, labels and train/inference alignment |
 | 41 | P0 | src/intelligence/client.py | Python | 706 | e799d7be | Provider aggregator and caches |
 | 42 | P0 | src/models/model_registry.py | Python | 156 | 91ea9f0b | Model bundle and promotion |
 | 43 | P0 | src/models/online_trainer.py | Python | 366 | 6c961c51 | Online prediction/outcome learning |
@@ -183,7 +183,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 113 | P1 | docs/quality/QUALITY_BASELINE.md | Markdown | 125 | bbc75e22 |  |
 | 114 | P1 | docs/quality/QUALITY_METRICS.md | Markdown | 122 | 386b71a5 |  |
 | 115 | P1 | docs/quality/QUALITY_POLICY.md | Markdown | 232 | 8c4629b8 |  |
-| 116 | P1 | docs/quality/REQUIREMENTS_TRACEABILITY.md | Markdown | 2841 | 1a38d32a |  |
+| 116 | P1 | docs/quality/REQUIREMENTS_TRACEABILITY.md | Markdown | 2893 | 6e03e227 |  |
 | 117 | P1 | docs/quality/ROOT_CAUSE_TEMPLATE.md | Markdown | 84 | a55b20e9 |  |
 | 118 | P1 | docs/quality/TEST_STRATEGY.md | Markdown | 252 | efbde1ba |  |
 | 119 | P1 | docs/runtime/IMPLEMENTATION_MATRIX.md | Markdown | 79 | 7e5cd563 |  |
@@ -371,11 +371,11 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 301 | P1 | src/features/__init__.py | Python | 1 | 01ba4719 |  |
 | 302 | P1 | src/features/_rpc_auth.py | Python | 23 | 0a4a04ae |  |
 | 303 | P1 | src/features/derivatives.py | Python | 88 | d442d288 |  |
-| 304 | P1 | src/features/intelligence_features.py | Python | 170 | c848c531 |  |
+| 304 | P1 | src/features/intelligence_features.py | Python | 112 | 085b269c |  |
 | 305 | P1 | src/features/mempool.py | Python | 83 | 235bb406 |  |
 | 306 | P1 | src/features/microstructure.py | Python | 173 | d890a99f |  |
 | 307 | P1 | src/features/nlp.py | Python | 131 | e10a0d0e |  |
-| 308 | P1 | src/features/onchain.py | Python | 175 | f2641b55 |  |
+| 308 | P1 | src/features/onchain.py | Python | 170 | 76c3050e |  |
 | 309 | P1 | src/features/selftest.py | Python | 63 | 5ec849fa |  |
 | 310 | P1 | src/fusion/__init__.py | Python | 1 | e2189aa2 |  |
 | 311 | P1 | src/fusion/cross_attention.py | Python | 73 | c6b4c784 |  |
@@ -483,7 +483,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 413 | P1 | src/quality/__init__.py | Python | 27 | 56d5dfc7 |  |
 | 414 | P1 | src/quality/registry.py | Python | 551 | 0079971b |  |
 | 415 | P1 | src/regime/__init__.py | Python | 1 | 01ba4719 |  |
-| 416 | P1 | src/regime/changepoint.py | Python | 132 | 67618f97 |  |
+| 416 | P1 | src/regime/changepoint.py | Python | 148 | f8b8485e |  |
 | 417 | P1 | src/regime/depth_detector_v2.py | Python | 294 | ba9630cc |  |
 | 418 | P1 | src/regime/ensemble.py | Python | 84 | f77f8654 |  |
 | 419 | P1 | src/regime/garch.py | Python | 220 | 18441bf9 |  |
@@ -812,7 +812,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 742 | P1 | tests/test_causal_dowhy_scm.py | Python | 125 | 7eb0139c |  |
 | 743 | P1 | tests/test_causal_inference.py | Python | 243 | 917865bc |  |
 | 744 | P1 | tests/test_causal_modules.py | Python | 214 | a86122e6 |  |
-| 745 | P1 | tests/test_changepoint.py | Python | 80 | abb1294c |  |
+| 745 | P1 | tests/test_changepoint.py | Python | 99 | 18a01ec2 |  |
 | 746 | P1 | tests/test_ci_diagnostics.py | Python | 706 | 2085e619 |  |
 | 747 | P1 | tests/test_ci_failure_notify_workflow.py | Python | 58 | 0eaa4e26 |  |
 | 748 | P1 | tests/test_ci_log_access.py | Python | 301 | da598b09 |  |
@@ -887,10 +887,10 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 817 | P1 | tests/test_feature_bar_gaps.py | Python | 108 | f161a476 |  |
 | 818 | P1 | tests/test_feature_derivatives_nlp_tft.py | Python | 147 | a355cee7 |  |
 | 819 | P1 | tests/test_feature_microstructure_mempool.py | Python | 181 | 44cc558d |  |
-| 820 | P1 | tests/test_features.py | Python | 654 | 860b2ae6 |  |
+| 820 | P1 | tests/test_features.py | Python | 663 | 690fc155 |  |
 | 821 | P1 | tests/test_features_mempool.py | Python | 75 | 1638304f |  |
 | 822 | P1 | tests/test_features_nlp.py | Python | 154 | 92fb571d |  |
-| 823 | P1 | tests/test_features_onchain.py | Python | 155 | c2015b26 |  |
+| 823 | P1 | tests/test_features_onchain.py | Python | 125 | f0b5ac42 |  |
 | 824 | P1 | tests/test_fetcher_coverage.py | Python | 966 | 851c682f |  |
 | 825 | P1 | tests/test_fetcher_retry_jitter.py | Python | 97 | c46c0cc0 |  |
 | 826 | P1 | tests/test_fetcher_symbol_precision.py | Python | 94 | fef0ec91 |  |
@@ -924,7 +924,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 854 | P1 | tests/test_integration_full_pipeline.py | Python | 291 | f49fa5aa |  |
 | 855 | P1 | tests/test_intelligence_adapter.py | Python | 186 | 7aaa2989 |  |
 | 856 | P1 | tests/test_intelligence_client_coverage.py | Python | 721 | 4a9e428c |  |
-| 857 | P1 | tests/test_intelligence_features_coverage.py | Python | 194 | df9a79b9 |  |
+| 857 | P1 | tests/test_intelligence_features_coverage.py | Python | 141 | 934b7ab9 |  |
 | 858 | P1 | tests/test_intelligence_metrics.py | Python | 243 | 40c73454 |  |
 | 859 | P1 | tests/test_intelligence_persistence.py | Python | 140 | 8843cc8d |  |
 | 860 | P1 | tests/test_intelligence_providers.py | Python | 1661 | 51915cb1 |  |
@@ -980,7 +980,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 910 | P1 | tests/test_observation_gate.py | Python | 187 | 19e51665 |  |
 | 911 | P1 | tests/test_onchain_arkham_cryptoquant.py | Python | 222 | 3e33d989 |  |
 | 912 | P1 | tests/test_onchain_base_coverage.py | Python | 359 | 7b57a71f |  |
-| 913 | P1 | tests/test_onchain_no_fabricated_values.py | Python | 129 | 7ca1355a |  |
+| 913 | P1 | tests/test_onchain_no_fabricated_values.py | Python | 124 | a2164934 |  |
 | 914 | P1 | tests/test_onchain_providers_coverage.py | Python | 489 | a38f7b2c |  |
 | 915 | P1 | tests/test_onchain_rate_limiter.py | Python | 141 | a3b9dd61 |  |
 | 916 | P1 | tests/test_online_trainer.py | Python | 252 | d350dc56 |  |
