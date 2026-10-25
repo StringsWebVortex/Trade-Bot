@@ -89,3 +89,8 @@ jsonschema>=4.0,<5.0
 # manifest is the honest way to raise its floor -- the alternative is an
 # ignore file that outlives the reason it was added.
 msgpack>=1.2.2
+# filelock arrives through torch and huggingface-hub; CVE-2026-112940 is an
+# arbitrary file overwrite through insecure lock-file reopening, fixed in
+# 4.2.1, and the container scan blocks on it (SEC-0012). Every dependent here
+# accepts 4.x; 4.2.1 needs Python 3.11, which .python-version and the image use.
+filelock>=4.2.1
