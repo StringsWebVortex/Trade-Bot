@@ -234,7 +234,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 164 | P1 | frontend/src/workspace/layoutStore.js | JavaScript | 243 | 282ceb0b |  |
 | 165 | P1 | frontend/src/workspace/layoutStore.test.js | JavaScript | 348 | 8ca1d8f3 |  |
 | 166 | P1 | scripts/agent_control.py | Python | 23 | ea56814d |  |
-| 167 | P1 | scripts/apply_ci_patch.py | Python | 324 | b6bbfad5 |  |
+| 167 | P1 | scripts/apply_ci_patch.py | Python | 322 | 3d63d75d |  |
 | 168 | P1 | scripts/apply_repo_ruleset.py | Python | 271 | f09a76cc |  |
 | 169 | P1 | scripts/arch_gate.sh | Shell | 94 | fc5f6d7c |  |
 | 170 | P1 | scripts/assert_jobs_green.py | Python | 150 | 831ced49 |  |
@@ -704,7 +704,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 634 | P1 | tests/regime/test_garch.py | Python | 148 | 8a4195c0 |  |
 | 635 | P1 | tests/regression/__init__.py | Python | 0 | e3b0c442 |  |
 | 636 | P1 | tests/regression/test_metrics_payload.py | Python | 120 | 094976c7 |  |
-| 637 | P1 | tests/regression/test_regression_registry_contract.py | Python | 654 | 9f54fed1 |  |
+| 637 | P1 | tests/regression/test_regression_registry_contract.py | Python | 660 | 6bba0977 |  |
 | 638 | P1 | tests/risk/__init__.py | Python | 0 | e3b0c442 |  |
 | 639 | P1 | tests/risk/test_probability_bounds.py | Python | 137 | a3b65a78 |  |
 | 640 | P1 | tests/risk/test_risk_limit_boundaries.py | Python | 300 | 37b9b36e |  |

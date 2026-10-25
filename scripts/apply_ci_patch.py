@@ -207,9 +207,7 @@ def _validate_patch(patch: str) -> list[str]:
         body = lines[new_header_index + 1 : next_section]
         for pos in range(len(body) - 1):
             if body[pos].startswith("--- ") and body[pos + 1].startswith("+++ "):
-                raise PatchError(
-                    "patch section contains an unvalidated '---'/'+++' file header"
-                )
+                raise PatchError("patch section contains an unvalidated '---'/'+++' file header")
         paths.append(old_path)
         index = next_section
 
