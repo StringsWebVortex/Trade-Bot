@@ -60,6 +60,8 @@ import numpy as np
 import pandas as pd
 import structlog
 
+from src.data.clock import ensure_utc
+
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
 #: The minimum a frame must carry to be checkable at all. OHLC columns are
@@ -303,7 +305,7 @@ class DataQualityGate:
         budget: FreshnessBudget,
         now: datetime | None,
     ) -> str | None:
-        reference = now if now is not None else datetime.now(UTC)
+        reference = ensure_utc(now) if now is not None else datetime.now(UTC)
         age = reference - timestamps.iloc[-1].to_pydatetime()
         if age > timedelta(seconds=budget.max_age_s):
             return (

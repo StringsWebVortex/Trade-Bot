@@ -47,11 +47,11 @@ deletion of the thing it points at.
 
 | Status | Entries |
 |---|---|
-| VERIFIED | 232 |
+| VERIFIED | 233 |
 | PARTIAL | 3 |
 | PLANNED | 0 |
 | ACCEPTED GAP | 0 |
-| **Total** | **235** |
+| **Total** | **236** |
 
 ## Summary by subsystem
 
@@ -62,7 +62,7 @@ deletion of the thing it points at.
 | Portfolio | 1 | 1 |
 | Signal and features | 7 | 7 |
 | Models and leakage | 11 | 11 |
-| Data, money and time | 11 | 10 |
+| Data, money and time | 12 | 11 |
 | API and WebSocket | 22 | 22 |
 | Cryptography and secrets | 32 | 32 |
 | Supply chain and artifacts | 7 | 7 |
@@ -770,6 +770,18 @@ MarketDataFetcher.initialize() must open each venue independently, record an una
   - `tests/test_fetcher_venue_degradation.py` (regression)
 
 > Observed against Binance answering HTTP 451 'Service unavailable from a restricted location' on both mainnet and testnet from an affected network, which made the backend unstartable however healthy OKX and everything else was. initialize() built both venues and loaded their markets in one unisolated sequence. GET /venues and POST /venues/{venue}/reconnect expose the state and the recovery so neither needs a restart. layer: test-suite
+
+#### `REG-1430` — Data and intelligence low-severity defects: bus drop total, naive now, funding units, NaN guards
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+EventBus.total_dropped retains drops of detached subscribers; the quality gate refuses a naive now with ClockError; OKX/Bybit single-rate funding is in percent; the probabilistic adapter and value_at_risk reject non-finite inputs; the Granger update is skipped without close_history; the SQLite DDL defaults to synchronous=FULL.
+
+- **If violated:** Heartbeat under-reported drops, a naive clock raised TypeError, funding was off by 100x, NaN metrics let gates pass, and Granger consumed fabricated zero returns.
+- **Owned by:** `src/eventbus/bus.py`, `src/data/quality_gate.py`, `src/intel.py`
+- **Verification:**
+  - `tests/test_data_intel_low_findings.py` (regression)
+  - `tests/test_crypto_intel_signal_path.py` (regression)
 
 #### `REG-1702` — kg/ and rag_mongo/ share one MongoClient factory and one URI check
 
@@ -3056,4 +3068,4 @@ To add or change an entry, edit the registry and regenerate this file. See
 `docs/quality/TEST_STRATEGY.md` for the taxonomy the `test_type` column draws
 on, and `docs/quality/IMPLEMENTATION_PLAN.md` for what each phase delivers.
 
-Registry version: 1.0.0 — 235 entries.
+Registry version: 1.0.0 — 236 entries.

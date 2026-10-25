@@ -3633,28 +3633,6 @@
       "notes": "layer: test-suite"
     },
     {
-      "id": "SEC-0012",
-      "kind": "security_regression",
-      "title": "The runtime manifest never resolves a vulnerable filelock",
-      "statement": "requirements.txt declares filelock>=4.2.1, and every Dockerfile install into the build prefix after the CPU torch pre-pass runs with that prefix on PYTHONPATH, so neither the runtime nor the container image carries filelock 3.32.3 (CVE-2026-112940).",
-      "criticality": "high",
-      "subsystem": "security",
-      "status": "verified",
-      "source": "OPS-2026-10-25",
-      "failure_mode": "filelock was only a transitive dependency of torch and huggingface-hub, both unbounded, so pip kept filelock 3.32.3; the container scan reported CVE-2026-112940 and every PR's Security gate went red. The floor alone did not clear the image: pip does not see packages inside --prefix, so the requirements pass installed filelock 4.x beside the pre-pass's 3.32.3 and the stale dist-info stayed in the image.",
-      "owning_modules": [
-        "requirements.txt",
-        "Dockerfile"
-      ],
-      "verification": [
-        {
-          "test": "tests/security/test_filelock_cve_floor.py",
-          "test_type": "security"
-        }
-      ],
-      "notes": "The advisory was published against a release nobody here chose, so no commit or review could have seen it arrive. layer: supply-chain"
-    },
-    {
       "id": "GOV-022",
       "kind": "requirement",
       "title": "diagnostics stays within its layer",
@@ -5635,6 +5613,54 @@
         }
       ],
       "depends_on": []
+    },
+    {
+      "id": "REG-1430",
+      "kind": "regression",
+      "title": "Data and intelligence low-severity defects: bus drop total, naive now, funding units, NaN guards",
+      "statement": "EventBus.total_dropped retains drops of detached subscribers; the quality gate refuses a naive now with ClockError; OKX/Bybit single-rate funding is in percent; the probabilistic adapter and value_at_risk reject non-finite inputs; the Granger update is skipped without close_history; the SQLite DDL defaults to synchronous=FULL.",
+      "criticality": "low",
+      "subsystem": "data",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "Heartbeat under-reported drops, a naive clock raised TypeError, funding was off by 100x, NaN metrics let gates pass, and Granger consumed fabricated zero returns.",
+      "owning_modules": [
+        "src/eventbus/bus.py",
+        "src/data/quality_gate.py",
+        "src/intel.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_data_intel_low_findings.py",
+          "test_type": "regression"
+        },
+        {
+          "test": "tests/test_crypto_intel_signal_path.py",
+          "test_type": "regression"
+        }
+      ]
+    },
+    {
+      "id": "SEC-0012",
+      "kind": "security_regression",
+      "title": "The runtime manifest never resolves a vulnerable filelock",
+      "statement": "requirements.txt declares filelock>=4.2.1, and every Dockerfile install into the build prefix after the CPU torch pre-pass runs with that prefix on PYTHONPATH, so neither the runtime nor the container image carries filelock 3.32.3 (CVE-2026-112940).",
+      "criticality": "high",
+      "subsystem": "security",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "filelock was only a transitive dependency of torch and huggingface-hub, both unbounded, so pip kept filelock 3.32.3; the container scan reported CVE-2026-112940 and every PR's Security gate went red. The floor alone did not clear the image: pip does not see packages inside --prefix, so the requirements pass installed filelock 4.x beside the pre-pass's 3.32.3 and the stale dist-info stayed in the image.",
+      "owning_modules": [
+        "requirements.txt",
+        "Dockerfile"
+      ],
+      "verification": [
+        {
+          "test": "tests/security/test_filelock_cve_floor.py",
+          "test_type": "security"
+        }
+      ],
+      "notes": "The advisory was published against a release nobody here chose, so no commit or review could have seen it arrive. layer: supply-chain"
     },
     {
       "id": "REG-1604",

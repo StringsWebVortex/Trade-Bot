@@ -497,10 +497,18 @@ class CryptoIntelligence:
         ecc_result = self._collect_ecc()
 
         # Causal layer update
-        if alt_prices and len(next(iter(alt_prices.values()), [])) >= 10:
+        # Skipped without close_history: a fabricated flat series yields all-zero
+        # returns and would feed the Granger model noise (INT-035).
+        close_history = ohlcv.get("close_history")
+        if (
+            close_history is not None
+            and len(close_history) >= 11
+            and alt_prices
+            and len(next(iter(alt_prices.values()), [])) >= 10
+        ):
             import numpy as np
 
-            btc_ret = np.diff(np.log(np.array(ohlcv.get("close_history", [price] * 11))))
+            btc_ret = np.diff(np.log(np.array(close_history)))
             self._granger.update(btc_ret, alt_prices)
 
         # --- Submit inference tasks ---
