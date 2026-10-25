@@ -3,6 +3,9 @@
 mlflow is a real (optional) dependency, so `_init()`'s `import mlflow` would
 otherwise try to reach a real tracking server at 127.0.0.1:5000. Every test
 injects a fake module via sys.modules instead of touching the network.
+
+Decides:
+  - SEC-1120 MLflow registry never promotes and never unpickles without a pinned manifest
 """
 
 from __future__ import annotations
@@ -105,7 +108,10 @@ def test_log_model_pytorch_log_failure_is_caught_and_run_id_still_returned():
 def test_register_model_returns_none_without_client():
     with patch.dict(sys.modules, {"mlflow": None}):
         reg = ModelRegistry()
-    assert reg.register_model(run_id="r", model_name="m", artifact_path="p", artifact_sha256="x") is None
+    assert (
+        reg.register_model(run_id="r", model_name="m", artifact_path="p", artifact_sha256="x")
+        is None
+    )
 
 
 def test_register_model_happy_path_never_promotes():
@@ -125,7 +131,10 @@ def test_register_model_happy_path_never_promotes():
 def test_register_model_exception_returns_none():
     reg, fake = _registry_with_client()
     fake.register_model.side_effect = RuntimeError("registry down")
-    assert reg.register_model(run_id="r", model_name="m", artifact_path="p", artifact_sha256="x") is None
+    assert (
+        reg.register_model(run_id="r", model_name="m", artifact_path="p", artifact_sha256="x")
+        is None
+    )
 
 
 def test_load_model_returns_none_when_mlflow_unavailable():

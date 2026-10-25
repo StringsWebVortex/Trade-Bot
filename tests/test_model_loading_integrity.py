@@ -1,5 +1,11 @@
 """SEC-1121..1123: model artifacts are deserialized only from verified bytes
-(INT-009 OnlineTrainer, INT-010 HorizonMLPExpert, INT-011 EnsemblePredictor)."""
+(INT-009 OnlineTrainer, INT-010 HorizonMLPExpert, INT-011 EnsemblePredictor).
+
+Decides:
+  - SEC-1121 (INT-009) OnlineTrainer persists and loads models only through an atomic, manifest-verified path
+  - SEC-1122 (INT-010) HorizonMLPExpert deserializes exactly the bytes it hashed
+  - SEC-1123 (INT-011) EnsemblePredictor save is atomic and load deserializes only verified bytes
+"""
 
 from __future__ import annotations
 

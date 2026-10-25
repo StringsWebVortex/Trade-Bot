@@ -704,7 +704,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 634 | P1 | tests/regime/test_garch.py | Python | 148 | 8a4195c0 |  |
 | 635 | P1 | tests/regression/__init__.py | Python | 0 | e3b0c442 |  |
 | 636 | P1 | tests/regression/test_metrics_payload.py | Python | 120 | 094976c7 |  |
-| 637 | P1 | tests/regression/test_regression_registry_contract.py | Python | 654 | 9f54fed1 |  |
+| 637 | P1 | tests/regression/test_regression_registry_contract.py | Python | 661 | d481af25 |  |
 | 638 | P1 | tests/risk/__init__.py | Python | 0 | e3b0c442 |  |
 | 639 | P1 | tests/risk/test_probability_bounds.py | Python | 137 | a3b65a78 |  |
 | 640 | P1 | tests/risk/test_risk_limit_boundaries.py | Python | 300 | 37b9b36e |  |
@@ -972,7 +972,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 902 | P1 | tests/test_metrics.py | Python | 120 | ebe67630 |  |
 | 903 | P1 | tests/test_model_architectures.py | Python | 96 | 9784974a |  |
 | 904 | P1 | tests/test_model_feature_columns_by_name.py | Python | 188 | 0c6d2c0f |  |
-| 905 | P1 | tests/test_model_loading_integrity.py | Python | 80 | 1af20f52 |  |
+| 905 | P1 | tests/test_model_loading_integrity.py | Python | 86 | 5279f9b5 |  |
 | 906 | P1 | tests/test_model_registry.py | Python | 111 | 863dd36f |  |
 | 907 | P1 | tests/test_model_trainer_coverage.py | Python | 1217 | 0ba5f420 |  |
 | 908 | P1 | tests/test_models_gnn_head.py | Python | 41 | ff4a7fe2 |  |
@@ -1147,7 +1147,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 1077 | P1 | tests/test_universe_returns.py | Python | 281 | 8f951606 |  |
 | 1078 | P1 | tests/test_upgrade_modules.py | Python | 280 | a443c429 |  |
 | 1079 | P1 | tests/test_upgrade_optuna_wf.py | Python | 122 | 5d224880 |  |
-| 1080 | P1 | tests/test_upgrade_registry.py | Python | 236 | d84deecc |  |
+| 1080 | P1 | tests/test_upgrade_registry.py | Python | 245 | 1501bca3 |  |
 | 1081 | P1 | tests/test_upgrade_shadow_deploy.py | Python | 186 | d41a29fc |  |
 | 1082 | P1 | tests/test_venue_api.py | Python | 331 | f72a5e5e |  |
 | 1083 | P1 | tests/test_venue_controls.py | Python | 271 | 7f06c733 |  |
