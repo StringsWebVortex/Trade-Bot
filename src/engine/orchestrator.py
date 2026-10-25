@@ -1564,7 +1564,13 @@ class Orchestrator:
         # Route to executor if tradeable
         if result.tradeable and result.kelly_result is not None:
             # Check Gate 6: Performance drift (GAP-003)
-            drift_status = self._drift_adapter.check_drift()
+            # EXR-004: live-only, consistent with evaluate_all_gates; halting
+            # paper on drift would stop the run that gathers the evidence.
+            drift_status = (
+                self._drift_adapter.check_drift()
+                if self._cfg.trading_mode == TradingMode.LIVE
+                else {}
+            )
             if drift_status.get("drifted"):
                 self._log.warning(
                     "orchestrator.signal_blocked_drift",

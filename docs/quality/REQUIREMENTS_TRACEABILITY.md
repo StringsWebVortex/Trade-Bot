@@ -232,12 +232,13 @@ When RiskGate.check_drift reports drift for the contributing horizon, CryptoInte
 
 **VERIFIED** · high · regression · source: OPS-2026-10-25
 
-The drift detector and per-strategy kill switch score prediction accuracy from the entry P(long) stored on the position; an unknown probability skips the accuracy sample instead of booking every long as wrong.
+The drift detector and per-strategy kill switch score prediction accuracy from the entry P(long) stored on the position; an unknown probability skips the accuracy sample instead of booking every long as wrong. The orchestrator drift block applies in LIVE mode only, matching evaluate_all_gates.
 
 - **If violated:** Placeholder 0.5 made every long a wrong prediction and halted a long-biased book.
 - **Owned by:** `src/risk/performance_drift.py`
 - **Verification:**
   - `tests/regression/test_halts_drift_failclosed.py` (regression)
+  - `tests/test_orchestrator_coverage.py` (regression) — Paper-mode ticks never consult the drift adapter; live-mode drift still blocks.
 
 > Audit EXR-004
 

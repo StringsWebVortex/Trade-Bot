@@ -5618,7 +5618,7 @@
       "id": "REG-1060",
       "kind": "regression",
       "title": "Drift accuracy uses the real entry P(long); unknown is skipped",
-      "statement": "The drift detector and per-strategy kill switch score prediction accuracy from the entry P(long) stored on the position; an unknown probability skips the accuracy sample instead of booking every long as wrong.",
+      "statement": "The drift detector and per-strategy kill switch score prediction accuracy from the entry P(long) stored on the position; an unknown probability skips the accuracy sample instead of booking every long as wrong. The orchestrator drift block applies in LIVE mode only, matching evaluate_all_gates.",
       "criticality": "high",
       "subsystem": "risk",
       "status": "verified",
@@ -5631,6 +5631,11 @@
         {
           "test": "tests/regression/test_halts_drift_failclosed.py",
           "test_type": "regression"
+        },
+        {
+          "test": "tests/test_orchestrator_coverage.py",
+          "test_type": "regression",
+          "note": "Paper-mode ticks never consult the drift adapter; live-mode drift still blocks."
         }
       ],
       "notes": "Audit EXR-004"
