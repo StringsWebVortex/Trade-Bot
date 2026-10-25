@@ -5739,6 +5739,119 @@
         }
       ],
       "depends_on": []
+    },
+    {
+      "id": "SEC-1240",
+      "kind": "security_regression",
+      "title": "The admin API key is never built into the dashboard bundle",
+      "statement": "The Vite build refuses VITE_API_KEY; the bundle may carry only VITE_API_READONLY_KEY, the admin key is entered at runtime and held in memory, and Electron injects its key from the main process for API-origin requests only.",
+      "criticality": "high",
+      "subsystem": "security",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "Vite inlined VITE_API_KEY (the admin key) into dist/, readable by anyone with the files or DevTools.",
+      "owning_modules": [
+        "frontend/src/hooks/useApi.js",
+        "frontend/src/buildGuard.js",
+        "frontend/vite.config.js",
+        "frontend/electron/security.cjs",
+        "frontend/electron/main.cjs"
+      ],
+      "verification": [
+        {
+          "test": "frontend/src/security/frontendSecurity.test.jsx",
+          "test_type": "security"
+        }
+      ],
+      "notes": "audit finding FE-01"
+    },
+    {
+      "id": "SEC-1241",
+      "kind": "security_regression",
+      "title": "Electron opens only https externally and trusts only app-origin pages for the shell bridge",
+      "statement": "External URLs open only when https:; in-window navigation away from the app origin is blocked; terminal IPC handlers reject frames whose origin is not the app.",
+      "criticality": "high",
+      "subsystem": "security",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "Any scheme reached the OS and a navigated page inherited the preload shell bridge.",
+      "owning_modules": [
+        "frontend/electron/main.cjs",
+        "frontend/electron/security.cjs",
+        "frontend/electron/terminalBridge.cjs"
+      ],
+      "verification": [
+        {
+          "test": "frontend/src/security/frontendSecurity.test.jsx",
+          "test_type": "security"
+        }
+      ],
+      "notes": "audit finding FE-07"
+    },
+    {
+      "id": "SEC-1242",
+      "kind": "security_regression",
+      "title": "The built dashboard page carries a Content-Security-Policy",
+      "statement": "The production index.html includes a CSP meta with script-src 'self', object-src 'none' and connect-src limited to the app, loopback and the configured API origin.",
+      "criticality": "medium",
+      "subsystem": "security",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "No CSP meant any XSS could read credentials and reach the Electron shell bridge.",
+      "owning_modules": [
+        "frontend/src/buildGuard.js",
+        "frontend/vite.config.js"
+      ],
+      "verification": [
+        {
+          "test": "frontend/src/security/frontendSecurity.test.jsx",
+          "test_type": "security"
+        }
+      ],
+      "notes": "audit finding FE-08"
+    },
+    {
+      "id": "REG-1243",
+      "kind": "regression",
+      "title": "Failed polls are reported as stale data",
+      "statement": "usePolling records failing requests (401, 5xx, unreachable) and the dashboard shows a stale-data banner naming them, clearing on recovery.",
+      "criticality": "medium",
+      "subsystem": "api",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "usePolling swallowed failures and kept old numbers displayed as current.",
+      "owning_modules": [
+        "frontend/src/hooks/useApi.js",
+        "frontend/src/App.jsx"
+      ],
+      "verification": [
+        {
+          "test": "frontend/src/security/frontendSecurity.test.jsx",
+          "test_type": "regression"
+        }
+      ],
+      "notes": "audit finding FE-06"
+    },
+    {
+      "id": "REG-1244",
+      "kind": "regression",
+      "title": "The Configuration panel renders live settings",
+      "statement": "ConfigPanel renders values from GET /controls, not hardcoded literals.",
+      "criticality": "medium",
+      "subsystem": "api",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "About 100 hardcoded literals were shown as the bot's settings and drifted from .env.",
+      "owning_modules": [
+        "frontend/src/components/panels/ConfigPanel.jsx"
+      ],
+      "verification": [
+        {
+          "test": "frontend/src/security/frontendSecurity.test.jsx",
+          "test_type": "regression"
+        }
+      ],
+      "notes": "audit finding FE-09"
     }
   ]
 }

@@ -47,11 +47,11 @@ deletion of the thing it points at.
 
 | Status | Entries |
 |---|---|
-| VERIFIED | 222 |
+| VERIFIED | 227 |
 | PARTIAL | 3 |
 | PLANNED | 0 |
 | ACCEPTED GAP | 0 |
-| **Total** | **225** |
+| **Total** | **230** |
 
 ## Summary by subsystem
 
@@ -63,8 +63,8 @@ deletion of the thing it points at.
 | Signal and features | 6 | 6 |
 | Models and leakage | 10 | 10 |
 | Data, money and time | 10 | 9 |
-| API and WebSocket | 27 | 27 |
-| Cryptography and secrets | 30 | 30 |
+| API and WebSocket | 29 | 29 |
+| Cryptography and secrets | 33 | 33 |
 | Supply chain and artifacts | 7 | 7 |
 | Resilience and recovery | 24 | 24 |
 | Release and production | 14 | 14 |
@@ -1010,6 +1010,32 @@ The default API_CORS_ORIGINS allows both loopback spellings of the dashboard dev
 
 > layer: test-suite
 
+#### `REG-1243` — Failed polls are reported as stale data
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+usePolling records failing requests (401, 5xx, unreachable) and the dashboard shows a stale-data banner naming them, clearing on recovery.
+
+- **If violated:** usePolling swallowed failures and kept old numbers displayed as current.
+- **Owned by:** `frontend/src/hooks/useApi.js`, `frontend/src/App.jsx`
+- **Verification:**
+  - `frontend/src/security/frontendSecurity.test.jsx` (regression)
+
+> audit finding FE-06
+
+#### `REG-1244` — The Configuration panel renders live settings
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+ConfigPanel renders values from GET /controls, not hardcoded literals.
+
+- **If violated:** About 100 hardcoded literals were shown as the bot's settings and drifted from .env.
+- **Owned by:** `frontend/src/components/panels/ConfigPanel.jsx`
+- **Verification:**
+  - `frontend/src/security/frontendSecurity.test.jsx` (regression)
+
+> audit finding FE-09
+
 #### `SEC-1010` — POST /controls enforces the caller's role
 
 **VERIFIED** · high · security_regression · source: OPS-2026-10-25
@@ -1448,6 +1474,45 @@ The integrated terminal adds a command-execution surface; nothing reaches it exc
   - `frontend/src/desktop/terminalBridge.test.js` (security)
 
 > layer: test-suite
+
+#### `SEC-1240` — The admin API key is never built into the dashboard bundle
+
+**VERIFIED** · high · security_regression · source: OPS-2026-10-25
+
+The Vite build refuses VITE_API_KEY; the bundle may carry only VITE_API_READONLY_KEY, the admin key is entered at runtime and held in memory, and Electron injects its key from the main process for API-origin requests only.
+
+- **If violated:** Vite inlined VITE_API_KEY (the admin key) into dist/, readable by anyone with the files or DevTools.
+- **Owned by:** `frontend/src/hooks/useApi.js`, `frontend/src/buildGuard.js`, `frontend/vite.config.js`, `frontend/electron/security.cjs`, `frontend/electron/main.cjs`
+- **Verification:**
+  - `frontend/src/security/frontendSecurity.test.jsx` (security)
+
+> audit finding FE-01
+
+#### `SEC-1241` — Electron opens only https externally and trusts only app-origin pages for the shell bridge
+
+**VERIFIED** · high · security_regression · source: OPS-2026-10-25
+
+External URLs open only when https:; in-window navigation away from the app origin is blocked; terminal IPC handlers reject frames whose origin is not the app.
+
+- **If violated:** Any scheme reached the OS and a navigated page inherited the preload shell bridge.
+- **Owned by:** `frontend/electron/main.cjs`, `frontend/electron/security.cjs`, `frontend/electron/terminalBridge.cjs`
+- **Verification:**
+  - `frontend/src/security/frontendSecurity.test.jsx` (security)
+
+> audit finding FE-07
+
+#### `SEC-1242` — The built dashboard page carries a Content-Security-Policy
+
+**VERIFIED** · medium · security_regression · source: OPS-2026-10-25
+
+The production index.html includes a CSP meta with script-src 'self', object-src 'none' and connect-src limited to the app, loopback and the configured API origin.
+
+- **If violated:** No CSP meant any XSS could read credentials and reach the Electron shell bridge.
+- **Owned by:** `frontend/src/buildGuard.js`, `frontend/vite.config.js`
+- **Verification:**
+  - `frontend/src/security/frontendSecurity.test.jsx` (security)
+
+> audit finding FE-08
 
 ## Supply chain and artifacts
 
@@ -2916,4 +2981,4 @@ To add or change an entry, edit the registry and regenerate this file. See
 `docs/quality/TEST_STRATEGY.md` for the taxonomy the `test_type` column draws
 on, and `docs/quality/IMPLEMENTATION_PLAN.md` for what each phase delivers.
 
-Registry version: 1.0.0 — 225 entries.
+Registry version: 1.0.0 — 230 entries.
