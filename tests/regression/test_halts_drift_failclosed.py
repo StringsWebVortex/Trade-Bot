@@ -5,6 +5,12 @@ Each test fails on the pre-fix code:
  * drift accuracy scored a placeholder 0.5 so every long was a wrong call;
  * the baseline was invented from getattr defaults;
  * NaN inputs passed the cognitive validators and the halt triggers.
+
+Decides:
+  - REG-1060 — Drift accuracy uses the real entry P(long); unknown is skipped
+  - REG-1061 — Drift and kill-switch baseline is built only from measured CPCV metrics
+  - REG-1062 — Cognitive engine vetoes non-finite inputs
+  - REG-1063 — Halt triggers fire on non-finite readings
 """
 
 from __future__ import annotations
@@ -35,9 +41,7 @@ HEALTHY = {
 
 
 def _detector() -> PerformanceDriftDetector:
-    return PerformanceDriftDetector(
-        PerformanceBaseline(1.0, 1.0, 0.6, 0.6, 0.55, 0.1, 100)
-    )
+    return PerformanceDriftDetector(PerformanceBaseline(1.0, 1.0, 0.6, 0.6, 0.55, 0.1, 100))
 
 
 def _record(det, n, prob, direction=1):
@@ -100,15 +104,31 @@ def test_missing_or_invalid_metrics_give_no_baseline(res):
 
 def _ctx(**over) -> SignalContext:
     base = {
-        "signal_id": "BTCUSDT_1h_1750000000000", "symbol": "BTC/USDT", "timeframe": "1h", "p_long": 0.7,
-        "p_bet": 0.71, "expected_edge_bps": 40.0, "regime_state": 1,
-        "regime_probs": [0.15, 0.75, 0.10], "hurst_exponent": 0.62,
-        "current_price": 65000.0, "atr": 300.0, "atr_median_20": 290.0,
-        "realized_vol": 0.45, "adv_20d": 50_000.0, "spread_bps": 2.0,
-        "capital_usd": 100_000.0, "daily_pnl_usd": 200.0, "open_positions": 0,
-        "consecutive_losses": 0, "funding_rate_8h": 0.0, "basis_pct": 0.0,
-        "exchange_name": "binance", "proposed_qty": 0.01,
-        "proposed_notional_usd": 650.0, "kelly_adjusted_fraction": 0.0784,
+        "signal_id": "BTCUSDT_1h_1750000000000",
+        "symbol": "BTC/USDT",
+        "timeframe": "1h",
+        "p_long": 0.7,
+        "p_bet": 0.71,
+        "expected_edge_bps": 40.0,
+        "regime_state": 1,
+        "regime_probs": [0.15, 0.75, 0.10],
+        "hurst_exponent": 0.62,
+        "current_price": 65000.0,
+        "atr": 300.0,
+        "atr_median_20": 290.0,
+        "realized_vol": 0.45,
+        "adv_20d": 50_000.0,
+        "spread_bps": 2.0,
+        "capital_usd": 100_000.0,
+        "daily_pnl_usd": 200.0,
+        "open_positions": 0,
+        "consecutive_losses": 0,
+        "funding_rate_8h": 0.0,
+        "basis_pct": 0.0,
+        "exchange_name": "binance",
+        "proposed_qty": 0.01,
+        "proposed_notional_usd": 650.0,
+        "kelly_adjusted_fraction": 0.0784,
     }
     base.update(over)
     return SignalContext(**base)

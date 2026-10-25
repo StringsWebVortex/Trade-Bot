@@ -240,7 +240,7 @@ The drift detector and per-strategy kill switch score prediction accuracy from t
   - `tests/regression/test_halts_drift_failclosed.py` (regression)
   - `tests/test_orchestrator_coverage.py` (regression) — Paper-mode ticks never consult the drift adapter; live-mode drift still blocks.
 
-> Audit EXR-004
+> Audit EXR-004. layer: test-suite
 
 #### `REG-1062` — Cognitive engine vetoes non-finite inputs
 
@@ -253,7 +253,7 @@ Any NaN or infinite numeric SignalContext field yields a VETO with zero size bef
 - **Verification:**
   - `tests/regression/test_halts_drift_failclosed.py` (regression)
 
-> Audit EXR-011
+> Audit EXR-011. layer: test-suite
 
 ## Execution
 
@@ -665,7 +665,7 @@ The drift baseline derives from the trained direction model's measured OOS metri
 - **Verification:**
   - `tests/regression/test_halts_drift_failclosed.py` (regression)
 
-> Audit EXR-005
+> Audit EXR-005. layer: test-suite
 
 #### `REG-1605` — LLL and the BLS12-381 pairing do not redo work they can update
 
@@ -1898,7 +1898,7 @@ A NaN or infinite staleness, position deviation, drawdown or clock skew makes it
 - **Verification:**
   - `tests/regression/test_halts_drift_failclosed.py` (regression)
 
-> Audit AGT-011/AGT-010
+> Audit AGT-011/AGT-010. layer: test-suite
 
 #### `REG-1602` — The runtime control plane's in-memory state is bounded
 

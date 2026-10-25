@@ -7,6 +7,7 @@ external dependencies — no real network, DB, or model I/O.
 
 Decides:
   - REG-0028 — regression coverage for the recorded behavior.
+  - REG-1060 — Drift accuracy uses the real entry P(long); unknown is skipped
 """
 
 from __future__ import annotations

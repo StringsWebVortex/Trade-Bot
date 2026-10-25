@@ -718,7 +718,9 @@ class CognitiveEngine:
         bad = _non_finite_fields(ctx)
         if bad:
             reason = f"[input_validation] non-finite SignalContext field(s): {', '.join(bad)}"
-            self._log.warning("cognitive_engine.non_finite_input", signal_id=ctx.signal_id, fields=bad)
+            self._log.warning(
+                "cognitive_engine.non_finite_input", signal_id=ctx.signal_id, fields=bad
+            )
             return CognitiveDecision(
                 signal_id=ctx.signal_id,
                 passed=False,

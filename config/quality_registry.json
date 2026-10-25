@@ -6031,7 +6031,7 @@
           "note": "Paper-mode ticks never consult the drift adapter; live-mode drift still blocks."
         }
       ],
-      "notes": "Audit EXR-004"
+      "notes": "Audit EXR-004. layer: test-suite"
     },
     {
       "id": "REG-1061",
@@ -6052,7 +6052,7 @@
           "test_type": "regression"
         }
       ],
-      "notes": "Audit EXR-005"
+      "notes": "Audit EXR-005. layer: test-suite"
     },
     {
       "id": "REG-1062",
@@ -6073,7 +6073,7 @@
           "test_type": "regression"
         }
       ],
-      "notes": "Audit EXR-011"
+      "notes": "Audit EXR-011. layer: test-suite"
     },
     {
       "id": "REG-1063",
@@ -6094,7 +6094,7 @@
           "test_type": "regression"
         }
       ],
-      "notes": "Audit AGT-011/AGT-010"
+      "notes": "Audit AGT-011/AGT-010. layer: test-suite"
     }
   ]
 }
