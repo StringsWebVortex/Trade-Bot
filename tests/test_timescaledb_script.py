@@ -76,6 +76,17 @@ class TestTheScriptAndCIDescribeTheSameDatabase:
     def test_the_image_matches(self, script, service):
         assert _assign(script, "IMAGE") == service["image"]
 
+    def test_the_image_is_pinned_by_digest_alone(self, service):
+        """
+        REG-1700 (OPS-011): a tag is mutable, so two runs of the same commit
+        could provision different databases. A digest is not. Digest only, no
+        tag: podman refuses a reference carrying both, and the script must
+        name the same string as the service.
+        """
+        assert re.fullmatch(r"timescale/timescaledb@sha256:[0-9a-f]{64}", service["image"]), (
+            service["image"]
+        )
+
     @pytest.mark.parametrize(
         ("variable", "env_key"),
         [
