@@ -325,7 +325,9 @@ class EngineOrchestrator:
 
         async def _phase(indices: list[int]) -> list[Any]:
             tasks = [
-                self._timed(self._engines[i].run(symbol, data), _ENGINE_SLAS.get(engine_ids[i], 5.0))
+                self._timed(
+                    self._engines[i].run(symbol, data), _ENGINE_SLAS.get(engine_ids[i], 5.0)
+                )
                 for i in indices
             ]
             return list(await asyncio.gather(*tasks, return_exceptions=True))

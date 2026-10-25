@@ -495,7 +495,7 @@ E10Supply.run emits predicted_price equal to spot and keeps the S2F fair value i
 - **Verification:**
   - `tests/test_engine_signal_plumbing_fixes.py` (regression)
 
-> layer: test-suite; audit finding STR-01
+> audit finding STR-01. layer: test-suite
 
 #### `REG-1081` — Meta-engines receive prior engine outputs
 
@@ -508,7 +508,7 @@ EngineOrchestrator.run runs E-08, E-09 and E-15 after the other engines and pass
 - **Verification:**
   - `tests/test_engine_signal_plumbing_fixes.py` (regression)
 
-> layer: test-suite; audit finding STR-02
+> audit finding STR-02. layer: test-suite
 
 #### `REG-1082` — TTL hysteresis holds state in the mid band
 
@@ -521,7 +521,7 @@ TtlManager.compute returns the same TTL for repeated mid-band entropy values and
 - **Verification:**
   - `tests/test_engine_signal_plumbing_fixes.py` (regression)
 
-> layer: test-suite; audit finding STR-03
+> audit finding STR-03. layer: test-suite
 
 #### `REG-1085` — Nonce scanner skips the 0x21 push opcode before the pubkey
 
@@ -534,7 +534,7 @@ extract_ecdsa_signatures finds a signature whose sighash byte is followed by a 0
 - **Verification:**
   - `tests/test_engine_signal_plumbing_fixes.py` (regression)
 
-> layer: test-suite; audit finding MTH-001
+> audit finding MTH-001. layer: test-suite
 
 #### `REG-1704` — Carry and arbitrage entries clear a measured-cost hurdle, never a fixed threshold
 
@@ -690,7 +690,7 @@ Ensemble member predict raises on error so EnsemblePredictor lists the member in
 - **Verification:**
   - `tests/test_engine_signal_plumbing_fixes.py` (regression)
 
-> layer: test-suite; audit finding INT-006
+> audit finding INT-006. layer: test-suite
 
 #### `REG-1084` — IntelligenceAdapter persists the fused decision when no signal is sized
 
@@ -703,7 +703,7 @@ When CryptoIntelligence.on_bar returns None, IntelligenceAdapter persists the la
 - **Verification:**
   - `tests/test_engine_signal_plumbing_fixes.py` (regression)
 
-> layer: test-suite; audit finding INT-008
+> audit finding INT-008. layer: test-suite
 
 #### `REG-1605` — LLL and the BLS12-381 pairing do not redo work they can update
 

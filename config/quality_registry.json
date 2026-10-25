@@ -6026,7 +6026,7 @@
           "test_type": "regression"
         }
       ],
-      "notes": "layer: test-suite; audit finding STR-01"
+      "notes": "audit finding STR-01. layer: test-suite"
     },
     {
       "id": "REG-1081",
@@ -6047,7 +6047,7 @@
           "test_type": "regression"
         }
       ],
-      "notes": "layer: test-suite; audit finding STR-02"
+      "notes": "audit finding STR-02. layer: test-suite"
     },
     {
       "id": "REG-1082",
@@ -6068,7 +6068,7 @@
           "test_type": "regression"
         }
       ],
-      "notes": "layer: test-suite; audit finding STR-03"
+      "notes": "audit finding STR-03. layer: test-suite"
     },
     {
       "id": "REG-1083",
@@ -6089,7 +6089,7 @@
           "test_type": "regression"
         }
       ],
-      "notes": "layer: test-suite; audit finding INT-006"
+      "notes": "audit finding INT-006. layer: test-suite"
     },
     {
       "id": "REG-1084",
@@ -6110,7 +6110,7 @@
           "test_type": "regression"
         }
       ],
-      "notes": "layer: test-suite; audit finding INT-008"
+      "notes": "audit finding INT-008. layer: test-suite"
     },
     {
       "id": "REG-1085",
@@ -6131,7 +6131,7 @@
           "test_type": "regression"
         }
       ],
-      "notes": "layer: test-suite; audit finding MTH-001"
+      "notes": "audit finding MTH-001. layer: test-suite"
     }
   ]
 }

@@ -130,9 +130,7 @@ def test_adapter_persists_an_abstain_decision_when_no_signal_is_sized() -> None:
     }
     storage = MagicMock()
     storage.store_intelligence_features = AsyncMock()
-    asyncio.run(
-        IntelligenceAdapter(intel, storage).on_bar("BTC/USDT", "1m", 1000, {"close": 1.0})
-    )
+    asyncio.run(IntelligenceAdapter(intel, storage).on_bar("BTC/USDT", "1m", 1000, {"close": 1.0}))
     storage.store_intelligence_features.assert_awaited_once()
     f = storage.store_intelligence_features.await_args.kwargs["features"]
     assert f["direction_v6"] == 0.0 and f["size_pct_v6"] == 0.0
