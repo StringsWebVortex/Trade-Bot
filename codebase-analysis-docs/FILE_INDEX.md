@@ -50,7 +50,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 35 | P0 | src/data/timescale_storage.py | Python | 1594 | 1aa58429 | Timescale backend |
 | 36 | P0 | src/engine/orchestrator.py | Python | 3486 | 68f00365 | Main trading loop, tick, portfolio, retrain and position monitor |
 | 37 | P0 | src/engine/signal_engine.py | Python | 1900 | 1cb63bfa | Per-timeframe signal computation |
-| 38 | P0 | src/execution/live.py | Python | 1544 | bc1756ac | Live executor boundary |
+| 38 | P0 | src/execution/live.py | Python | 1544 | a2eab1ef | Live executor boundary |
 | 39 | P0 | src/execution/order_fsm.py | Python | 375 | 14f635a5 | Order state machine and fill aggregation |
 | 40 | P0 | src/execution/unified_ledger.py | Python | 89 | 86392a2d | Cross-venue book ledger |
 | 41 | P0 | src/features/pipeline.py | Python | 1204 | 32403b07 | Features, labels and train/inference alignment |
@@ -104,7 +104,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 34 | P0 | src/data/timescale_storage.py | Python | 1594 | 1aa58429 | Timescale backend |
 | 35 | P0 | src/engine/orchestrator.py | Python | 3486 | 68f00365 | Main trading loop, tick, portfolio, retrain and position monitor |
 | 36 | P0 | src/engine/signal_engine.py | Python | 1900 | 1cb63bfa | Per-timeframe signal computation |
-| 37 | P0 | src/execution/live.py | Python | 1544 | bc1756ac | Live executor boundary |
+| 37 | P0 | src/execution/live.py | Python | 1544 | a2eab1ef | Live executor boundary |
 | 38 | P0 | src/execution/order_fsm.py | Python | 375 | 14f635a5 | Order state machine and fill aggregation |
 | 39 | P0 | src/execution/unified_ledger.py | Python | 89 | 86392a2d | Cross-venue book ledger |
 | 40 | P0 | src/features/pipeline.py | Python | 1204 | 32403b07 | Features, labels and train/inference alignment |
@@ -705,7 +705,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 635 | P1 | tests/regime/test_garch.py | Python | 148 | 8a4195c0 |  |
 | 636 | P1 | tests/regression/__init__.py | Python | 0 | e3b0c442 |  |
 | 637 | P1 | tests/regression/test_metrics_payload.py | Python | 120 | 094976c7 |  |
-| 638 | P1 | tests/regression/test_regression_registry_contract.py | Python | 654 | 9f54fed1 |  |
+| 638 | P1 | tests/regression/test_regression_registry_contract.py | Python | 659 | ea672814 |  |
 | 639 | P1 | tests/risk/__init__.py | Python | 0 | e3b0c442 |  |
 | 640 | P1 | tests/risk/test_probability_bounds.py | Python | 137 | a3b65a78 |  |
 | 641 | P1 | tests/risk/test_risk_limit_boundaries.py | Python | 300 | 37b9b36e |  |
@@ -1066,7 +1066,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 996 | P1 | tests/test_residual_gaps_batch4.py | Python | 296 | ec896dea |  |
 | 997 | P1 | tests/test_residues.py | Python | 229 | c88d674d |  |
 | 998 | P1 | tests/test_resolve_registry_merge.py | Python | 100 | 7beb8e53 |  |
-| 999 | P1 | tests/test_restart_persistence.py | Python | 237 | 6e66be96 |  |
+| 999 | P1 | tests/test_restart_persistence.py | Python | 235 | 8ef11748 |  |
 | 1000 | P1 | tests/test_review_build_context.py | Python | 97 | 42731935 |  |
 | 1001 | P1 | tests/test_review_retrieval.py | Python | 71 | 52be750e |  |
 | 1002 | P1 | tests/test_rfc6979_nonces.py | Python | 178 | 0af4946b |  |

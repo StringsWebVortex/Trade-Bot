@@ -233,5 +233,3 @@ class TestKillSwitchRestart:
         m.enable_persistence(path)
         m.register_strategy("s1", _baseline())
         assert not m.is_enabled("s1")
-
-

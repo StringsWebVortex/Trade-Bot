@@ -290,7 +290,7 @@ class LiveExecutor(AbstractExecutor):
                 trade_id=t.id,
                 symbol=t.symbol,
                 timeframe=t.timeframe,
-            exchange_order_id="",
+                exchange_order_id="",
                 direction=t.direction,
                 entry_price=t.entry_price,
                 quantity=t.quantity,
