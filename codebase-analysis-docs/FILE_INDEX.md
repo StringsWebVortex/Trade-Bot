@@ -14,7 +14,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | # | Priority | Path | Type | Lines | SHA8 | Why it matters |
 | ---: | --- | --- | --- | ---: | --- | --- |
 | 1 | P0 | .github/workflows/ci-diagnostics.yml | YAML | 44 | 00c6ca90 | SHA-bound CI diagnostics collector |
-| 2 | P0 | .github/workflows/ci.yml | YAML | 404 | da238171 | CI jobs and gate composition |
+| 2 | P0 | .github/workflows/ci.yml | YAML | 404 | 9d163f30 | CI jobs and gate composition |
 | 3 | P0 | AGENTS.md | Markdown | 46 | c98828a6 | Engineering workflow and safety contract |
 | 4 | P0 | CLAUDE.md | Markdown | 658 | 17e4fd71 | Architecture, quality, CI and project policy |
 | 5 | P0 | Dockerfile | Other text/source | 135 | 27c44f78 | Container runtime, identity, healthcheck and entrypoint |
@@ -68,7 +68,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 
 | # | Priority | Path | Type | Lines | SHA8 | Notes |
 | ---: | --- | --- | --- | ---: | --- | --- |
-| 1 | P0 | .github/workflows/ci.yml | YAML | 404 | da238171 | CI jobs and gate composition |
+| 1 | P0 | .github/workflows/ci.yml | YAML | 404 | 9d163f30 | CI jobs and gate composition |
 | 2 | P0 | AGENTS.md | Markdown | 46 | c98828a6 | Engineering workflow and safety contract |
 | 3 | P0 | CLAUDE.md | Markdown | 658 | 17e4fd71 | Architecture, quality, CI and project policy |
 | 4 | P0 | Dockerfile | Other text/source | 135 | 27c44f78 | Container runtime, identity, healthcheck and entrypoint |
@@ -135,7 +135,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 65 | P1 | .github/pull_request_template.md | Markdown | 15 | e8ad60ce |  |
 | 66 | P1 | .github/rulesets/main-protection.json | JSON | 110 | 585c7190 |  |
 | 67 | P1 | .github/workflows/ci-diagnostics.yml | YAML | 44 | 00c6ca90 |  |
-| 68 | P1 | .github/workflows/codeql.yml | YAML | 118 | 0a720b76 |  |
+| 68 | P1 | .github/workflows/codeql.yml | YAML | 118 | 949674f5 |  |
 | 69 | P1 | .github/workflows/deploy.yml | YAML | 173 | 0a5699c6 |  |
 | 70 | P1 | .github/workflows/nightly-quality.yml | YAML | 141 | 44436fa9 |  |
 | 71 | P1 | .github/workflows/pr-auto-update.yml | YAML | 309 | 35b663ab |  |
