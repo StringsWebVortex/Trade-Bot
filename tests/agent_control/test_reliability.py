@@ -251,8 +251,12 @@ def test_active_context_survives_task_store_failure(monkeypatch, tmp_path):
 def test_ci_fingerprint_ignores_whitespace_differences(monkeypatch, tmp_path):
     """AGT-006: the whitespace regex must match whitespace, not a literal backslash-s."""
     monkeypatch.setattr(reliability, "_git_common_dir", lambda: tmp_path)
-    a = reliability.record_ci_verdict(sha="a" * 40, pr=1, status="failed", failed_checks=["x"], notice="boom   here")
-    b = reliability.record_ci_verdict(sha="b" * 40, pr=1, status="failed", failed_checks=["x"], notice="boom here")
+    a = reliability.record_ci_verdict(
+        sha="a" * 40, pr=1, status="failed", failed_checks=["x"], notice="boom   here"
+    )
+    b = reliability.record_ci_verdict(
+        sha="b" * 40, pr=1, status="failed", failed_checks=["x"], notice="boom here"
+    )
     events = json.loads(reliability.state_path().read_text())["events"]
     assert events[-1]["repeat_count"] == 2, (a, b)
 

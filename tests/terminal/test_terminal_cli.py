@@ -575,7 +575,9 @@ class TestPhase6Lows:
         d = ThreadedDaemon(config, short_tmp).start()
         proc = tmp_path / "proc"
         (proc / str(os.getpid())).mkdir(parents=True)
-        (proc / str(os.getpid()) / "cmdline").write_bytes(b"python\x00-m\x00src.terminal\x00daemon\x00")
+        (proc / str(os.getpid()) / "cmdline").write_bytes(
+            b"python\x00-m\x00src.terminal\x00daemon\x00"
+        )
         try:
             with pytest.raises(cli.CliError, match="did not stop"):
                 cli.stop_daemon(
@@ -590,4 +592,6 @@ class TestPhase6Lows:
         import io
 
         with pytest.raises(cli.CliError, match="--tail"):
-            cli.cmd_output(config, argparse.Namespace(target="x", tail=tail, plain=False), io.StringIO())
+            cli.cmd_output(
+                config, argparse.Namespace(target="x", tail=tail, plain=False), io.StringIO()
+            )

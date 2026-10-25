@@ -210,7 +210,6 @@ class TestTheWorkerCleansUpWhenTheLoopFails:
         assert env.storage.closed == 1
         assert made[0].shutdown_calls == 0
 
-
     async def test_a_fetcher_open_failure_closes_the_storage(self):
         """AGT-022."""
         build, _made, _built = _orchestrators()

@@ -106,7 +106,9 @@ def collect_refs(runner: GitLike, *, remote: str, include_remote_heads: bool) ->
         name = ref.removeprefix("refs/remotes/" if is_remote else "refs/heads/")
         refs[name] = BranchRef(name, ref, sha, is_remote, upstream or None, True)
     if include_remote_heads:
-        heads = runner.run("ls-remote", "--heads", "--", require_safe_remote(remote)).stdout.splitlines()
+        heads = runner.run(
+            "ls-remote", "--heads", "--", require_safe_remote(remote)
+        ).stdout.splitlines()
         listed = [line.split("\t") for line in heads if line.strip()]
         present = _present_objects(runner, [sha for sha, _ in listed])
         for sha, ref in listed:

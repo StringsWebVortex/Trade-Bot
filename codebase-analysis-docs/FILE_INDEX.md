@@ -266,7 +266,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 196 | P1 | scripts/write_provenance.py | Python | 172 | 0f8c8cdd |  |
 | 197 | P1 | src/__init__.py | Python | 1 | 01ba4719 |  |
 | 198 | P1 | src/agent_control/__init__.py | Python | 33 | c4fc322b |  |
-| 199 | P1 | src/agent_control/branch_audit.py | Python | 371 | 2421c62d |  |
+| 199 | P1 | src/agent_control/branch_audit.py | Python | 373 | 682c7b6a |  |
 | 200 | P1 | src/agent_control/cli.py | Python | 500 | 4995ee3c |  |
 | 201 | P1 | src/agent_control/completion.py | Python | 233 | 5ae66004 |  |
 | 202 | P1 | src/agent_control/git_safety.py | Python | 314 | b23a822c |  |
@@ -593,7 +593,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 523 | P1 | tests/agent_control/test_gitstate.py | Python | 279 | 5910e557 |  |
 | 524 | P1 | tests/agent_control/test_hooks.py | Python | 202 | edddae05 |  |
 | 525 | P1 | tests/agent_control/test_model.py | Python | 471 | b7fdd280 |  |
-| 526 | P1 | tests/agent_control/test_reliability.py | Python | 289 | c4b1462d |  |
+| 526 | P1 | tests/agent_control/test_reliability.py | Python | 293 | 919ff913 |  |
 | 527 | P1 | tests/agent_control/test_store.py | Python | 148 | 3d540971 |  |
 | 528 | P1 | tests/agent_control/test_workspace.py | Python | 354 | 57897d20 |  |
 | 529 | P1 | tests/api/__init__.py | Python | 0 | e3b0c442 |  |
@@ -770,7 +770,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 700 | P1 | tests/terminal/__init__.py | Python | 0 | e3b0c442 |  |
 | 701 | P1 | tests/terminal/_support.py | Python | 350 | 06109a83 |  |
 | 702 | P1 | tests/terminal/conftest.py | Python | 50 | b7931e73 |  |
-| 703 | P1 | tests/terminal/test_terminal_cli.py | Python | 593 | 3d29de0b |  |
+| 703 | P1 | tests/terminal/test_terminal_cli.py | Python | 597 | 5730bb64 |  |
 | 704 | P1 | tests/terminal/test_terminal_host.py | Python | 284 | 342b5d4a |  |
 | 705 | P1 | tests/terminal/test_terminal_install_jobs.py | Python | 244 | b2c62363 |  |
 | 706 | P1 | tests/terminal/test_terminal_markers_buffer.py | Python | 104 | 9e5c40b8 |  |
@@ -1154,7 +1154,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 1084 | P1 | tests/test_vol_target_sizer.py | Python | 213 | 2fbf4ca2 |  |
 | 1085 | P1 | tests/test_whale_gate_advisory.py | Python | 103 | f93c3d14 |  |
 | 1086 | P1 | tests/test_whale_ratio_failure_path.py | Python | 77 | 4bdd41b9 |  |
-| 1087 | P1 | tests/test_worker_trader.py | Python | 265 | 4619cdbc |  |
+| 1087 | P1 | tests/test_worker_trader.py | Python | 264 | 96403a32 |  |
 | 1088 | P1 | tests/test_workers_orchestrator.py | Python | 201 | 12bf84b2 |  |
 | 1089 | P1 | tests/test_workers_orchestrator_coverage.py | Python | 424 | 503bd71e |  |
 | 1090 | P1 | tests/test_ws_auth_query_param.py | Python | 111 | c5806f67 |  |
