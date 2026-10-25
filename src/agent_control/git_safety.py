@@ -295,9 +295,7 @@ def _nested_script(head: str, words: list[str]) -> str:
     return ""
 
 
-def git_invocations(
-    command: str, aliases: Mapping[str, str] | None = None
-) -> list[GitInvocation]:
+def git_invocations(command: str, aliases: Mapping[str, str] | None = None) -> list[GitInvocation]:
     """
     Every ``git`` command a shell would run for ``command``.
 

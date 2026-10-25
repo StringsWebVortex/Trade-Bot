@@ -10,6 +10,10 @@ What these tests would catch:
 * a new session starting without the task state that was on disk;
 * any hook acting when no task is active -- sessions that do not use the
   protocol must be unaffected -- or crashing instead of failing open.
+
+Decides:
+  - SEC-1130 The git guard sees nested, aliased and repeated guarded operations
+
 """
 
 from __future__ import annotations
@@ -171,7 +175,9 @@ class TestGuardGaps:
         repo.git.run("config", "alias.co", "checkout")
         task = make_task()
         message = hooks.git_guard(_event(repo, tool_input={"command": "git co main"}))
-        assert message is not None and f"git authorize {task.task_id} --operation checkout" in message
+        assert (
+            message is not None and f"git authorize {task.task_id} --operation checkout" in message
+        )
 
     def test_repeated_operation_needs_a_grant_each(self, repo, make_task) -> None:
         make_task()

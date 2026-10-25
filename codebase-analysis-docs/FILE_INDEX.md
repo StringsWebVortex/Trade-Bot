@@ -269,7 +269,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 199 | P1 | src/agent_control/branch_audit.py | Python | 370 | 51341382 |  |
 | 200 | P1 | src/agent_control/cli.py | Python | 500 | 4995ee3c |  |
 | 201 | P1 | src/agent_control/completion.py | Python | 233 | 5ae66004 |  |
-| 202 | P1 | src/agent_control/git_safety.py | Python | 417 | 8ce48eac |  |
+| 202 | P1 | src/agent_control/git_safety.py | Python | 415 | 36148420 |  |
 | 203 | P1 | src/agent_control/gitstate.py | Python | 303 | 57485d18 |  |
 | 204 | P1 | src/agent_control/hooks.py | Python | 186 | d0297aad |  |
 | 205 | P1 | src/agent_control/model.py | Python | 654 | ff6d3393 |  |
@@ -589,9 +589,9 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 519 | P1 | tests/agent_control/test_branch_audit.py | Python | 277 | c2e5d55e |  |
 | 520 | P1 | tests/agent_control/test_cli.py | Python | 310 | 63625b96 |  |
 | 521 | P1 | tests/agent_control/test_completion.py | Python | 307 | fa5977c7 |  |
-| 522 | P1 | tests/agent_control/test_git_safety.py | Python | 229 | 8376d501 |  |
+| 522 | P1 | tests/agent_control/test_git_safety.py | Python | 233 | 7c315790 |  |
 | 523 | P1 | tests/agent_control/test_gitstate.py | Python | 253 | ccff552d |  |
-| 524 | P1 | tests/agent_control/test_hooks.py | Python | 218 | 79028fa9 |  |
+| 524 | P1 | tests/agent_control/test_hooks.py | Python | 224 | 2de9ab66 |  |
 | 525 | P1 | tests/agent_control/test_model.py | Python | 471 | b7fdd280 |  |
 | 526 | P1 | tests/agent_control/test_reliability.py | Python | 243 | 370c1631 |  |
 | 527 | P1 | tests/agent_control/test_store.py | Python | 148 | 3d540971 |  |
@@ -704,7 +704,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 634 | P1 | tests/regime/test_garch.py | Python | 148 | 8a4195c0 |  |
 | 635 | P1 | tests/regression/__init__.py | Python | 0 | e3b0c442 |  |
 | 636 | P1 | tests/regression/test_metrics_payload.py | Python | 120 | 094976c7 |  |
-| 637 | P1 | tests/regression/test_regression_registry_contract.py | Python | 654 | 9f54fed1 |  |
+| 637 | P1 | tests/regression/test_regression_registry_contract.py | Python | 659 | 3a772c1a |  |
 | 638 | P1 | tests/risk/__init__.py | Python | 0 | e3b0c442 |  |
 | 639 | P1 | tests/risk/test_probability_bounds.py | Python | 137 | a3b65a78 |  |
 | 640 | P1 | tests/risk/test_risk_limit_boundaries.py | Python | 300 | 37b9b36e |  |
@@ -1033,7 +1033,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 963 | P1 | tests/test_post_trade_bounded_history.py | Python | 116 | efe91648 |  |
 | 964 | P1 | tests/test_pq_transport_honesty.py | Python | 71 | 192085cb |  |
 | 965 | P1 | tests/test_pr_auto_update_workflow.py | Python | 305 | 6fca044a |  |
-| 966 | P1 | tests/test_pre_tool_use_hook.py | Python | 507 | 6287b55e |  |
+| 966 | P1 | tests/test_pre_tool_use_hook.py | Python | 508 | 9388a7b6 |  |
 | 967 | P1 | tests/test_price_preview_path.py | Python | 477 | 01b18608 |  |
 | 968 | P1 | tests/test_primality.py | Python | 292 | 5aa66d08 |  |
 | 969 | P1 | tests/test_prime_field.py | Python | 311 | abe47d09 |  |

@@ -11,6 +11,10 @@ What these tests would catch:
   people learn to work around;
 * an authorization that can be reused, outlive its expiry, or be spent
   partially on a command that is then refused anyway.
+
+Decides:
+  - SEC-1130 The git guard sees nested, aliased and repeated guarded operations
+
 """
 
 from __future__ import annotations

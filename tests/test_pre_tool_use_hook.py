@@ -1,6 +1,7 @@
 """Contract tests for the universal GitHub-only PreToolUse boundary.
 
 Decides:
+  - SEC-1131 The PreToolUse hook fails closed when its guards cannot load or run
   - GOV-011 — source inspection stays bounded by the observation hook
   - GOV-012 — live CI monitoring is refused
   - GOV-019 — CI run data is unreadable by every tool route

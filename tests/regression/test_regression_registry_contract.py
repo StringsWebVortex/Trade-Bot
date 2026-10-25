@@ -276,6 +276,9 @@ class TestTheRegistryHasAPlaceForDefects:
             "SEC-0009",
             "SEC-0010",
             "SEC-0012",
+            # SEC-1130, SEC-1131: git guard and PreToolUse fail-closed findings.
+            "SEC-1130",
+            "SEC-1131",
         }
 
     def test_every_filed_defect_names_a_permanent_test(self, registry):
@@ -547,7 +550,9 @@ class TestTheMetricsCollector:
         # test-suite, 43.
         # REG-1704 adds the fixed-threshold carry/arbitrage regression (STR-21):
         # no test asked what the thresholds cost to clear -- test-suite, 44.
-        assert metric["value"] == {"test-suite": 44, "review": 1, "supply-chain": 3}
+        # SEC-1130, SEC-1131 add two agent-guard findings no test exercised --
+        # test-suite, 46.
+        assert metric["value"] == {"test-suite": 46, "review": 1, "supply-chain": 3}
 
     def test_zero_escaped_defects_would_be_stated_explicitly(self, collector, monkeypatch):
         # "We have not measured this" and "this is zero" are different
