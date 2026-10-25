@@ -48,3 +48,4 @@ frontend/release/
 
 # Claude runtime state (never source)
 .claude/.hook-state/
+.mutmut-cache

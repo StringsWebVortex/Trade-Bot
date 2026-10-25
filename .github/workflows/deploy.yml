@@ -98,6 +98,14 @@ jobs:
         with:
           python-version-file: .python-version
 
+      # OPS-003: canary, promote, halt-trigger check and rollback are
+      # placeholders. A placeholder must not report green, so the deployment
+      # fails closed here until a real deployment target exists.
+      - name: Refuse to run placeholder deployment steps
+        run: |
+          echo "::error::deployment steps are placeholders (no target infrastructure); refusing to report success"
+          exit 1
+
       - name: Record the canary parameters
         env:
           EXPOSURE: ${{ inputs.canary_exposure_pct }}

@@ -11,8 +11,9 @@ production at 4am.
 
 So this script reads `.github/` and asserts:
 
-  SUP-001  every workflow declares top-level `permissions:`, and no workflow
-           takes a write scope it does not use
+  SUP-001  every workflow declares top-level `permissions:`, no job takes
+           blanket or unexplained write scopes, and a top-level write scope
+           carries a real justification comment
   SUP-002  every `uses:` names a 40-hex SHA, with the human-readable version
            in a trailing comment
   SUP-003  no workflow reachable from a fork pull request touches a secret
@@ -50,7 +51,18 @@ FORK_TRIGGERS = frozenset({"pull_request", "pull_request_target"})
 
 # Write scopes that are worth a second look wherever they appear.
 SENSITIVE_SCOPES = frozenset(
-    {"contents", "packages", "id-token", "actions", "deployments", "attestations"}
+    {
+        "contents",
+        "packages",
+        "id-token",
+        "actions",
+        "deployments",
+        "attestations",
+        "checks",
+        "pull-requests",
+        "statuses",
+        "security-events",
+    }
 )
 
 # Workflows that deploy or publish. A dependency-bot branch must not reach
@@ -110,12 +122,48 @@ def _triggers(doc: dict[str, Any]) -> set[str]:
     return set()
 
 
+def _top_level_permissions_block(text: str) -> list[str]:
+    """Raw lines of the top-level `permissions:` mapping (comments included)."""
+    lines = text.splitlines()
+    for i, line in enumerate(lines):
+        if re.match(r"^permissions:\s*(#.*)?$", line):
+            block: list[str] = []
+            for nxt in lines[i + 1 :]:
+                if nxt.strip() and not nxt.startswith((" ", "\t", "#")):
+                    break
+                block.append(nxt)
+            return block
+    return []
+
+
+def _has_real_comment(lines: list[str]) -> bool:
+    """True if any line carries a comment with actual words (not a bare `#`)."""
+    for line in lines:
+        _, sep, comment = line.partition("#")
+        if sep and len(comment.strip()) >= 10:
+            return True
+    return False
+
+
+def _check_permission_mapping(name: str, where: str, perms: Any) -> list[Finding]:
+    if perms in ("write-all", "read-all"):
+        return [Finding("SUP-001", name, f"{where}: blanket permissions: {perms}")]
+    if not isinstance(perms, dict):
+        return [Finding("SUP-001", name, f"{where}: permissions is not a mapping: {perms!r}")]
+    return []
+
+
 def check_permissions(root: Path = Path()) -> list[Finding]:
-    """SUP-001 — least privilege, declared explicitly."""
+    """SUP-001 — least privilege, declared explicitly, at workflow and job level."""
     found: list[Finding] = []
     for path in workflows(root):
         doc = _load(path)
         name = path.name
+        # Job-level permissions override the top level, so a job-level
+        # `write-all` defeats an otherwise clean top-level block.
+        for job_id, job in (doc.get("jobs") or {}).items():
+            if isinstance(job, dict) and "permissions" in job:
+                found.extend(_check_permission_mapping(name, f"job {job_id}", job["permissions"]))
         if "permissions" not in doc:
             found.append(
                 Finding(
@@ -127,20 +175,22 @@ def check_permissions(root: Path = Path()) -> list[Finding]:
             )
             continue
         perms = doc["permissions"]
-        if perms in ("write-all", "read-all"):
-            found.append(Finding("SUP-001", name, f"blanket permissions: {perms}"))
+        problems = _check_permission_mapping(name, "top level", perms)
+        if problems:
+            # Keep the historical wording for the blanket-grant case.
+            found.extend(
+                Finding("SUP-001", name, p.detail.split(": ", 1)[1]) for p in problems
+            )
             continue
-        if not isinstance(perms, dict):
-            found.append(Finding("SUP-001", name, f"permissions is not a mapping: {perms!r}"))
-            continue
+        block = _top_level_permissions_block(path.read_text(encoding="utf-8"))
         for scope, level in perms.items():
             if level == "write" and scope in SENSITIVE_SCOPES:
-                # Not a failure by itself -- a release workflow needs
-                # contents: write. It is a failure if the job-level grant
-                # would have been enough, which is why the rule is that a
-                # top-level write scope must be justified by a comment.
-                text = path.read_text(encoding="utf-8")
-                if f"{scope}: write" in text and "#" not in _line_with(text, f"{scope}: write"):
+                # A top-level write scope applies to every job, so it needs a
+                # real justification inside the permissions block (a comment
+                # with words, not a bare `#`); otherwise grant it on the one
+                # job that needs it.
+                own_line = [ln for ln in block if re.match(rf"^\s+{re.escape(scope)}:\s*write\b", ln)]
+                if not (_has_real_comment(own_line) or _has_real_comment(block)):
                     found.append(
                         Finding(
                             "SUP-001",
@@ -150,13 +200,6 @@ def check_permissions(root: Path = Path()) -> list[Finding]:
                         )
                     )
     return found
-
-
-def _line_with(text: str, needle: str) -> str:
-    for line in text.splitlines():
-        if needle in line:
-            return line
-    return ""
 
 
 def check_action_pinning(root: Path = Path()) -> list[Finding]:
@@ -195,24 +238,50 @@ def check_action_pinning(root: Path = Path()) -> list[Finding]:
     return found
 
 
+_FORK_GUARDS = (
+    "head.repo.fork == false",
+    "head.repo.fork != true",
+    "!github.event.pull_request.head.repo.fork",
+    "head.repo.full_name == github.repository",
+)
+
+# Refs that name code a pull request (or the run that followed it) authored.
+_UNTRUSTED_REF_EXPR_RE = re.compile(
+    r"(pull_request\.head|head\.sha|head\.ref|head_ref|head_sha|head_branch"
+    r"|workflow_run\.head|\.outputs\.[A-Za-z0-9_]*ref)"
+)
+
+
+def _secrets_in(value: Any) -> set[str]:
+    """Stored secrets referenced anywhere inside a parsed YAML fragment."""
+    return {m.group(1) for m in _SECRET_RE.finditer(yaml.safe_dump(value))} - ALLOWED_FORK_SECRETS
+
+
+def _secret_is_fork_guarded(condition: Any) -> bool:
+    """True if this job or step `if:` restricts the run to this repository."""
+    return isinstance(condition, str) and any(guard in condition for guard in _FORK_GUARDS)
+
+
 def check_fork_secret_isolation(root: Path = Path()) -> list[Finding]:
-    """SUP-003 — a fork's pull request cannot reach a stored secret."""
+    """SUP-003 — untrusted code cannot reach a stored secret.
+
+    Analysed per job and per step, not per file: a guard on one job says
+    nothing about a secret used by another, and a workflow that is not
+    triggered by a pull request can still hand a stored token to code from a
+    pull request's branch (a `push` or `workflow_run` workflow that checks out
+    a PR head and persists a PAT in the checkout).
+    """
     found: list[Finding] = []
     for path in workflows(root):
         doc = _load(path)
         text = path.read_text(encoding="utf-8")
         triggers = _triggers(doc)
-        if not (triggers & FORK_TRIGGERS):
-            continue
+        jobs = doc.get("jobs") or {}
+        is_fork_reachable = bool(triggers & FORK_TRIGGERS)
         if "pull_request_target" in triggers and _UNTRUSTED_REF_RE.search(text):
-            # Reported only when the fork's head is actually checked out.
-            # Flagging the trigger alone said nothing about whether a
-            # credential was reachable, and the statement SUP-003 makes is
-            # about reachable secrets -- so an accurate check has to look at
-            # what the workflow does with the trigger, not that it has it. A
-            # controller that reads pull request metadata and never fetches
-            # the entry's code (.github/workflows/pr-queue.yml) is the safe
-            # use, and calling it a finding trains people to ignore findings.
+            # Reported only when the fork's head is actually checked out;
+            # a controller that reads PR metadata and never fetches the
+            # entry's code is the safe use of this trigger.
             found.append(
                 Finding(
                     "SUP-003",
@@ -222,32 +291,49 @@ def check_fork_secret_isolation(root: Path = Path()) -> list[Finding]:
                     "and secrets",
                 )
             )
-        used = {m.group(1) for m in _SECRET_RE.finditer(text)} - ALLOWED_FORK_SECRETS
-        for secret in sorted(used):
-            # A secret guarded by a fork check is fine -- that is exactly how
-            # retrieve-context handles it -- so look for the guard.
-            if _secret_is_fork_guarded(text, secret):
+        for job_id, job in jobs.items():
+            if not isinstance(job, dict):
                 continue
-            found.append(
-                Finding(
-                    "SUP-003",
-                    path.name,
-                    f"secrets.{secret} is reachable from a pull request with no "
-                    "fork guard (github.event.pull_request.head.repo.fork)",
-                )
-            )
+            steps = [s for s in (job.get("steps") or []) if isinstance(s, dict)]
+            job_guarded = _secret_is_fork_guarded(job.get("if"))
+            job_level = _secrets_in({k: v for k, v in job.items() if k != "steps"})
+            if is_fork_reachable and not job_guarded:
+                for secret in sorted(job_level):
+                    found.append(_unguarded(path.name, job_id, secret))
+                for step in steps:
+                    if _secret_is_fork_guarded(step.get("if")):
+                        continue
+                    for secret in sorted(_secrets_in(step) - job_level):
+                        found.append(_unguarded(path.name, job_id, secret))
+            # Any trigger: a stored token persisted by a checkout of an
+            # untrusted ref is readable by every script that runs afterwards.
+            for step in steps:
+                with_ = step.get("with")
+                if not (isinstance(with_, dict) and "checkout" in str(step.get("uses", ""))):
+                    continue
+                ref = str(with_.get("ref", ""))
+                if not _UNTRUSTED_REF_EXPR_RE.search(ref):
+                    continue
+                persisted = _secrets_in({"token": with_.get("token"), "ssh-key": with_.get("ssh-key")})
+                for secret in sorted(persisted):
+                    found.append(
+                        Finding(
+                            "SUP-003",
+                            path.name,
+                            f"job {job_id}: checks out an untrusted ref with stored "
+                            f"secrets.{secret}; later steps execute that code with the secret",
+                        )
+                    )
     return found
 
 
-def _secret_is_fork_guarded(text: str, secret: str) -> bool:
-    """True if the workflow gates on the PR being from this repository."""
-    guards = (
-        "head.repo.fork == false",
-        "head.repo.fork != true",
-        "!github.event.pull_request.head.repo.fork",
-        "head.repo.full_name == github.repository",
+def _unguarded(name: str, job_id: str, secret: str) -> Finding:
+    return Finding(
+        "SUP-003",
+        name,
+        f"job {job_id}: secrets.{secret} is reachable from a pull request with no "
+        "fork guard (github.event.pull_request.head.repo.fork) on the job or step",
     )
-    return any(guard in text for guard in guards)
 
 
 def check_dependency_surveillance(root: Path = Path()) -> list[Finding]:

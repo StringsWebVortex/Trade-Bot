@@ -47,28 +47,28 @@ deletion of the thing it points at.
 
 | Status | Entries |
 |---|---|
-| VERIFIED | 216 |
+| VERIFIED | 228 |
 | PARTIAL | 3 |
 | PLANNED | 0 |
-| ACCEPTED GAP | 0 |
-| **Total** | **219** |
+| ACCEPTED GAP | 5 |
+| **Total** | **236** |
 
 ## Summary by subsystem
 
 | Subsystem | Entries | Verified |
 |---|---|---|
-| Risk | 11 | 11 |
-| Execution | 13 | 12 |
+| Risk | 14 | 12 |
+| Execution | 15 | 13 |
 | Portfolio | 1 | 1 |
 | Signal and features | 6 | 6 |
-| Models and leakage | 10 | 10 |
+| Models and leakage | 11 | 10 |
 | Data, money and time | 10 | 9 |
 | API and WebSocket | 21 | 21 |
-| Cryptography and secrets | 30 | 30 |
-| Supply chain and artifacts | 7 | 7 |
+| Cryptography and secrets | 34 | 34 |
+| Supply chain and artifacts | 8 | 8 |
 | Resilience and recovery | 24 | 24 |
-| Release and production | 14 | 14 |
-| Governance | 60 | 59 |
+| Release and production | 15 | 15 |
+| Governance | 65 | 63 |
 | Terminal and process center | 12 | 12 |
 
 ## Outstanding work by phase
@@ -143,6 +143,32 @@ If the risk engine raises, times out or is unavailable, the decision is NO TRADE
 - **Verification:**
   - `tests/trading/invariants/test_inv_006_risk_engine_failure.py` (risk) — The drift gate fails closed on any exception; a raising gate propagates rather than becoming a pass; no except block in src/risk swallows into a default-allow.
   - `tests/test_risk_gates.py` (risk) — Covers gate outcomes.
+
+#### `ARCH-002` — Flash crash and market halt handling is not independently verified
+
+**ACCEPTED GAP** · high · requirement · source: OPS-2026-10-25
+
+Flash-crash and halt handling references in the risk and engine paths are baselined without a deciding test. Tracked from config/arch_baseline.json until a fix and a deciding test land.
+
+- **If violated:** The finding sat only in the arch baseline, which fails only on new findings.
+- **Owned by:** `src/risk/gate.py`, `src/risk/gates.py`, `src/risk/strategy_kill_switch.py`, `src/engine/orchestrator.py`, `src/engines/consensus.py`, `src/engines/orchestrator.py`, `src/engines/signal_gate.py`, `src/intel.py`
+- **Verification:** none yet
+- **Waiver:** Baselined by the arch gate; tracked here so it has an owner and a review date instead of living only in the baseline. (accepted by zulqarnain106612-cpu, review by 2027-01-31)
+
+> audit findings: OPS-018
+
+#### `ARCH-003` — Risk score computation has no VaR/CVaR term
+
+**ACCEPTED GAP** · high · requirement · source: OPS-2026-10-25
+
+cognitive_engine._compute_risk_score does not compute VaR or CVaR. Tracked from config/arch_baseline.json until a fix and a deciding test land.
+
+- **If violated:** The finding sat only in the arch baseline, which fails only on new findings.
+- **Owned by:** `src/risk/cognitive_engine.py`, `src/risk/gates.py`
+- **Verification:** none yet
+- **Waiver:** Baselined by the arch gate; tracked here so it has an owner and a review date instead of living only in the baseline. (accepted by zulqarnain106612-cpu, review by 2027-01-31)
+
+> audit findings: OPS-018
 
 #### `RISK-001` — Maximum position exposure must not exceed the configured ceiling
 
@@ -228,6 +254,19 @@ When RiskGate.check_drift reports drift for the contributing horizon, CryptoInte
 
 > layer: test-suite
 
+#### `REG-1263` — Risk limits agree between risk.yaml and .env.example
+
+**VERIFIED** · high · regression · source: OPS-2026-10-25
+
+The consecutive-loss halt and drawdown limits in config/risk.yaml and .env.example agree, using the stricter value where they differed.
+
+- **If violated:** Conflicting layers made it ambiguous which limit applied; a 30% drawdown halt sat beside a 10% floor.
+- **Owned by:** `config/risk.yaml`, `.env.example`
+- **Verification:**
+  - `tests/test_phase4_ci_infra_fixes.py` (regression)
+
+> audit findings: OPS-007
+
 ## Execution
 
 #### `INV-003` — Unknown exchange order state cannot become FILLED without reconciliation
@@ -294,6 +333,19 @@ Reading a price for the dashboard leaves every running extreme the exit logic co
   - `tests/test_orderbook_stream_publish.py` (api) — The producer half: the stream coalesces its 100ms feed to 250ms, withholds a stale mid rather than publishing a frozen price as a live one, and a broken subscriber cannot reach the feed.
 
 > The display path is deliberately a separate loop from _position_monitor_loop rather than a faster version of it. Sharing the monitor's loop would have been less code and would have moved live thresholds, which is a trading-behaviour change a latency fix is not allowed to smuggle in.
+
+#### `ARCH-001` — Wash trade detection is absent from the order path
+
+**ACCEPTED GAP** · high · requirement · source: OPS-2026-10-25
+
+Orders can self-match because order_manager and router do not detect wash trades. Tracked from config/arch_baseline.json until a fix and a deciding test land.
+
+- **If violated:** The finding sat only in the arch baseline, which fails only on new findings.
+- **Owned by:** `src/execution/order_manager.py`, `src/execution/router.py`
+- **Verification:** none yet
+- **Waiver:** Baselined by the arch gate; tracked here so it has an owner and a review date instead of living only in the baseline. (accepted by zulqarnain106612-cpu, review by 2027-01-31)
+
+> audit findings: OPS-018
 
 #### `EXEC-001` — Execution requests carry an idempotency key end to end
 
@@ -395,6 +447,19 @@ When intelligence is enabled, an order from the existing primary timeframe proce
 
 > layer: test-suite
 
+#### `REG-1266` — Horizon-gated ordering defaults to off
+
+**VERIFIED** · high · regression · source: OPS-2026-10-25
+
+INTEL_ENABLED defaults to false in the orchestrator, the API and .env.example, and compose does not enable it.
+
+- **If violated:** REG-0030 is only partially verified, so enabling the horizon order gate by default would run it unverified.
+- **Owned by:** `src/engine/orchestrator.py`, `src/api/main.py`, `.env.example`
+- **Verification:**
+  - `tests/test_phase4_ci_infra_fixes.py` (regression)
+
+> audit findings: OPS-019
+
 ## Portfolio
 
 #### `PORT-001` — Portfolio-level exposure, correlation and agreement limits are enforced
@@ -485,6 +550,19 @@ SOPR, NVT and MVRV are either genuinely computed or NaN; no on-chain metric retu
 > Escaped to production: the constant reached the live feature dict in src/intel.py and was persisted to intelligence_features_history beside measured columns. The test suite could not catch it because the test that existed asserted the placeholder (== 1.0) rather than the requirement, so the layer that should have caught it is the review that accepted a return of a bare literal from a metric together with a docstring describing a computation the body never performed. layer: review
 
 ## Models and leakage
+
+#### `ARCH-004` — Model predictions are used without a confidence check
+
+**ACCEPTED GAP** · medium · requirement · source: OPS-2026-10-25
+
+Predictions in the ensemble, trainer, regime detector, backtest harness and shadow deploy are consumed without a confidence check. Tracked from config/arch_baseline.json until a fix and a deciding test land.
+
+- **If violated:** The finding sat only in the arch baseline, which fails only on new findings.
+- **Owned by:** `src/intelligence/ensemble_predictor.py`, `src/models/trainer.py`, `src/regime/detector.py`, `src/tuning/backtest_harness.py`, `src/upgrade/shadow_deploy.py`
+- **Verification:** none yet
+- **Waiver:** Baselined by the arch gate; tracked here so it has an owner and a review date instead of living only in the baseline. (accepted by zulqarnain106612-cpu, review by 2027-01-31)
+
+> audit findings: OPS-018
 
 #### `MODL-001` — Every model artifact carries full provenance
 
@@ -1371,6 +1449,58 @@ The integrated terminal adds a command-execution surface; nothing reaches it exc
 
 > layer: test-suite
 
+#### `SEC-1262` — Compose services are hardened and ship no default DB password
+
+**VERIFIED** · medium · security_regression · source: OPS-2026-10-25
+
+The api and worker services run read-only with all capabilities dropped, no-new-privileges and a tmpfs /tmp, and the database password comes from POSTGRES_PASSWORD with no shipped default.
+
+- **If violated:** Containers ran with default privileges and a fixed, public database password that .env could not change.
+- **Owned by:** `docker-compose.yml`, `Dockerfile`, `.env.example`
+- **Verification:**
+  - `tests/test_phase4_ci_infra_fixes.py` (security)
+
+> audit findings: OPS-005, OPS-006
+
+#### `SEC-1265` — Diagnostics reports must come from the collector workflow run
+
+**VERIFIED** · medium · security_regression · source: OPS-2026-10-25
+
+A check run is accepted as a diagnostics report only if its details_url resolves to a workflow_run run of ci-diagnostics.yml in this repository, and retrieved reports are labelled untrusted data.
+
+- **If violated:** Any job with checks: write could publish a forged finalized report that fed the agent patch path.
+- **Owned by:** `scripts/ci_diagnostics.py`
+- **Verification:**
+  - `tests/test_phase4_ci_infra_fixes.py` (security)
+
+> audit findings: OPS-017
+
+#### `SEC-1267` — Every credentialed venue needs a key-posture declaration
+
+**VERIFIED** · high · security_regression · source: OPS-2026-10-25
+
+Startup refuses live trading when a venue with configured credentials has no declared key posture, even if another venue's declaration is safe.
+
+- **If violated:** assert_all_safe passed when any declared exchange was safe, so an undeclared OKX or Bybit key could trade live.
+- **Owned by:** `src/security/exchange_key_posture.py`, `config/exchange_key_posture.json`
+- **Verification:**
+  - `tests/test_phase4_ci_infra_fixes.py` (security)
+
+> audit findings: SCR-004
+
+#### `SEC-1270` — command_policy has no dead sections and guards all .env readers
+
+**VERIFIED** · medium · security_regression · source: OPS-2026-10-25
+
+config/command_policy.json carries no unenforced limit sections, and secret_echo blocks head, sed, grep, python and similar readers of .env, key and certificate files.
+
+- **If violated:** The policy advertised limits nothing enforced, and only cat and echo were blocked from printing .env.
+- **Owned by:** `config/command_policy.json`
+- **Verification:**
+  - `tests/test_phase4_ci_infra_fixes.py` (security)
+
+> audit findings: SCR-006
+
 ## Supply chain and artifacts
 
 #### `SUP-001` — Every workflow declares least-privilege permissions
@@ -1449,6 +1579,19 @@ Automated dependency PRs run the full quality gate and can never trigger the pro
 - **Owned by:** `.github/workflows`, `scripts/check_supply_chain.py`
 - **Verification:**
   - `tests/supply_chain/test_supply_chain_posture.py` (security) — The release workflow triggers only on a version tag and workflow_dispatch; push-on-branch, pull_request and schedule are all detected, including a tag trigger that also accepts branches.
+
+#### `SEC-1264` — The supply-chain gate analyses secrets and permissions per job
+
+**VERIFIED** · medium · security_regression · source: OPS-2026-10-25
+
+SUP-001 inspects job-level permissions and real justification comments for the widened sensitive scopes; SUP-003 judges fork guards per job and step and flags stored tokens persisted on untrusted refs in any workflow.
+
+- **If violated:** One guard string anywhere exempted every secret in a file, and push or workflow_run workflows were never checked.
+- **Owned by:** `scripts/check_supply_chain.py`, `.github/workflows/ci-diagnostics.yml`
+- **Verification:**
+  - `tests/test_phase4_ci_infra_fixes.py` (security)
+
+> audit findings: OPS-016, SCR-002
 
 ## Resilience and recovery
 
@@ -1939,7 +2082,33 @@ GitHub Actions is the sole execution path for tests, builds, lint, security scan
 
 > The old prepare/comment-notice subscription is retired. Only the finalized ./scripts/prfail --pr <PR_NUMBER> report route is allowed; the report-bound patch applier revalidates PR/head/report identity and leaves edits uncommitted. The run subcommand remains disabled. Tests, builds, lint, security scans, and quality gates are validated only by GitHub Actions. layer: test-suite
 
+#### `REG-1260` — A placeholder deployment cannot report success
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+The deploy canary job fails closed while the canary, promotion, halt-trigger and rollback steps are placeholders, so the Deploy gate cannot go green without a real deployment.
+
+- **If violated:** The Deploy gate reported green on echo-only steps, including a halt-trigger check that always passed.
+- **Owned by:** `.github/workflows/deploy.yml`
+- **Verification:**
+  - `tests/test_phase4_ci_infra_fixes.py` (regression)
+
+> audit findings: OPS-003
+
 ## Governance
+
+#### `ARCH-005` — Module-global singletons are mutated
+
+**ACCEPTED GAP** · medium · requirement · source: OPS-2026-10-25
+
+Nine module-level globals are mutated, which hides state from tests and concurrency review. Tracked from config/arch_baseline.json until a fix and a deciding test land.
+
+- **If violated:** The finding sat only in the arch baseline, which fails only on new findings.
+- **Owned by:** `src/intelligence/providers/aggregator.py`, `src/tuning/meta_allocator.py`, `src/diagnostics/signal_debugger.py`, `src/intelligence/providers/binance_provider.py`, `src/intelligence/providers/blockchain_provider.py`, `src/intelligence/providers/bybit_provider.py`, `src/intelligence/providers/coingecko_provider.py`, `src/intelligence/providers/okx_provider.py`, `src/engine/strategy_portfolio.py`
+- **Verification:** none yet
+- **Waiver:** Baselined by the arch gate; tracked here so it has an owner and a review date instead of living only in the baseline. (accepted by zulqarnain106612-cpu, review by 2027-01-31)
+
+> audit findings: OPS-018
 
 #### `GOV-001` — Every production defect yields a permanent regression test
 
@@ -2659,6 +2828,58 @@ Every scripts/ path named in the README, in src/ comments or in a test's skip me
 
 > scripts/timescaledb.sh was referenced from six call sites -- README.md three times, src/config.py, src/data/storage.py and the skip message in tests/test_timescale_storage.py -- and did not exist; removed by the config purge (#144) without the references going with it. The test guards the general form (a named scripts/ path that is absent) as well as this one file, and pins the script to ci.yml's service block so the local and CI databases cannot drift apart silently. layer: test-suite
 
+#### `REG-1268` — Mutation scores are read from the pinned mutmut cache
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+The mutation score script pins mutmut, checks its exit status, clears the cache per subsystem and reads outcomes from the cache rather than parsing results text.
+
+- **If violated:** Counts parsed to zero, so the nightly job failed every night while measuring nothing.
+- **Owned by:** `scripts/check_mutation_score.py`, `.github/workflows/nightly-quality.yml`
+- **Verification:**
+  - `tests/test_phase4_ci_infra_fixes.py` (regression)
+
+> audit findings: SCR-003
+
+#### `REG-1269` — math_registry consumer rows are real imports
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+Every consumer wiring row in config/math_registry.json names a module that references its owner.
+
+- **If violated:** Generated docs showed wiring that did not exist.
+- **Owned by:** `config/math_registry.json`
+- **Verification:**
+  - `tests/test_phase4_ci_infra_fixes.py` (regression)
+
+> audit findings: SCR-005
+
+#### `REG-1271` — Execution and risk arch-baseline findings are tracked in the registry
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+Every baselined LAW1, LAW2, LAW9, LAW10 and LAW13 finding maps to an ARCH accepted_gap entry with a waiver and review date.
+
+- **If violated:** Core trading-path findings lived only in the baseline, which fails only on new findings, so they could never fail CI.
+- **Owned by:** `config/arch_baseline.json`
+- **Verification:**
+  - `tests/test_phase4_ci_infra_fixes.py` (regression)
+
+> audit findings: OPS-018
+
+#### `SEC-1261` — main requires an approving code-owner review
+
+**VERIFIED** · medium · security_regression · source: OPS-2026-10-25
+
+The main ruleset requires at least one approving review and code-owner review so CODEOWNERS paths cannot change on a green PR alone.
+
+- **If violated:** A green PR could change workflows, hooks or risk config with no human review.
+- **Owned by:** `.github/rulesets/main-protection.json`
+- **Verification:**
+  - `tests/test_phase4_ci_infra_fixes.py` (security)
+
+> audit findings: OPS-004
+
 ## Terminal and process center
 
 #### `TERM-001` — Terminal sessions are real PTYs that every client shares
@@ -2838,4 +3059,4 @@ To add or change an entry, edit the registry and regenerate this file. See
 `docs/quality/TEST_STRATEGY.md` for the taxonomy the `test_type` column draws
 on, and `docs/quality/IMPLEMENTATION_PLAN.md` for what each phase delivers.
 
-Registry version: 1.0.0 — 219 entries.
+Registry version: 1.0.0 — 236 entries.

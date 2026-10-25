@@ -30,11 +30,20 @@ import argparse
 import json
 import re
 import shutil
+import sqlite3
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+#: The mutmut release whose CLI this script drives (`--paths-to-mutate`, the
+#: sqlite cache). Pinned in nightly-quality.yml; mutmut 3 removed both.
+MUTMUT_VERSION = "2.5.1"
+MUTMUT_CACHE = PROJECT_ROOT / ".mutmut-cache"
+
+#: mutmut 2.x cache `mutant.status` -> the count it feeds.
+_STATUS_COUNTS = {"ok_killed": "killed", "bad_survived": "survived", "bad_timeout": "timeout"}
 THRESHOLDS = PROJECT_ROOT / "config" / "mutation_thresholds.json"
 
 #: mutmut's summary line, e.g. "killed: 120  survived: 8  timeout: 1".
@@ -91,26 +100,45 @@ def parse_counts(output: str) -> dict[str, int]:
     return counts
 
 
+def read_cache_counts(cache: Path) -> dict[str, int]:
+    """Count mutants by outcome from mutmut's sqlite cache (SCR-003).
+
+    `mutmut results` lists survivors by id and never prints a killed count, so
+    the text output cannot be parsed into a score. The cache is the record.
+    """
+    counts = {"killed": 0, "survived": 0, "timeout": 0}
+    if not cache.exists():
+        return counts
+    with sqlite3.connect(str(cache)) as db:
+        for status, n in db.execute("SELECT status, COUNT(*) FROM mutant GROUP BY status"):
+            key = _STATUS_COUNTS.get(status)
+            if key:
+                counts[key] += int(n)
+    return counts
+
+
 def run_subsystem(name: str, spec: dict, timeout_s: int) -> MutationResult:
     """Mutate one subsystem's paths and collect its score."""
     paths = ",".join(spec["paths"])
-    subprocess.run(  # noqa: S603 - fixed argv, no shell
-        ["mutmut", "run", "--paths-to-mutate", paths, "--no-progress"],
-        cwd=PROJECT_ROOT,
-        capture_output=True,
-        text=True,
-        timeout=timeout_s,
-        check=False,
-    )
-    results = subprocess.run(  # noqa: S603
-        ["mutmut", "results"],
-        cwd=PROJECT_ROOT,
-        capture_output=True,
-        text=True,
-        timeout=300,
-        check=False,
-    )
-    counts = parse_counts(results.stdout)
+    # The cache is shared across runs: without clearing it, `results` reports
+    # the cumulative counts of every earlier subsystem.
+    MUTMUT_CACHE.unlink(missing_ok=True)
+    try:
+        run = subprocess.run(  # noqa: S603 - fixed argv, no shell
+            ["mutmut", "run", "--paths-to-mutate", paths, "--no-progress"],
+            cwd=PROJECT_ROOT,
+            capture_output=True,
+            text=True,
+            timeout=timeout_s,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(f"mutmut run for {name!r} exceeded {timeout_s}s") from exc
+    # mutmut's exit code is a bitmask: 1 is a fatal error, higher bits only
+    # report survivors/timeouts/suspicious mutants, which the score handles.
+    if run.returncode & 1:
+        raise RuntimeError(f"mutmut run for {name!r} failed: {run.stderr[-500:]}")
+    counts = read_cache_counts(MUTMUT_CACHE)
     return MutationResult(
         subsystem=name,
         killed=counts["killed"],
@@ -164,11 +192,15 @@ def main() -> int:
         print(
             "mutmut is not on PATH. It is deliberately not in requirements-dev -- "
             "a mutation run is minutes of CPU per module. Install it in the job "
-            "that needs it: pip install mutmut"
+            "that needs it: pip install mutmut==2.5.1"
         )
         return 2
 
-    results = [run_subsystem(name, spec, args.timeout_s) for name, spec in subsystems.items()]
+    try:
+        results = [run_subsystem(name, spec, args.timeout_s) for name, spec in subsystems.items()]
+    except RuntimeError as exc:
+        print(str(exc))
+        return 2
     for result in results:
         print(result.line())
 
