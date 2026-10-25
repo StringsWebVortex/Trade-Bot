@@ -526,7 +526,7 @@ Use these anchors with the matching current hash in codebase-analysis-docs/CHUNK
 - Runtime discovery/reconciliation: [[F:src/runtime/production.py#266-303#55696d76]]
 - Browser transport handshake and dispatch: [[F:src/terminal/server.py#218-230#10681519]]
 - Headless runtime ownership: [[F:src/workers/trader.py#53-90#687738d8]]
-- Positional E-01…E-18 orchestration: [[F:src/engines/orchestrator.py#308-345#17afba20]]
+- Positional E-01…E-18 orchestration: [[F:src/engines/orchestrator.py#308-345#5384b7a9]]
 
 **Decisions / findings:** these anchors point into inspected source files by relative path, inclusive line range and full-file hash prefix.  
 **Open questions:** any source modification can shift ranges or invalidate a hash.  

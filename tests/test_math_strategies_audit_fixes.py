@@ -2,6 +2,23 @@
 
 MTH-002/004/005/012/014 and STR-07..STR-16. Each test fails on the code as it
 stood before the fix.
+
+Decides:
+  - REG-1360 — HNP key recovery is correct for a non-zero leaked nonce prefix
+  - REG-1361 — ECDSA scanner does not report a re-seen transaction as nonce reuse
+  - REG-1362 — Cluster flow score is flagged unavailable when no flow data exists
+  - REG-1363 — UTXO age falls back to confirmations and excludes unknown ages
+  - REG-1364 — Tornado detection handles HexBytes input and matches withdrawals by pool
+  - REG-1365 — Engine backtest annualises per sample, scores at horizon, applies documented gate
+  - REG-1366 — E-09 retrain uses the inference feature set and a held-out gate before saving
+  - REG-1367 — E-14 abstains without history and is neutral on a degenerate window
+  - REG-1368 — Engine rolling state is keyed by symbol
+  - REG-1369 — Consensus dispersion excludes abstentions and the breaker holds real spot
+  - REG-1370 — E-07 PCA direction follows the recent PC1 score with a fixed sign
+  - REG-1371 — Capital allocator does not mix warm-up shares with raw scores
+  - REG-1372 — Slippage calibration ADV is a daily volume
+  - REG-1373 — Entropy harness does not report an identical win-rate metric
+  - REG-1374 — Strategy selector exposes no dead funding-carry parameter
 """
 
 from __future__ import annotations
@@ -183,7 +200,7 @@ async def test_backtest_scores_at_the_declared_horizon_and_applies_the_sharpe_ga
 def test_e09_features_match_what_training_can_build() -> None:
     from src.engines import e09_ml_meta
 
-    assert e09_ml_meta._FEATURE_ENGINE_IDS == [f"E-{i:02d}" for i in range(1, 9)]
+    assert [f"E-{i:02d}" for i in range(1, 9)] == e09_ml_meta._FEATURE_ENGINE_IDS
 
 
 def test_e09_oos_accuracy_needs_two_classes_and_scores_a_held_out_tail() -> None:
@@ -358,10 +375,7 @@ def test_entropy_harness_does_not_report_a_dead_win_rate() -> None:
         TradeSample(raw_return=0.01 * (1 if i % 3 else -1), entropy=0.1 * (i % 9))
         for i in range(120)
     ]
-    names = {
-        c.metric_name
-        for c in run_entropy_threshold_backtest(samples, 0.5, 0.5, 0.4, 0.6)
-    }
+    names = {c.metric_name for c in run_entropy_threshold_backtest(samples, 0.5, 0.5, 0.4, 0.6)}
     assert "win_rate" not in names
 
 

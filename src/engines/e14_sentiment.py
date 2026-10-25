@@ -52,9 +52,7 @@ class E14Sentiment:
     def __init__(self, horizon_hours: int = 24) -> None:
         self._horizon = horizon_hours
         # Per-symbol reading history (STR-10).
-        self._raw_history: defaultdict[str, deque[float]] = defaultdict(
-            lambda: deque(maxlen=1000)
-        )
+        self._raw_history: defaultdict[str, deque[float]] = defaultdict(lambda: deque(maxlen=1000))
 
     async def run(self, symbol: str, data: dict) -> EngineOutput:
         spot: float = data.get("spot", 0.0)

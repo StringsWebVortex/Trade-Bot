@@ -1,3 +1,9 @@
+"""Tests for src/tuning/backtest_harness.py.
+
+Decides:
+  - REG-1373 — Entropy harness does not report an identical win-rate metric
+"""
+
 import random
 
 import numpy as np

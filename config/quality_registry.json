@@ -6016,7 +6016,7 @@
       "subsystem": "model",
       "status": "verified",
       "source": "OPS-2026-10-25",
-      "notes": "layer: test-suite; audit finding MTH-014",
+      "notes": "audit finding MTH-014. layer: test-suite",
       "failure_mode": "The sign error made recovery work only for known_value == 0, so the defender-side bias audit reported a biased signer as sound.",
       "owning_modules": [
         "src/mathcore/lattice/hnp.py"
@@ -6038,7 +6038,7 @@
       "subsystem": "security",
       "status": "verified",
       "source": "OPS-2026-10-25",
-      "notes": "layer: test-suite; audit finding MTH-002",
+      "notes": "audit finding MTH-002. layer: test-suite",
       "failure_mode": "Re-broadcast or reorged transactions matched themselves and raised a 0.7 nonce-reuse risk score.",
       "owning_modules": [
         "src/ecc/ecdsa_scan.py"
@@ -6060,7 +6060,7 @@
       "subsystem": "signal",
       "status": "verified",
       "source": "OPS-2026-10-25",
-      "notes": "layer: test-suite; audit finding MTH-004",
+      "notes": "audit finding MTH-004. layer: test-suite",
       "failure_mode": "flow_score was a constant 0.0 because flows were never populated, yet the ensemble consumed it as valid.",
       "owning_modules": [
         "src/ecc/secp256k1_cluster.py",
@@ -6083,7 +6083,7 @@
       "subsystem": "signal",
       "status": "verified",
       "source": "OPS-2026-10-25",
-      "notes": "layer: test-suite; audit finding MTH-005",
+      "notes": "audit finding MTH-005. layer: test-suite",
       "failure_mode": "Missing timestamps made every UTXO age 0, pinning hodler_index at 0 and supply_shock_risk False.",
       "owning_modules": [
         "src/ecc/utxo_curve.py"
@@ -6105,7 +6105,7 @@
       "subsystem": "signal",
       "status": "verified",
       "source": "OPS-2026-10-25",
-      "notes": "layer: test-suite; audit finding MTH-012",
+      "notes": "audit finding MTH-012. layer: test-suite",
       "failure_mode": "web3 HexBytes input never matched str selectors and withdrawals carry value 0, so dark_pool_pressure was always 0.",
       "owning_modules": [
         "src/ecc/zksnark_detect.py"
@@ -6127,7 +6127,7 @@
       "subsystem": "signal",
       "status": "verified",
       "source": "OPS-2026-10-25",
-      "notes": "layer: test-suite; audit finding STR-07",
+      "notes": "audit finding STR-07. layer: test-suite",
       "failure_mode": "Sharpe was overstated by about sqrt(30), every engine was scored on the next hourly close, and the gate ignored Sharpe and used 0.5.",
       "owning_modules": [
         "src/tuning/engine_backtest.py"
@@ -6149,7 +6149,7 @@
       "subsystem": "model",
       "status": "verified",
       "source": "OPS-2026-10-25",
-      "notes": "layer: test-suite; audit finding STR-08",
+      "notes": "audit finding STR-08. layer: test-suite",
       "failure_mode": "Slots for E-10..E-18 were zero in training but live at inference, and an unvalidated model overwrote the artifact.",
       "owning_modules": [
         "src/engines/e09_ml_meta.py",
@@ -6176,7 +6176,7 @@
       "subsystem": "signal",
       "status": "verified",
       "source": "OPS-2026-10-25",
-      "notes": "layer: test-suite; audit finding STR-09",
+      "notes": "audit finding STR-09. layer: test-suite",
       "failure_mode": "The first reading produced a full-confidence long.",
       "owning_modules": [
         "src/engines/e14_sentiment.py"
@@ -6198,7 +6198,7 @@
       "subsystem": "signal",
       "status": "verified",
       "source": "OPS-2026-10-25",
-      "notes": "layer: test-suite; audit finding STR-10",
+      "notes": "audit finding STR-10. layer: test-suite",
       "failure_mode": "A shared orchestrator mixed history across symbols and corrupted every z-score and contagion delta.",
       "owning_modules": [
         "src/engines/e08_topology.py",
@@ -6224,7 +6224,7 @@
       "subsystem": "signal",
       "status": "verified",
       "source": "OPS-2026-10-25",
-      "notes": "layer: test-suite; audit finding STR-11",
+      "notes": "audit finding STR-11. layer: test-suite",
       "failure_mode": "Abstentions biased agreement toward 1 and the breaker reported E-01's forecast as spot.",
       "owning_modules": [
         "src/engines/consensus.py",
@@ -6247,7 +6247,7 @@
       "subsystem": "signal",
       "status": "verified",
       "source": "OPS-2026-10-25",
-      "notes": "layer: test-suite; audit finding STR-12",
+      "notes": "audit finding STR-12. layer: test-suite",
       "failure_mode": "The arbitrary SVD sign made the emitted direction effectively random.",
       "owning_modules": [
         "src/engines/e07_linear_algebra.py"
@@ -6269,7 +6269,7 @@
       "subsystem": "portfolio",
       "status": "verified",
       "source": "OPS-2026-10-25",
-      "notes": "layer: test-suite; audit finding STR-13",
+      "notes": "audit finding STR-13. layer: test-suite",
       "failure_mode": "Shares were summed with Sharpe/Sortino or 1/vol units, so allocation depended on unrelated scales.",
       "owning_modules": [
         "src/strategies/capital_allocator.py"
@@ -6291,7 +6291,7 @@
       "subsystem": "risk",
       "status": "verified",
       "source": "OPS-2026-10-25",
-      "notes": "layer: test-suite; audit finding STR-14",
+      "notes": "audit finding STR-14. layer: test-suite",
       "failure_mode": "On 15m bars participation was overstated about 96x and the tuned impact coefficient was calibrated on the wrong scale.",
       "owning_modules": [
         "src/tuning/scheduler.py"
@@ -6317,7 +6317,7 @@
       "subsystem": "model",
       "status": "verified",
       "source": "OPS-2026-10-25",
-      "notes": "layer: test-suite; audit finding STR-15",
+      "notes": "audit finding STR-15. layer: test-suite",
       "failure_mode": "A dead metric cost a slot in the regression check.",
       "owning_modules": [
         "src/tuning/backtest_harness.py"
@@ -6343,7 +6343,7 @@
       "subsystem": "governance",
       "status": "verified",
       "source": "OPS-2026-10-25",
-      "notes": "layer: test-suite; audit finding STR-16",
+      "notes": "audit finding STR-16. layer: test-suite",
       "failure_mode": "The documented overlay was never implemented, misleading callers.",
       "owning_modules": [
         "src/strategies/regime_strategy_selector.py"

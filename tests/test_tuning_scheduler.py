@@ -1,4 +1,8 @@
-"""Tests for src/tuning/scheduler.py -- AutoTuningScheduler."""
+"""Tests for src/tuning/scheduler.py -- AutoTuningScheduler.
+
+Decides:
+  - REG-1372 — Slippage calibration ADV is a daily volume
+"""
 
 from __future__ import annotations
 

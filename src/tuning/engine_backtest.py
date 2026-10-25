@@ -165,10 +165,7 @@ class EngineWalkForwardBacktest:
         md = max_drawdown(np.array(signal_rets))
 
         passes = (
-            da > _MIN_DIRECTIONAL_ACCURACY
-            and rp < 0.02
-            and ss > _MIN_SIGNAL_SHARPE
-            and md < 0.30
+            da > _MIN_DIRECTIONAL_ACCURACY and rp < 0.02 and ss > _MIN_SIGNAL_SHARPE and md < 0.30
         )
 
         result = EngineBacktestResult(

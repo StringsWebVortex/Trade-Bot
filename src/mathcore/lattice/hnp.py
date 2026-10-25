@@ -161,9 +161,7 @@ def recover_private_key(
     return None
 
 
-def _verifies(
-    signatures: list[Signature], key: int, order: int, nonce_bitlength: int
-) -> bool:
+def _verifies(signatures: list[Signature], key: int, order: int, nonce_bitlength: int) -> bool:
     """
     Whether ``key`` reproduces every signature's nonce consistently.
 

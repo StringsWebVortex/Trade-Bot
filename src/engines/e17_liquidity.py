@@ -80,12 +80,8 @@ class E17Liquidity:
         self._horizon = horizon_hours
         # Per-symbol histories: stress z-scores must compare an asset with
         # its own past, not with other assets' liquidity (STR-10).
-        self._kyle_history: defaultdict[str, deque[float]] = defaultdict(
-            lambda: deque(maxlen=200)
-        )
-        self._depth_history: defaultdict[str, deque[float]] = defaultdict(
-            lambda: deque(maxlen=200)
-        )
+        self._kyle_history: defaultdict[str, deque[float]] = defaultdict(lambda: deque(maxlen=200))
+        self._depth_history: defaultdict[str, deque[float]] = defaultdict(lambda: deque(maxlen=200))
 
     async def run(self, symbol: str, data: dict) -> EngineOutput:
         spot: float = data.get("spot", 0.0)
@@ -121,15 +117,11 @@ class E17Liquidity:
             kyle_std = np.std(kyle_hist) if len(kyle_hist) > 2 else 1.0
             kyle_mean = np.mean(kyle_hist) if kyle_hist else 0.0
             kyle_z = (abs(kl) - kyle_mean) / (kyle_std + 1e-9)
-            depth_pct30 = (
-                np.percentile(depth_hist, 30) if len(depth_hist) > 2 else 0.0
-            )
+            depth_pct30 = np.percentile(depth_hist, 30) if len(depth_hist) > 2 else 0.0
             stress_flag = kyle_z > 2.0 and ds < depth_pct30
 
             # Cascade price: first price level where cumulative bid depth < 10th pct
-            depth_pct10 = (
-                np.percentile(depth_hist, 10) if len(depth_hist) > 2 else 0.0
-            )
+            depth_pct10 = np.percentile(depth_hist, 10) if len(depth_hist) > 2 else 0.0
             cascade_level = cascade_price_level(bids_raw, spot, depth_pct10)
             liquidity_score = float(np.clip(1.0 - ar * 1e6, 0.0, 1.0))
 

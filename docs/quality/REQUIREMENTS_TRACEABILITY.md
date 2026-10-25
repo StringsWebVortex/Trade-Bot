@@ -240,7 +240,7 @@ adv_20d is the mean bar volume multiplied by bars per day for the configured tim
   - `tests/test_math_strategies_audit_fixes.py` (regression)
   - `tests/test_tuning_scheduler.py` (regression)
 
-> layer: test-suite; audit finding STR-14
+> audit finding STR-14. layer: test-suite
 
 ## Execution
 
@@ -435,7 +435,7 @@ Mature scores split the share left after warm-up and floored strategies; warm-up
 - **Verification:**
   - `tests/test_math_strategies_audit_fixes.py` (regression)
 
-> layer: test-suite; audit finding STR-13
+> audit finding STR-13. layer: test-suite
 
 ## Signal and features
 
@@ -522,7 +522,7 @@ ClusteringResult.flow_available is true only when a whale cluster carries inflow
 - **Verification:**
   - `tests/test_math_strategies_audit_fixes.py` (regression)
 
-> layer: test-suite; audit finding MTH-004
+> audit finding MTH-004. layer: test-suite
 
 #### `REG-1363` — UTXO age falls back to confirmations and excludes unknown ages
 
@@ -535,7 +535,7 @@ compute_hodler_index derives age from timestamp, else confirmations x 600s, and 
 - **Verification:**
   - `tests/test_math_strategies_audit_fixes.py` (regression)
 
-> layer: test-suite; audit finding MTH-005
+> audit finding MTH-005. layer: test-suite
 
 #### `REG-1364` — Tornado detection handles HexBytes input and matches withdrawals by pool
 
@@ -548,7 +548,7 @@ Selectors are read from bytes or str input, and withdrawals join a deposit's clu
 - **Verification:**
   - `tests/test_math_strategies_audit_fixes.py` (regression)
 
-> layer: test-suite; audit finding MTH-012
+> audit finding MTH-012. layer: test-suite
 
 #### `REG-1365` — Engine backtest annualises per sample, scores at horizon, applies documented gate
 
@@ -561,7 +561,7 @@ signal_sharpe annualises by samples per year, each engine is scored at its decla
 - **Verification:**
   - `tests/test_math_strategies_audit_fixes.py` (regression)
 
-> layer: test-suite; audit finding STR-07
+> audit finding STR-07. layer: test-suite
 
 #### `REG-1367` — E-14 abstains without history and is neutral on a degenerate window
 
@@ -574,7 +574,7 @@ E-14 abstains until five readings exist and contrarian_signal returns 0 when max
 - **Verification:**
   - `tests/test_math_strategies_audit_fixes.py` (regression)
 
-> layer: test-suite; audit finding STR-09
+> audit finding STR-09. layer: test-suite
 
 #### `REG-1368` — Engine rolling state is keyed by symbol
 
@@ -587,7 +587,7 @@ E-08, E-12, E-13, E-14 and E-17 keep their rolling history per symbol so one ass
 - **Verification:**
   - `tests/test_math_strategies_audit_fixes.py` (regression)
 
-> layer: test-suite; audit finding STR-10
+> audit finding STR-10. layer: test-suite
 
 #### `REG-1369` — Consensus dispersion excludes abstentions and the breaker holds real spot
 
@@ -600,7 +600,7 @@ Agreement and outliers are computed over engines with non-zero confidence, and t
 - **Verification:**
   - `tests/test_math_strategies_audit_fixes.py` (regression)
 
-> layer: test-suite; audit finding STR-11
+> audit finding STR-11. layer: test-suite
 
 #### `REG-1370` — E-07 PCA direction follows the recent PC1 score with a fixed sign
 
@@ -613,7 +613,7 @@ The PC1 loading sign is fixed so loadings sum positive and direction is the sign
 - **Verification:**
   - `tests/test_math_strategies_audit_fixes.py` (regression)
 
-> layer: test-suite; audit finding STR-12
+> audit finding STR-12. layer: test-suite
 
 #### `REG-1704` — Carry and arbitrage entries clear a measured-cost hurdle, never a fixed threshold
 
@@ -769,7 +769,7 @@ recover_private_key subtracts the known nonce prefix (u = s^-1 z - a) and checks
 - **Verification:**
   - `tests/test_math_strategies_audit_fixes.py` (regression)
 
-> layer: test-suite; audit finding MTH-014
+> audit finding MTH-014. layer: test-suite
 
 #### `REG-1366` — E-09 retrain uses the inference feature set and a held-out gate before saving
 
@@ -783,7 +783,7 @@ E-09 features are E-01..E-08 only, and retrain_e09_walkforward saves a model onl
   - `tests/test_math_strategies_audit_fixes.py` (regression)
   - `tests/engines/test_backtest_runners.py` (regression)
 
-> layer: test-suite; audit finding STR-08
+> audit finding STR-08. layer: test-suite
 
 #### `REG-1373` — Entropy harness does not report an identical win-rate metric
 
@@ -797,7 +797,7 @@ run_entropy_threshold_backtest omits win_rate, which is identical for both arms 
   - `tests/test_math_strategies_audit_fixes.py` (regression)
   - `tests/test_tuning_backtest_harness.py` (regression)
 
-> layer: test-suite; audit finding STR-15
+> audit finding STR-15. layer: test-suite
 
 #### `REG-1605` — LLL and the BLS12-381 pairing do not redo work they can update
 
@@ -1529,7 +1529,7 @@ A signature seen again under the same txid and s is ignored; only the same r wit
 - **Verification:**
   - `tests/test_math_strategies_audit_fixes.py` (regression)
 
-> layer: test-suite; audit finding MTH-002
+> audit finding MTH-002. layer: test-suite
 
 #### `REG-1608` — Prometheus authenticates its /metrics scrape
 
@@ -2963,7 +2963,7 @@ select_strategy has no allow_funding_carry parameter and no unused STRATEGY_FUND
 - **Verification:**
   - `tests/test_math_strategies_audit_fixes.py` (regression)
 
-> layer: test-suite; audit finding STR-16
+> audit finding STR-16. layer: test-suite
 
 #### `REG-1600` — The CPU torch pre-pass uses the same version spec as requirements.txt
 

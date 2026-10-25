@@ -6,6 +6,9 @@ engines and drive them over rolling windows. Running the real engines here
 would cost minutes, so the engines are replaced with deterministic stubs and
 only the runner wiring (construction, ids, gating, sample accounting) is
 under test.
+
+Decides:
+  - REG-1366 — E-09 retrain uses the inference feature set and a held-out gate before saving
 """
 
 from __future__ import annotations
