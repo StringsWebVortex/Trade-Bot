@@ -31,7 +31,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 16 | P0 | docs/runtime/RUNTIME_PLATFORM.md | Markdown | 296 | 37fde0ad | Runtime control plane architecture |
 | 17 | P0 | docs/security/THREAT_MODEL.md | Markdown | 341 | ab52c113 | Threat model |
 | 18 | P0 | docs/terminal/ARCHITECTURE.md | Markdown | 217 | ac1b11e0 | Terminal/workspace architecture; historical baseline clearly labeled |
-| 19 | P0 | frontend/package.json | JSON | 77 | 397d38f6 | Node toolchain and frontend scripts |
+| 19 | P0 | frontend/package.json | JSON | 77 | 377921c4 | Node toolchain and frontend scripts |
 | 20 | P0 | frontend/src/App.jsx | React JSX | 470 | babdff7e | Dashboard composition |
 | 21 | P0 | frontend/src/hooks/useApi.js | JavaScript | 463 | 79cc9d3c | HTTP and WebSocket client |
 | 22 | P0 | frontend/src/main.jsx | React JSX | 10 | b57d0e84 | React entrypoint |
@@ -85,7 +85,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 15 | P0 | docs/runtime/RUNTIME_PLATFORM.md | Markdown | 296 | 37fde0ad | Runtime control plane architecture |
 | 16 | P0 | docs/security/THREAT_MODEL.md | Markdown | 341 | ab52c113 | Threat model |
 | 17 | P0 | docs/terminal/ARCHITECTURE.md | Markdown | 217 | ac1b11e0 | Terminal/workspace architecture; historical baseline clearly labeled |
-| 18 | P0 | frontend/package.json | JSON | 77 | 397d38f6 | Node toolchain and frontend scripts |
+| 18 | P0 | frontend/package.json | JSON | 77 | 377921c4 | Node toolchain and frontend scripts |
 | 19 | P0 | frontend/src/App.jsx | React JSX | 470 | babdff7e | Dashboard composition |
 | 20 | P0 | frontend/src/hooks/useApi.js | JavaScript | 463 | 79cc9d3c | HTTP and WebSocket client |
 | 21 | P0 | frontend/src/main.jsx | React JSX | 10 | b57d0e84 | React entrypoint |
@@ -1248,7 +1248,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 1178 | P2 | frontend/electron/terminalBridge.cjs | CommonJS | 221 | df9b68c6 |  |
 | 1179 | P2 | frontend/index.html | HTML | 14 | 937890f7 |  |
 | 1180 | P2 | frontend/linux/tradebot-dashboard.desktop | Desktop-entry config | 9 | d8c53c4f |  |
-| 1181 | P2 | frontend/package-lock.json | JSON | 4826 | 980cdc25 |  |
+| 1181 | P2 | frontend/package-lock.json | JSON | 4844 | 6f1aa8b0 |  |
 | 1182 | P2 | frontend/postcss.config.js | JavaScript | 7 | ad943233 |  |
 | 1183 | P2 | frontend/public/icon.svg | Vector asset | 15 | 9a6da623 |  |
 | 1184 | P2 | frontend/scripts/build-icons.mjs | ES module | 36 | 4489c079 |  |
