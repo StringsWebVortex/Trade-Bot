@@ -28,6 +28,7 @@ construction used by every pairing library.
 from __future__ import annotations
 
 from collections.abc import Sequence
+from functools import cache
 
 __all__ = [
     "CURVE_ORDER",
@@ -333,7 +334,52 @@ def _miller_loop(q, p):
         if _ATE_LOOP_COUNT & (1 << i):
             f = f * _linefunc(r, q, p)
             r = _add(r, q)
-    return f ** ((FIELD_MODULUS**12 - 1) // CURVE_ORDER)
+    return _final_exponentiation(f)
+
+
+# (p^12 - 1) / r = (p^6 - 1) (p^2 + 1) * (p^4 - p^2 + 1) / r. The first two
+# factors cost a Frobenius map, a multiplication and one inversion; only the
+# last is a real exponentiation, and it is a third of the bits of the naive
+# exponent the Miller loop used to raise to directly (audit MTH-020).
+_HARD_EXPONENT, _HARD_REMAINDER = divmod(FIELD_MODULUS**4 - FIELD_MODULUS**2 + 1, CURVE_ORDER)
+if _HARD_REMAINDER:  # pragma: no cover - a property of the curve constants
+    raise ArithmeticError("r does not divide p^4 - p^2 + 1; the curve constants are wrong")
+
+
+@cache
+def _frobenius_basis() -> tuple[FQP, ...]:
+    """``(w^p)^i`` for ``i = 0..11``: the images of the basis under Frobenius."""
+    w_p = _W**FIELD_MODULUS
+    powers = [_fq12_one()]
+    for _ in range(11):
+        powers.append(powers[-1] * w_p)
+    return tuple(powers)
+
+
+def _frobenius(f: FQP, times: int = 1) -> FQP:
+    """
+    ``f ** (p ** times)``, as a linear map rather than an exponentiation.
+
+    Every coefficient of ``f`` lies in Fp, where ``c^p = c``, so
+    ``f(w)^p = f(w^p)``: a sum of the precomputed basis images.
+    """
+    basis = _frobenius_basis()
+    for _ in range(times):
+        result = FQ12([0] * 12)
+        for c, image in zip(f.coeffs, basis, strict=True):
+            if c:
+                result = result + image * c
+        f = result
+    return f
+
+
+def _final_exponentiation(f: FQP) -> FQP:
+    """``f ** ((p^12 - 1) / r)``, by the easy-part / hard-part split above."""
+    if f.is_zero():  # pragma: no cover - a Miller loop output is never zero
+        return f
+    easy = _frobenius(f, 6) * f.inv()
+    easy = _frobenius(easy, 2) * easy
+    return easy**_HARD_EXPONENT
 
 
 def pairing(q, p) -> FQP:

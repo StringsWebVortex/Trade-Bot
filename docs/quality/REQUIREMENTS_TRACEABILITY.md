@@ -47,11 +47,11 @@ deletion of the thing it points at.
 
 | Status | Entries |
 |---|---|
-| VERIFIED | 223 |
+| VERIFIED | 227 |
 | PARTIAL | 3 |
 | PLANNED | 0 |
 | ACCEPTED GAP | 0 |
-| **Total** | **226** |
+| **Total** | **230** |
 
 ## Summary by subsystem
 
@@ -61,15 +61,15 @@ deletion of the thing it points at.
 | Execution | 13 | 12 |
 | Portfolio | 1 | 1 |
 | Signal and features | 6 | 6 |
-| Models and leakage | 10 | 10 |
+| Models and leakage | 11 | 11 |
 | Data, money and time | 10 | 9 |
 | API and WebSocket | 21 | 21 |
-| Cryptography and secrets | 31 | 31 |
+| Cryptography and secrets | 32 | 32 |
 | Supply chain and artifacts | 7 | 7 |
 | Resilience and recovery | 26 | 26 |
 | Release and production | 14 | 14 |
-| Governance | 64 | 63 |
-| Terminal and process center | 12 | 12 |
+| Governance | 65 | 64 |
+| Terminal and process center | 13 | 13 |
 
 ## Outstanding work by phase
 
@@ -609,6 +609,19 @@ Orchestrator._metrics_payload() builds a complete metrics snapshot for every tic
   - `tests/regression/test_metrics_payload.py` (regression)
 
 > Pins payload completeness with and without an executor, the method-vs-property fact the bug turned on, and the original TypeError as a negative case. layer: test-suite
+
+#### `REG-1605` — LLL and the BLS12-381 pairing do not redo work they can update
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+lll_reduce_with_transform updates the Gram-Schmidt coefficients in place after a size reduction, integer_lll_reduce detects a dependent basis from its own integer Gram determinants instead of a Fraction Gram-Schmidt, and the pairing's final exponentiation takes the (p^6-1)(p^2+1) part through the Frobenius map; every output is unchanged.
+
+- **If violated:** The Fraction LLL recomputed the full Gram-Schmidt after every size reduction, the integer LLL ran that same slow Fraction pass up front on 256-bit HNP lattices it exists to make feasible, and the pairing raised the Miller output to a 4300-bit exponent directly.
+- **Owned by:** `src/mathcore/lattice/lll.py`, `src/mathcore/curves/bls12_381.py`
+- **Verification:**
+  - `tests/test_mth020_lattice_and_pairing_cost.py` (regression)
+
+> Audit MTH-020. The tests pin the results to the old algorithm and the direct exponent, so a faster wrong answer fails. layer: test-suite
 
 ## Data, money and time
 
@@ -1289,6 +1302,19 @@ The LAW12 cipher-suite pattern matches static DH/ECDH, RSA key transport and exp
   - `tests/test_law12_cipher_suite_pattern.py` (regression)
 
 > The rule shipped with no test of its own, so nothing could tell a true positive from a false one until a PR tripped it. The test added with this entry is that missing check. layer: test-suite
+
+#### `REG-1608` — Prometheus authenticates its /metrics scrape
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+deploy/prometheus.yml sends X-API-Key on the API scrape through http_headers, read from a mounted file, and no longer recommends a proxy that strips the header check.
+
+- **If violated:** The auth block was commented out and the comments suggested stripping the header check in a proxy, which would serve /metrics, equity values included, unauthenticated.
+- **Owned by:** `deploy/prometheus.yml`
+- **Verification:**
+  - `tests/test_prometheus_scrape_auth.py` (regression)
+
+> Audit OPS-013. Needs Prometheus 2.55 or later for http_headers. layer: test-suite
 
 #### `SEC-0005` — A file holding real credentials is never committable
 
@@ -2740,6 +2766,19 @@ scripts/ci_diagnostics.py writes the report master only as a completed check run
 
 > Observed on PRs #502, #506, #508 and #509, whose reports never finalized after #467 removed only the job-level self-wait. No test ran the collector end to end against its own check writes. layer: test-suite
 
+#### `REG-1607` — Static-invariant checks see relative imports, every router and their own subject
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+check_import_cycles and the layering edges resolve relative imports; the route check scans every module that builds a FastAPI app or APIRouter, flags add_api_route without dependencies, accepts in-body auth only as the first statement and reports a missing route module; the gate-status check reports a missing GateStatus or gate stack; eval, shell=True and yaml.load are also checked in scripts/, and yaml.load with SafeLoader is accepted.
+
+- **If violated:** A cycle or upward edge written with a relative import, a route on a separate router or registered with add_api_route, and an auth call made after a side effect all passed unseen; a renamed GateStatus or a missing main.py made their checks pass vacuously.
+- **Owned by:** `scripts/check_static_invariants.py`
+- **Verification:**
+  - `tests/test_static_invariants_blind_spots.py` (regression)
+
+> Audits SCR-011 and OPS-023. Each blind spot was a check that could not fail on the defect it names, so only a suite test feeding it that defect could catch it. layer: test-suite
+
 #### `REG-1609` — One unavailable job log no longer fails the whole diagnostics report
 
 **VERIFIED** · medium · regression · source: OPS-2026-10-25
@@ -2905,6 +2944,19 @@ When `tradebot-term attach` ends, it sends session.detach as a request and waits
 
 > Visible only when the daemon is slower to read than the CLI is to close, so it failed on a loaded runner and passed on an idle one. The test records the calls attach makes instead of racing a real socket. layer: test-suite
 
+#### `REG-1606` — The terminal token is kept in memory, never in browser storage
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+The dashboard keeps the terminal daemon token in memory only and removes any copy an older build left in sessionStorage; a reload asks for it again.
+
+- **If violated:** The token grants a shell as the logged-in user and sat in sessionStorage, where any script on the origin could read it, so one XSS would yield both the API key and a shell token.
+- **Owned by:** `frontend/src/terminal/TerminalContext.jsx`
+- **Verification:**
+  - `frontend/src/components/terminal/terminalUi.test.jsx` (regression)
+
+> Audit FE-15. layer: test-suite
+
 
 ---
 
@@ -2933,4 +2985,4 @@ To add or change an entry, edit the registry and regenerate this file. See
 `docs/quality/TEST_STRATEGY.md` for the taxonomy the `test_type` column draws
 on, and `docs/quality/IMPLEMENTATION_PLAN.md` for what each phase delivers.
 
-Registry version: 1.0.0 — 226 entries.
+Registry version: 1.0.0 — 230 entries.
