@@ -86,9 +86,10 @@ class RiskGate:
         edge = float(signal.get("edge", 0.01))
         odds = float(signal.get("odds", 1.0))
 
-        if not all(
-            math.isfinite(v) for v in (confidence, sharpe_est, edge, odds, vol, cvar)
-        ) or not 0 <= horizon_idx:
+        if (
+            not all(math.isfinite(v) for v in (confidence, sharpe_est, edge, odds, vol, cvar))
+            or not horizon_idx >= 0
+        ):
             return SizeResult(0.0, 0.0, 0.0, 0.0, True, "non-finite or invalid sizing input")
         if confidence < self._conf_threshold:
             return SizeResult(

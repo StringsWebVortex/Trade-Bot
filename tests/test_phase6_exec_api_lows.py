@@ -1,4 +1,10 @@
-"""Regressions for the Phase 6 execution/risk/API/security Low findings."""
+"""Regressions for the Phase 6 execution/risk/API/security Low findings.
+
+Decides:
+  - REG-1400 — Execution and risk helpers fail safe on null, NaN and out-of-range inputs
+  - REG-1401 — Control-plane tables and settings reject malformed or mutable definitions
+  - SEC-1400 — Security helpers fail closed on unknown or ambiguous inputs
+"""
 
 from __future__ import annotations
 
@@ -61,8 +67,14 @@ def test_capacity_eviction_keeps_completed_keys_within_ttl() -> None:  # EXR-025
 
 def test_vol_target_uses_daily_target_and_rejects_nan() -> None:  # EXR-027
     r = vol_target_size(
-        100_000.0, 100_000.0, 100_000.0, realized_vol_pct=50.0, target_vol_pct=1.0,
-        kelly_fraction=1.0, max_notional_pct=10.0, periods_per_year=365,
+        100_000.0,
+        100_000.0,
+        100_000.0,
+        realized_vol_pct=50.0,
+        target_vol_pct=1.0,
+        kelly_fraction=1.0,
+        max_notional_pct=10.0,
+        periods_per_year=365,
     )
     # daily vol = 50 / sqrt(365); scalar = 1 / that; ratio times capital, times Kelly 1.0
     expected = 100_000.0 * 1.0 / (50.0 / math.sqrt(365))
@@ -83,9 +95,18 @@ def test_risk_gate_rejects_nan_and_out_of_range_horizon() -> None:  # EXR-028
 def test_pending_approvals_does_not_prune() -> None:  # EXR-030
     ex = PaperExecutor.__new__(PaperExecutor)
     req = ApprovalRequest(
-        request_id="r1", symbol="BTC/USDT", timeframe="15m", direction=1,
-        notional_usd=1.0, entry_price=1.0, quantity=1.0, kelly_fraction=0.1,
-        regime_state=1, meta_label_prob=0.6, raw_signal=0.5, created_at=-1e9,
+        request_id="r1",
+        symbol="BTC/USDT",
+        timeframe="15m",
+        direction=1,
+        notional_usd=1.0,
+        entry_price=1.0,
+        quantity=1.0,
+        kelly_fraction=0.1,
+        regime_state=1,
+        meta_label_prob=0.6,
+        raw_signal=0.5,
+        created_at=-1e9,
     )
     req.resolved = True
     ex._approval_queue = {"r1": req}

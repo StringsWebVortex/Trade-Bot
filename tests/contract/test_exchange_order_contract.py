@@ -14,6 +14,9 @@ The invariant underneath all of it:
 That is expressed structurally rather than by a comment: there is no entry
 mapping `UNKNOWN` to an FSM state, so `fsm_status` returns None however the
 caller is written.
+
+Decides:
+  - REG-1400 — Execution and risk helpers fail safe on null, NaN and out-of-range inputs
 """
 
 from __future__ import annotations

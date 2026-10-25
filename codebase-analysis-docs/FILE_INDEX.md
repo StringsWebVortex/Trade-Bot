@@ -60,7 +60,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 45 | P0 | src/models/trainer.py | Python | 1639 | 77a4dac0 | Training, CPCV/OOS metrics and artifact validation |
 | 46 | P0 | src/regime/detector.py | Python | 828 | 4ca13328 | HMM regime detector |
 | 47 | P0 | src/risk/gates.py | Python | 1281 | 36a7f38f | Sequential trading gates and exits |
-| 48 | P0 | src/runtime/changes.py | Python | 786 | 4b578251 | Runtime change lifecycle and audit |
+| 48 | P0 | src/runtime/changes.py | Python | 788 | 7bce4a55 | Runtime change lifecycle and audit |
 | 49 | P0 | src/runtime/contracts.py | Python | 507 | 1cd648fb | Runtime state/action/capability contracts |
 | 50 | P0 | src/runtime/platform.py | Python | 145 | 1c7162da | Runtime composition root |
 
@@ -114,7 +114,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 44 | P0 | src/models/trainer.py | Python | 1639 | 77a4dac0 | Training, CPCV/OOS metrics and artifact validation |
 | 45 | P0 | src/regime/detector.py | Python | 828 | 4ca13328 | HMM regime detector |
 | 46 | P0 | src/risk/gates.py | Python | 1281 | 36a7f38f | Sequential trading gates and exits |
-| 47 | P0 | src/runtime/changes.py | Python | 786 | 4b578251 | Runtime change lifecycle and audit |
+| 47 | P0 | src/runtime/changes.py | Python | 788 | 7bce4a55 | Runtime change lifecycle and audit |
 | 48 | P0 | src/runtime/contracts.py | Python | 507 | 1cd648fb | Runtime state/action/capability contracts |
 | 49 | P0 | src/runtime/platform.py | Python | 145 | 1c7162da | Runtime composition root |
 | 50 | P0 | src/runtime/production.py | Python | 418 | 55696d76 | Production discovery/controllers/reconciliation |
@@ -494,7 +494,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 424 | P1 | src/risk/conflict_resolver.py | Python | 116 | 04e15a2d |  |
 | 425 | P1 | src/risk/drift_integration.py | Python | 122 | fd61b7f8 |  |
 | 426 | P1 | src/risk/execution_cost.py | Python | 154 | 8c6c1c57 |  |
-| 427 | P1 | src/risk/gate.py | Python | 167 | afe681dc |  |
+| 427 | P1 | src/risk/gate.py | Python | 168 | 5438888d |  |
 | 428 | P1 | src/risk/greeks.py | Python | 108 | f7560515 |  |
 | 429 | P1 | src/risk/kelly.py | Python | 841 | 67c8bb79 |  |
 | 430 | P1 | src/risk/macro_exposure_budget.py | Python | 180 | c73111ed |  |
@@ -506,7 +506,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 436 | P1 | src/risk/strategy_correlation.py | Python | 108 | 2d26d59b |  |
 | 437 | P1 | src/risk/strategy_decay.py | Python | 71 | 40d00f5d |  |
 | 438 | P1 | src/risk/strategy_kill_switch.py | Python | 471 | 88439652 |  |
-| 439 | P1 | src/risk/vol_target_sizer.py | Python | 306 | 2e7aab8a |  |
+| 439 | P1 | src/risk/vol_target_sizer.py | Python | 307 | 824d087b |  |
 | 440 | P1 | src/runtime/__init__.py | Python | 27 | 8fa60c2b |  |
 | 441 | P1 | src/runtime/adapters.py | Python | 730 | 930db9da |  |
 | 442 | P1 | src/runtime/adaptive.py | Python | 341 | 49379dd1 |  |
@@ -518,7 +518,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 448 | P1 | src/runtime/persistence.py | Python | 223 | 3d2debe2 |  |
 | 449 | P1 | src/runtime/reconcile.py | Python | 303 | e3ebc015 |  |
 | 450 | P1 | src/runtime/registry.py | Python | 537 | c2307736 |  |
-| 451 | P1 | src/runtime/supervisor.py | Python | 455 | b19f1d29 |  |
+| 451 | P1 | src/runtime/supervisor.py | Python | 457 | cea0191c |  |
 | 452 | P1 | src/security/__init__.py | Python | 12 | dcb2545c |  |
 | 453 | P1 | src/security/api_signer.py | Python | 284 | 785a7194 |  |
 | 454 | P1 | src/security/at_rest.py | Python | 152 | 95820b10 |  |
@@ -615,7 +615,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 545 | P1 | tests/component/test_money_representation.py | Python | 231 | 44d8855e |  |
 | 546 | P1 | tests/conftest.py | Python | 326 | fbd2d315 |  |
 | 547 | P1 | tests/contract/__init__.py | Python | 0 | e3b0c442 |  |
-| 548 | P1 | tests/contract/test_exchange_order_contract.py | Python | 248 | 44eb44c3 |  |
+| 548 | P1 | tests/contract/test_exchange_order_contract.py | Python | 251 | 2aa268d2 |  |
 | 549 | P1 | tests/engines/__init__.py | Python | 0 | e3b0c442 |  |
 | 550 | P1 | tests/engines/test_adapter_wiring.py | Python | 70 | 4916ed8a |  |
 | 551 | P1 | tests/engines/test_backtest.py | Python | 126 | 3107dc69 |  |
@@ -704,7 +704,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 634 | P1 | tests/regime/test_garch.py | Python | 148 | 8a4195c0 |  |
 | 635 | P1 | tests/regression/__init__.py | Python | 0 | e3b0c442 |  |
 | 636 | P1 | tests/regression/test_metrics_payload.py | Python | 120 | 094976c7 |  |
-| 637 | P1 | tests/regression/test_regression_registry_contract.py | Python | 654 | 9f54fed1 |  |
+| 637 | P1 | tests/regression/test_regression_registry_contract.py | Python | 661 | c2058e71 |  |
 | 638 | P1 | tests/risk/__init__.py | Python | 0 | e3b0c442 |  |
 | 639 | P1 | tests/risk/test_probability_bounds.py | Python | 137 | a3b65a78 |  |
 | 640 | P1 | tests/risk/test_risk_limit_boundaries.py | Python | 300 | 37b9b36e |  |
@@ -1026,7 +1026,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 956 | P1 | tests/test_performance_drift.py | Python | 582 | ded23fb2 |  |
 | 957 | P1 | tests/test_performance_drift_drawdown_basis.py | Python | 102 | 47b3a849 |  |
 | 958 | P1 | tests/test_performance_drift_edges.py | Python | 164 | 1c42a434 |  |
-| 959 | P1 | tests/test_phase6_exec_api_lows.py | Python | 154 | 935076cd |  |
+| 959 | P1 | tests/test_phase6_exec_api_lows.py | Python | 175 | c67293ba |  |
 | 960 | P1 | tests/test_phase7_ops_findings.py | Python | 77 | 3bff132e |  |
 | 961 | P1 | tests/test_portfolio_agreement.py | Python | 129 | cf44a5a2 |  |
 | 962 | P1 | tests/test_portfolio_correlation.py | Python | 438 | 1ff0f901 |  |

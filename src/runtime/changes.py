@@ -121,14 +121,16 @@ REJECTED_CLASSES: frozenset[ChangeClass] = frozenset(
 )
 
 # The action that undoes each action, where one exists.
-INVERSE: Mapping[LifecycleAction, LifecycleAction] = MappingProxyType({
-    A.ACTIVATE: A.DEACTIVATE,
-    A.DEACTIVATE: A.ACTIVATE,
-    A.PAUSE: A.RESUME,
-    A.RESUME: A.PAUSE,
-    A.START: A.STOP,
-    A.REPLACE: A.ROLLBACK,
-})
+INVERSE: Mapping[LifecycleAction, LifecycleAction] = MappingProxyType(
+    {
+        A.ACTIVATE: A.DEACTIVATE,
+        A.DEACTIVATE: A.ACTIVATE,
+        A.PAUSE: A.RESUME,
+        A.RESUME: A.PAUSE,
+        A.START: A.STOP,
+        A.REPLACE: A.ROLLBACK,
+    }
+)
 
 
 class ChangeError(RuntimeError):

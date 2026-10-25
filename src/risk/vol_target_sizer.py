@@ -194,7 +194,8 @@ def vol_target_size(
         Used for vol scaling (252 for daily, 365 for crypto).
     """
     if not all(
-        math.isfinite(v) for v in (capital_usd, current_equity, hwm, realized_vol_pct, target_vol_pct)
+        math.isfinite(v)
+        for v in (capital_usd, current_equity, hwm, realized_vol_pct, target_vol_pct)
     ):
         return SizeResult(
             notional_usd=0.0,
