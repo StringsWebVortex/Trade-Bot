@@ -1077,7 +1077,7 @@ POST /controls/{name} requires the CHANGE_EXECUTION_MODE permission and a health
 - **Verification:**
   - `tests/api/test_authz_and_secrets.py` (security)
 
-> audit finding API-001
+> audit finding API-001. layer: test-suite
 
 #### `SEC-1011` — /controls/execution_mode has the /execution-mode safeguards
 
@@ -1090,7 +1090,7 @@ Changing the execution mode through /controls/execution_mode goes through the sa
 - **Verification:**
   - `tests/api/test_authz_and_secrets.py` (security)
 
-> audit finding API-002
+> audit finding API-002. layer: test-suite
 
 #### `SEC-1012` — POST /controls writes only allow-listed settings and audits every write
 
@@ -1103,7 +1103,7 @@ Settings writes through POST /controls are limited to an explicit allow-list of 
 - **Verification:**
   - `tests/api/test_authz_and_secrets.py` (security)
 
-> audit finding API-003
+> audit finding API-003. layer: test-suite
 
 #### `SEC-1013` — GET /controls never renders secret values
 
@@ -1116,7 +1116,7 @@ Settings leaves whose names carry dsn, password, token, secret, uri or credentia
 - **Verification:**
   - `tests/api/test_authz_and_secrets.py` (security)
 
-> audit finding API-004
+> audit finding API-004. layer: test-suite
 
 #### `SEC-1014` — The WebSocket API key stays out of URLs and uvicorn logs
 
@@ -1129,7 +1129,7 @@ Browsers authenticate the WebSocket through an apikey.<hex> Sec-WebSocket-Protoc
 - **Verification:**
   - `tests/api/test_authz_and_secrets.py` (security)
 
-> audit finding API-005
+> audit finding API-005. layer: test-suite
 
 #### `SEC-1015` — Operator-secret guessing is bounded globally
 
@@ -1142,7 +1142,7 @@ All operator-secret checks share one failure budget that locks every route after
 - **Verification:**
   - `tests/api/test_authz_and_secrets.py` (security)
 
-> audit finding API-007
+> audit finding API-007. layer: test-suite
 
 ## Cryptography and secrets
 

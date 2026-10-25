@@ -35,9 +35,7 @@ def _proto(key: str) -> str:
     return f"tradebot.v1, apikey.{key.encode().hex()}"
 
 
-def _ws(
-    header: str | None = None, query: str | None = None, proto: str | None = None
-) -> MagicMock:
+def _ws(header: str | None = None, query: str | None = None, proto: str | None = None) -> MagicMock:
     ws = MagicMock()
     ws.headers = {"x-api-key": header} if header else {}
     if proto:

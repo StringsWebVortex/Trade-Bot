@@ -104,7 +104,11 @@ def test_apply_control_refuses_execution_mode_without_the_safe_setter() -> None:
     with pytest.raises(ControlWriteError) as exc_info:
         asyncio.run(
             apply_control(
-                "execution_mode", "manual", SetRiskControlsRequest, operator="a", operator_secret="b"
+                "execution_mode",
+                "manual",
+                SetRiskControlsRequest,
+                operator="a",
+                operator_secret="b",
             )
         )
     assert exc_info.value.status == 409
@@ -185,8 +189,13 @@ def test_uvicorn_log_records_have_the_key_redacted() -> None:
     from src.logging_setup import RedactUrlSecretsFilter
 
     record = logging.LogRecord(
-        "uvicorn.error", logging.INFO, "", 0, '%s - "WebSocket %s" [accepted]',
-        ("1.2.3.4:5", "/ws?api_key=SUPERSECRET&x=1"), None,
+        "uvicorn.error",
+        logging.INFO,
+        "",
+        0,
+        '%s - "WebSocket %s" [accepted]',
+        ("1.2.3.4:5", "/ws?api_key=SUPERSECRET&x=1"),
+        None,
     )
     assert RedactUrlSecretsFilter().filter(record)
     assert "SUPERSECRET" not in record.getMessage()
@@ -227,8 +236,11 @@ def test_lockout_is_global_across_endpoints(wired) -> None:
 
     bad = {**_BODY, "operator_secret": "x" * 32}
     for _ in range(MAX_FAILURES):
-        _client().post("/risk-controls", headers={"x-api-key": _TRADE_KEY},
-                       json={"operator": "a", "operator_secret": "x" * 32})
+        _client().post(
+            "/risk-controls",
+            headers={"x-api-key": _TRADE_KEY},
+            json={"operator": "a", "operator_secret": "x" * 32},
+        )
     assert _post("execution_mode", bad).status_code == 429
 
 
@@ -237,8 +249,9 @@ def test_execution_mode_endpoint_limit_runs_before_secret_check(wired) -> None:
     from src.api import operator_secret
 
     wired._ENDPOINT_LIMIT = 0
-    with patch.object(operator_secret, "verify_operator_secret") as verify, patch(
-        "src.api.main.verify_operator_secret", verify
+    with (
+        patch.object(operator_secret, "verify_operator_secret") as verify,
+        patch("src.api.main.verify_operator_secret", verify),
     ):
         resp = _client().post(
             "/execution-mode",

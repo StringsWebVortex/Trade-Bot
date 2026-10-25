@@ -6026,7 +6026,7 @@
           "test_type": "security"
         }
       ],
-      "notes": "audit finding API-001"
+      "notes": "audit finding API-001. layer: test-suite"
     },
     {
       "id": "SEC-1011",
@@ -6047,7 +6047,7 @@
           "test_type": "security"
         }
       ],
-      "notes": "audit finding API-002"
+      "notes": "audit finding API-002. layer: test-suite"
     },
     {
       "id": "SEC-1012",
@@ -6068,7 +6068,7 @@
           "test_type": "security"
         }
       ],
-      "notes": "audit finding API-003"
+      "notes": "audit finding API-003. layer: test-suite"
     },
     {
       "id": "SEC-1013",
@@ -6089,7 +6089,7 @@
           "test_type": "security"
         }
       ],
-      "notes": "audit finding API-004"
+      "notes": "audit finding API-004. layer: test-suite"
     },
     {
       "id": "SEC-1014",
@@ -6110,7 +6110,7 @@
           "test_type": "security"
         }
       ],
-      "notes": "audit finding API-005"
+      "notes": "audit finding API-005. layer: test-suite"
     },
     {
       "id": "SEC-1015",
@@ -6131,7 +6131,7 @@
           "test_type": "security"
         }
       ],
-      "notes": "audit finding API-007"
+      "notes": "audit finding API-007. layer: test-suite"
     }
   ]
 }
