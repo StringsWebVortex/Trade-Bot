@@ -35,6 +35,7 @@ MAX_LOG_ARCHIVE_BYTES = 512 * 1024 * 1024
 MAX_EXPANDED_LOG_BYTES = 1024 * 1024 * 1024
 COLLECT_DEADLINE_SECONDS = 22 * 60
 POLL_INTERVAL_SECONDS = 10
+LOG_DOWNLOAD_ATTEMPTS = 3
 LOG_FAILURES = frozenset(
     {"failure", "timed_out", "cancelled", "canceled", "neutral", "action_required", "stale"}
 )
@@ -103,6 +104,10 @@ NOISE_RE = re.compile(
 
 class DiagnosticError(RuntimeError):
     """The report cannot be safely finalized or retrieved."""
+
+
+class JobLogUnavailable(DiagnosticError):
+    """One job's log could not be downloaded; the rest of the report can still stand."""
 
 
 def _token() -> str:
@@ -925,6 +930,10 @@ def _job_log(slug: str, job_id: int) -> str | None:
     except urllib.error.HTTPError as exc:
         if exc.code == 404:
             return None
+        if exc.code >= 500:
+            raise JobLogUnavailable(
+                f"GitHub job log request failed ({exc.code}) for job {job_id}"
+            ) from None
         if exc.code not in {301, 302, 303, 307, 308}:
             raise DiagnosticError(
                 f"GitHub job log request failed ({exc.code}) for job {job_id}"
@@ -935,7 +944,7 @@ def _job_log(slug: str, job_id: int) -> str | None:
                 f"GitHub returned a job log redirect without a destination for job {job_id}"
             ) from None
     except (urllib.error.URLError, TimeoutError, OSError):
-        raise DiagnosticError(f"GitHub job log request unavailable for job {job_id}") from None
+        raise JobLogUnavailable(f"GitHub job log request unavailable for job {job_id}") from None
 
     if location:
         parsed = urllib.parse.urlsplit(location)
@@ -943,17 +952,33 @@ def _job_log(slug: str, job_id: int) -> str | None:
             raise DiagnosticError(
                 f"GitHub returned an unsafe log-download redirect for job {job_id}"
             )
-        # Follow the signed URL without forwarding the GitHub bearer credential.
-        request = urllib.request.Request(
-            location, headers={"User-Agent": "Trade-Bot-CI-diagnostics"}
-        )
-        try:
-            with urllib.request.urlopen(request, timeout=60) as response:
-                payload = response.read(MAX_LOG_ARCHIVE_BYTES + 1)
-        except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError, OSError):
-            raise DiagnosticError(f"Redirected job log download failed for job {job_id}") from None
+        payload = _download_signed_log(location, job_id)
 
     return _decode_job_log_payload(payload, job_id)
+
+
+def _download_signed_log(location: str, job_id: int) -> bytes:
+    """
+    Fetch the signed log URL GitHub redirected to, retrying a short outage.
+
+    A log just after its job completes can briefly fail at the storage host.
+    One such failure used to fail the whole report (audit follow-up to
+    REG-1604), so each attempt is retried and the last error names its cause.
+    The GitHub bearer credential is never forwarded to the signed URL.
+    """
+    request = urllib.request.Request(location, headers={"User-Agent": "Trade-Bot-CI-diagnostics"})
+    cause = "unknown error"
+    for attempt in range(LOG_DOWNLOAD_ATTEMPTS):
+        try:
+            with urllib.request.urlopen(request, timeout=60) as response:
+                return response.read(MAX_LOG_ARCHIVE_BYTES + 1)
+        except urllib.error.HTTPError as exc:
+            cause = f"HTTP {exc.code}"
+        except (urllib.error.URLError, TimeoutError, OSError) as exc:
+            cause = type(exc).__name__
+        if attempt + 1 < LOG_DOWNLOAD_ATTEMPTS:
+            time.sleep(2**attempt)
+    raise JobLogUnavailable(f"Redirected job log download failed for job {job_id} ({cause})")
 
 
 def _add_log_diagnostics(
@@ -979,7 +1004,26 @@ def _add_log_diagnostics(
     # failed jobs. Successful output is discarded by parse_log_lines unless it
     # contains an explicit diagnostic format; this also catches warnings and
     # source errors emitted by tools that nevertheless exit zero.
-    log = _job_log(repository, job_id)
+    try:
+        log = _job_log(repository, job_id)
+    except JobLogUnavailable as exc:
+        # A green job's log only adds warnings, so the report stands without it.
+        # A failed job's outcome records stand too, but the report must say its
+        # failure lines are missing rather than look complete.
+        if conclusion in (None, "success", "skipped"):
+            return
+        record = _base_record(repository, pr_number, sha, workflow_name, run, job=job)
+        record.update(
+            {
+                "outcome_level": "job",
+                "conclusion": conclusion,
+                "category": "log_unavailable",
+                "message": f"{exc}; this job's failure lines are missing from the report",
+                "source": "GitHub Actions job log",
+            }
+        )
+        _add_record(records, record)
+        return
     if log is None:
         return
     identified_step = failing_steps[0] if len(failing_steps) == 1 else None
