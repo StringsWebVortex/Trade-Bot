@@ -6,6 +6,8 @@ Runs a challenger model alongside the incumbent in shadow mode for
 time, if challenger OOS Sharpe > incumbent Sharpe + epsilon, it
 promotes the challenger to production.
 
+NOTE (MTH-024): no production caller in src/ wires this into the promotion path yet.
+
 Also generates Evidently data drift reports for each A/B evaluation.
 
 Architecture:

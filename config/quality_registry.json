@@ -5747,6 +5747,138 @@
       "depends_on": []
     },
     {
+      "id": "REG-1466",
+      "kind": "regression",
+      "title": "Pohlig-Hellman trial division is bounded",
+      "statement": "pohlig_hellman_security_bits raises instead of looping on orders with no small factor.",
+      "criticality": "low",
+      "subsystem": "security",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "audit finding MTH-015; layer: test-suite",
+      "failure_mode": "A 256-bit prime order looped ~2^128 steps.",
+      "owning_modules": [
+        "src/mathcore/numbertheory/dlp_bounds.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/regression/test_phase6_math_strategy_lows.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1467",
+      "kind": "regression",
+      "title": "Committee size uses a closed form",
+      "statement": "min_committee_size seeds from the closed form and adjusts to the exact crossing.",
+      "criticality": "low",
+      "subsystem": "security",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "audit finding MTH-016; layer: test-suite",
+      "failure_mode": "Linear walk took millions of iterations for tiny KL.",
+      "owning_modules": [
+        "src/mathcore/probability/committee.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/regression/test_phase6_math_strategy_lows.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1468",
+      "kind": "regression",
+      "title": "Birthday minimum draws is exact for huge spaces",
+      "statement": "The minimum draw count is found by bracketing and bisection, exact beyond float precision.",
+      "criticality": "low",
+      "subsystem": "security",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "audit finding MTH-017; layer: test-suite",
+      "failure_mode": "Float seeding returned non-minimal counts for N >= 2^64.",
+      "owning_modules": [
+        "src/mathcore/probability/birthday.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/regression/test_phase6_math_strategy_lows.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1469",
+      "kind": "regression",
+      "title": "Constants module does not mutate the global decimal context",
+      "statement": "nutms derives constants in a local 120-digit context.",
+      "criticality": "low",
+      "subsystem": "security",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "audit finding MTH-018; layer: test-suite",
+      "failure_mode": "Import set the importing thread's decimal precision globally.",
+      "owning_modules": [
+        "src/mathcore/constants/nutms.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/regression/test_phase6_math_strategy_lows.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1470",
+      "kind": "regression",
+      "title": "GBM Monte Carlo default RNG is seeded",
+      "statement": "gbm_mc is deterministic for identical inputs when no rng is given.",
+      "criticality": "low",
+      "subsystem": "signal",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "audit finding STR-18; layer: test-suite",
+      "failure_mode": "Unseeded RNG flipped direction near the band.",
+      "owning_modules": [
+        "src/engines/e11_stochastic.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/regression/test_phase6_math_strategy_lows.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1471",
+      "kind": "regression",
+      "title": "Filters reject invalid direction values",
+      "statement": "Trend/OBV/MTF/ADX filters raise on a direction outside {1,0,-1}.",
+      "criticality": "low",
+      "subsystem": "signal",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "audit finding STR-19; layer: test-suite",
+      "failure_mode": "Any non-1 value was silently treated as short.",
+      "owning_modules": [
+        "src/strategies/filters.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/regression/test_phase6_math_strategy_lows.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
       "id": "SEC-0012",
       "kind": "security_regression",
       "title": "The runtime manifest never resolves a vulnerable filelock",

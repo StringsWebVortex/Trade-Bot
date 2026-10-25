@@ -47,11 +47,11 @@ deletion of the thing it points at.
 
 | Status | Entries |
 |---|---|
-| VERIFIED | 238 |
+| VERIFIED | 244 |
 | PARTIAL | 3 |
 | PLANNED | 0 |
 | ACCEPTED GAP | 0 |
-| **Total** | **241** |
+| **Total** | **247** |
 
 ## Summary by subsystem
 
@@ -60,11 +60,11 @@ deletion of the thing it points at.
 | Risk | 15 | 15 |
 | Execution | 13 | 12 |
 | Portfolio | 1 | 1 |
-| Signal and features | 7 | 7 |
+| Signal and features | 9 | 9 |
 | Models and leakage | 11 | 11 |
 | Data, money and time | 11 | 10 |
 | API and WebSocket | 22 | 22 |
-| Cryptography and secrets | 34 | 34 |
+| Cryptography and secrets | 38 | 38 |
 | Supply chain and artifacts | 7 | 7 |
 | Resilience and recovery | 26 | 26 |
 | Release and production | 14 | 14 |
@@ -535,6 +535,32 @@ SOPR, NVT and MVRV are either genuinely computed or NaN; no on-chain metric retu
   - `tests/test_onchain_no_fabricated_values.py` (regression)
 
 > Escaped to production: the constant reached the live feature dict in src/intel.py and was persisted to intelligence_features_history beside measured columns. The test suite could not catch it because the test that existed asserted the placeholder (== 1.0) rather than the requirement, so the layer that should have caught it is the review that accepted a return of a bare literal from a metric together with a docstring describing a computation the body never performed. layer: review
+
+#### `REG-1470` — GBM Monte Carlo default RNG is seeded
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+gbm_mc is deterministic for identical inputs when no rng is given.
+
+- **If violated:** Unseeded RNG flipped direction near the band.
+- **Owned by:** `src/engines/e11_stochastic.py`
+- **Verification:**
+  - `tests/regression/test_phase6_math_strategy_lows.py` (regression)
+
+> audit finding STR-18; layer: test-suite
+
+#### `REG-1471` — Filters reject invalid direction values
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+Trend/OBV/MTF/ADX filters raise on a direction outside {1,0,-1}.
+
+- **If violated:** Any non-1 value was silently treated as short.
+- **Owned by:** `src/strategies/filters.py`
+- **Verification:**
+  - `tests/regression/test_phase6_math_strategy_lows.py` (regression)
+
+> audit finding STR-19; layer: test-suite
 
 #### `REG-1704` — Carry and arbitrage entries clear a measured-cost hurdle, never a fixed threshold
 
@@ -1423,6 +1449,58 @@ is_valid_public_value requires 2 <= y <= p-2.
   - `tests/regression/test_phase6_math_strategy_lows.py` (regression)
 
 > audit finding MTH-021; layer: test-suite
+
+#### `REG-1466` — Pohlig-Hellman trial division is bounded
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+pohlig_hellman_security_bits raises instead of looping on orders with no small factor.
+
+- **If violated:** A 256-bit prime order looped ~2^128 steps.
+- **Owned by:** `src/mathcore/numbertheory/dlp_bounds.py`
+- **Verification:**
+  - `tests/regression/test_phase6_math_strategy_lows.py` (regression)
+
+> audit finding MTH-015; layer: test-suite
+
+#### `REG-1467` — Committee size uses a closed form
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+min_committee_size seeds from the closed form and adjusts to the exact crossing.
+
+- **If violated:** Linear walk took millions of iterations for tiny KL.
+- **Owned by:** `src/mathcore/probability/committee.py`
+- **Verification:**
+  - `tests/regression/test_phase6_math_strategy_lows.py` (regression)
+
+> audit finding MTH-016; layer: test-suite
+
+#### `REG-1468` — Birthday minimum draws is exact for huge spaces
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+The minimum draw count is found by bracketing and bisection, exact beyond float precision.
+
+- **If violated:** Float seeding returned non-minimal counts for N >= 2^64.
+- **Owned by:** `src/mathcore/probability/birthday.py`
+- **Verification:**
+  - `tests/regression/test_phase6_math_strategy_lows.py` (regression)
+
+> audit finding MTH-017; layer: test-suite
+
+#### `REG-1469` — Constants module does not mutate the global decimal context
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+nutms derives constants in a local 120-digit context.
+
+- **If violated:** Import set the importing thread's decimal precision globally.
+- **Owned by:** `src/mathcore/constants/nutms.py`
+- **Verification:**
+  - `tests/regression/test_phase6_math_strategy_lows.py` (regression)
+
+> audit finding MTH-018; layer: test-suite
 
 #### `REG-1608` — Prometheus authenticates its /metrics scrape
 
@@ -3134,4 +3212,4 @@ To add or change an entry, edit the registry and regenerate this file. See
 `docs/quality/TEST_STRATEGY.md` for the taxonomy the `test_type` column draws
 on, and `docs/quality/IMPLEMENTATION_PLAN.md` for what each phase delivers.
 
-Registry version: 1.0.0 — 241 entries.
+Registry version: 1.0.0 — 247 entries.

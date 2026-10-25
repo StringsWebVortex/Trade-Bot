@@ -90,3 +90,55 @@ def test_str17_direction_agrees_with_final_price_and_no_overlay_without_height()
     )
     outx = asyncio.run(E04Fourier().run("ETH/USDT", {"ohlcv": df, "spot": spot}))
     assert out0.predicted_price == pytest.approx(outx.predicted_price)
+
+
+def test_mth015_trial_division_is_bounded() -> None:
+    from src.mathcore.numbertheory.dlp_bounds import pohlig_hellman_security_bits
+
+    big_prime = (1 << 255) - 19
+    with pytest.raises(ValueError):
+        pohlig_hellman_security_bits(big_prime)
+
+
+def test_mth016_min_committee_size_fast_and_exact() -> None:
+    from src.mathcore.probability.committee import chernoff_committee_bound, min_committee_size
+
+    n = min_committee_size(0.25, 0.5, 1e-9)
+    assert chernoff_committee_bound(0.25, n, 0.5) <= 1e-9
+    assert chernoff_committee_bound(0.25, n - 1, 0.5) > 1e-9
+
+
+def test_mth017_birthday_exact_for_huge_space() -> None:
+    import inspect
+
+    from src.mathcore.probability import birthday
+
+    fn = next(
+        f for _, f in inspect.getmembers(birthday, inspect.isfunction) if "threshold" in inspect.signature(f).parameters
+    )
+    k = fn(1 << 80, 0.5)
+    p = birthday.birthday_collision_probability
+    assert p(k, 1 << 80) >= 0.5 > p(k - 1, 1 << 80)
+
+
+def test_mth018_import_does_not_mutate_global_decimal_context() -> None:
+    import decimal
+
+    from src.mathcore.constants import nutms
+
+    assert decimal.getcontext().prec == 28
+    assert nutms.tea_delta() == 0x9E3779B9
+    assert decimal.getcontext().prec == 28
+
+
+def test_str18_gbm_default_is_deterministic() -> None:
+    from src.engines.e11_stochastic import gbm_mc
+
+    assert np.array_equal(gbm_mc(100.0, 0.1, 0.5, 24.0), gbm_mc(100.0, 0.1, 0.5, 24.0))
+
+
+def test_str19_invalid_direction_rejected() -> None:
+    from src.strategies.filters import trend_filter_passes
+
+    with pytest.raises(ValueError):
+        trend_filter_passes(pd.Series(np.arange(1.0, 200.0)), 5)
