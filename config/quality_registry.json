@@ -5662,6 +5662,55 @@
         }
       ],
       "notes": "Audit OPS-012. The fixAvailable:false downgrade is unchanged (documented decision in security.yml; npm_audit_verdict.py is edited by an open PR)."
+    },
+    {
+      "id": "REG-1602",
+      "kind": "regression",
+      "title": "The runtime control plane's in-memory state is bounded",
+      "statement": "ChangeManager forgets the oldest rejected or cancelled changes beyond a bound and keeps a bounded in-memory audit; AuditPersister keeps a bounded queue while storage is down, dropping and counting the oldest; RuntimeRegistry forgets old version strings except the current, previous and desired ones. An executed change is never forgotten.",
+      "criticality": "low",
+      "subsystem": "resilience",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "An authenticated caller at the route's rate limit, a reconciler retrying a stuck mismatch, a long storage outage or a component whose version changes on every value change grows process memory for the life of the API.",
+      "owning_modules": [
+        "src/runtime/changes.py",
+        "src/runtime/persistence.py",
+        "src/runtime/registry.py"
+      ],
+      "depends_on": [],
+      "verification": [
+        {
+          "test": "tests/runtime/test_bounded_control_plane.py",
+          "test_type": "regression"
+        }
+      ],
+      "notes": "Audit API-021. The persisted audit_log remains the full history."
+    },
+    {
+      "id": "REG-1603",
+      "kind": "regression",
+      "title": "A failed RAG or KG rebuild keeps the previous index",
+      "statement": "scripts/ingest_repo.py and scripts/ingest_kg_repo.py write the new content tagged with the run id first and delete what the run did not write only after the run finishes; a failed RAG run removes its own partial insert.",
+      "criticality": "low",
+      "subsystem": "resilience",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "A rebuild that fails partway (embedding crash, Atlas or claude -p outage) leaves the RAG collection or the knowledge graph empty or partial until a full rerun succeeds.",
+      "owning_modules": [
+        "scripts/ingest_repo.py",
+        "scripts/ingest_kg_repo.py",
+        "kg/assemble.py",
+        "kg/ingest.py"
+      ],
+      "depends_on": [],
+      "verification": [
+        {
+          "test": "tests/test_ingest_keeps_previous_index.py",
+          "test_type": "regression"
+        }
+      ],
+      "notes": "Audit OPS-009."
     }
   ]
 }

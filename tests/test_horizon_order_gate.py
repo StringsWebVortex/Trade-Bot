@@ -10,11 +10,22 @@ import asyncio
 import time
 from types import SimpleNamespace
 
+import pytest
 import structlog
 
 from src.config import Timeframe
 from src.engine.orchestrator import Orchestrator
 from src.engine.signal_engine import SignalResult
+
+
+_NOW = 1_800_000_000.0
+
+
+@pytest.fixture(autouse=True)
+def _frozen_wall_clock(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The staleness gate reads time.time(); a fixed clock makes "fresh" and
+    "5 s old" exact instead of depending on how long the test took."""
+    monkeypatch.setattr(time, "time", lambda: _NOW)
 
 
 def _orchestrator(action: str | None, *, observed_at: float | None = None) -> Orchestrator:

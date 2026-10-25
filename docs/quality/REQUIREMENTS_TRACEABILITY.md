@@ -47,11 +47,11 @@ deletion of the thing it points at.
 
 | Status | Entries |
 |---|---|
-| VERIFIED | 218 |
+| VERIFIED | 220 |
 | PARTIAL | 3 |
 | PLANNED | 0 |
 | ACCEPTED GAP | 0 |
-| **Total** | **221** |
+| **Total** | **223** |
 
 ## Summary by subsystem
 
@@ -66,7 +66,7 @@ deletion of the thing it points at.
 | API and WebSocket | 21 | 21 |
 | Cryptography and secrets | 30 | 30 |
 | Supply chain and artifacts | 7 | 7 |
-| Resilience and recovery | 24 | 24 |
+| Resilience and recovery | 26 | 26 |
 | Release and production | 14 | 14 |
 | Governance | 62 | 61 |
 | Terminal and process center | 12 | 12 |
@@ -1765,6 +1765,32 @@ When the lifespan raises -- the fetcher reaching no exchange venue, the orchestr
 
 > layer: test-suite
 
+#### `REG-1602` — The runtime control plane's in-memory state is bounded
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+ChangeManager forgets the oldest rejected or cancelled changes beyond a bound and keeps a bounded in-memory audit; AuditPersister keeps a bounded queue while storage is down, dropping and counting the oldest; RuntimeRegistry forgets old version strings except the current, previous and desired ones. An executed change is never forgotten.
+
+- **If violated:** An authenticated caller at the route's rate limit, a reconciler retrying a stuck mismatch, a long storage outage or a component whose version changes on every value change grows process memory for the life of the API.
+- **Owned by:** `src/runtime/changes.py`, `src/runtime/persistence.py`, `src/runtime/registry.py`
+- **Verification:**
+  - `tests/runtime/test_bounded_control_plane.py` (regression)
+
+> Audit API-021. The persisted audit_log remains the full history.
+
+#### `REG-1603` — A failed RAG or KG rebuild keeps the previous index
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+scripts/ingest_repo.py and scripts/ingest_kg_repo.py write the new content tagged with the run id first and delete what the run did not write only after the run finishes; a failed RAG run removes its own partial insert.
+
+- **If violated:** A rebuild that fails partway (embedding crash, Atlas or claude -p outage) leaves the RAG collection or the knowledge graph empty or partial until a full rerun succeeds.
+- **Owned by:** `scripts/ingest_repo.py`, `scripts/ingest_kg_repo.py`, `kg/assemble.py`, `kg/ingest.py`
+- **Verification:**
+  - `tests/test_ingest_keeps_previous_index.py` (regression)
+
+> Audit OPS-009.
+
 ## Release and production
 
 #### `INV-010` — Live mode cannot bypass qualification gates
@@ -2866,4 +2892,4 @@ To add or change an entry, edit the registry and regenerate this file. See
 `docs/quality/TEST_STRATEGY.md` for the taxonomy the `test_type` column draws
 on, and `docs/quality/IMPLEMENTATION_PLAN.md` for what each phase delivers.
 
-Registry version: 1.0.0 — 221 entries.
+Registry version: 1.0.0 — 223 entries.
