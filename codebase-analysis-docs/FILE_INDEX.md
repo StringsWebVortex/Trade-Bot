@@ -1239,7 +1239,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 1169 | P2 | frontend/electron/terminalBridge.cjs | CommonJS | 221 | df9b68c6 |  |
 | 1170 | P2 | frontend/index.html | HTML | 14 | 937890f7 |  |
 | 1171 | P2 | frontend/linux/tradebot-dashboard.desktop | Desktop-entry config | 9 | d8c53c4f |  |
-| 1172 | P2 | frontend/package-lock.json | JSON | 4826 | 15b9599e |  |
+| 1172 | P2 | frontend/package-lock.json | JSON | 4826 | b5494c01 |  |
 | 1173 | P2 | frontend/postcss.config.js | JavaScript | 7 | ad943233 |  |
 | 1174 | P2 | frontend/public/icon.svg | Vector asset | 15 | 9a6da623 |  |
 | 1175 | P2 | frontend/scripts/build-icons.mjs | ES module | 36 | 4489c079 |  |
