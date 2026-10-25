@@ -5618,7 +5618,7 @@
       "id": "REG-1430",
       "kind": "regression",
       "title": "Data and intelligence low-severity defects: bus drop total, naive now, funding units, NaN guards",
-      "statement": "EventBus.total_dropped retains drops of detached subscribers; the quality gate refuses a naive now with ClockError; OKX/Bybit single-rate funding is in percent; the probabilistic adapter and value_at_risk reject non-finite inputs; the Granger update is skipped without close_history; the SQLite DDL defaults to synchronous=FULL.",
+      "statement": "EventBus.total_dropped retains drops of detached subscribers; the quality gate refuses a naive now with ClockError; OKX/Bybit single-rate funding is in percent; the probabilistic adapter and value_at_risk reject non-finite inputs; the Granger update is skipped without close_history; the SQLite DDL defaults to synchronous=FULL. Also: feed publish carries published_ts and an unstarted consumer raises; DatetimeIndex bars are rejected and extreme-return limits scale with timeframe; registry ::node selectors must exist; reserve ratios use no hardcoded price; on-chain rate limiters allow per-minute bursts; PatchTST tolerates short input and Chomp1d(0) is identity; brier/prior/regime guards.",
       "criticality": "low",
       "subsystem": "data",
       "status": "verified",

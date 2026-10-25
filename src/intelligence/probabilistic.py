@@ -277,7 +277,7 @@ class BayesianWhaleActivityModel:
 
         Combines prior belief with observed data (Bayesian update).
         """
-        prior_mean = prior_mean or self.prior_mean
+        prior_mean = self.prior_mean if prior_mean is None else prior_mean
 
         # Bayesian update: posterior = weighted average of prior + likelihood
         # Weight by sample size (large n → data dominates)
@@ -328,6 +328,8 @@ class BayesianWhaleActivityModel:
             "neutral": {"impact": -0.012, "std": 0.010},  # -1.2% vol neutral
         }
 
+        # Unknown regime labels fall back to neutral rather than raising KeyError.
+        market_regime = market_regime if market_regime in regime_effects else "neutral"
         effect = regime_effects[market_regime]["impact"] * whale_ratio
         std = regime_effects[market_regime]["std"]
 

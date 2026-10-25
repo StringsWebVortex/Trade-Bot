@@ -30,6 +30,7 @@ Registry: GOV-001, GOV-002, GOV-005 (config/quality_registry.json).
 
 from __future__ import annotations
 
+import ast
 import json
 import re
 from collections.abc import Iterable, Iterator
@@ -402,6 +403,26 @@ def _check_status_contract(raw: dict[str, Any], entries: list[RegistryEntry]) ->
             )
 
 
+def _check_node_selector(entry_id: str, ver: Any, root: Path) -> None:
+    """A ``::name`` selector must name a def/class in the file (DAT-025)."""
+    try:
+        tree = ast.parse((root / ver.path).read_text(encoding="utf-8"))
+    except (OSError, SyntaxError, UnicodeDecodeError):
+        return  # unreadable/unparseable files are other checks' concern
+    names = {
+        n.name
+        for n in ast.walk(tree)
+        if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+    }
+    for part in ver.node.lstrip(":").split("::"):
+        name = re.sub(r"\[.*\]$", "", part)
+        if name and name not in names:
+            raise RegistryError(
+                f"entry {entry_id!r} selects {part!r} in {ver.path!r}, which defines no such "
+                f"test or class. The registry must describe the tree as it is."
+            )
+
+
 def _check_filesystem(entries: list[RegistryEntry], root: Path) -> None:
     """Named tests and owning modules must exist. This is the anti-fiction check."""
     for entry in entries:
@@ -411,6 +432,8 @@ def _check_filesystem(entries: list[RegistryEntry], root: Path) -> None:
                     f"entry {entry.id!r} claims verification by {ver.path!r}, which is not "
                     f"on disk. The registry must describe the tree as it is."
                 )
+            if ver.node and ver.path.endswith(".py"):
+                _check_node_selector(entry.id, ver, root)
         for module in entry.owning_modules:
             if not (root / module).exists():
                 raise RegistryError(
@@ -473,11 +496,15 @@ def _check_semantics(raw: dict[str, Any], entries: Iterable[RegistryEntry], root
     # Vocabularies first: an undeclared `kind` should be reported as an
     # undeclared kind, not as a prefix mismatch against a word that means
     # nothing here.
-    _check_vocabularies(raw, ordered)
-    _check_identity(ordered)
-    _check_status_contract(raw, ordered)
-    _check_filesystem(ordered, root)
-    _check_graph(ordered)
+    try:
+        _check_vocabularies(raw, ordered)
+        _check_identity(ordered)
+        _check_status_contract(raw, ordered)
+        _check_filesystem(ordered, root)
+        _check_graph(ordered)
+    except KeyError as exc:
+        # A missing top-level vocabulary key is a registry defect, not a crash.
+        raise RegistryError(f"registry is missing required key {exc}") from exc
 
 
 def load_registry(path: Path | None = None, root: Path | None = None) -> QualityRegistry:

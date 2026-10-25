@@ -91,6 +91,10 @@ class RedpandaFeeds:
             "timeframe": timeframe,
             **bar,
         }
+        # Wall-clock publish time under its own key: ``**bar`` may legitimately
+        # override ``ts`` with the bar time, so consumers needing publish time
+        # must not read ``ts`` (DAT-020).
+        payload["published_ts"] = int(time.time() * 1000)
         await self._send(topic, payload)
 
     async def publish_orderbook(self, symbol: str, orderbook: dict) -> None:
@@ -159,7 +163,9 @@ class RedpandaConsumer:
 
     async def __anext__(self) -> dict:
         if self._consumer is None:
-            await asyncio.sleep(1)
-            raise StopAsyncIteration
+            raise RuntimeError(
+                "RedpandaConsumer was iterated before 'async with' started it, "
+                "or aiokafka is unavailable; enter it with 'async with' first"
+            )
         msg = await self._consumer.getone()
         return msg.value  # type: ignore[no-any-return]

@@ -94,3 +94,109 @@ def test_value_at_risk_rejects_empty_or_nan_returns(bad) -> None:
     assert math.isfinite(
         RiskQuantifier().value_at_risk(np.linspace(-0.05, 0.05, 200))["var"]
     )
+
+
+# ---------------------------------------------------------------------------
+# Second batch: DAT-020/022/025, INT-028/029/032/036
+# ---------------------------------------------------------------------------
+
+
+def test_feeds_publish_ohlcv_carries_published_ts_and_consumer_requires_enter() -> None:
+    """DAT-020: published_ts survives a bar's own ts; iterating an unstarted consumer raises."""
+    from src.data.feeds import RedpandaConsumer, RedpandaFeeds
+
+    sent: list[dict] = []
+
+    class _Producer:
+        async def send_and_wait(self, _topic, payload):
+            sent.append(payload)
+
+    feeds = RedpandaFeeds()
+    feeds._producer = _Producer()
+    asyncio.run(feeds.publish_ohlcv("BTC/USDT", "1h", {"ts": 123, "close": 1.0}))
+    assert sent[0]["ts"] == 123
+    assert sent[0]["published_ts"] > 123
+
+    async def _iterate() -> None:
+        async for _ in RedpandaConsumer("crypto.ecc"):
+            break
+
+    with pytest.raises(RuntimeError):
+        asyncio.run(_iterate())
+
+
+def test_quality_gate_rejects_datetime_index_and_scales_extreme_return() -> None:
+    """DAT-022: a DatetimeIndex is refused; 4h budgets tolerate larger moves than 15m."""
+    from src.data.quality_gate import FreshnessBudget
+
+    bars = pd.DataFrame(
+        {"open": [1.0], "high": [1.0], "low": [1.0], "close": [1.0], "volume": [1.0]},
+        index=pd.to_datetime([datetime.now(UTC)]),
+    )
+    res = DataQualityGate().check_bars(bars)
+    assert not res.passed
+    assert "index_not_integer_ms" in res.reason
+    assert FreshnessBudget.for_timeframe(900).max_abs_return == pytest.approx(0.15)
+    assert FreshnessBudget.for_timeframe(14400).max_abs_return == pytest.approx(0.30)
+
+
+def test_registry_node_selector_and_missing_vocabulary_key(tmp_path: Path) -> None:
+    """DAT-025: a renamed ::test is refused; a missing vocabulary key is a RegistryError."""
+    import json
+    from types import SimpleNamespace
+
+    from src.quality.registry import PROJECT_ROOT, RegistryError, _check_node_selector, load_registry
+
+    f = tmp_path / "test_x.py"
+    f.write_text("def test_real():\n    pass\n")
+    _check_node_selector("REG-1", SimpleNamespace(path="test_x.py", node="test_real"), tmp_path)
+    with pytest.raises(RegistryError):
+        _check_node_selector("REG-1", SimpleNamespace(path="test_x.py", node="test_gone"), tmp_path)
+
+    raw = json.loads((PROJECT_ROOT / "config/quality_registry.json").read_text())
+    del raw["kind_definitions"]
+    broken = tmp_path / "reg.json"
+    broken.write_text(json.dumps(raw))
+    with pytest.raises(RegistryError):
+        load_registry(broken, root=PROJECT_ROOT)
+
+
+def test_cryptoquant_reserve_ratio_needs_live_price_and_limiters_burst() -> None:
+    """INT-028/029: no hardcoded price; rate limiters hold a per-minute burst."""
+    from src.intelligence.onchain.base import RateLimiter
+    from src.intelligence.onchain.coinglass_provider import CoinglassProvider
+    from src.intelligence.onchain.cryptoquant_provider import CryptoQuantProvider, _reserve_ratio
+
+    assert _reserve_ratio({"result": {"data": [{"reserve_usd": 1e9}]}}) is None
+    ratio = _reserve_ratio({"result": {"data": [{"reserve_usd": 21e9, "price": 100.0}]}})
+    assert ratio == pytest.approx(21e9 / (21_000_000 * 100.0))
+    for cls in (CryptoQuantProvider, CoinglassProvider):
+        assert cls._RATE_WINDOW_S == 60.0
+        assert cls._RATE >= 10.0
+        assert RateLimiter(cls._RATE, cls._RATE_WINDOW_S)._tokens >= 10.0
+
+
+def test_models_patchtst_short_input_and_chomp_zero() -> None:
+    """INT-032: PatchTST accepts T < seq_len; _Chomp1d(0) is the identity."""
+    torch = pytest.importorskip("torch")
+    from src.models.patchtst import PatchTSTHead
+    from src.models.tcn import _Chomp1d
+
+    x = torch.ones(2, 3, 5)
+    assert _Chomp1d(0)(x).shape == x.shape
+    head = PatchTSTHead(n_channels=5, seq_len=64, n_layers=1).eval()
+    assert head(torch.randn(2, 5, 32)).shape == (2, 128)
+
+
+def test_probability_helper_guards() -> None:
+    """INT-036: brier range check, 0.0 prior honoured, unknown regime falls back."""
+    from src.intelligence.calibration import brier_score
+    from src.intelligence.probabilistic import BayesianWhaleActivityModel
+
+    with pytest.raises(ValueError):
+        brier_score([1.5], [1.0])
+    model = BayesianWhaleActivityModel()
+    zero = model.estimate_true_ratio(1.0, 10, prior_mean=0.0)
+    default = model.estimate_true_ratio(1.0, 10)
+    assert zero.point_estimate != default.point_estimate
+    assert model.estimate_market_impact(1.0, "sideways")["causal_effect"] == pytest.approx(-0.012)

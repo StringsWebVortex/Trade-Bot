@@ -21,18 +21,6 @@ if TYPE_CHECKING:
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
-_TIMEFRAME_MAP: dict[str, int] = {
-    "30s": 30_000,
-    "1m": 60_000,
-    "5m": 300_000,
-    "15m": 900_000,
-    "1h": 3_600_000,
-    "4h": 14_400_000,
-    "1d": 86_400_000,
-    "7d": 604_800_000,
-}
-
-
 class IntelligenceAdapter:
     """
     Wraps CryptoIntelligence and writes its signals to TradeBot's storage.

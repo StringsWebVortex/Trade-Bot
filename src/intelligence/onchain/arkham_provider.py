@@ -139,9 +139,10 @@ class ArkhamProvider(OnChainProvider):
                 reserve_ok = False
                 break
             total_balance += float(summary.get("totalUsdValue", 0) or 0)
-        if reserve_ok:
-            # Denominator: BTC market cap proxy (21M x ~$60k default; actual from summary)
-            btc_cap = 21_000_000 * 60_000.0  # conservative floor
+        # INT-028: no hardcoded BTC price. The ratio needs a live market cap,
+        # supplied via ``btc_market_cap_usd``; without it the field is unavailable.
+        btc_cap = getattr(self, "btc_market_cap_usd", None)
+        if reserve_ok and btc_cap is not None and math.isfinite(btc_cap) and btc_cap > 0.0:
             ratio = total_balance / (btc_cap + _EPS)
             result["exchange_reserve_ratio"] = max(0.0, min(1.0, ratio))
         else:

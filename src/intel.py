@@ -536,6 +536,10 @@ class CryptoIntelligence:
         # and volume are present on every persisted OHLCV event; optional
         # provider fields remain in the durable raw observation below rather
         # than appearing and disappearing from the model vector.
+        # KNOWN LIMITATION (INT-034): raw price/volume are level features, so the
+        # regressor can track price level rather than return structure. Moving to
+        # returns/normalised microstructure needs a new fixed train/serve schema
+        # and retraining, so it is deliberately not changed here.
         model_features = {"price": price, "volume": volume}
 
         # Use provider event time only. When a caller cannot supply source

@@ -775,7 +775,7 @@ MarketDataFetcher.initialize() must open each venue independently, record an una
 
 **VERIFIED** · low · regression · source: OPS-2026-10-25
 
-EventBus.total_dropped retains drops of detached subscribers; the quality gate refuses a naive now with ClockError; OKX/Bybit single-rate funding is in percent; the probabilistic adapter and value_at_risk reject non-finite inputs; the Granger update is skipped without close_history; the SQLite DDL defaults to synchronous=FULL.
+EventBus.total_dropped retains drops of detached subscribers; the quality gate refuses a naive now with ClockError; OKX/Bybit single-rate funding is in percent; the probabilistic adapter and value_at_risk reject non-finite inputs; the Granger update is skipped without close_history; the SQLite DDL defaults to synchronous=FULL. Also: feed publish carries published_ts and an unstarted consumer raises; DatetimeIndex bars are rejected and extreme-return limits scale with timeframe; registry ::node selectors must exist; reserve ratios use no hardcoded price; on-chain rate limiters allow per-minute bursts; PatchTST tolerates short input and Chomp1d(0) is identity; brier/prior/regime guards.
 
 - **If violated:** Heartbeat under-reported drops, a naive clock raised TypeError, funding was off by 100x, NaN metrics let gates pass, and Granger consumed fabricated zero returns.
 - **Owned by:** `src/eventbus/bus.py`, `src/data/quality_gate.py`, `src/intel.py`
