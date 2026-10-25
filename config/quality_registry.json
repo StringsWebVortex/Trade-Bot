@@ -6006,6 +6006,29 @@
         }
       ],
       "notes": "Audit STR-21. Part 1: the cost model and the strategies. The orchestrator does not yet fill PortfolioInputs.execution_cost, so the three families (all disabled by default) stay flat until part 2 wires the account's fills, the live half-spread and the calibrated impact in, adds the measured fee to check_slippage_veto, and replaces the fixed fee constants in paper.py, live.py, rl_agent.py and e15_rl.py. Those files are in open PRs. layer: test-suite"
+    },
+    {
+      "id": "SEC-0011",
+      "kind": "security_regression",
+      "title": "The frontend lockfile resolves electron, follow-redirects and undici outside their high advisory ranges",
+      "statement": "frontend's npm tree resolves electron >= 44.9.1, follow-redirects >= 1.16.1 and undici >= 7.30.1 (>= 8.12.2 on the 8.x line), so npm audit at --audit-level=high reports no fixable advisory.",
+      "criticality": "high",
+      "subsystem": "security",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "Security gate (npm audit) failed on pull requests that do not touch frontend (#498, #499) because main's lockfile resolved electron 44.7.0 (GHSA-jr5w-w6x2-84p9), follow-redirects 1.16.0 (GHSA-q3jh-wrc6-jgq8, GHSA-8r9p-f939-6h3c) and undici 7.30.0 / 8.11.2 (GHSA-4qv8-2p9j-2685, GHSA-f72v-6w45-q472), all with fixAvailable true. Measured with npm audit --json on a copy of frontend/: 3 high before; 0 high after (4 moderate vitest advisories remain, below the gate threshold).",
+      "owning_modules": [
+        "frontend/package.json",
+        ".github/workflows/security.yml"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_frontend_audit_scope.py",
+          "test_type": "unit"
+        }
+      ],
+      "depends_on": [],
+      "notes": "Lockfile refresh via npm install --package-lock-only plus npm update of the three packages; the only manifest change is the electron floor. The gate was not changed. layer: supply-chain"
     }
   ]
 }
