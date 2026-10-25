@@ -59,7 +59,7 @@ class CryptoQuantProvider(OnChainProvider):
     _RATE = 10.0 / 60.0  # 10 req/min expressed as req/s for RateLimiter window_s=1.0
 
     def __init__(self, api_key: str, cache_ttl_s: int = 300) -> None:
-        super().__init__()
+        super().__init__(cache_ttl_s)
         self._api_key = api_key
         self._CACHE_TTL_S = cache_ttl_s
         self._disabled = not bool(api_key)
@@ -233,7 +233,11 @@ def _mvrv_stress_contrib(data: dict[str, Any]) -> float:
         return 0.0
     latest = rows[-1]
     market_cap = float(latest.get("market_cap", 0) or 0)
-    realized_cap = float(latest.get("realized_cap", 1) or 1)
+    realized_cap = float(latest.get("realized_cap", 0) or 0)
+    # INT-014: a missing/non-positive realized_cap must not default to 1
+    # (that pins MVRV at market_cap and the contribution at its cap).
+    if market_cap <= 0 or realized_cap <= 0:
+        return 0.0
     mvrv = market_cap / (realized_cap + _EPS)
     if mvrv > _MVRV_STRESS_THRESHOLD:
         return min(_MVRV_STRESS_ADD, (mvrv - _MVRV_STRESS_THRESHOLD) / 10.0)

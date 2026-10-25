@@ -49,11 +49,13 @@ class ArkhamProvider(OnChainProvider):
     _RATE = 20.0  # 20 req/s per Arkham docs
 
     def __init__(self, api_key: str, cache_ttl_s: int = 60) -> None:
-        super().__init__()
+        super().__init__(cache_ttl_s)
         self._api_key = api_key
         self._CACHE_TTL_S = cache_ttl_s
         # Rolling netflow history for z-score (30 samples x 7d = 210d)
         self._netflow_history: list[float] = []
+        # INT-022: append once per cache window, not once per call.
+        self._netflow_hist_ts: float | None = None
 
     @property
     def exchange_id(self) -> str:
@@ -120,7 +122,13 @@ class ArkhamProvider(OnChainProvider):
             inflow = _sum_usd_direction(flow_data, "in")
             outflow = _sum_usd_direction(flow_data, "out")
             netflow = inflow - outflow
-            self._netflow_history.append(netflow)
+            now_m = time.monotonic()
+            if (
+                self._netflow_hist_ts is None
+                or now_m - self._netflow_hist_ts >= self._CACHE_TTL_S
+            ):
+                self._netflow_history.append(netflow)
+                self._netflow_hist_ts = now_m
             if len(self._netflow_history) > 30:
                 self._netflow_history = self._netflow_history[-30:]
             result["exchange_netflow_7d_zscore"] = _zscore(netflow, self._netflow_history)
@@ -185,8 +193,9 @@ def _zscore(value: float, history: list[float]) -> float:
         return 0.0
     mean = sum(history) / len(history)
     variance = sum((x - mean) ** 2 for x in history) / len(history)
-    std = math.sqrt(variance) if variance > 0 else _EPS
-    return (value - mean) / std
+    if variance <= 1e-18:
+        return 0.0  # INT-022: no dispersion -> no z-score (an _EPS std blows up)
+    return max(-3.0, min(3.0, (value - mean) / math.sqrt(variance)))
 
 
 def _herfindahl(data: dict[str, Any]) -> float:

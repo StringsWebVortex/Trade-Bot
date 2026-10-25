@@ -5613,6 +5613,351 @@
         }
       ],
       "depends_on": []
+    },
+    {
+      "id": "REG-1340",
+      "kind": "regression",
+      "title": "Intelligence adapter receives a measured risk context from the orchestrator",
+      "statement": "The orchestrator builds a risk context (atr, cvar, drawdown, daily_loss, odds, as_of_ts) from measured data, returns None when any part is unmeasurable, and passes it through IntelligenceAdapter.on_bar to CryptoIntelligence.on_bar.",
+      "criticality": "high",
+      "subsystem": "signal",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite; audit finding INT-008",
+      "failure_mode": "on_bar returned None on every bar because no risk_context was ever supplied, so nothing was sized or persisted.",
+      "owning_modules": [
+        "src/engine/orchestrator.py",
+        "src/intelligence/intelligence_adapter.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_intelligence_audit_fixes.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1341",
+      "kind": "regression",
+      "title": "Dune execution polling is never served from cache",
+      "statement": "Status polling bypasses the HTTP cache so a pending response is not replayed until timeout.",
+      "criticality": "medium",
+      "subsystem": "data",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite; audit finding INT-012",
+      "failure_mode": "A cached pending status made every poll time out while each attempt spent a daily execution.",
+      "owning_modules": [
+        "src/intelligence/onchain/base.py",
+        "src/intelligence/onchain/dune_provider.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_intelligence_audit_fixes.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1342",
+      "kind": "regression",
+      "title": "Configured on-chain cache TTL reaches the HTTP cache",
+      "statement": "OnChainProvider builds its cache with the configured cache_ttl_s.",
+      "criticality": "medium",
+      "subsystem": "data",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite; audit finding INT-013",
+      "failure_mode": "The cache captured the class default before the subclass assigned the configured TTL.",
+      "owning_modules": [
+        "src/intelligence/onchain/base.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_intelligence_audit_fixes.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1343",
+      "kind": "regression",
+      "title": "MVRV stress contribution survives validation and is bounded",
+      "statement": "validate_provider_result carries the internal MVRV contribution to merge, and a missing or non-positive realized_cap yields zero.",
+      "criticality": "medium",
+      "subsystem": "data",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite; audit finding INT-014",
+      "failure_mode": "The contribution was dropped by validation and would pin at its cap if realized_cap was missing.",
+      "owning_modules": [
+        "src/intelligence/onchain/schema.py",
+        "src/intelligence/onchain/cryptoquant_provider.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_intelligence_audit_fixes.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1344",
+      "kind": "regression",
+      "title": "Exchange stress model is declared uncalibrated",
+      "statement": "BayesianExchangeStressModel states it is an uncalibrated heuristic (CALIBRATED False), carries no unused intercepts and claims no training.",
+      "criticality": "medium",
+      "subsystem": "signal",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite; audit finding INT-015",
+      "failure_mode": "Docstrings claimed Bayesian training on historical crises for hardcoded literals that gate live trading.",
+      "owning_modules": [
+        "src/intelligence/probabilistic.py",
+        "src/intelligence/probabilistic_adapter.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_intelligence_audit_fixes.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1345",
+      "kind": "regression",
+      "title": "Worker result collection does not block the event loop",
+      "statement": "CryptoIntelligence.on_bar collects worker results with asyncio.to_thread.",
+      "criticality": "medium",
+      "subsystem": "signal",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite; audit finding INT-016",
+      "failure_mode": "A synchronous queue read stalled the event loop up to the inference timeout per bar.",
+      "owning_modules": [
+        "src/intel.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_intelligence_audit_fixes.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1346",
+      "kind": "regression",
+      "title": "No default Bitcoin RPC credentials",
+      "statement": "Bitcoin RPC credentials come only from config or environment; without them on-chain RPC and ECC are disabled.",
+      "criticality": "medium",
+      "subsystem": "security",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite; audit finding INT-017",
+      "failure_mode": "A hardcoded crypto/crypto default was used silently over plain HTTP.",
+      "owning_modules": [
+        "src/intel.py",
+        "src/workers/orchestrator.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_intelligence_audit_fixes.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1347",
+      "kind": "regression",
+      "title": "Glassnode history features are causal and match the live definitions",
+      "statement": "History z-scores use trailing windows only and the whale ratio uses the live recent-vs-prior definition on the sorted series.",
+      "criticality": "medium",
+      "subsystem": "data",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite; audit finding INT-018",
+      "failure_mode": "Full-sample statistics leaked the future and the ratio definition and indexing differed from live.",
+      "owning_modules": [
+        "src/intelligence/client.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_intelligence_audit_fixes.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1348",
+      "kind": "regression",
+      "title": "Intelligence fallbacks are missing values, not zeros",
+      "statement": "With no cache, failed netflow, whale and funding fetches return None, and the Glassnode throttle is locked and stamped before the request.",
+      "criticality": "medium",
+      "subsystem": "data",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite; audit finding INT-019",
+      "failure_mode": "Failures returned fabricated zero or neutral readings and throttling stopped after errors.",
+      "owning_modules": [
+        "src/intelligence/client.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_intelligence_audit_fixes.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1349",
+      "kind": "regression",
+      "title": "Positioning ratios are not mixed into whale_buy_sell_ratio",
+      "statement": "OKX and Coinglass no longer report long/short account ratios as taker flow, and OKX does not cache a fabricated neutral.",
+      "criticality": "medium",
+      "subsystem": "data",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite; audit finding INT-020",
+      "failure_mode": "Positioning and taker-flow ratios were averaged into one gate input.",
+      "owning_modules": [
+        "src/intelligence/providers/okx_provider.py",
+        "src/intelligence/onchain/coinglass_provider.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_intelligence_audit_fixes.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1350",
+      "kind": "regression",
+      "title": "Provider singletons refuse a different symbol",
+      "statement": "The exchange provider and aggregator singleton factories raise when asked for a symbol other than the one they were built for.",
+      "criticality": "medium",
+      "subsystem": "data",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite; audit finding INT-021",
+      "failure_mode": "A second symbol silently received the first symbol's market data.",
+      "owning_modules": [
+        "src/intelligence/providers/binance_provider.py",
+        "src/intelligence/providers/okx_provider.py",
+        "src/intelligence/providers/bybit_provider.py",
+        "src/intelligence/providers/aggregator.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_intelligence_audit_fixes.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1351",
+      "kind": "regression",
+      "title": "Rolling z-score histories grow once per cache window",
+      "statement": "Macro provider histories append once per cache TTL, not per call, and the Arkham z-score is bounded.",
+      "criticality": "medium",
+      "subsystem": "data",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite; audit finding INT-022",
+      "failure_mode": "Cache hits were appended repeatedly, collapsing z-scores toward zero.",
+      "owning_modules": [
+        "src/intelligence/providers/coingecko_provider.py",
+        "src/intelligence/providers/blockchain_provider.py",
+        "src/intelligence/onchain/arkham_provider.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_intelligence_audit_fixes.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1352",
+      "kind": "regression",
+      "title": "Rejected horizon samples do not block the training queue",
+      "statement": "Rows rejected or failed in train_pending get a terminal trained=-1 state and are not selected again.",
+      "criticality": "medium",
+      "subsystem": "model",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite; audit finding INT-023",
+      "failure_mode": "Rejected rows stayed at the head of the oldest-first batch and starved later samples.",
+      "owning_modules": [
+        "src/models/horizon_learning.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_intelligence_audit_fixes.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1353",
+      "kind": "regression",
+      "title": "Final XGBoost models are refit on all rows",
+      "statement": "The final model uses the best iteration from a purged early-stopping slice and is refit on the full dataset.",
+      "criticality": "medium",
+      "subsystem": "model",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite; audit finding INT-025",
+      "failure_mode": "The newest 15 percent of bars never trained the shipped model, contrary to the docstring.",
+      "owning_modules": [
+        "src/models/trainer.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_intelligence_audit_fixes.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1354",
+      "kind": "regression",
+      "title": "Sample weights keep min_child_weight meaningful",
+      "statement": "compute_sample_weights normalises to mean 1, not sum 1.",
+      "criticality": "medium",
+      "subsystem": "model",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite; audit finding INT-026",
+      "failure_mode": "Weights summing to 1 left node hessian sums far below min_child_weight and suppressed splits.",
+      "owning_modules": [
+        "src/models/trainer.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_intelligence_audit_fixes.py",
+          "test_type": "regression"
+        },
+        {
+          "test": "tests/test_model_trainer_coverage.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
     }
   ]
 }

@@ -397,4 +397,12 @@ def get_bybit_intelligence_provider(
                 symbol=symbol,
                 perp_symbol=perp_symbol,
             )
+            _provider._singleton_key = (symbol, perp_symbol)
+        # INT-021: the singleton is bound to the first (symbol, perp_symbol);
+        # serving a different symbol from it would return the wrong market's data.
+        if getattr(_provider, "_singleton_key", (symbol, perp_symbol)) != (symbol, perp_symbol):
+            raise ValueError(
+                f"singleton already bound to {_provider._singleton_key}; "
+                f"refusing to serve {(symbol, perp_symbol)}"
+            )
         return _provider

@@ -57,6 +57,8 @@ class CoinGeckoIntelligenceProvider(ExchangeIntelligenceProvider):
         self._cache: dict[str, tuple[float, Any]] = {}
         # Rolling BTC dominance history for z-score computation
         self._btc_dom_history: list[float] = []
+        # INT-022: history grows once per cache window, not once per call.
+        self._btc_dom_hist_ts: float | None = None
         self._log = log.bind(component="coingecko_intelligence")
 
     @property
@@ -93,7 +95,10 @@ class CoinGeckoIntelligenceProvider(ExchangeIntelligenceProvider):
 
                 # BTC dominance z-score
                 btc_dom_pct = float(mkt_cap_pct.get("btc", 0.0))
-                self._btc_dom_history.append(btc_dom_pct)
+                now_m = time.monotonic()
+                if self._btc_dom_hist_ts is None or now_m - self._btc_dom_hist_ts >= self._cache_ttl:
+                    self._btc_dom_history.append(btc_dom_pct)
+                    self._btc_dom_hist_ts = now_m
                 if len(self._btc_dom_history) > _BTC_DOM_WINDOW:
                     self._btc_dom_history = self._btc_dom_history[-_BTC_DOM_WINDOW:]
                 if len(self._btc_dom_history) >= 4:

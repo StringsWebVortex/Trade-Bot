@@ -343,7 +343,8 @@ class HorizonLearningStore:
                 except Exception as exc:
                     rejected += 1
                     db.execute(
-                        "UPDATE horizon_samples SET error=?, update_duration_ms=? WHERE sample_id=?",
+                        "UPDATE horizon_samples SET trained=-1, error=?, update_duration_ms=? "
+                        "WHERE sample_id=?",  # INT-023: terminal, never re-selected
                         (
                             str(exc)[:500],
                             (time.perf_counter() - update_started) * 1000.0,
@@ -417,6 +418,13 @@ class HorizonLearningStore:
             spec = specs_by_id.get(horizon_id)
             if spec is None or "mlp" not in {str(x).lower() for x in spec.get("models", [])}:
                 rejected += len(samples)
+                # INT-023: terminal state (trained=-1) so these rows leave the
+                # head of the oldest-first queue instead of blocking it forever.
+                with self._lock, self._connect() as db:
+                    db.executemany(
+                        "UPDATE horizon_samples SET trained=-1, error=? WHERE sample_id=?",
+                        [("no mlp expert configured for horizon", row[0]) for row in samples],
+                    )
                 continue
             update_started = time.perf_counter()
             try:
@@ -476,7 +484,8 @@ class HorizonLearningStore:
                 update_duration = (time.perf_counter() - update_started) * 1000.0
                 with self._lock, self._connect() as db:
                     db.executemany(
-                        "UPDATE horizon_samples SET error=?, update_duration_ms=? WHERE sample_id=?",
+                        "UPDATE horizon_samples SET trained=-1, error=?, update_duration_ms=? "
+                        "WHERE sample_id=?",  # INT-023: terminal, never re-selected
                         [(str(exc)[:500], update_duration, row[0]) for row in samples],
                     )
                 log.warning(
@@ -900,7 +909,7 @@ class HorizonLearningStore:
             query = """SELECT horizon_id, COUNT(*),
                           SUM(CASE WHEN outcome IS NULL THEN 1 ELSE 0 END),
                           SUM(CASE WHEN outcome IS NOT NULL THEN 1 ELSE 0 END),
-                          SUM(trained), MAX(event_ts), MAX(matured_at),
+                          SUM(CASE WHEN trained=1 THEN 1 ELSE 0 END), MAX(event_ts), MAX(matured_at),
                           MAX(trained_at), MAX(error), MAX(update_duration_ms),
                           SUM(CASE WHEN oos_correct IS NOT NULL THEN 1 ELSE 0 END),
                           AVG(oos_correct),
