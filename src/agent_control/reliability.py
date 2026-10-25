@@ -206,7 +206,7 @@ def record_ci_verdict(
                     event["resolved_at"] = _now()
         else:
             fp = fingerprint(
-                "ci", pr, ",".join(record["failed_checks"]), re.sub(r"\\s+", " ", notice)
+                "ci", pr, ",".join(record["failed_checks"]), re.sub(r"\s+", " ", notice)
             )
             previous = [event for event in data["events"] if event.get("fingerprint") == fp]
             data["events"].append(

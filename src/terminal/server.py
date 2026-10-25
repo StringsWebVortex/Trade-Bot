@@ -621,8 +621,9 @@ async def run_daemon(
     if install_signals:
         for signum in (signal.SIGTERM, signal.SIGINT):
             loop.add_signal_handler(signum, stop_event.set)
-    server = TerminalServer(config, base_env=base_env, shell=shell)  # nosec B604 -- shell is an executable path, not subprocess shell=True.
+    server: TerminalServer | None = None
     try:
+        server = TerminalServer(config, base_env=base_env, shell=shell)  # nosec B604 -- shell is an executable path, not subprocess shell=True.
         auth.load_or_create_token(config.token_path)
         write_rcfile(config.rcfile_path)
         config.pid_path.write_text(f"{os.getpid()}\n", encoding="utf-8")
@@ -634,7 +635,8 @@ async def run_daemon(
         poller.cancel()
     finally:
         log.info("terminal.stopping")
-        await server.stop()
+        if server is not None:
+            await server.stop()
         with contextlib.suppress(FileNotFoundError):
             config.pid_path.unlink()
         if install_signals:

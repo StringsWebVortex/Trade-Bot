@@ -115,7 +115,8 @@ function Dashboard() {
       return [...list, ev];
     },
   });
-  const riskControls = usePolling('/risk-controls', 10000, (b) => b?.risk_controls ?? null);
+  const [riskTick, setRiskTick] = useState(0);
+  const riskControls = usePolling('/risk-controls', 10000, (b) => b?.risk_controls ?? null, riskTick);
   // Polled here only for the backfill timeframe options; ModelTrainingPanel
   // polls the same endpoint for its own display.
   const modelsStatus = usePolling('/models/status', 30000);
@@ -132,6 +133,7 @@ function Dashboard() {
   // {"[object Object]": undefined} that the endpoint rejected.
   const handleRiskUpdate = async (patch) => {
     await action('/risk-controls', 'POST', patch);
+    setRiskTick((n) => n + 1); // FE-11: re-read instead of waiting for the next 10s poll
   };
 
   const handleApprovalResolve = async (id, approved) => {

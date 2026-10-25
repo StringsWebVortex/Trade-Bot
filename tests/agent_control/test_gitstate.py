@@ -251,3 +251,26 @@ class TestRunner:
         assert result == GitResult(("status",), 0, "ok", "")
         assert seen["GIT_OPTIONAL_LOCKS"] == "0" and seen["LC_ALL"] == "C"
         assert seen["input"] == "in"
+
+
+def test_remote_head_rejects_option_like_remote():
+    """AGT-005: --upload-pack=CMD must never reach git ls-remote as an option."""
+
+    class Boom:
+        def run(self, *a, **k):
+            raise AssertionError("git must not be invoked")
+
+    with pytest.raises(ValueError):
+        remote_head(Boom(), "--upload-pack=touch /tmp/x", "main")
+
+
+def test_remote_head_separates_remote_with_double_dash():
+    calls = []
+
+    class Rec:
+        def run(self, *a, **k):
+            calls.append(a)
+            return GitResult(a, 0, "", "")
+
+    assert remote_head(Rec(), "origin", "main") is None
+    assert calls[0][:3] == ("ls-remote", "--", "origin")

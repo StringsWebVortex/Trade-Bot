@@ -47,11 +47,11 @@ deletion of the thing it points at.
 
 | Status | Entries |
 |---|---|
-| VERIFIED | 232 |
+| VERIFIED | 239 |
 | PARTIAL | 3 |
 | PLANNED | 0 |
 | ACCEPTED GAP | 0 |
-| **Total** | **235** |
+| **Total** | **242** |
 
 ## Summary by subsystem
 
@@ -63,13 +63,13 @@ deletion of the thing it points at.
 | Signal and features | 7 | 7 |
 | Models and leakage | 11 | 11 |
 | Data, money and time | 11 | 10 |
-| API and WebSocket | 22 | 22 |
-| Cryptography and secrets | 32 | 32 |
+| API and WebSocket | 23 | 23 |
+| Cryptography and secrets | 33 | 33 |
 | Supply chain and artifacts | 7 | 7 |
-| Resilience and recovery | 26 | 26 |
+| Resilience and recovery | 27 | 27 |
 | Release and production | 14 | 14 |
-| Governance | 67 | 66 |
-| Terminal and process center | 13 | 13 |
+| Governance | 69 | 68 |
+| Terminal and process center | 15 | 15 |
 
 ## Outstanding work by phase
 
@@ -1053,6 +1053,20 @@ The default API_CORS_ORIGINS allows both loopback spellings of the dashboard dev
 
 > layer: test-suite
 
+#### `REG-1496` — Dashboard polling and control hub tolerate transient failures
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+usePolling drops late responses after path change/unmount and refetches on refreshKey; ControlHubPanel keeps the last surface on error and URL-encodes control names (FE-10, FE-11, FE-19).
+
+- **If violated:** A failed refresh blanked the control surface and stale polls overwrote newer data.
+- **Owned by:** `frontend/src/hooks/useApi.js`, `frontend/src/components/panels/ControlHubPanel.jsx`, `frontend/src/App.jsx`
+- **Verification:**
+  - `frontend/src/hooks/useApi.test.js` (regression)
+  - `frontend/src/components/panels/ControlHubPanel.test.jsx` (regression)
+
+> layer: test-suite
+
 #### `REG-1703` — One environment variable never binds two settings fields
 
 **VERIFIED** · low · regression · source: OPS-2026-10-25
@@ -1453,6 +1467,19 @@ requirements.txt declares filelock>=4.2.1, and every Dockerfile install into the
 
 > The advisory was published against a release nobody here chose, so no commit or review could have seen it arrive. layer: supply-chain
 
+#### `SEC-1490` — Agent git remote is never parsed as a git option
+
+**VERIFIED** · low · security_regression · source: OPS-2026-10-25
+
+A remote beginning with "-" is refused before git runs and the remote follows "--" in ls-remote, so --upload-pack=CMD cannot execute (AGT-005).
+
+- **If violated:** A crafted --remote value ran an arbitrary command on every Stop hook.
+- **Owned by:** `src/agent_control/gitstate.py`, `src/agent_control/branch_audit.py`
+- **Verification:**
+  - `tests/agent_control/test_gitstate.py` (regression)
+
+> layer: test-suite
+
 ## Supply chain and artifacts
 
 #### `SUP-001` — Every workflow declares least-privilege permissions
@@ -1844,6 +1871,19 @@ When the lifespan raises -- the fetcher reaching no exchange venue, the orchestr
 - **Owned by:** `src/api/main.py`
 - **Verification:**
   - `tests/test_startup_readiness.py` (regression)
+
+> layer: test-suite
+
+#### `REG-1492` — Tick-stall failures accumulate toward escalation
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+A persistent tick stall increments consecutive_failures each cycle instead of resetting to 1 (AGT-013).
+
+- **If violated:** MAX_CONSECUTIVE_FAILURES escalation was unreachable for stalls.
+- **Owned by:** `src/diagnostics/runtime_monitor.py`
+- **Verification:**
+  - `tests/test_runtime_monitor_coverage.py` (regression)
 
 > layer: test-suite
 
@@ -2767,6 +2807,32 @@ Every scripts/ path named in the README, in src/ comments or in a test's skip me
 
 > scripts/timescaledb.sh was referenced from six call sites -- README.md three times, src/config.py, src/data/storage.py and the skip message in tests/test_timescale_storage.py -- and did not exist; removed by the config purge (#144) without the references going with it. The test guards the general form (a named scripts/ path that is absent) as well as this one file, and pins the script to ci.yml's service block so the local and CI databases cannot drift apart silently. layer: test-suite
 
+#### `REG-1491` — CI failure fingerprint normalises whitespace
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+Two CI notices differing only in whitespace share one fingerprint and count as a repeat (AGT-006).
+
+- **If violated:** The regex matched a literal backslash-s so repeat detection undercounted.
+- **Owned by:** `src/agent_control/reliability.py`
+- **Verification:**
+  - `tests/agent_control/test_reliability.py` (regression)
+
+> layer: test-suite
+
+#### `REG-1493` — Decision log header creation never truncates
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+The header is created with exclusive create; an existing log keeps its content (AGT-017).
+
+- **If violated:** Check-then-write let two writers race and truncate the log.
+- **Owned by:** `src/diagnostics/decision_log_writer.py`
+- **Verification:**
+  - `tests/test_decision_log_writer.py` (regression)
+
+> layer: test-suite
+
 #### `REG-1600` — The CPU torch pre-pass uses the same version spec as requirements.txt
 
 **VERIFIED** · low · regression · source: OPS-2026-10-25
@@ -3015,6 +3081,32 @@ When `tradebot-term attach` ends, it sends session.detach as a request and waits
 
 > Visible only when the daemon is slower to read than the CLI is to close, so it failed on a loaded runner and passed on an idle one. The test records the calls attach makes instead of racing a real socket. layer: test-suite
 
+#### `REG-1494` — Terminal CLI stop/pid/tail are safe
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+_daemon_pid requires the daemon subcommand, stop_daemon reports a daemon that never exits, and non-positive --tail is rejected (AGT-026, AGT-027, AGT-028).
+
+- **If violated:** A stale pid file could signal another CLI process; stop claimed success on timeout.
+- **Owned by:** `src/terminal/cli.py`
+- **Verification:**
+  - `tests/terminal/test_terminal_cli.py` (regression)
+
+> layer: test-suite
+
+#### `REG-1495` — Terminal daemon releases its instance lock on construction failure
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+If TerminalServer construction raises, run_daemon still releases the flock (AGT-031).
+
+- **If violated:** The lock fd leaked when construction failed outside the try.
+- **Owned by:** `src/terminal/server.py`
+- **Verification:**
+  - `tests/terminal/test_terminal_server.py` (regression)
+
+> layer: test-suite
+
 #### `REG-1606` — The terminal token is kept in memory, never in browser storage
 
 **VERIFIED** · medium · regression · source: OPS-2026-10-25
@@ -3056,4 +3148,4 @@ To add or change an entry, edit the registry and regenerate this file. See
 `docs/quality/TEST_STRATEGY.md` for the taxonomy the `test_type` column draws
 on, and `docs/quality/IMPLEMENTATION_PLAN.md` for what each phase delivers.
 
-Registry version: 1.0.0 — 235 entries.
+Registry version: 1.0.0 — 242 entries.

@@ -392,7 +392,7 @@ export function useReadiness(interval = 5000) {
   return { report: data, problem };
 }
 
-export function usePolling(path, interval, transform) {
+export function usePolling(path, interval, transform, refreshKey) {
   const [data, setData] = useState(null);
 
   // REG-0022. The effect's dependency array is [path, interval] but the body
@@ -411,6 +411,8 @@ export function usePolling(path, interval, transform) {
 
   useEffect(() => {
     let inFlight = false;
+    // FE-19: a response that lands after unmount / path change is dropped.
+    let live = true;
     async function poll() {
       if (inFlight) return;
       inFlight = true;
@@ -419,15 +421,18 @@ export function usePolling(path, interval, transform) {
         if (res.ok) {
           const body = await res.json();
           const fn = transformRef.current;
-          setData(fn ? fn(body) : body);
+          if (live) setData(fn ? fn(body) : body);
         }
       } catch (_) {}
       finally { inFlight = false; }
     }
     poll();
     const id = setInterval(poll, interval);
-    return () => clearInterval(id);
-  }, [path, interval]);
+    return () => {
+      live = false;
+      clearInterval(id);
+    };
+  }, [path, interval, refreshKey]);
 
   return data;
 }

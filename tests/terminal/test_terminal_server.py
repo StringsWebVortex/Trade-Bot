@@ -512,3 +512,19 @@ class TestClientConnection:
         server = TerminalServer(config)
         await asyncio.wait_for(server._serve(connection, _never()), 5)
         assert connection not in server._clients
+
+
+async def test_instance_lock_released_when_server_construction_fails(config, monkeypatch):
+    """AGT-031: a failing TerminalServer(...) must not leak the flock."""
+    from src.terminal import server as server_mod
+
+    def boom(*a, **k):
+        raise RuntimeError("construction failed")
+
+    monkeypatch.setattr(server_mod, "TerminalServer", boom)
+    monkeypatch.setattr(server_mod.os, "geteuid", lambda: 1000)
+    with pytest.raises(RuntimeError, match="construction failed"):
+        await run_daemon(config, install_signals=False)
+    lock = server_mod.InstanceLock(config.lock_path)
+    lock.acquire()  # raises DaemonError if the previous lock leaked
+    lock.release()

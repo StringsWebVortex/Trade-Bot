@@ -224,7 +224,8 @@ def _daemon_pid(config: TerminalConfig, proc: Path = Path("/proc")) -> int | Non
     except (OSError, ValueError):
         return None
     # A stale pid file can name a recycled pid; only signal our own daemon.
-    return pid if b"src.terminal" in cmdline else None
+    argv = cmdline.split(b"\0")
+    return pid if b"src.terminal" in cmdline and b"daemon" in argv else None
 
 
 def stop_daemon(
@@ -248,6 +249,8 @@ def stop_daemon(
     deadline = time.monotonic() + timeout_s
     while time.monotonic() < deadline and config.socket_path.exists():
         time.sleep(0.1)
+    if config.socket_path.exists():
+        raise CliError(f"the terminal daemon did not stop within {timeout_s:.0f}s")
     return True
 
 
@@ -382,6 +385,8 @@ def _collect_session_output(client: TerminalClient, sid: str) -> bytes:
 
 
 def cmd_output(config: TerminalConfig, args: argparse.Namespace, out: TextIO) -> int:
+    if args.tail is not None and args.tail <= 0:
+        raise CliError("--tail must be a positive number of bytes")
     with _client(config) as client:
         if PROCESS_ID_RE.match(args.target):
             process = client.request("process.output", process_id=args.target)["process"]

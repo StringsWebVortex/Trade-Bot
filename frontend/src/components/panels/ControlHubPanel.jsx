@@ -180,7 +180,7 @@ export function ControlHubPanel({ operatorAction, refreshToken }) {
     async (name, value) => {
       setPending(name);
       try {
-        const result = await operatorAction(`/controls/${name}`, 'POST', { value });
+        const result = await operatorAction(`/controls/${encodeURIComponent(name)}`, 'POST', { value });
         // Re-read either way: on success to confirm what landed, on failure
         // because the widget is showing a value the backend never accepted.
         await load();
@@ -192,7 +192,8 @@ export function ControlHubPanel({ operatorAction, refreshToken }) {
     [operatorAction, load],
   );
 
-  if (error) {
+  // FE-10: a transient failure must not discard a surface that already loaded.
+  if (error && !surface) {
     return <div style={{ color: 'var(--c-red, #f66)', fontSize: 12, padding: 20 }}>{error}</div>;
   }
   if (!surface) {
@@ -218,6 +219,11 @@ export function ControlHubPanel({ operatorAction, refreshToken }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {error && (
+        <div role="alert" style={{ color: 'var(--c-red, #f66)', fontSize: 12 }}>
+          {error} (showing last known controls)
+        </div>
+      )}
       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
         <input
           type="search"

@@ -555,3 +555,36 @@ class TestClient:
             client.send({"t": "ping"})
         with pytest.raises(TerminalClientError):
             client.recv(0.1)
+
+
+class TestPhase6Lows:
+    """AGT-026/027/028: pid-file targeting, stop timeout and --tail validation."""
+
+    def test_daemon_pid_rejects_another_cli_invocation(self, config, tmp_path):
+        config.pid_path.parent.mkdir(parents=True, exist_ok=True)
+        config.pid_path.write_text(f"{os.getpid()}\n")
+        proc = tmp_path / "proc"
+        (proc / str(os.getpid())).mkdir(parents=True)
+        (proc / str(os.getpid()) / "cmdline").write_bytes(b"python\x00-m\x00src.terminal\x00ls\x00")
+        assert cli._daemon_pid(config, proc) is None
+
+    def test_stop_reports_a_daemon_that_never_exits(self, config, short_tmp, tmp_path):
+        d = ThreadedDaemon(config, short_tmp).start()
+        proc = tmp_path / "proc"
+        (proc / str(os.getpid())).mkdir(parents=True)
+        (proc / str(os.getpid()) / "cmdline").write_bytes(b"python\x00-m\x00src.terminal\x00daemon\x00")
+        try:
+            with pytest.raises(cli.CliError, match="did not stop"):
+                cli.stop_daemon(
+                    config, run=lambda argv: 3, kill=lambda p, s: None, proc=proc, timeout_s=0.2
+                )
+        finally:
+            d.shutdown()
+
+    @pytest.mark.parametrize("tail", [0, -3])
+    def test_non_positive_tail_is_rejected(self, config, tail):
+        import argparse
+        import io
+
+        with pytest.raises(cli.CliError, match="--tail"):
+            cli.cmd_output(config, argparse.Namespace(target="x", tail=tail, plain=False), io.StringIO())

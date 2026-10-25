@@ -3633,28 +3633,6 @@
       "notes": "layer: test-suite"
     },
     {
-      "id": "SEC-0012",
-      "kind": "security_regression",
-      "title": "The runtime manifest never resolves a vulnerable filelock",
-      "statement": "requirements.txt declares filelock>=4.2.1, and every Dockerfile install into the build prefix after the CPU torch pre-pass runs with that prefix on PYTHONPATH, so neither the runtime nor the container image carries filelock 3.32.3 (CVE-2026-112940).",
-      "criticality": "high",
-      "subsystem": "security",
-      "status": "verified",
-      "source": "OPS-2026-10-25",
-      "failure_mode": "filelock was only a transitive dependency of torch and huggingface-hub, both unbounded, so pip kept filelock 3.32.3; the container scan reported CVE-2026-112940 and every PR's Security gate went red. The floor alone did not clear the image: pip does not see packages inside --prefix, so the requirements pass installed filelock 4.x beside the pre-pass's 3.32.3 and the stale dist-info stayed in the image.",
-      "owning_modules": [
-        "requirements.txt",
-        "Dockerfile"
-      ],
-      "verification": [
-        {
-          "test": "tests/security/test_filelock_cve_floor.py",
-          "test_type": "security"
-        }
-      ],
-      "notes": "The advisory was published against a release nobody here chose, so no commit or review could have seen it arrive. layer: supply-chain"
-    },
-    {
       "id": "GOV-022",
       "kind": "requirement",
       "title": "diagnostics stays within its layer",
@@ -5635,6 +5613,189 @@
         }
       ],
       "depends_on": []
+    },
+    {
+      "id": "SEC-1490",
+      "kind": "security_regression",
+      "title": "Agent git remote is never parsed as a git option",
+      "statement": "A remote beginning with \"-\" is refused before git runs and the remote follows \"--\" in ls-remote, so --upload-pack=CMD cannot execute (AGT-005).",
+      "criticality": "low",
+      "subsystem": "security",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "A crafted --remote value ran an arbitrary command on every Stop hook.",
+      "owning_modules": [
+        "src/agent_control/gitstate.py",
+        "src/agent_control/branch_audit.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/agent_control/test_gitstate.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1491",
+      "kind": "regression",
+      "title": "CI failure fingerprint normalises whitespace",
+      "statement": "Two CI notices differing only in whitespace share one fingerprint and count as a repeat (AGT-006).",
+      "criticality": "low",
+      "subsystem": "governance",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "The regex matched a literal backslash-s so repeat detection undercounted.",
+      "owning_modules": [
+        "src/agent_control/reliability.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/agent_control/test_reliability.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1492",
+      "kind": "regression",
+      "title": "Tick-stall failures accumulate toward escalation",
+      "statement": "A persistent tick stall increments consecutive_failures each cycle instead of resetting to 1 (AGT-013).",
+      "criticality": "low",
+      "subsystem": "resilience",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "MAX_CONSECUTIVE_FAILURES escalation was unreachable for stalls.",
+      "owning_modules": [
+        "src/diagnostics/runtime_monitor.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_runtime_monitor_coverage.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1493",
+      "kind": "regression",
+      "title": "Decision log header creation never truncates",
+      "statement": "The header is created with exclusive create; an existing log keeps its content (AGT-017).",
+      "criticality": "low",
+      "subsystem": "governance",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "Check-then-write let two writers race and truncate the log.",
+      "owning_modules": [
+        "src/diagnostics/decision_log_writer.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_decision_log_writer.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1494",
+      "kind": "regression",
+      "title": "Terminal CLI stop/pid/tail are safe",
+      "statement": "_daemon_pid requires the daemon subcommand, stop_daemon reports a daemon that never exits, and non-positive --tail is rejected (AGT-026, AGT-027, AGT-028).",
+      "criticality": "low",
+      "subsystem": "terminal",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "A stale pid file could signal another CLI process; stop claimed success on timeout.",
+      "owning_modules": [
+        "src/terminal/cli.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/terminal/test_terminal_cli.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1495",
+      "kind": "regression",
+      "title": "Terminal daemon releases its instance lock on construction failure",
+      "statement": "If TerminalServer construction raises, run_daemon still releases the flock (AGT-031).",
+      "criticality": "low",
+      "subsystem": "terminal",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "The lock fd leaked when construction failed outside the try.",
+      "owning_modules": [
+        "src/terminal/server.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/terminal/test_terminal_server.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1496",
+      "kind": "regression",
+      "title": "Dashboard polling and control hub tolerate transient failures",
+      "statement": "usePolling drops late responses after path change/unmount and refetches on refreshKey; ControlHubPanel keeps the last surface on error and URL-encodes control names (FE-10, FE-11, FE-19).",
+      "criticality": "low",
+      "subsystem": "api",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "A failed refresh blanked the control surface and stale polls overwrote newer data.",
+      "owning_modules": [
+        "frontend/src/hooks/useApi.js",
+        "frontend/src/components/panels/ControlHubPanel.jsx",
+        "frontend/src/App.jsx"
+      ],
+      "verification": [
+        {
+          "test": "frontend/src/hooks/useApi.test.js",
+          "test_type": "regression"
+        },
+        {
+          "test": "frontend/src/components/panels/ControlHubPanel.test.jsx",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "SEC-0012",
+      "kind": "security_regression",
+      "title": "The runtime manifest never resolves a vulnerable filelock",
+      "statement": "requirements.txt declares filelock>=4.2.1, and every Dockerfile install into the build prefix after the CPU torch pre-pass runs with that prefix on PYTHONPATH, so neither the runtime nor the container image carries filelock 3.32.3 (CVE-2026-112940).",
+      "criticality": "high",
+      "subsystem": "security",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "filelock was only a transitive dependency of torch and huggingface-hub, both unbounded, so pip kept filelock 3.32.3; the container scan reported CVE-2026-112940 and every PR's Security gate went red. The floor alone did not clear the image: pip does not see packages inside --prefix, so the requirements pass installed filelock 4.x beside the pre-pass's 3.32.3 and the stale dist-info stayed in the image.",
+      "owning_modules": [
+        "requirements.txt",
+        "Dockerfile"
+      ],
+      "verification": [
+        {
+          "test": "tests/security/test_filelock_cve_floor.py",
+          "test_type": "security"
+        }
+      ],
+      "notes": "The advisory was published against a release nobody here chose, so no commit or review could have seen it arrive. layer: supply-chain"
     },
     {
       "id": "REG-1604",

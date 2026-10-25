@@ -224,6 +224,40 @@ describe('REG-0022: callbacks are read from the current render', () => {
     // the ref is that the timer survives while the function does not.
     expect(result.current).toBe('second:1');
   });
+
+  it('FE-19: drops a late answer after the path changed', async () => {
+    const pending = {};
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url) => new Promise((resolve) => { pending[url] = resolve; })),
+    );
+    const { result, rerender } = renderHook(({ p }) => usePolling(p, 10_000), {
+      initialProps: { p: '/old' },
+    });
+    rerender({ p: '/new' });
+    await act(async () => {
+      pending['/new']({ ok: true, json: () => Promise.resolve('new') });
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    await act(async () => {
+      pending['/old']({ ok: true, json: () => Promise.resolve('old') });
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(result.current).toBe('new');
+  });
+
+  it('FE-11: refetches immediately when refreshKey changes', async () => {
+    const f = vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve(1) }));
+    vi.stubGlobal('fetch', f);
+    const { rerender } = renderHook(({ k }) => usePolling('/r', 10_000, undefined, k), {
+      initialProps: { k: 0 },
+    });
+    await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+    const before = f.mock.calls.length;
+    rerender({ k: 1 });
+    await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+    expect(f.mock.calls.length).toBe(before + 1);
+  });
 });
 
 describe('the subscribe frame', () => {
