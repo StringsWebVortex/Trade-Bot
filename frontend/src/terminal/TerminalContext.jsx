@@ -27,12 +27,19 @@ export function readFailuresSeenAt() {
   }
 }
 
+// The terminal token grants a shell as the logged-in user, so it lives in
+// memory only (audit FE-15): any script on the origin can read web storage,
+// and a reload asking for the token again is the cheaper failure. A copy an
+// older build left in sessionStorage is removed rather than read.
+let memoryToken = null;
+try { sessionStorage.removeItem(TOKEN_STORAGE_KEY); } catch { /* private mode */ }
+
 export function readStoredToken() {
-  try { return sessionStorage.getItem(TOKEN_STORAGE_KEY); } catch { return null; }
+  return memoryToken;
 }
 
 export function storeToken(token) {
-  try { sessionStorage.setItem(TOKEN_STORAGE_KEY, token); } catch { /* private mode */ }
+  memoryToken = token;
 }
 
 export function defaultClientFactory() {
