@@ -47,11 +47,11 @@ deletion of the thing it points at.
 
 | Status | Entries |
 |---|---|
-| VERIFIED | 231 |
+| VERIFIED | 232 |
 | PARTIAL | 3 |
 | PLANNED | 0 |
 | ACCEPTED GAP | 0 |
-| **Total** | **234** |
+| **Total** | **235** |
 
 ## Summary by subsystem
 
@@ -60,7 +60,7 @@ deletion of the thing it points at.
 | Risk | 11 | 11 |
 | Execution | 13 | 12 |
 | Portfolio | 1 | 1 |
-| Signal and features | 6 | 6 |
+| Signal and features | 7 | 7 |
 | Models and leakage | 11 | 11 |
 | Data, money and time | 11 | 10 |
 | API and WebSocket | 22 | 22 |
@@ -483,6 +483,23 @@ SOPR, NVT and MVRV are either genuinely computed or NaN; no on-chain metric retu
   - `tests/test_onchain_no_fabricated_values.py` (regression)
 
 > Escaped to production: the constant reached the live feature dict in src/intel.py and was persisted to intelligence_features_history beside measured columns. The test suite could not catch it because the test that existed asserted the placeholder (== 1.0) rather than the requirement, so the layer that should have caught it is the review that accepted a return of a bare literal from a metric together with a docstring describing a computation the body never performed. layer: review
+
+#### `REG-1704` — Carry and arbitrage entries clear a measured-cost hurdle, never a fixed threshold
+
+**VERIFIED** · high · regression · source: OPS-2026-10-25
+
+The basis-trade, funding-carry and cross-exchange families enter only when their gross edge (raw spot-perp gap, funding expected over the measured same-sign holding horizon, cross-venue spread) exceeds ExecutionCost.hurdle_bps: the measured per-leg fee, half-spread and impact over the trade's legs plus a one-sided 95% margin on the cost's measured variability. With no measured cost, or no measured horizon for funding, they abstain.
+
+- **If violated:** A fixed threshold calibrated to no venue signals trades whose edge the round trip consumes: a 1.4 bp perp premium cleared the old 5%-a-year basis gate at the 1-day horizon though four taker legs cost far more, and a persistent funding rate below the fixed 0.01% floor was refused whatever it would have earned.
+- **Owned by:** `src/risk/execution_cost.py`, `src/strategies/basis_trade.py`, `src/strategies/funding_carry.py`, `src/strategies/cross_exchange_arb.py`, `src/engine/strategy_portfolio.py`
+- **Verification:**
+  - `tests/test_execution_cost.py` (regression)
+  - `tests/test_basis_trade.py` (regression)
+  - `tests/test_funding_carry.py` (regression)
+  - `tests/test_cross_exchange_arb.py` (regression)
+  - `tests/test_strategy_portfolio.py` (regression)
+
+> Audit STR-21. Part 1: the cost model and the strategies. The orchestrator does not yet fill PortfolioInputs.execution_cost, so the three families (all disabled by default) stay flat until part 2 wires the account's fills, the live half-spread and the calibrated impact in, adds the measured fee to check_slippage_veto, and replaces the fixed fee constants in paper.py, live.py, rl_agent.py and e15_rl.py. Those files are in open PRs. layer: test-suite
 
 ## Models and leakage
 
@@ -3039,4 +3056,4 @@ To add or change an entry, edit the registry and regenerate this file. See
 `docs/quality/TEST_STRATEGY.md` for the taxonomy the `test_type` column draws
 on, and `docs/quality/IMPLEMENTATION_PLAN.md` for what each phase delivers.
 
-Registry version: 1.0.0 — 234 entries.
+Registry version: 1.0.0 — 235 entries.
