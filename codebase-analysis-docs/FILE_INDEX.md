@@ -732,7 +732,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 662 | P1 | tests/runtime/test_impact_analysis.py | Python | 91 | ba6dd5c1 |  |
 | 663 | P1 | tests/runtime/test_integration.py | Python | 116 | 1af73002 |  |
 | 664 | P1 | tests/runtime/test_lifecycle.py | Python | 98 | 53c2bc30 |  |
-| 665 | P1 | tests/runtime/test_production_controllers.py | Python | 210 | 8af825c2 |  |
+| 665 | P1 | tests/runtime/test_production_controllers.py | Python | 210 | 9f0ce0c6 |  |
 | 666 | P1 | tests/runtime/test_production_runtime.py | Python | 312 | 67f5b0db |  |
 | 667 | P1 | tests/runtime/test_promotion_gates.py | Python | 30 | 11cc41e1 |  |
 | 668 | P1 | tests/runtime/test_reconciliation.py | Python | 133 | 0da8ef79 |  |
@@ -788,11 +788,11 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 718 | P1 | tests/test_api_dunder_main.py | Python | 49 | b2a7da69 |  |
 | 719 | P1 | tests/test_api_main_coverage.py | Python | 1694 | c5e1747a |  |
 | 720 | P1 | tests/test_api_main_edges.py | Python | 107 | 5b383da8 |  |
-| 721 | P1 | tests/test_api_main_endpoints_coverage.py | Python | 505 | b4a50b87 |  |
+| 721 | P1 | tests/test_api_main_endpoints_coverage.py | Python | 509 | 4fa05756 |  |
 | 722 | P1 | tests/test_api_operations_endpoints.py | Python | 203 | fae70eb8 |  |
 | 723 | P1 | tests/test_api_role_enforcement.py | Python | 174 | 4e7cff8d |  |
 | 724 | P1 | tests/test_api_signer_audit.py | Python | 173 | e33cc0db |  |
-| 725 | P1 | tests/test_api_terminal_jobs.py | Python | 196 | ba84a1ac |  |
+| 725 | P1 | tests/test_api_terminal_jobs.py | Python | 196 | 6297ede6 |  |
 | 726 | P1 | tests/test_apply_ci_patch.py | Python | 63 | 1e1da1aa |  |
 | 727 | P1 | tests/test_apply_repo_ruleset.py | Python | 288 | e1799986 |  |
 | 728 | P1 | tests/test_arch_baseline_is_current.py | Python | 79 | 1ae91139 |  |
@@ -1085,7 +1085,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 1015 | P1 | tests/test_scripts_path_bootstrap.py | Python | 95 | c4c1c928 |  |
 | 1016 | P1 | tests/test_secp256k1.py | Python | 448 | c4cb6103 |  |
 | 1017 | P1 | tests/test_security_pqc_posture.py | Python | 76 | 00928e99 |  |
-| 1018 | P1 | tests/test_self_tuning_api.py | Python | 200 | 71ad01e6 |  |
+| 1018 | P1 | tests/test_self_tuning_api.py | Python | 200 | a928091b |  |
 | 1019 | P1 | tests/test_self_tuning_settings.py | Python | 30 | e6355fa6 |  |
 | 1020 | P1 | tests/test_selftest_rate_limit.py | Python | 118 | b1ab3ae0 |  |
 | 1021 | P1 | tests/test_settings_env_namespace.py | Python | 68 | da535ba6 |  |
