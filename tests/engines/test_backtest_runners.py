@@ -168,6 +168,7 @@ async def test_e09_retrain_trains_on_the_collected_samples(monkeypatch) -> None:
     monkeypatch.setattr(eb, "_TRAIN_WINDOW", 20)
     monkeypatch.setattr(eb, "_TEST_WINDOW", 2)
     monkeypatch.setattr(eb, "_STEP", 1)
+    monkeypatch.setattr(eb, "_e09_oos_accuracy", lambda X, y: 0.9)  # gate covered elsewhere
 
     trained: list[tuple[int, int]] = []
     monkeypatch.setattr(
@@ -195,6 +196,7 @@ async def test_e09_retrain_tolerates_a_failing_feature_engine(monkeypatch) -> No
     monkeypatch.setattr(eb, "_TRAIN_WINDOW", 20)
     monkeypatch.setattr(eb, "_TEST_WINDOW", 2)
     monkeypatch.setattr(eb, "_STEP", 1)
+    monkeypatch.setattr(eb, "_e09_oos_accuracy", lambda X, y: 0.9)  # gate covered elsewhere
 
     trained: list[int] = []
     monkeypatch.setattr(
@@ -204,3 +206,23 @@ async def test_e09_retrain_tolerates_a_failing_feature_engine(monkeypatch) -> No
 
     assert await eb.retrain_e09_walkforward(make_ohlcv(80)) >= 20
     assert trained
+
+
+@pytest.mark.asyncio
+async def test_e09_retrain_is_rejected_when_the_held_out_tail_fails(monkeypatch) -> None:
+    """STR-08: a candidate that does not beat the OOS threshold is never saved."""
+    monkeypatch.setenv("CRYPTO_BOX", "true")
+    _patch_feature_engines(monkeypatch)
+    monkeypatch.setattr(eb, "_TRAIN_WINDOW", 20)
+    monkeypatch.setattr(eb, "_TEST_WINDOW", 2)
+    monkeypatch.setattr(eb, "_STEP", 1)
+    monkeypatch.setattr(eb, "_e09_oos_accuracy", lambda X, y: 0.30)
+
+    trained: list[int] = []
+    monkeypatch.setattr(
+        "src.engines.e09_ml_meta.E09MlMeta.train",
+        lambda self, X, y: trained.append(len(y)),
+    )
+
+    assert await eb.retrain_e09_walkforward(make_ohlcv(80)) == 0
+    assert trained == []

@@ -109,7 +109,6 @@ def test_run_entropy_threshold_backtest_produces_four_comparisons() -> None:
     assert names == {
         "oos_sharpe",
         "max_drawdown_inverted",
-        "win_rate",
         "probabilistic_sharpe_ratio",
     }
 

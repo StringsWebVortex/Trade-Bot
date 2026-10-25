@@ -7,7 +7,7 @@ Contrarian signal: extreme fear → +1, extreme greed → -1.
 
 from __future__ import annotations
 
-from collections import deque
+from collections import defaultdict, deque
 from datetime import UTC, datetime
 
 import structlog
@@ -28,13 +28,22 @@ _GAMMA = 0.2
 _BULLISH_FG_THRESHOLD = 20.0
 _BEARISH_FG_THRESHOLD = 80.0
 
+# Readings required before the rolling min/max is a meaningful range (STR-09).
+_MIN_HISTORY = 5
+
 
 def raw_sentiment(fg: float, nlp: float, social_vol: float = 0.0) -> float:
     return _ALPHA * (fg / 100.0) + _BETA * ((nlp + 1) / 2.0) + _GAMMA * social_vol
 
 
 def contrarian_signal(raw: float, window_min: float = 0.0, window_max: float = 1.0) -> float:
-    """Normalized contrarian signal: 1.0 = buy (extreme fear), -1.0 = sell (extreme greed)."""
+    """Normalized contrarian signal: 1.0 = buy (extreme fear), -1.0 = sell (extreme greed).
+
+    A degenerate window (max == min) carries no information about where the
+    reading sits, so the signal is neutral rather than a full-confidence long.
+    """
+    if window_max - window_min < 1e-9:
+        return 0.0
     normalized = (raw - window_min) / max(window_max - window_min, 1e-9)
     return float(1.0 - 2.0 * normalized)
 
@@ -42,7 +51,10 @@ def contrarian_signal(raw: float, window_min: float = 0.0, window_max: float = 1
 class E14Sentiment:
     def __init__(self, horizon_hours: int = 24) -> None:
         self._horizon = horizon_hours
-        self._raw_history: deque[float] = deque(maxlen=1000)
+        # Per-symbol reading history (STR-10).
+        self._raw_history: defaultdict[str, deque[float]] = defaultdict(
+            lambda: deque(maxlen=1000)
+        )
 
     async def run(self, symbol: str, data: dict) -> EngineOutput:
         spot: float = data.get("spot", 0.0)
@@ -56,10 +68,17 @@ class E14Sentiment:
 
         try:
             raw = raw_sentiment(fg_score, vader_compound, social_vol)
-            self._raw_history.append(raw)
+            history = self._raw_history[symbol]
+            history.append(raw)
 
-            win_min = min(self._raw_history) if self._raw_history else 0.0
-            win_max = max(self._raw_history) if self._raw_history else 1.0
+            # Abstain until the window can say where a reading sits in it.
+            if len(history) < _MIN_HISTORY:
+                return EngineOutput.abstain(
+                    _ENGINE_ID, symbol, spot, self._horizon, "insufficient_history"
+                )
+
+            win_min = min(history)
+            win_max = max(history)
 
             signal = contrarian_signal(raw, win_min, win_max)
             direction = 1 if signal > 0.3 else (-1 if signal < -0.3 else 0)

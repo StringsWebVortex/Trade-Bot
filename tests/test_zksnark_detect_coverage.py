@@ -72,9 +72,11 @@ class TestTraceSpendCluster:
         withdrawal = _tx(data=_WITHDRAW_SELECTOR, h="0xw1")
         assert trace_spend_cluster(deposit, [withdrawal]) == [withdrawal]
 
-    def test_a_different_denomination_is_excluded(self) -> None:
-        deposit = _tx(value=10**18, h="0xdep")
-        withdrawal = _tx(data=_WITHDRAW_SELECTOR, value=99 * 10**18, h="0xw1")
+    def test_a_different_pool_is_excluded(self) -> None:
+        other_pool = sorted(_TORNADO_CONTRACTS)[-1]
+        assert other_pool != _POOL
+        deposit = _tx(h="0xdep")
+        withdrawal = _tx(to=other_pool, data=_WITHDRAW_SELECTOR, h="0xw1")
         assert trace_spend_cluster(deposit, [withdrawal]) == []
 
     def test_non_withdrawals_are_excluded(self) -> None:

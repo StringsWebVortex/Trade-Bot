@@ -22,6 +22,10 @@ _TRAIN_WINDOW = 180
 _TEST_WINDOW = 30
 _STEP = 30
 _GAP = 1  # G-07: 1-candle look-ahead gap
+_MIN_DIRECTIONAL_ACCURACY = 0.55
+_MIN_SIGNAL_SHARPE = 1.0
+_E09_MIN_OOS_ACCURACY = 0.52
+_E09_HOLDOUT_FRAC = 0.25
 
 
 def directional_accuracy(pred_dirs: np.ndarray, actual_rets: np.ndarray) -> float:
@@ -38,11 +42,12 @@ def rmse_pct(pred_prices: np.ndarray, actual_prices: np.ndarray) -> float:
     return float(np.sqrt(np.mean((pred_prices - actual_prices) ** 2)) / actual_prices.mean())
 
 
-def signal_sharpe(returns: np.ndarray) -> float:
+def signal_sharpe(returns: np.ndarray, periods_per_year: float = 8760.0) -> float:
+    """Annualised Sharpe; ``periods_per_year`` is how many *samples* fit in a year."""
     std = returns.std()
     if std == 0:
         return 0.0
-    return float(returns.mean() / std * np.sqrt(8760))
+    return float(returns.mean() / std * np.sqrt(periods_per_year))
 
 
 def max_drawdown(returns: np.ndarray) -> float:
@@ -112,8 +117,12 @@ class EngineWalkForwardBacktest:
                 log.warning("backtest_engine_error", engine=self._engine_id, exc=str(exc))
                 continue
 
-            # Compare against first test candle close
-            actual_price = float(test_df["close"].iloc[0])
+            # Score at the engine's own declared horizon (hourly bars), not
+            # always the next close (STR-07).
+            horizon_bars = max(1, int(getattr(output, "horizon_hours", 1) or 1))
+            if horizon_bars > len(test_df):
+                continue
+            actual_price = float(test_df["close"].iloc[horizon_bars - 1])
             actual_ret = (actual_price - spot) / spot
 
             pred_dir = float(output.direction)
@@ -151,10 +160,16 @@ class EngineWalkForwardBacktest:
 
         da = directional_accuracy(np.array(all_pred_dirs), np.array(all_actual_rets))
         rp = rmse_pct(np.array(all_pred_prices), np.array(all_actual_prices))
-        ss = signal_sharpe(np.array(signal_rets))
+        # One sample per _STEP bars, so sqrt(8760 / _STEP) samples-per-year scaling.
+        ss = signal_sharpe(np.array(signal_rets), 8760.0 / _STEP)
         md = max_drawdown(np.array(signal_rets))
 
-        passes = da > 0.5 and rp < 0.02 and md < 0.30
+        passes = (
+            da > _MIN_DIRECTIONAL_ACCURACY
+            and rp < 0.02
+            and ss > _MIN_SIGNAL_SHARPE
+            and md < 0.30
+        )
 
         result = EngineBacktestResult(
             engine_id=self._engine_id,
@@ -233,6 +248,25 @@ async def run_all_engine_backtests(
     return results
 
 
+def _e09_oos_accuracy(X: np.ndarray, y: np.ndarray) -> float | None:
+    """Direction accuracy of a candidate fitted on the head, scored on the last windows.
+
+    Returns None when the split is unusable (too few rows or one class only).
+    """
+    n_hold = max(1, int(len(y) * _E09_HOLDOUT_FRAC))
+    X_fit, y_fit = X[:-n_hold], y[:-n_hold]
+    X_hold, y_hold = X[-n_hold:], y[-n_hold:]
+    if len(y_fit) < 10 or len(set(y_fit.tolist())) < 2:
+        return None
+    from xgboost import XGBClassifier  # type: ignore[import]
+
+    model = XGBClassifier(
+        n_estimators=100, max_depth=4, learning_rate=0.05, eval_metric="logloss", random_state=42
+    )
+    model.fit(X_fit, y_fit)
+    return float((model.predict(X_hold) == y_hold).mean())
+
+
 async def retrain_e09_walkforward(df: pd.DataFrame, symbol: str = "BTC/USDT") -> int:
     """
     Walk-forward retrain for E-09 (ML meta-engine).
@@ -308,6 +342,12 @@ async def retrain_e09_walkforward(df: pd.DataFrame, symbol: str = "BTC/USDT") ->
 
     X = np.array(X_rows, dtype=np.float32)
     y = np.array(y_vals, dtype=np.int32)
+    # The saved artifact is loaded at next start, so it must first beat a
+    # held-out tail it was not fitted on (STR-08).
+    oos_acc = _e09_oos_accuracy(X, y)
+    if oos_acc is None or oos_acc < _E09_MIN_OOS_ACCURACY:
+        log.warning("e09_retrain_rejected_oos", oos_accuracy=oos_acc, n=len(y))
+        return 0
     e09.train(X, y)
     log.info("e09_walkforward_retrain_done", n_samples=len(y))
     return len(y)

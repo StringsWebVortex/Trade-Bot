@@ -5613,6 +5613,355 @@
         }
       ],
       "depends_on": []
+    },
+    {
+      "id": "REG-1360",
+      "kind": "regression",
+      "title": "HNP key recovery is correct for a non-zero leaked nonce prefix",
+      "statement": "recover_private_key subtracts the known nonce prefix (u = s^-1 z - a) and checks the leak against nonce_bitlength, so a signer with any known high-bit value is recovered.",
+      "criticality": "high",
+      "subsystem": "model",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite; audit finding MTH-014",
+      "failure_mode": "The sign error made recovery work only for known_value == 0, so the defender-side bias audit reported a biased signer as sound.",
+      "owning_modules": [
+        "src/mathcore/lattice/hnp.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_math_strategies_audit_fixes.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1361",
+      "kind": "regression",
+      "title": "ECDSA scanner does not report a re-seen transaction as nonce reuse",
+      "statement": "A signature seen again under the same txid and s is ignored; only the same r with a different (txid, s) is reported.",
+      "criticality": "medium",
+      "subsystem": "security",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite; audit finding MTH-002",
+      "failure_mode": "Re-broadcast or reorged transactions matched themselves and raised a 0.7 nonce-reuse risk score.",
+      "owning_modules": [
+        "src/ecc/ecdsa_scan.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_math_strategies_audit_fixes.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1362",
+      "kind": "regression",
+      "title": "Cluster flow score is flagged unavailable when no flow data exists",
+      "statement": "ClusteringResult.flow_available is true only when a whale cluster carries inflow/outflow, and the worker marks cluster validity from it, so a constant 0.0 is not consumed as a signal.",
+      "criticality": "medium",
+      "subsystem": "signal",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite; audit finding MTH-004",
+      "failure_mode": "flow_score was a constant 0.0 because flows were never populated, yet the ensemble consumed it as valid.",
+      "owning_modules": [
+        "src/ecc/secp256k1_cluster.py",
+        "src/workers/orchestrator.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_math_strategies_audit_fixes.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1363",
+      "kind": "regression",
+      "title": "UTXO age falls back to confirmations and excludes unknown ages",
+      "statement": "compute_hodler_index derives age from timestamp, else confirmations x 600s, and excludes UTXOs with neither instead of aging them to zero.",
+      "criticality": "medium",
+      "subsystem": "signal",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite; audit finding MTH-005",
+      "failure_mode": "Missing timestamps made every UTXO age 0, pinning hodler_index at 0 and supply_shock_risk False.",
+      "owning_modules": [
+        "src/ecc/utxo_curve.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_math_strategies_audit_fixes.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1364",
+      "kind": "regression",
+      "title": "Tornado detection handles HexBytes input and matches withdrawals by pool",
+      "statement": "Selectors are read from bytes or str input, and withdrawals join a deposit's cluster by pool contract rather than by transaction value.",
+      "criticality": "medium",
+      "subsystem": "signal",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite; audit finding MTH-012",
+      "failure_mode": "web3 HexBytes input never matched str selectors and withdrawals carry value 0, so dark_pool_pressure was always 0.",
+      "owning_modules": [
+        "src/ecc/zksnark_detect.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_math_strategies_audit_fixes.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1365",
+      "kind": "regression",
+      "title": "Engine backtest annualises per sample, scores at horizon, applies documented gate",
+      "statement": "signal_sharpe annualises by samples per year, each engine is scored at its declared horizon, and passes_gate requires DA > 0.55 and Sharpe > 1.0.",
+      "criticality": "medium",
+      "subsystem": "signal",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite; audit finding STR-07",
+      "failure_mode": "Sharpe was overstated by about sqrt(30), every engine was scored on the next hourly close, and the gate ignored Sharpe and used 0.5.",
+      "owning_modules": [
+        "src/tuning/engine_backtest.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_math_strategies_audit_fixes.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1366",
+      "kind": "regression",
+      "title": "E-09 retrain uses the inference feature set and a held-out gate before saving",
+      "statement": "E-09 features are E-01..E-08 only, and retrain_e09_walkforward saves a model only when a candidate fitted on the head beats the OOS accuracy threshold on the held-out tail.",
+      "criticality": "medium",
+      "subsystem": "model",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite; audit finding STR-08",
+      "failure_mode": "Slots for E-10..E-18 were zero in training but live at inference, and an unvalidated model overwrote the artifact.",
+      "owning_modules": [
+        "src/engines/e09_ml_meta.py",
+        "src/tuning/engine_backtest.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_math_strategies_audit_fixes.py",
+          "test_type": "regression"
+        },
+        {
+          "test": "tests/engines/test_backtest_runners.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1367",
+      "kind": "regression",
+      "title": "E-14 abstains without history and is neutral on a degenerate window",
+      "statement": "E-14 abstains until five readings exist and contrarian_signal returns 0 when max equals min.",
+      "criticality": "medium",
+      "subsystem": "signal",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite; audit finding STR-09",
+      "failure_mode": "The first reading produced a full-confidence long.",
+      "owning_modules": [
+        "src/engines/e14_sentiment.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_math_strategies_audit_fixes.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1368",
+      "kind": "regression",
+      "title": "Engine rolling state is keyed by symbol",
+      "statement": "E-08, E-12, E-13, E-14 and E-17 keep their rolling history per symbol so one asset is never z-scored against another.",
+      "criticality": "medium",
+      "subsystem": "signal",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite; audit finding STR-10",
+      "failure_mode": "A shared orchestrator mixed history across symbols and corrupted every z-score and contagion delta.",
+      "owning_modules": [
+        "src/engines/e08_topology.py",
+        "src/engines/e12_options.py",
+        "src/engines/e13_contagion.py",
+        "src/engines/e14_sentiment.py",
+        "src/engines/e17_liquidity.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_math_strategies_audit_fixes.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1369",
+      "kind": "regression",
+      "title": "Consensus dispersion excludes abstentions and the breaker holds real spot",
+      "statement": "Agreement and outliers are computed over engines with non-zero confidence, and the circuit breaker holds the caller's spot when supplied.",
+      "criticality": "medium",
+      "subsystem": "signal",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite; audit finding STR-11",
+      "failure_mode": "Abstentions biased agreement toward 1 and the breaker reported E-01's forecast as spot.",
+      "owning_modules": [
+        "src/engines/consensus.py",
+        "src/engines/orchestrator.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_math_strategies_audit_fixes.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1370",
+      "kind": "regression",
+      "title": "E-07 PCA direction follows the recent PC1 score with a fixed sign",
+      "statement": "The PC1 loading sign is fixed so loadings sum positive and direction is the sign of the mean recent PC1 score.",
+      "criticality": "medium",
+      "subsystem": "signal",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite; audit finding STR-12",
+      "failure_mode": "The arbitrary SVD sign made the emitted direction effectively random.",
+      "owning_modules": [
+        "src/engines/e07_linear_algebra.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_math_strategies_audit_fixes.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1371",
+      "kind": "regression",
+      "title": "Capital allocator does not mix warm-up shares with raw scores",
+      "statement": "Mature scores split the share left after warm-up and floored strategies; warm-up strategies keep their equal share.",
+      "criticality": "medium",
+      "subsystem": "portfolio",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite; audit finding STR-13",
+      "failure_mode": "Shares were summed with Sharpe/Sortino or 1/vol units, so allocation depended on unrelated scales.",
+      "owning_modules": [
+        "src/strategies/capital_allocator.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_math_strategies_audit_fixes.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1372",
+      "kind": "regression",
+      "title": "Slippage calibration ADV is a daily volume",
+      "statement": "adv_20d is the mean bar volume multiplied by bars per day for the configured timeframe.",
+      "criticality": "medium",
+      "subsystem": "risk",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite; audit finding STR-14",
+      "failure_mode": "On 15m bars participation was overstated about 96x and the tuned impact coefficient was calibrated on the wrong scale.",
+      "owning_modules": [
+        "src/tuning/scheduler.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_math_strategies_audit_fixes.py",
+          "test_type": "regression"
+        },
+        {
+          "test": "tests/test_tuning_scheduler.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1373",
+      "kind": "regression",
+      "title": "Entropy harness does not report an identical win-rate metric",
+      "statement": "run_entropy_threshold_backtest omits win_rate, which is identical for both arms by construction.",
+      "criticality": "low",
+      "subsystem": "model",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite; audit finding STR-15",
+      "failure_mode": "A dead metric cost a slot in the regression check.",
+      "owning_modules": [
+        "src/tuning/backtest_harness.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_math_strategies_audit_fixes.py",
+          "test_type": "regression"
+        },
+        {
+          "test": "tests/test_tuning_backtest_harness.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1374",
+      "kind": "regression",
+      "title": "Strategy selector exposes no dead funding-carry parameter",
+      "statement": "select_strategy has no allow_funding_carry parameter and no unused STRATEGY_FUNDING_CARRY constant.",
+      "criticality": "low",
+      "subsystem": "governance",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite; audit finding STR-16",
+      "failure_mode": "The documented overlay was never implemented, misleading callers.",
+      "owning_modules": [
+        "src/strategies/regime_strategy_selector.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_math_strategies_audit_fixes.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
     }
   ]
 }

@@ -47,28 +47,28 @@ deletion of the thing it points at.
 
 | Status | Entries |
 |---|---|
-| VERIFIED | 216 |
+| VERIFIED | 231 |
 | PARTIAL | 3 |
 | PLANNED | 0 |
 | ACCEPTED GAP | 0 |
-| **Total** | **219** |
+| **Total** | **234** |
 
 ## Summary by subsystem
 
 | Subsystem | Entries | Verified |
 |---|---|---|
-| Risk | 11 | 11 |
+| Risk | 12 | 12 |
 | Execution | 13 | 12 |
-| Portfolio | 1 | 1 |
-| Signal and features | 6 | 6 |
-| Models and leakage | 10 | 10 |
+| Portfolio | 2 | 2 |
+| Signal and features | 14 | 14 |
+| Models and leakage | 13 | 13 |
 | Data, money and time | 10 | 9 |
 | API and WebSocket | 21 | 21 |
-| Cryptography and secrets | 30 | 30 |
+| Cryptography and secrets | 31 | 31 |
 | Supply chain and artifacts | 7 | 7 |
 | Resilience and recovery | 24 | 24 |
 | Release and production | 14 | 14 |
-| Governance | 60 | 59 |
+| Governance | 61 | 60 |
 | Terminal and process center | 12 | 12 |
 
 ## Outstanding work by phase
@@ -227,6 +227,20 @@ When RiskGate.check_drift reports drift for the contributing horizon, CryptoInte
   - `tests/test_crypto_intel_signal_path.py` (regression)
 
 > layer: test-suite
+
+#### `REG-1372` — Slippage calibration ADV is a daily volume
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+adv_20d is the mean bar volume multiplied by bars per day for the configured timeframe.
+
+- **If violated:** On 15m bars participation was overstated about 96x and the tuned impact coefficient was calibrated on the wrong scale.
+- **Owned by:** `src/tuning/scheduler.py`
+- **Verification:**
+  - `tests/test_math_strategies_audit_fixes.py` (regression)
+  - `tests/test_tuning_scheduler.py` (regression)
+
+> layer: test-suite; audit finding STR-14
 
 ## Execution
 
@@ -410,6 +424,19 @@ Aggregate exposure, cross-strategy correlation and portfolio agreement are evalu
   - `tests/test_portfolio_correlation.py` (risk)
   - `tests/test_portfolio_agreement.py` (risk)
 
+#### `REG-1371` — Capital allocator does not mix warm-up shares with raw scores
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+Mature scores split the share left after warm-up and floored strategies; warm-up strategies keep their equal share.
+
+- **If violated:** Shares were summed with Sharpe/Sortino or 1/vol units, so allocation depended on unrelated scales.
+- **Owned by:** `src/strategies/capital_allocator.py`
+- **Verification:**
+  - `tests/test_math_strategies_audit_fixes.py` (regression)
+
+> layer: test-suite; audit finding STR-13
+
 ## Signal and features
 
 #### `RES-024` — Every ensemble cycle leaves per-engine causal evidence off the trading path
@@ -483,6 +510,110 @@ SOPR, NVT and MVRV are either genuinely computed or NaN; no on-chain metric retu
   - `tests/test_onchain_no_fabricated_values.py` (regression)
 
 > Escaped to production: the constant reached the live feature dict in src/intel.py and was persisted to intelligence_features_history beside measured columns. The test suite could not catch it because the test that existed asserted the placeholder (== 1.0) rather than the requirement, so the layer that should have caught it is the review that accepted a return of a bare literal from a metric together with a docstring describing a computation the body never performed. layer: review
+
+#### `REG-1362` — Cluster flow score is flagged unavailable when no flow data exists
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+ClusteringResult.flow_available is true only when a whale cluster carries inflow/outflow, and the worker marks cluster validity from it, so a constant 0.0 is not consumed as a signal.
+
+- **If violated:** flow_score was a constant 0.0 because flows were never populated, yet the ensemble consumed it as valid.
+- **Owned by:** `src/ecc/secp256k1_cluster.py`, `src/workers/orchestrator.py`
+- **Verification:**
+  - `tests/test_math_strategies_audit_fixes.py` (regression)
+
+> layer: test-suite; audit finding MTH-004
+
+#### `REG-1363` — UTXO age falls back to confirmations and excludes unknown ages
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+compute_hodler_index derives age from timestamp, else confirmations x 600s, and excludes UTXOs with neither instead of aging them to zero.
+
+- **If violated:** Missing timestamps made every UTXO age 0, pinning hodler_index at 0 and supply_shock_risk False.
+- **Owned by:** `src/ecc/utxo_curve.py`
+- **Verification:**
+  - `tests/test_math_strategies_audit_fixes.py` (regression)
+
+> layer: test-suite; audit finding MTH-005
+
+#### `REG-1364` — Tornado detection handles HexBytes input and matches withdrawals by pool
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+Selectors are read from bytes or str input, and withdrawals join a deposit's cluster by pool contract rather than by transaction value.
+
+- **If violated:** web3 HexBytes input never matched str selectors and withdrawals carry value 0, so dark_pool_pressure was always 0.
+- **Owned by:** `src/ecc/zksnark_detect.py`
+- **Verification:**
+  - `tests/test_math_strategies_audit_fixes.py` (regression)
+
+> layer: test-suite; audit finding MTH-012
+
+#### `REG-1365` — Engine backtest annualises per sample, scores at horizon, applies documented gate
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+signal_sharpe annualises by samples per year, each engine is scored at its declared horizon, and passes_gate requires DA > 0.55 and Sharpe > 1.0.
+
+- **If violated:** Sharpe was overstated by about sqrt(30), every engine was scored on the next hourly close, and the gate ignored Sharpe and used 0.5.
+- **Owned by:** `src/tuning/engine_backtest.py`
+- **Verification:**
+  - `tests/test_math_strategies_audit_fixes.py` (regression)
+
+> layer: test-suite; audit finding STR-07
+
+#### `REG-1367` — E-14 abstains without history and is neutral on a degenerate window
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+E-14 abstains until five readings exist and contrarian_signal returns 0 when max equals min.
+
+- **If violated:** The first reading produced a full-confidence long.
+- **Owned by:** `src/engines/e14_sentiment.py`
+- **Verification:**
+  - `tests/test_math_strategies_audit_fixes.py` (regression)
+
+> layer: test-suite; audit finding STR-09
+
+#### `REG-1368` — Engine rolling state is keyed by symbol
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+E-08, E-12, E-13, E-14 and E-17 keep their rolling history per symbol so one asset is never z-scored against another.
+
+- **If violated:** A shared orchestrator mixed history across symbols and corrupted every z-score and contagion delta.
+- **Owned by:** `src/engines/e08_topology.py`, `src/engines/e12_options.py`, `src/engines/e13_contagion.py`, `src/engines/e14_sentiment.py`, `src/engines/e17_liquidity.py`
+- **Verification:**
+  - `tests/test_math_strategies_audit_fixes.py` (regression)
+
+> layer: test-suite; audit finding STR-10
+
+#### `REG-1369` — Consensus dispersion excludes abstentions and the breaker holds real spot
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+Agreement and outliers are computed over engines with non-zero confidence, and the circuit breaker holds the caller's spot when supplied.
+
+- **If violated:** Abstentions biased agreement toward 1 and the breaker reported E-01's forecast as spot.
+- **Owned by:** `src/engines/consensus.py`, `src/engines/orchestrator.py`
+- **Verification:**
+  - `tests/test_math_strategies_audit_fixes.py` (regression)
+
+> layer: test-suite; audit finding STR-11
+
+#### `REG-1370` — E-07 PCA direction follows the recent PC1 score with a fixed sign
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+The PC1 loading sign is fixed so loadings sum positive and direction is the sign of the mean recent PC1 score.
+
+- **If violated:** The arbitrary SVD sign made the emitted direction effectively random.
+- **Owned by:** `src/engines/e07_linear_algebra.py`
+- **Verification:**
+  - `tests/test_math_strategies_audit_fixes.py` (regression)
+
+> layer: test-suite; audit finding STR-12
 
 ## Models and leakage
 
@@ -609,6 +740,47 @@ Orchestrator._metrics_payload() builds a complete metrics snapshot for every tic
   - `tests/regression/test_metrics_payload.py` (regression)
 
 > Pins payload completeness with and without an executor, the method-vs-property fact the bug turned on, and the original TypeError as a negative case. layer: test-suite
+
+#### `REG-1360` — HNP key recovery is correct for a non-zero leaked nonce prefix
+
+**VERIFIED** · high · regression · source: OPS-2026-10-25
+
+recover_private_key subtracts the known nonce prefix (u = s^-1 z - a) and checks the leak against nonce_bitlength, so a signer with any known high-bit value is recovered.
+
+- **If violated:** The sign error made recovery work only for known_value == 0, so the defender-side bias audit reported a biased signer as sound.
+- **Owned by:** `src/mathcore/lattice/hnp.py`
+- **Verification:**
+  - `tests/test_math_strategies_audit_fixes.py` (regression)
+
+> layer: test-suite; audit finding MTH-014
+
+#### `REG-1366` — E-09 retrain uses the inference feature set and a held-out gate before saving
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+E-09 features are E-01..E-08 only, and retrain_e09_walkforward saves a model only when a candidate fitted on the head beats the OOS accuracy threshold on the held-out tail.
+
+- **If violated:** Slots for E-10..E-18 were zero in training but live at inference, and an unvalidated model overwrote the artifact.
+- **Owned by:** `src/engines/e09_ml_meta.py`, `src/tuning/engine_backtest.py`
+- **Verification:**
+  - `tests/test_math_strategies_audit_fixes.py` (regression)
+  - `tests/engines/test_backtest_runners.py` (regression)
+
+> layer: test-suite; audit finding STR-08
+
+#### `REG-1373` — Entropy harness does not report an identical win-rate metric
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+run_entropy_threshold_backtest omits win_rate, which is identical for both arms by construction.
+
+- **If violated:** A dead metric cost a slot in the regression check.
+- **Owned by:** `src/tuning/backtest_harness.py`
+- **Verification:**
+  - `tests/test_math_strategies_audit_fixes.py` (regression)
+  - `tests/test_tuning_backtest_harness.py` (regression)
+
+> layer: test-suite; audit finding STR-15
 
 ## Data, money and time
 
@@ -1289,6 +1461,19 @@ The LAW12 cipher-suite pattern matches static DH/ECDH, RSA key transport and exp
   - `tests/test_law12_cipher_suite_pattern.py` (regression)
 
 > The rule shipped with no test of its own, so nothing could tell a true positive from a false one until a PR tripped it. The test added with this entry is that missing check. layer: test-suite
+
+#### `REG-1361` — ECDSA scanner does not report a re-seen transaction as nonce reuse
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+A signature seen again under the same txid and s is ignored; only the same r with a different (txid, s) is reported.
+
+- **If violated:** Re-broadcast or reorged transactions matched themselves and raised a 0.7 nonce-reuse risk score.
+- **Owned by:** `src/ecc/ecdsa_scan.py`
+- **Verification:**
+  - `tests/test_math_strategies_audit_fixes.py` (regression)
+
+> layer: test-suite; audit finding MTH-002
 
 #### `SEC-0005` — A file holding real credentials is never committable
 
@@ -2659,6 +2844,19 @@ Every scripts/ path named in the README, in src/ comments or in a test's skip me
 
 > scripts/timescaledb.sh was referenced from six call sites -- README.md three times, src/config.py, src/data/storage.py and the skip message in tests/test_timescale_storage.py -- and did not exist; removed by the config purge (#144) without the references going with it. The test guards the general form (a named scripts/ path that is absent) as well as this one file, and pins the script to ci.yml's service block so the local and CI databases cannot drift apart silently. layer: test-suite
 
+#### `REG-1374` — Strategy selector exposes no dead funding-carry parameter
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+select_strategy has no allow_funding_carry parameter and no unused STRATEGY_FUNDING_CARRY constant.
+
+- **If violated:** The documented overlay was never implemented, misleading callers.
+- **Owned by:** `src/strategies/regime_strategy_selector.py`
+- **Verification:**
+  - `tests/test_math_strategies_audit_fixes.py` (regression)
+
+> layer: test-suite; audit finding STR-16
+
 ## Terminal and process center
 
 #### `TERM-001` — Terminal sessions are real PTYs that every client shares
@@ -2838,4 +3036,4 @@ To add or change an entry, edit the registry and regenerate this file. See
 `docs/quality/TEST_STRATEGY.md` for the taxonomy the `test_type` column draws
 on, and `docs/quality/IMPLEMENTATION_PLAN.md` for what each phase delivers.
 
-Registry version: 1.0.0 — 219 entries.
+Registry version: 1.0.0 — 234 entries.

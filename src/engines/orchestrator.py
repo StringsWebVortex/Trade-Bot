@@ -352,7 +352,7 @@ class EngineOrchestrator:
         entropy = float(e03.metadata.get("entropy_score", 0.5)) if e03 else 0.5
 
         consensus_result = self._stage(
-            "consensus", lambda: self._consensus.compute(outputs, regime, entropy)
+            "consensus", lambda: self._consensus.compute(outputs, regime, entropy, spot=data.get("spot"))
         )
 
         # Risk quantification from E-11 and E-17
