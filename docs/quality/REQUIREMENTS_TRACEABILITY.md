@@ -1776,7 +1776,7 @@ ChangeManager forgets the oldest rejected or cancelled changes beyond a bound an
 - **Verification:**
   - `tests/runtime/test_bounded_control_plane.py` (regression)
 
-> Audit API-021. The persisted audit_log remains the full history.
+> Audit API-021. The persisted audit_log remains the full history. No test drove the control plane past a bound, so only a suite check could catch it. layer: test-suite
 
 #### `REG-1603` — A failed RAG or KG rebuild keeps the previous index
 
@@ -1789,7 +1789,7 @@ scripts/ingest_repo.py and scripts/ingest_kg_repo.py write the new content tagge
 - **Verification:**
   - `tests/test_ingest_keeps_previous_index.py` (regression)
 
-> Audit OPS-009.
+> Audit OPS-009. No test ran an ingest script against a failure mid-run, so only a suite check could catch it. layer: test-suite
 
 ## Release and production
 
@@ -2697,7 +2697,7 @@ Every CPU-index torch pre-pass in ci.yml and the Dockerfile must carry exactly t
 - **Verification:**
   - `tests/test_phase7_ops_findings.py` (regression)
 
-> Audit OPS-011 (torch floor >=2.3 vs >=2.14.0). The other OPS-011 items (hashed lock file, timescale image drift between compose pg16 and CI pg17, digest pins) are not fixed here: the compose major-version change needs a data-volume migration decision.
+> Audit OPS-011 (torch floor >=2.3 vs >=2.14.0). The other OPS-011 items (hashed lock file, timescale image drift between compose pg16 and CI pg17, digest pins) are not fixed here: the compose major-version change needs a data-volume migration decision. No test compared the pre-pass torch spec with requirements.txt, so only a suite check could catch it. layer: test-suite
 
 #### `REG-1601` — A scheduled npm audit that could not reach the registry fails
 
@@ -2711,7 +2711,7 @@ When npm audit cannot reach the registry after its retries, the Security workflo
 - **Verification:**
   - `tests/test_phase7_ops_findings.py` (regression)
 
-> Audit OPS-012. The fixAvailable:false downgrade is unchanged (documented decision in security.yml; npm_audit_verdict.py is edited by an open PR).
+> Audit OPS-012. The fixAvailable:false downgrade is unchanged (documented decision in security.yml; npm_audit_verdict.py is edited by an open PR). No test read what the audit step does after its retries on a scheduled run, so only a suite check could catch it. layer: test-suite
 
 ## Terminal and process center
 

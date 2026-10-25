@@ -74,7 +74,9 @@ def rag(monkeypatch: pytest.MonkeyPatch) -> tuple[types.ModuleType, _Collection]
 
 
 class _Reader:
-    def __init__(self, path: str) -> None:
+    """Stands in for ``open(path, encoding=...)`` inside the script module."""
+
+    def __init__(self, path: str, *args: object, **kwargs: object) -> None:
         self.path = path
 
     def __enter__(self) -> _Reader:

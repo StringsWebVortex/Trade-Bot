@@ -24,14 +24,14 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 9 | P0 | config/command_policy.json | JSON | 264 | 84e63848 | Tool command and CI observation policy |
 | 10 | P0 | config/horizons.yaml | YAML | 53 | 2ede87ec | Auxiliary prediction horizon definitions |
 | 11 | P0 | config/math_registry.json | JSON | 1903 | 8fa18ffc | Mathematical object registry |
-| 12 | P0 | config/quality_registry.json | JSON | 5716 | ffeb90cf | Requirements, regressions and deciding tests |
+| 12 | P0 | config/quality_registry.json | JSON | 5716 | 482f8253 | Requirements, regressions and deciding tests |
 | 13 | P0 | config/risk.yaml | YAML | 26 | dd4766f8 | Horizon/intelligence risk, distinct from core Settings |
 | 14 | P0 | docker-compose.yml | YAML | 82 | 80ec3eca | API/Timescale/optional-worker composition |
 | 15 | P0 | docs/quality/CI_GATE_ARCHITECTURE.md | Markdown | 255 | 02726345 | CI gates |
 | 16 | P0 | docs/runtime/RUNTIME_PLATFORM.md | Markdown | 296 | 37fde0ad | Runtime control plane architecture |
 | 17 | P0 | docs/security/THREAT_MODEL.md | Markdown | 341 | ab52c113 | Threat model |
 | 18 | P0 | docs/terminal/ARCHITECTURE.md | Markdown | 217 | ac1b11e0 | Terminal/workspace architecture; historical baseline clearly labeled |
-| 19 | P0 | frontend/package.json | JSON | 77 | f1ae54c1 | Node toolchain and frontend scripts |
+| 19 | P0 | frontend/package.json | JSON | 77 | 97ec20a4 | Node toolchain and frontend scripts |
 | 20 | P0 | frontend/src/App.jsx | React JSX | 470 | babdff7e | Dashboard composition |
 | 21 | P0 | frontend/src/hooks/useApi.js | JavaScript | 463 | 79cc9d3c | HTTP and WebSocket client |
 | 22 | P0 | frontend/src/main.jsx | React JSX | 10 | b57d0e84 | React entrypoint |
@@ -78,14 +78,14 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 8 | P0 | config/command_policy.json | JSON | 264 | 84e63848 | Tool command and CI observation policy |
 | 9 | P0 | config/horizons.yaml | YAML | 53 | 2ede87ec | Auxiliary prediction horizon definitions |
 | 10 | P0 | config/math_registry.json | JSON | 1903 | 8fa18ffc | Mathematical object registry |
-| 11 | P0 | config/quality_registry.json | JSON | 5716 | ffeb90cf | Requirements, regressions and deciding tests |
+| 11 | P0 | config/quality_registry.json | JSON | 5716 | 482f8253 | Requirements, regressions and deciding tests |
 | 12 | P0 | config/risk.yaml | YAML | 26 | dd4766f8 | Horizon/intelligence risk, distinct from core Settings |
 | 13 | P0 | docker-compose.yml | YAML | 82 | 80ec3eca | API/Timescale/optional-worker composition |
 | 14 | P0 | docs/quality/CI_GATE_ARCHITECTURE.md | Markdown | 255 | 02726345 | CI gates |
 | 15 | P0 | docs/runtime/RUNTIME_PLATFORM.md | Markdown | 296 | 37fde0ad | Runtime control plane architecture |
 | 16 | P0 | docs/security/THREAT_MODEL.md | Markdown | 341 | ab52c113 | Threat model |
 | 17 | P0 | docs/terminal/ARCHITECTURE.md | Markdown | 217 | ac1b11e0 | Terminal/workspace architecture; historical baseline clearly labeled |
-| 18 | P0 | frontend/package.json | JSON | 77 | f1ae54c1 | Node toolchain and frontend scripts |
+| 18 | P0 | frontend/package.json | JSON | 77 | 97ec20a4 | Node toolchain and frontend scripts |
 | 19 | P0 | frontend/src/App.jsx | React JSX | 470 | babdff7e | Dashboard composition |
 | 20 | P0 | frontend/src/hooks/useApi.js | JavaScript | 463 | 79cc9d3c | HTTP and WebSocket client |
 | 21 | P0 | frontend/src/main.jsx | React JSX | 10 | b57d0e84 | React entrypoint |
@@ -183,7 +183,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 113 | P1 | docs/quality/QUALITY_BASELINE.md | Markdown | 125 | bbc75e22 |  |
 | 114 | P1 | docs/quality/QUALITY_METRICS.md | Markdown | 122 | 386b71a5 |  |
 | 115 | P1 | docs/quality/QUALITY_POLICY.md | Markdown | 232 | 8c4629b8 |  |
-| 116 | P1 | docs/quality/REQUIREMENTS_TRACEABILITY.md | Markdown | 2895 | 643edf0f |  |
+| 116 | P1 | docs/quality/REQUIREMENTS_TRACEABILITY.md | Markdown | 2895 | 9bc7f63e |  |
 | 117 | P1 | docs/quality/ROOT_CAUSE_TEMPLATE.md | Markdown | 84 | a55b20e9 |  |
 | 118 | P1 | docs/quality/TEST_STRATEGY.md | Markdown | 252 | efbde1ba |  |
 | 119 | P1 | docs/runtime/IMPLEMENTATION_MATRIX.md | Markdown | 79 | 7e5cd563 |  |
@@ -703,7 +703,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 633 | P1 | tests/regime/test_garch.py | Python | 148 | 8a4195c0 |  |
 | 634 | P1 | tests/regression/__init__.py | Python | 0 | e3b0c442 |  |
 | 635 | P1 | tests/regression/test_metrics_payload.py | Python | 120 | 094976c7 |  |
-| 636 | P1 | tests/regression/test_regression_registry_contract.py | Python | 618 | d5152f4d |  |
+| 636 | P1 | tests/regression/test_regression_registry_contract.py | Python | 625 | a65fea37 |  |
 | 637 | P1 | tests/risk/__init__.py | Python | 0 | e3b0c442 |  |
 | 638 | P1 | tests/risk/test_probability_bounds.py | Python | 137 | a3b65a78 |  |
 | 639 | P1 | tests/risk/test_risk_limit_boundaries.py | Python | 300 | 37b9b36e |  |
@@ -921,7 +921,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 851 | P1 | tests/test_horizons.py | Python | 242 | 62a918a8 |  |
 | 852 | P1 | tests/test_horizons_endpoint.py | Python | 179 | e9ba0580 |  |
 | 853 | P1 | tests/test_idempotency.py | Python | 438 | 8b04ca87 |  |
-| 854 | P1 | tests/test_ingest_keeps_previous_index.py | Python | 145 | 147fc79d |  |
+| 854 | P1 | tests/test_ingest_keeps_previous_index.py | Python | 147 | ea50b2bc |  |
 | 855 | P1 | tests/test_instrumentation.py | Python | 195 | 534dc2ce |  |
 | 856 | P1 | tests/test_integration_full_pipeline.py | Python | 291 | f49fa5aa |  |
 | 857 | P1 | tests/test_intelligence_adapter.py | Python | 186 | 7aaa2989 |  |
@@ -1241,7 +1241,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 1171 | P2 | frontend/electron/terminalBridge.cjs | CommonJS | 221 | df9b68c6 |  |
 | 1172 | P2 | frontend/index.html | HTML | 14 | 937890f7 |  |
 | 1173 | P2 | frontend/linux/tradebot-dashboard.desktop | Desktop-entry config | 9 | d8c53c4f |  |
-| 1174 | P2 | frontend/package-lock.json | JSON | 4826 | 15b9599e |  |
+| 1174 | P2 | frontend/package-lock.json | JSON | 4826 | 3aad8d47 |  |
 | 1175 | P2 | frontend/postcss.config.js | JavaScript | 7 | ad943233 |  |
 | 1176 | P2 | frontend/public/icon.svg | Vector asset | 15 | 9a6da623 |  |
 | 1177 | P2 | frontend/scripts/build-icons.mjs | ES module | 36 | 4489c079 |  |

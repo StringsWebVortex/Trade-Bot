@@ -5637,7 +5637,7 @@
           "test_type": "regression"
         }
       ],
-      "notes": "Audit OPS-011 (torch floor >=2.3 vs >=2.14.0). The other OPS-011 items (hashed lock file, timescale image drift between compose pg16 and CI pg17, digest pins) are not fixed here: the compose major-version change needs a data-volume migration decision."
+      "notes": "Audit OPS-011 (torch floor >=2.3 vs >=2.14.0). The other OPS-011 items (hashed lock file, timescale image drift between compose pg16 and CI pg17, digest pins) are not fixed here: the compose major-version change needs a data-volume migration decision. No test compared the pre-pass torch spec with requirements.txt, so only a suite check could catch it. layer: test-suite"
     },
     {
       "id": "REG-1601",
@@ -5661,7 +5661,7 @@
           "test_type": "regression"
         }
       ],
-      "notes": "Audit OPS-012. The fixAvailable:false downgrade is unchanged (documented decision in security.yml; npm_audit_verdict.py is edited by an open PR)."
+      "notes": "Audit OPS-012. The fixAvailable:false downgrade is unchanged (documented decision in security.yml; npm_audit_verdict.py is edited by an open PR). No test read what the audit step does after its retries on a scheduled run, so only a suite check could catch it. layer: test-suite"
     },
     {
       "id": "REG-1602",
@@ -5685,7 +5685,7 @@
           "test_type": "regression"
         }
       ],
-      "notes": "Audit API-021. The persisted audit_log remains the full history."
+      "notes": "Audit API-021. The persisted audit_log remains the full history. No test drove the control plane past a bound, so only a suite check could catch it. layer: test-suite"
     },
     {
       "id": "REG-1603",
@@ -5710,7 +5710,7 @@
           "test_type": "regression"
         }
       ],
-      "notes": "Audit OPS-009."
+      "notes": "Audit OPS-009. No test ran an ingest script against a failure mid-run, so only a suite check could catch it. layer: test-suite"
     }
   ]
 }
