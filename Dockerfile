@@ -53,7 +53,7 @@ COPY requirements.txt ./
 # its old dist-info stays in the image and the scan reads it (SEC-0012).
 RUN python -m pip install --no-cache-dir --upgrade pip \
     && python -m pip install --no-cache-dir --prefix=/install \
-         --index-url https://download.pytorch.org/whl/cpu "torch>=2.3,<3.0" \
+         --index-url https://download.pytorch.org/whl/cpu "torch>=2.14.0,<3.0" \
     && PYTHONPATH=/install/lib/python3.11/site-packages \
          python -m pip install --no-cache-dir --prefix=/install -r requirements.txt
 

@@ -47,11 +47,11 @@ deletion of the thing it points at.
 
 | Status | Entries |
 |---|---|
-| VERIFIED | 218 |
+| VERIFIED | 222 |
 | PARTIAL | 3 |
 | PLANNED | 0 |
 | ACCEPTED GAP | 0 |
-| **Total** | **221** |
+| **Total** | **225** |
 
 ## Summary by subsystem
 
@@ -66,9 +66,9 @@ deletion of the thing it points at.
 | API and WebSocket | 21 | 21 |
 | Cryptography and secrets | 31 | 31 |
 | Supply chain and artifacts | 7 | 7 |
-| Resilience and recovery | 24 | 24 |
+| Resilience and recovery | 26 | 26 |
 | Release and production | 14 | 14 |
-| Governance | 61 | 60 |
+| Governance | 63 | 62 |
 | Terminal and process center | 12 | 12 |
 
 ## Outstanding work by phase
@@ -1778,6 +1778,32 @@ When the lifespan raises -- the fetcher reaching no exchange venue, the orchestr
 
 > layer: test-suite
 
+#### `REG-1602` — The runtime control plane's in-memory state is bounded
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+ChangeManager forgets the oldest rejected or cancelled changes beyond a bound and keeps a bounded in-memory audit; AuditPersister keeps a bounded queue while storage is down, dropping and counting the oldest; RuntimeRegistry forgets old version strings except the current, previous and desired ones. An executed change is never forgotten.
+
+- **If violated:** An authenticated caller at the route's rate limit, a reconciler retrying a stuck mismatch, a long storage outage or a component whose version changes on every value change grows process memory for the life of the API.
+- **Owned by:** `src/runtime/changes.py`, `src/runtime/persistence.py`, `src/runtime/registry.py`
+- **Verification:**
+  - `tests/runtime/test_bounded_control_plane.py` (regression)
+
+> Audit API-021. The persisted audit_log remains the full history. No test drove the control plane past a bound, so only a suite check could catch it. layer: test-suite
+
+#### `REG-1603` — A failed RAG or KG rebuild keeps the previous index
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+scripts/ingest_repo.py and scripts/ingest_kg_repo.py write the new content tagged with the run id first and delete what the run did not write only after the run finishes; a failed RAG run removes its own partial insert.
+
+- **If violated:** A rebuild that fails partway (embedding crash, Atlas or claude -p outage) leaves the RAG collection or the knowledge graph empty or partial until a full rerun succeeds.
+- **Owned by:** `scripts/ingest_repo.py`, `scripts/ingest_kg_repo.py`, `kg/assemble.py`, `kg/ingest.py`
+- **Verification:**
+  - `tests/test_ingest_keeps_previous_index.py` (regression)
+
+> Audit OPS-009. No test ran an ingest script against a failure mid-run, so only a suite check could catch it. layer: test-suite
+
 ## Release and production
 
 #### `INV-010` — Live mode cannot bypass qualification gates
@@ -2672,6 +2698,34 @@ Every scripts/ path named in the README, in src/ comments or in a test's skip me
 
 > scripts/timescaledb.sh was referenced from six call sites -- README.md three times, src/config.py, src/data/storage.py and the skip message in tests/test_timescale_storage.py -- and did not exist; removed by the config purge (#144) without the references going with it. The test guards the general form (a named scripts/ path that is absent) as well as this one file, and pins the script to ci.yml's service block so the local and CI databases cannot drift apart silently. layer: test-suite
 
+#### `REG-1600` — The CPU torch pre-pass uses the same version spec as requirements.txt
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+Every CPU-index torch pre-pass in ci.yml and the Dockerfile must carry exactly the torch spec requirements.txt declares, so requirements.txt always finds torch already satisfied.
+
+- **If violated:** The pre-pass resolves a torch older than requirements.txt accepts, pip then fetches torch again from PyPI, and the CUDA-bundling wheel that GOV-015/REG-0012 keep out lands in CI and the image.
+- **Owned by:** `.github/workflows/ci.yml`, `Dockerfile`
+- **Depends on:** `REG-0012`
+- **Verification:**
+  - `tests/test_phase7_ops_findings.py` (regression)
+
+> Audit OPS-011 (torch floor >=2.3 vs >=2.14.0). The other OPS-011 items (hashed lock file, timescale image drift between compose pg16 and CI pg17, digest pins) are not fixed here: the compose major-version change needs a data-volume migration decision. No test compared the pre-pass torch spec with requirements.txt, so only a suite check could catch it. layer: test-suite
+
+#### `REG-1601` — A scheduled npm audit that could not reach the registry fails
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+When npm audit cannot reach the registry after its retries, the Security workflow fails on schedule and workflow_dispatch runs; only pull-request, push and merge-queue runs downgrade the outage to a warning.
+
+- **If violated:** Repeated registry outages leave the frontend CVE scan green on every run, including the weekly schedule, without a scan ever having run.
+- **Owned by:** `.github/workflows/security.yml`
+- **Depends on:** `GOV-014`
+- **Verification:**
+  - `tests/test_phase7_ops_findings.py` (regression)
+
+> Audit OPS-012. The fixAvailable:false downgrade is unchanged (documented decision in security.yml; npm_audit_verdict.py is edited by an open PR). No test read what the audit step does after its retries on a scheduled run, so only a suite check could catch it. layer: test-suite
+
 #### `REG-1604` — The CI diagnostics collector never leaves its own report check in progress
 
 **VERIFIED** · medium · regression · source: OPS-2026-10-25
@@ -2865,4 +2919,4 @@ To add or change an entry, edit the registry and regenerate this file. See
 `docs/quality/TEST_STRATEGY.md` for the taxonomy the `test_type` column draws
 on, and `docs/quality/IMPLEMENTATION_PLAN.md` for what each phase delivers.
 
-Registry version: 1.0.0 — 221 entries.
+Registry version: 1.0.0 — 225 entries.

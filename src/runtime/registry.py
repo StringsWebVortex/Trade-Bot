@@ -46,6 +46,11 @@ log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 _HISTORY_LIMIT = 1000
 # Observed version changes keep this many earlier versions per component.
 _PREVIOUS_LIMIT = 50
+# Version strings remembered per component beyond the ones still in use (the
+# current, previous and desired versions are never dropped). A component whose
+# version changes with every value change (tuning params) would otherwise grow
+# this map for the life of the process (audit API-021).
+_VERSIONS_LIMIT = 200
 
 DesiredListener = Callable[[str, DesiredState | None], None]
 TransitionListener = Callable[[TransitionRecord], None]
@@ -207,6 +212,22 @@ class RuntimeRegistry:
                     error=str(exc),
                 )
 
+    def _prune_versions(self, record: ComponentRecord) -> None:
+        """Drop the oldest remembered versions the record no longer refers to."""
+        known = self._versions[record.component_id]
+        excess = len(known) - _VERSIONS_LIMIT
+        if excess <= 0:
+            return
+        in_use = {record.version.version, *(v.version for v in record.previous_versions)}
+        if record.desired is not None and record.desired.target_version is not None:
+            in_use.add(record.desired.target_version)
+        for name in list(known):
+            if excess <= 0:
+                break
+            if name not in in_use:
+                del known[name]
+                excess -= 1
+
     def add_desired_listener(self, listener: DesiredListener) -> None:
         """Called after every desired-state change (persistence hooks in here)."""
         with self._lock:
@@ -271,7 +292,7 @@ class RuntimeRegistry:
                 change_id=change_id,
             )
             self._versions[component_id][spec.version.version] = spec.version
-            self._store(
+            stored = self._store(
                 record,
                 spec=spec,
                 state=to_state,
@@ -279,6 +300,7 @@ class RuntimeRegistry:
                 last_transition=transition,
                 last_error=None,
             )
+            self._prune_versions(stored)
             self._remember(transition)
             return transition
 
@@ -443,7 +465,7 @@ class RuntimeRegistry:
                 self._versions[component_id][spec.version.version] = spec.version
                 previous = (*record.previous_versions, record.version)[-_PREVIOUS_LIMIT:]
                 self._remember(transition)
-                return self._store(
+                stored = self._store(
                     record,
                     spec=spec,
                     state=state,
@@ -451,6 +473,8 @@ class RuntimeRegistry:
                     previous_versions=previous,
                     last_transition=transition,
                 )
+                self._prune_versions(stored)
+                return stored
             if spec != record.spec:
                 record = self._store(record, spec=spec)
             if record.state is not state:
