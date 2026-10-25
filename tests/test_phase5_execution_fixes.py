@@ -1,4 +1,14 @@
-"""Phase 5 execution fixes: EXR-014..EXR-021 regressions."""
+"""Phase 5 execution fixes: EXR-014..EXR-021 regressions.
+
+Decides:
+  - REG-1300 -- paper fills carry a spread cost when ADV is unknown (EXR-014)
+  - REG-1301 -- OrderNotFound right after placement is retried (EXR-015)
+  - REG-1302 -- tick-size amount precision is quantised correctly (EXR-016)
+  - REG-1303 -- a cognitive size reduction is requantised (EXR-017)
+  - REG-1304 -- the MANUAL approval wait is bounded (EXR-018)
+  - REG-1305 -- a low Hurst exponent warns rather than vetoes (EXR-019)
+  - REG-1307 -- drift baselines use the live statistic's units (EXR-021)
+"""
 
 from __future__ import annotations
 

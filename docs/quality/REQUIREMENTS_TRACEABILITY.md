@@ -239,7 +239,7 @@ A ccxt tick-size amount precision is applied as a step, not truncated to zero de
 - **Verification:**
   - `tests/test_phase5_execution_fixes.py` (regression)
 
-> layer: test-suite; audit finding EXR-016
+> Audit finding EXR-016. layer: test-suite
 
 #### `REG-1303` — Size reductions are requantised with real filters
 
@@ -252,7 +252,7 @@ Cognitive WARN and advisory-gate size reductions go through apply_size_scalar wi
 - **Verification:**
   - `tests/test_phase5_execution_fixes.py` (regression)
 
-> layer: test-suite; audit finding EXR-017
+> Audit finding EXR-017. layer: test-suite
 
 #### `REG-1305` — Low Hurst exponent warns instead of vetoing every trade
 
@@ -265,7 +265,7 @@ A Hurst exponent below the trending minimum yields WARN, not VETO.
 - **Verification:**
   - `tests/test_phase5_execution_fixes.py` (regression)
 
-> layer: test-suite; audit finding EXR-019
+> Audit finding EXR-019. layer: test-suite
 
 #### `REG-1307` — Drift baselines use the live statistic's units
 
@@ -278,7 +278,7 @@ Sharpe drift and CUSUM compare against a per-trade Sharpe baseline and win-rate 
 - **Verification:**
   - `tests/test_phase5_execution_fixes.py` (regression)
 
-> layer: test-suite; audit finding EXR-021
+> Audit finding EXR-021. layer: test-suite
 
 #### `SEC-1306` — Live-qualification record is signed, fresh and strategy-bound
 
@@ -291,7 +291,7 @@ assert_qualified_for_live requires a valid HMAC signature, a record younger than
 - **Verification:**
   - `tests/qualification/test_paper_qualification.py` (security)
 
-> layer: test-suite; audit finding EXR-020
+> Audit finding EXR-020. layer: test-suite
 
 ## Execution
 
@@ -471,7 +471,7 @@ Paper entry and exit fills apply at least the default half-spread adverse cost w
 - **Verification:**
   - `tests/test_phase5_execution_fixes.py` (regression)
 
-> layer: test-suite; audit finding EXR-014
+> Audit finding EXR-014. layer: test-suite
 
 #### `REG-1301` — OrderNotFound right after placement is retried
 
@@ -484,7 +484,7 @@ OrderNotFound during fill confirmation is retried for the first polls before bei
 - **Verification:**
   - `tests/test_phase5_execution_fixes.py` (regression)
 
-> layer: test-suite; audit finding EXR-015
+> Audit finding EXR-015. layer: test-suite
 
 #### `REG-1304` — MANUAL approval wait is bounded
 
@@ -497,7 +497,7 @@ MANUAL mode waits for approval no longer than approval_timeout_s in both executo
 - **Verification:**
   - `tests/test_phase5_execution_fixes.py` (regression)
 
-> layer: test-suite; audit finding EXR-018
+> Audit finding EXR-018. layer: test-suite
 
 ## Portfolio
 

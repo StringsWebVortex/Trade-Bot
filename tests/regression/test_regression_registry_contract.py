@@ -245,6 +245,15 @@ class TestTheRegistryHasAPlaceForDefects:
             # REG-1704: audit STR-21 -- carry and arbitrage entries gated on
             # fixed thresholds no cost measurement produced.
             "REG-1704",
+            # REG-1300..1305 and REG-1307: phase 5 execution audit,
+            # EXR-014..EXR-019 and EXR-021 (EXR-020 is SEC-1306 below).
+            "REG-1300",
+            "REG-1301",
+            "REG-1302",
+            "REG-1303",
+            "REG-1304",
+            "REG-1305",
+            "REG-1307",
         }
         # SEC-0005: `.gitignore` carried a bare `.env`, which matches that one
         # name and nothing else -- so `.env.bak.<timestamp>` from a
@@ -276,6 +285,7 @@ class TestTheRegistryHasAPlaceForDefects:
             "SEC-0009",
             "SEC-0010",
             "SEC-0012",
+            "SEC-1306",
         }
 
     def test_every_filed_defect_names_a_permanent_test(self, registry):
@@ -547,7 +557,9 @@ class TestTheMetricsCollector:
         # test-suite, 43.
         # REG-1704 adds the fixed-threshold carry/arbitrage regression (STR-21):
         # no test asked what the thresholds cost to clear -- test-suite, 44.
-        assert metric["value"] == {"test-suite": 44, "review": 1, "supply-chain": 3}
+        # REG-1300..1305, REG-1307 and SEC-1306 add the eight phase 5 execution
+        # audit findings EXR-014..EXR-021 -- test-suite, 52.
+        assert metric["value"] == {"test-suite": 52, "review": 1, "supply-chain": 3}
 
     def test_zero_escaped_defects_would_be_stated_explicitly(self, collector, monkeypatch):
         # "We have not measured this" and "this is zero" are different

@@ -6027,7 +6027,7 @@
           "test_type": "regression"
         }
       ],
-      "notes": "layer: test-suite; audit finding EXR-014"
+      "notes": "Audit finding EXR-014. layer: test-suite"
     },
     {
       "id": "REG-1301",
@@ -6049,7 +6049,7 @@
           "test_type": "regression"
         }
       ],
-      "notes": "layer: test-suite; audit finding EXR-015"
+      "notes": "Audit finding EXR-015. layer: test-suite"
     },
     {
       "id": "REG-1302",
@@ -6073,7 +6073,7 @@
           "test_type": "regression"
         }
       ],
-      "notes": "layer: test-suite; audit finding EXR-016"
+      "notes": "Audit finding EXR-016. layer: test-suite"
     },
     {
       "id": "REG-1303",
@@ -6095,7 +6095,7 @@
           "test_type": "regression"
         }
       ],
-      "notes": "layer: test-suite; audit finding EXR-017"
+      "notes": "Audit finding EXR-017. layer: test-suite"
     },
     {
       "id": "REG-1304",
@@ -6118,7 +6118,7 @@
           "test_type": "regression"
         }
       ],
-      "notes": "layer: test-suite; audit finding EXR-018"
+      "notes": "Audit finding EXR-018. layer: test-suite"
     },
     {
       "id": "REG-1305",
@@ -6140,7 +6140,7 @@
           "test_type": "regression"
         }
       ],
-      "notes": "layer: test-suite; audit finding EXR-019"
+      "notes": "Audit finding EXR-019. layer: test-suite"
     },
     {
       "id": "SEC-1306",
@@ -6162,7 +6162,7 @@
           "test_type": "security"
         }
       ],
-      "notes": "layer: test-suite; audit finding EXR-020"
+      "notes": "Audit finding EXR-020. layer: test-suite"
     },
     {
       "id": "REG-1307",
@@ -6185,7 +6185,7 @@
           "test_type": "regression"
         }
       ],
-      "notes": "layer: test-suite; audit finding EXR-021"
+      "notes": "Audit finding EXR-021. layer: test-suite"
     }
   ]
 }

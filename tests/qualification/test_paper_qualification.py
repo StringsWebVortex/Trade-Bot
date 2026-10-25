@@ -15,6 +15,9 @@ The cases that matter are not the happy path. They are:
     somebody tightened them, because a standard that applies only to future
     evidence is not a standard;
   * every way of arriving at live trading without a record at all.
+
+Decides:
+  - SEC-1306 -- the qualification record is signed, expires and names its strategy
 """
 
 from __future__ import annotations
