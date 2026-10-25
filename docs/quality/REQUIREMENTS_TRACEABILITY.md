@@ -47,11 +47,11 @@ deletion of the thing it points at.
 
 | Status | Entries |
 |---|---|
-| VERIFIED | 216 |
+| VERIFIED | 222 |
 | PARTIAL | 3 |
 | PLANNED | 0 |
 | ACCEPTED GAP | 0 |
-| **Total** | **219** |
+| **Total** | **225** |
 
 ## Summary by subsystem
 
@@ -60,8 +60,8 @@ deletion of the thing it points at.
 | Risk | 11 | 11 |
 | Execution | 13 | 12 |
 | Portfolio | 1 | 1 |
-| Signal and features | 6 | 6 |
-| Models and leakage | 10 | 10 |
+| Signal and features | 10 | 10 |
+| Models and leakage | 12 | 12 |
 | Data, money and time | 10 | 9 |
 | API and WebSocket | 21 | 21 |
 | Cryptography and secrets | 30 | 30 |
@@ -484,6 +484,58 @@ SOPR, NVT and MVRV are either genuinely computed or NaN; no on-chain metric retu
 
 > Escaped to production: the constant reached the live feature dict in src/intel.py and was persisted to intelligence_features_history beside measured columns. The test suite could not catch it because the test that existed asserted the placeholder (== 1.0) rather than the requirement, so the layer that should have caught it is the review that accepted a return of a bare literal from a metric together with a docstring describing a computation the body never performed. layer: review
 
+#### `REG-1080` — E-10 emits spot, not the S2F level, as predicted_price
+
+**VERIFIED** · critical · regression · source: OPS-2026-10-25
+
+E10Supply.run emits predicted_price equal to spot and keeps the S2F fair value in metadata only.
+
+- **If violated:** The S2F model price (hundreds of thousands of USD) was averaged into consensus price, so the trade signal came from the S2F artefact.
+- **Owned by:** `src/engines/e10_supply.py`
+- **Verification:**
+  - `tests/test_engine_signal_plumbing_fixes.py` (regression)
+
+> layer: test-suite; audit finding STR-01
+
+#### `REG-1081` — Meta-engines receive prior engine outputs
+
+**VERIFIED** · high · regression · source: OPS-2026-10-25
+
+EngineOrchestrator.run runs E-08, E-09 and E-15 after the other engines and passes engine_outputs and e07_direction in their data.
+
+- **If violated:** engine_outputs was set after gather and discarded, so E-08/E-09/E-15 ran on empty inputs and were constant functions of nothing.
+- **Owned by:** `src/engines/orchestrator.py`
+- **Verification:**
+  - `tests/test_engine_signal_plumbing_fixes.py` (regression)
+
+> layer: test-suite; audit finding STR-02
+
+#### `REG-1082` — TTL hysteresis holds state in the mid band
+
+**VERIFIED** · high · regression · source: OPS-2026-10-25
+
+TtlManager.compute returns the same TTL for repeated mid-band entropy values and switches only past the outer thresholds.
+
+- **If violated:** Inverted hysteresis thresholds flipped the signal TTL between 1h and 24h on every call for entropy in (0.35, 0.65).
+- **Owned by:** `src/engines/consensus.py`
+- **Verification:**
+  - `tests/test_engine_signal_plumbing_fixes.py` (regression)
+
+> layer: test-suite; audit finding STR-03
+
+#### `REG-1085` — Nonce scanner skips the 0x21 push opcode before the pubkey
+
+**VERIFIED** · high · regression · source: OPS-2026-10-25
+
+extract_ecdsa_signatures finds a signature whose sighash byte is followed by a 0x21 push and a compressed pubkey.
+
+- **If violated:** The pubkey offset landed on 0x21 so real P2PKH/P2WPKH transactions yielded no signatures and nonce-reuse detection never fired.
+- **Owned by:** `src/ecc/ecdsa_scan.py`
+- **Verification:**
+  - `tests/test_engine_signal_plumbing_fixes.py` (regression)
+
+> layer: test-suite; audit finding MTH-001
+
 ## Models and leakage
 
 #### `MODL-001` — Every model artifact carries full provenance
@@ -609,6 +661,32 @@ Orchestrator._metrics_payload() builds a complete metrics snapshot for every tic
   - `tests/regression/test_metrics_payload.py` (regression)
 
 > Pins payload completeness with and without an executor, the method-vs-property fact the bug turned on, and the original TypeError as a negative case. layer: test-suite
+
+#### `REG-1083` — Ensemble members that error are excluded, not voted as 0.0
+
+**VERIFIED** · high · regression · source: OPS-2026-10-25
+
+Ensemble member predict raises on error so EnsemblePredictor lists the member in failed_models and excludes it from the estimate.
+
+- **If violated:** Members swallowed exceptions and returned 0.0, which entered the weighted mean and disagreement as a real forecast.
+- **Owned by:** `src/intelligence/ensemble_predictor.py`
+- **Verification:**
+  - `tests/test_engine_signal_plumbing_fixes.py` (regression)
+
+> layer: test-suite; audit finding INT-006
+
+#### `REG-1084` — IntelligenceAdapter persists the fused decision when no signal is sized
+
+**VERIFIED** · high · regression · source: OPS-2026-10-25
+
+When CryptoIntelligence.on_bar returns None, IntelligenceAdapter persists the last fused decision with zero direction and size.
+
+- **If violated:** on_bar returned None without a risk_context so nothing was ever persisted to intelligence_features_history.
+- **Owned by:** `src/intelligence/intelligence_adapter.py`
+- **Verification:**
+  - `tests/test_engine_signal_plumbing_fixes.py` (regression)
+
+> layer: test-suite; audit finding INT-008
 
 ## Data, money and time
 
@@ -2838,4 +2916,4 @@ To add or change an entry, edit the registry and regenerate this file. See
 `docs/quality/TEST_STRATEGY.md` for the taxonomy the `test_type` column draws
 on, and `docs/quality/IMPLEMENTATION_PLAN.md` for what each phase delivers.
 
-Registry version: 1.0.0 — 219 entries.
+Registry version: 1.0.0 — 225 entries.

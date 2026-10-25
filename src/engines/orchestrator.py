@@ -169,6 +169,9 @@ def _publish_cycle(
     get_event_bus().publish("engine", payload)
 
 
+_META_ENGINE_IDS = frozenset({"E-08", "E-09", "E-15"})
+
+
 @dataclass
 class EngineRunStats:
     """
@@ -312,14 +315,38 @@ class EngineOrchestrator:
         t_start = datetime.now(UTC)
         t_monotonic_start = time.monotonic()
 
-        # Pass prior engine outputs into data for meta-engines (E-08, E-09, E-15)
         data = dict(data)  # shallow copy to avoid mutating caller's dict
 
-        tasks = [
-            self._timed(engine.run(symbol, data), _ENGINE_SLAS.get(eid, 5.0))
-            for engine, eid in zip(self._engines, [f"E-{i:02d}" for i in range(1, 19)], strict=True)
-        ]
-        raw_results = await asyncio.gather(*tasks, return_exceptions=True)
+        # Meta-engines consume the other engines' outputs, so they run in a
+        # second phase after E-01..E-18 (minus themselves) have completed.
+        engine_ids = [f"E-{i:02d}" for i in range(1, 19)]
+        meta_idx = [i for i, eid in enumerate(engine_ids) if eid in _META_ENGINE_IDS]
+        first_idx = [i for i in range(len(engine_ids)) if i not in meta_idx]
+
+        async def _phase(indices: list[int]) -> list[Any]:
+            tasks = [
+                self._timed(self._engines[i].run(symbol, data), _ENGINE_SLAS.get(engine_ids[i], 5.0))
+                for i in indices
+            ]
+            return list(await asyncio.gather(*tasks, return_exceptions=True))
+
+        raw_results: list[Any] = [None] * len(engine_ids)
+        for i, item in zip(first_idx, await _phase(first_idx), strict=True):
+            raw_results[i] = item
+
+        phase1: dict[str, EngineOutput] = {}
+        for i in first_idx:
+            item = raw_results[i]
+            res = item[0] if isinstance(item, tuple) else item
+            if isinstance(res, EngineOutput):
+                phase1[engine_ids[i]] = res
+        data["engine_outputs"] = phase1
+        e07 = phase1.get("E-07")
+        if e07 is not None:
+            data["e07_direction"] = int(e07.direction)
+
+        for i, item in zip(meta_idx, await _phase(meta_idx), strict=True):
+            raw_results[i] = item
 
         outputs: list[EngineOutput] = []
         failed: list[str] = []
@@ -341,7 +368,6 @@ class EngineOrchestrator:
                 failed.append(eid)
                 log.warning("engine_failed", engine=eid, error=str(result))
 
-        # Feed engine outputs back for meta-engines on next cycle
         data["engine_outputs"] = engine_map
 
         # Regime from data (falls back to Trending)
