@@ -1,15 +1,30 @@
-"""Tests for the v5 spot-perp basis trade strategy."""
+"""Tests for the v5 spot-perp basis trade strategy.
+
+REG-1704 (STR-21): the entry hurdle is the measured four-leg round trip on the
+raw gap, and the strategy abstains without a measured cost.
+"""
 
 from __future__ import annotations
 
 import pytest
 
+from src.risk.execution_cost import ExecutionCost
 from src.strategies.basis_trade import (
     BasisTradeContext,
     BasisTradeStrategy,
     compute_annualized_basis_pct,
+    raw_basis_bps,
 )
 from src.strategies.registry import StrategyRegistry
+
+# 6 bps a leg: 4.5 fee + 1.0 half-spread + 0.5 impact. Hurdle ~27.3 bps.
+_COST = ExecutionCost(fee_bps=4.5, half_spread_bps=1.0, impact_bps=0.5, uncertainty_bps=1.0)
+
+
+def _ctx(perp: float, days: float = 1.0, cost: ExecutionCost | None = _COST) -> BasisTradeContext:
+    return BasisTradeContext(
+        spot_price=100.0, perp_price=perp, days_to_perp_funding_normalization=days, cost=cost
+    )
 
 
 def test_compute_annualized_basis_pct_positive() -> None:
@@ -27,56 +42,10 @@ def test_compute_annualized_basis_pct_rejects_nonpositive_perp() -> None:
         compute_annualized_basis_pct(100.0, 0.0)
 
 
-def test_slow_normalizing_basis_is_a_weaker_signal() -> None:
-    """The same raw gap must not earn full confidence over a longer horizon."""
-    strat = BasisTradeStrategy()
-    fast = strat.generate_signal(BasisTradeContext(spot_price=100.0, perp_price=100.05))
-    slow = strat.generate_signal(
-        BasisTradeContext(
-            spot_price=100.0,
-            perp_price=100.05,
-            days_to_perp_funding_normalization=30.0,
-        )
-    )
-    assert fast.confidence > slow.confidence
-
-
-def test_long_horizon_can_fall_below_the_entry_threshold() -> None:
-    strat = BasisTradeStrategy()
-    ctx = BasisTradeContext(
-        spot_price=100.0,
-        perp_price=100.05,
-        days_to_perp_funding_normalization=365.0,
-    )
-    assert strat.generate_signal(ctx).direction == 0
-
-
 def test_rejects_non_basistradecontext_bar() -> None:
     strat = BasisTradeStrategy()
     with pytest.raises(TypeError, match="BasisTradeContext"):
         strat.generate_signal(bar=None)
-
-
-def test_flat_when_basis_small() -> None:
-    strat = BasisTradeStrategy()
-    ctx = BasisTradeContext(spot_price=100.0, perp_price=100.001)
-    sig = strat.generate_signal(ctx)
-    assert sig.direction == 0
-
-
-def test_shorts_perp_on_contango() -> None:
-    strat = BasisTradeStrategy()
-    ctx = BasisTradeContext(spot_price=100.0, perp_price=100.5)
-    sig = strat.generate_signal(ctx)
-    assert sig.direction == -1
-    assert sig.confidence > 0.0
-
-
-def test_longs_perp_on_backwardation() -> None:
-    strat = BasisTradeStrategy()
-    ctx = BasisTradeContext(spot_price=100.0, perp_price=99.5)
-    sig = strat.generate_signal(ctx)
-    assert sig.direction == 1
 
 
 def test_registers_with_registry() -> None:
@@ -119,27 +88,54 @@ def test_non_positive_horizon_is_rejected() -> None:
             compute_annualized_basis_pct(100.0, 100.05, bad)
 
 
-def test_default_horizon_makes_a_routine_perp_premium_clear_the_entry_gate() -> None:
-    # Documents the calibration rather than asserting it is correct: at the
-    # 1-day default a 1.4bp gap already exceeds the 5% entry threshold.
-    from src.strategies.basis_trade import _MIN_ANNUALIZED_BASIS_PCT
-
-    assert compute_annualized_basis_pct(100.0, 100.0137) > _MIN_ANNUALIZED_BASIS_PCT
+def test_raw_basis_bps_is_the_unannualised_gap() -> None:
+    assert raw_basis_bps(100.0, 100.05) == pytest.approx(5.0)
+    assert raw_basis_bps(100.0, 99.5) == pytest.approx(-50.0)
 
 
-def test_strategy_uses_the_context_horizon() -> None:
-    from src.strategies.basis_trade import BasisTradeContext, BasisTradeStrategy
+def test_flat_when_gap_below_the_measured_hurdle() -> None:
+    assert BasisTradeStrategy().generate_signal(_ctx(100.001)).direction == 0
 
-    strategy = BasisTradeStrategy(0.10)
-    near = strategy.generate_signal(BasisTradeContext(spot_price=100.0, perp_price=100.05))
-    far = strategy.generate_signal(
-        BasisTradeContext(
-            spot_price=100.0,
-            perp_price=100.05,
-            days_to_perp_funding_normalization=365.0,
-        )
-    )
-    # Same prices, different stated horizon: the near horizon signals, the
-    # year-long one falls below the entry threshold.
-    assert near.direction == -1
-    assert far.direction == 0
+
+def test_shorts_perp_on_contango() -> None:
+    sig = BasisTradeStrategy().generate_signal(_ctx(100.5))  # 50 bps
+    assert sig.direction == -1
+    assert sig.confidence > 0.0
+
+
+def test_longs_perp_on_backwardation() -> None:
+    assert BasisTradeStrategy().generate_signal(_ctx(99.5)).direction == 1
+
+
+def test_a_routine_perp_premium_no_longer_clears_a_fixed_annualised_gate() -> None:
+    """Before STR-21 a 1.37 bp gap cleared the fixed 5%-a-year threshold at the
+    1-day horizon and traded, though four taker legs cost far more than that."""
+    assert compute_annualized_basis_pct(100.0, 100.0137) > 5.0
+    assert BasisTradeStrategy().generate_signal(_ctx(100.0137)).direction == 0
+
+
+def test_abstains_without_a_measured_cost() -> None:
+    sig = BasisTradeStrategy().generate_signal(_ctx(101.0, cost=None))
+    assert sig.direction == 0
+    assert sig.confidence == 0.0
+
+
+def test_the_same_gap_trades_or_not_on_the_measured_cost() -> None:
+    cheap = ExecutionCost(fee_bps=1.0, half_spread_bps=0.5, impact_bps=0.5, uncertainty_bps=0.5)
+    dear = ExecutionCost(fee_bps=10.0, half_spread_bps=1.0, impact_bps=1.0, uncertainty_bps=1.0)
+    strat = BasisTradeStrategy()
+    assert strat.generate_signal(_ctx(100.3, cost=cheap)).direction == -1
+    assert strat.generate_signal(_ctx(100.3, cost=dear)).direction == 0
+
+
+def test_the_horizon_does_not_move_the_entry_decision() -> None:
+    """Convergence captures the raw gap whenever it happens; only cost decides."""
+    strat = BasisTradeStrategy()
+    near = strat.generate_signal(_ctx(100.5, days=1.0))
+    far = strat.generate_signal(_ctx(100.5, days=365.0))
+    assert near == far
+
+
+def test_bad_prices_still_raise_without_a_cost() -> None:
+    with pytest.raises(ValueError, match="perp_price"):
+        BasisTradeStrategy().generate_signal(_ctx(0.0, cost=None))
