@@ -52,9 +52,7 @@ def verify_operator_secret(provided: str) -> None:
     now = time.monotonic()
     _prune(now)
     if len(_failures) >= MAX_FAILURES:
-        raise OperatorSecretError(
-            429, "Too many failed operator-secret attempts. Try again later."
-        )
+        raise OperatorSecretError(429, "Too many failed operator-secret attempts. Try again later.")
     if not hmac.compare_digest((provided or "").encode("utf-8"), expected.encode("utf-8")):
         _failures.append(now)
         raise OperatorSecretError(401, "Invalid operator secret.")

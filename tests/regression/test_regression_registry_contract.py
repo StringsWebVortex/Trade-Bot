@@ -220,6 +220,39 @@ class TestTheRegistryHasAPlaceForDefects:
             "REG-0029",
             "REG-0030",
             "REG-0031",
+            # REG-1600..1603: audit OPS-011, OPS-012, API-021 and OPS-009 --
+            # each a defect no test exercised, filed with its deciding test.
+            "REG-1600",
+            "REG-1601",
+            "REG-1602",
+            "REG-1603",
+            # REG-1604: the CI diagnostics collector held its own report check
+            # in_progress, so no prfail report ever finalized.
+            "REG-1604",
+            # REG-1605..1608: audits MTH-020, FE-15, SCR-011/OPS-023 and OPS-013.
+            "REG-1605",
+            "REG-1606",
+            "REG-1607",
+            "REG-1608",
+            # REG-1609: one failed job-log download failed the whole report.
+            "REG-1609",
+            # REG-1700..1703: audit OPS-011 (digest pins, rag-ingest torch
+            # floor), DOC-015 and API-031 -- block C of the phase 7 findings.
+            "REG-1700",
+            "REG-1701",
+            "REG-1702",
+            "REG-1703",
+            # REG-1704: audit STR-21 -- carry and arbitrage entries gated on
+            # fixed thresholds no cost measurement produced.
+            "REG-1704",
+            # REG-1040..1043: audit EXR-006/007/008/012 (execution accounting).
+            "REG-1040",
+            "REG-1041",
+            "REG-1042",
+            "REG-1043",
+            # REG-1243/1244: audit FE-06 and FE-09 (frontend honesty).
+            "REG-1243",
+            "REG-1244",
         }
         # SEC-0005: `.gitignore` carried a bare `.env`, which matches that one
         # name and nothing else -- so `.env.bak.<timestamp>` from a
@@ -250,6 +283,18 @@ class TestTheRegistryHasAPlaceForDefects:
             "SEC-0008",
             "SEC-0009",
             "SEC-0010",
+            "SEC-0012",
+            # SEC-1010..1015: API authorization and secret-handling audit.
+            "SEC-1010",
+            "SEC-1011",
+            "SEC-1012",
+            "SEC-1013",
+            "SEC-1014",
+            "SEC-1015",
+            # SEC-1240..1242: frontend secret exposure and Electron hardening.
+            "SEC-1240",
+            "SEC-1241",
+            "SEC-1242",
         }
 
     def test_every_filed_defect_names_a_permanent_test(self, registry):
@@ -511,7 +556,19 @@ class TestTheMetricsCollector:
         # test-suite, 23 to 27.
         # REG-0030 adds the risk-gated horizon-order-path regression -- test-suite, 28.
         # REG-0031 adds the horizon drift-suppression regression -- test-suite, 29.
-        assert metric["value"] == {"test-suite": 29, "review": 1, "supply-chain": 2}
+        # REG-1600..1603 add four audit regressions no test exercised -- test-suite, 33.
+        # REG-1604 adds the collector self-wait regression -- test-suite, 34.
+        # SEC-0012: filelock's CVE was published against a release torch and
+        # huggingface-hub pulled in unbounded -- supply-chain, 2 to 3.
+        # REG-1609 adds the collector's one-log-fails-all regression -- test-suite, 35.
+        # REG-1605..1608 add four more audit findings no test exercised -- test-suite, 39.
+        # REG-1700..1703 add four block C audit regressions no test exercised --
+        # test-suite, 43.
+        # REG-1704 adds the fixed-threshold carry/arbitrage regression (STR-21):
+        # no test asked what the thresholds cost to clear -- test-suite, 44.
+        # REG-1040..1043, REG-1243/1244, SEC-1010..1015 and SEC-1240..1242 add
+        # fifteen audit findings -- test-suite, 59.
+        assert metric["value"] == {"test-suite": 59, "review": 1, "supply-chain": 3}
 
     def test_zero_escaped_defects_would_be_stated_explicitly(self, collector, monkeypatch):
         # "We have not measured this" and "this is zero" are different

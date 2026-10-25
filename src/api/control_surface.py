@@ -35,9 +35,9 @@ than something the frontend infers.
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from enum import Enum
-from collections.abc import Awaitable, Callable
 from typing import Any, Literal
 
 from pydantic import BaseModel, ValidationError
@@ -266,6 +266,7 @@ def is_operator_writable(dotted: str) -> bool:
     if group not in _WRITABLE_GROUPS:
         return False
     return not any(marker in leaf for marker in _NEVER_WRITABLE_LEAF_MARKERS)
+
 
 # Already surfaced by a dedicated tier with its own setter and semantics;
 # listing them twice is the duplicate-row bug this module already fixed once.

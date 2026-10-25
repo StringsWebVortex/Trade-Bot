@@ -5,6 +5,12 @@ EXR-006/007/008/012 -- execution accounting regressions.
 007: a partial live close settles only the filled share; residual stays open.
 008: a spot account must refuse short (non-long) entries.
 012: base-asset fees reduce the tracked quantity so a close never oversells.
+
+Decides:
+  - REG-1040 — Crypto-box Kelly reduction reaches the order size
+  - REG-1041 — Partial live close settles only the filled share
+  - REG-1042 — Spot live executor refuses short entries
+  - REG-1043 — Base-asset entry fees reduce tracked position quantity
 """
 
 from __future__ import annotations
@@ -52,7 +58,9 @@ async def test_partial_close_credits_only_filled_share_and_keeps_residual() -> N
     ex._positions["t"] = _make_position(
         trade_id="t", entry_price=50_000.0, quantity=0.1, notional_usd=5_000.0
     )
-    ex._place_market_order = AsyncMock(return_value=_filled_order(price=50_000.0, qty=0.04, fee_usd=0))
+    ex._place_market_order = AsyncMock(
+        return_value=_filled_order(price=50_000.0, qty=0.04, fee_usd=0)
+    )
     ex._storage.update_trade_exit = AsyncMock()
     ex._storage.insert_equity = AsyncMock()
     await ex.close_position("t", exit_price=50_000.0, exit_reason="x")
