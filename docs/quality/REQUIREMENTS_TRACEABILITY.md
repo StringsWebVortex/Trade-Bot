@@ -499,7 +499,7 @@ The basis-trade, funding-carry and cross-exchange families enter only when their
   - `tests/test_cross_exchange_arb.py` (regression)
   - `tests/test_strategy_portfolio.py` (regression)
 
-> Audit STR-21. Part 1: the cost model and the strategies. The orchestrator does not yet fill PortfolioInputs.execution_cost, so the three families (all disabled by default) stay flat until part 2 wires the account's fills, the live half-spread and the calibrated impact in, adds the measured fee to check_slippage_veto, and replaces the fixed fee constants in paper.py, live.py, rl_agent.py and e15_rl.py. Those files are in open PRs. layer: unit
+> Audit STR-21. Part 1: the cost model and the strategies. The orchestrator does not yet fill PortfolioInputs.execution_cost, so the three families (all disabled by default) stay flat until part 2 wires the account's fills, the live half-spread and the calibrated impact in, adds the measured fee to check_slippage_veto, and replaces the fixed fee constants in paper.py, live.py, rl_agent.py and e15_rl.py. Those files are in open PRs. layer: test-suite
 
 ## Models and leakage
 
