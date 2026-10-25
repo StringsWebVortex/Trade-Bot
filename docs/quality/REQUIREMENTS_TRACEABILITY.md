@@ -265,7 +265,7 @@ The consecutive-loss halt and drawdown limits in config/risk.yaml and .env.examp
 - **Verification:**
   - `tests/test_phase4_ci_infra_fixes.py` (regression)
 
-> audit findings: OPS-007
+> audit findings: OPS-007. layer: test-suite
 
 ## Execution
 
@@ -458,7 +458,7 @@ INTEL_ENABLED defaults to false in the orchestrator, the API and .env.example, a
 - **Verification:**
   - `tests/test_phase4_ci_infra_fixes.py` (regression)
 
-> audit findings: OPS-019
+> audit findings: OPS-019. layer: test-suite
 
 ## Portfolio
 
@@ -1542,7 +1542,7 @@ The api and worker services run read-only with all capabilities dropped, no-new-
 - **Verification:**
   - `tests/test_phase4_ci_infra_fixes.py` (security)
 
-> audit findings: OPS-005, OPS-006
+> audit findings: OPS-005, OPS-006. layer: test-suite
 
 #### `SEC-1265` — Diagnostics reports must come from the collector workflow run
 
@@ -1555,7 +1555,7 @@ A check run is accepted as a diagnostics report only if its details_url resolves
 - **Verification:**
   - `tests/test_phase4_ci_infra_fixes.py` (security)
 
-> audit findings: OPS-017
+> audit findings: OPS-017. layer: test-suite
 
 #### `SEC-1267` — Every credentialed venue needs a key-posture declaration
 
@@ -1568,7 +1568,7 @@ Startup refuses live trading when a venue with configured credentials has no dec
 - **Verification:**
   - `tests/test_phase4_ci_infra_fixes.py` (security)
 
-> audit findings: SCR-004
+> audit findings: SCR-004. layer: test-suite
 
 #### `SEC-1270` — command_policy has no dead sections and guards all .env readers
 
@@ -1581,7 +1581,7 @@ config/command_policy.json carries no unenforced limit sections, and secret_echo
 - **Verification:**
   - `tests/test_phase4_ci_infra_fixes.py` (security)
 
-> audit findings: SCR-006
+> audit findings: SCR-006. layer: test-suite
 
 ## Supply chain and artifacts
 
@@ -1673,7 +1673,7 @@ SUP-001 inspects job-level permissions and real justification comments for the w
 - **Verification:**
   - `tests/test_phase4_ci_infra_fixes.py` (security)
 
-> audit findings: OPS-016, SCR-002
+> audit findings: OPS-016, SCR-002. layer: test-suite
 
 ## Resilience and recovery
 
@@ -2201,7 +2201,7 @@ The deploy canary job fails closed while the canary, promotion, halt-trigger and
 - **Verification:**
   - `tests/test_phase4_ci_infra_fixes.py` (regression)
 
-> audit findings: OPS-003
+> audit findings: OPS-003. layer: test-suite
 
 ## Governance
 
@@ -2947,7 +2947,7 @@ The mutation score script pins mutmut, checks its exit status, clears the cache 
 - **Verification:**
   - `tests/test_phase4_ci_infra_fixes.py` (regression)
 
-> audit findings: SCR-003
+> audit findings: SCR-003. layer: test-suite
 
 #### `REG-1269` — math_registry consumer rows are real imports
 
@@ -2960,7 +2960,7 @@ Every consumer wiring row in config/math_registry.json names a module that refer
 - **Verification:**
   - `tests/test_phase4_ci_infra_fixes.py` (regression)
 
-> audit findings: SCR-005
+> audit findings: SCR-005. layer: test-suite
 
 #### `REG-1271` — Execution and risk arch-baseline findings are tracked in the registry
 
@@ -2973,7 +2973,7 @@ Every baselined LAW1, LAW2, LAW9, LAW10 and LAW13 finding maps to an ARCH accept
 - **Verification:**
   - `tests/test_phase4_ci_infra_fixes.py` (regression)
 
-> audit findings: OPS-018
+> audit findings: OPS-018. layer: test-suite
 
 #### `REG-1600` — The CPU torch pre-pass uses the same version spec as requirements.txt
 
@@ -3083,7 +3083,7 @@ The main ruleset requires at least one approving review and code-owner review so
 - **Verification:**
   - `tests/test_phase4_ci_infra_fixes.py` (security)
 
-> audit findings: OPS-004
+> audit findings: OPS-004. layer: test-suite
 
 ## Terminal and process center
 

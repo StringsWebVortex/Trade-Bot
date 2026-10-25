@@ -312,7 +312,10 @@ def test_math_registry_consumers_reference_their_owner():
     for e in entries:
         wiring = e.get("wiring", [])
         owners = [w["module"] for w in wiring if w["kind"] in ("owner", "component")]
-        tails = {".".join(o.removesuffix("/__init__.py").removesuffix(".py").split("/")[-2:]) for o in owners}
+        tails = {
+            ".".join(o.removesuffix("/__init__.py").removesuffix(".py").split("/")[-2:])
+            for o in owners
+        }
         for w in wiring:
             if w["kind"] != "consumer":
                 continue
@@ -355,10 +358,7 @@ def test_execution_and_risk_baseline_findings_are_tracked_in_the_registry():
     baseline = json.loads(_text("config/arch_baseline.json"))["fingerprints"]
     entries = json.loads(_text("config/quality_registry.json"))["entries"]
     tracked = {
-        m
-        for e in entries
-        if e["id"].startswith("ARCH-")
-        for m in e.get("owning_modules", [])
+        m for e in entries if e["id"].startswith("ARCH-") for m in e.get("owning_modules", [])
     }
     for e in entries:
         if e["id"].startswith("ARCH-"):

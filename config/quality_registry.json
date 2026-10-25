@@ -6027,7 +6027,7 @@
         }
       ],
       "depends_on": [],
-      "notes": "audit findings: OPS-003"
+      "notes": "audit findings: OPS-003. layer: test-suite"
     },
     {
       "id": "SEC-1261",
@@ -6049,7 +6049,7 @@
         }
       ],
       "depends_on": [],
-      "notes": "audit findings: OPS-004"
+      "notes": "audit findings: OPS-004. layer: test-suite"
     },
     {
       "id": "SEC-1262",
@@ -6073,7 +6073,7 @@
         }
       ],
       "depends_on": [],
-      "notes": "audit findings: OPS-005, OPS-006"
+      "notes": "audit findings: OPS-005, OPS-006. layer: test-suite"
     },
     {
       "id": "REG-1263",
@@ -6096,7 +6096,7 @@
         }
       ],
       "depends_on": [],
-      "notes": "audit findings: OPS-007"
+      "notes": "audit findings: OPS-007. layer: test-suite"
     },
     {
       "id": "SEC-1264",
@@ -6119,7 +6119,7 @@
         }
       ],
       "depends_on": [],
-      "notes": "audit findings: OPS-016, SCR-002"
+      "notes": "audit findings: OPS-016, SCR-002. layer: test-suite"
     },
     {
       "id": "SEC-1265",
@@ -6141,7 +6141,7 @@
         }
       ],
       "depends_on": [],
-      "notes": "audit findings: OPS-017"
+      "notes": "audit findings: OPS-017. layer: test-suite"
     },
     {
       "id": "REG-1266",
@@ -6165,7 +6165,7 @@
         }
       ],
       "depends_on": [],
-      "notes": "audit findings: OPS-019"
+      "notes": "audit findings: OPS-019. layer: test-suite"
     },
     {
       "id": "SEC-1267",
@@ -6188,7 +6188,7 @@
         }
       ],
       "depends_on": [],
-      "notes": "audit findings: SCR-004"
+      "notes": "audit findings: SCR-004. layer: test-suite"
     },
     {
       "id": "REG-1268",
@@ -6211,7 +6211,7 @@
         }
       ],
       "depends_on": [],
-      "notes": "audit findings: SCR-003"
+      "notes": "audit findings: SCR-003. layer: test-suite"
     },
     {
       "id": "REG-1269",
@@ -6233,7 +6233,7 @@
         }
       ],
       "depends_on": [],
-      "notes": "audit findings: SCR-005"
+      "notes": "audit findings: SCR-005. layer: test-suite"
     },
     {
       "id": "SEC-1270",
@@ -6255,7 +6255,7 @@
         }
       ],
       "depends_on": [],
-      "notes": "audit findings: SCR-006"
+      "notes": "audit findings: SCR-006. layer: test-suite"
     },
     {
       "id": "REG-1271",
@@ -6277,7 +6277,7 @@
         }
       ],
       "depends_on": [],
-      "notes": "audit findings: OPS-018"
+      "notes": "audit findings: OPS-018. layer: test-suite"
     },
     {
       "id": "ARCH-001",

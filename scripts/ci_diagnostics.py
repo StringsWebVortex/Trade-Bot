@@ -1129,9 +1129,7 @@ def _ours(checkrun: dict[str, Any]) -> bool:
 
 def _collector_run_id(slug: str, checkrun: dict[str, Any]) -> int | None:
     url = str(checkrun.get("details_url") or "")
-    match = re.fullmatch(
-        rf"https://github\.com/{re.escape(slug)}/actions/runs/(\d+)(?:/.*)?", url
-    )
+    match = re.fullmatch(rf"https://github\.com/{re.escape(slug)}/actions/runs/(\d+)(?:/.*)?", url)
     return int(match.group(1)) if match else None
 
 

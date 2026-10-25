@@ -178,9 +178,7 @@ def check_permissions(root: Path = Path()) -> list[Finding]:
         problems = _check_permission_mapping(name, "top level", perms)
         if problems:
             # Keep the historical wording for the blanket-grant case.
-            found.extend(
-                Finding("SUP-001", name, p.detail.split(": ", 1)[1]) for p in problems
-            )
+            found.extend(Finding("SUP-001", name, p.detail.split(": ", 1)[1]) for p in problems)
             continue
         block = _top_level_permissions_block(path.read_text(encoding="utf-8"))
         for scope, level in perms.items():
@@ -189,7 +187,9 @@ def check_permissions(root: Path = Path()) -> list[Finding]:
                 # real justification inside the permissions block (a comment
                 # with words, not a bare `#`); otherwise grant it on the one
                 # job that needs it.
-                own_line = [ln for ln in block if re.match(rf"^\s+{re.escape(scope)}:\s*write\b", ln)]
+                own_line = [
+                    ln for ln in block if re.match(rf"^\s+{re.escape(scope)}:\s*write\b", ln)
+                ]
                 if not (_has_real_comment(own_line) or _has_real_comment(block)):
                     found.append(
                         Finding(
@@ -314,7 +314,9 @@ def check_fork_secret_isolation(root: Path = Path()) -> list[Finding]:
                 ref = str(with_.get("ref", ""))
                 if not _UNTRUSTED_REF_EXPR_RE.search(ref):
                     continue
-                persisted = _secrets_in({"token": with_.get("token"), "ssh-key": with_.get("ssh-key")})
+                persisted = _secrets_in(
+                    {"token": with_.get("token"), "ssh-key": with_.get("ssh-key")}
+                )
                 for secret in sorted(persisted):
                     found.append(
                         Finding(
