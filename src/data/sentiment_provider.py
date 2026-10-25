@@ -9,8 +9,10 @@ Sources:
 from __future__ import annotations
 
 import asyncio
+import math
 import xml.etree.ElementTree as ET  # nosec B314 — RSS data from known public feeds only
 from datetime import UTC, datetime
+from email.utils import parsedate_to_datetime
 from pathlib import Path
 
 import aiohttp
@@ -31,9 +33,12 @@ _RSS_POLL_INTERVAL = 900  # 15 minutes
 class SentimentProvider:
     def __init__(self, data_root: Path = Path("data")) -> None:
         self._data_root = data_root
-        self._fg_score: float = 50.0
-        self._fg_label: str = "Neutral"
+        # Unknown until the first successful fetch (REG-0008 NaN policy): a
+        # fabricated 50/"Neutral" would be indistinguishable from a real read.
+        self._fg_score: float = math.nan
+        self._fg_label: str = "Unknown"
         self._headlines: list[dict] = []
+        self._seen: set[tuple[str, str]] = set()
 
     # ------------------------------------------------------------------
     # Public interface
@@ -71,7 +76,7 @@ class SentimentProvider:
                     entry = data["data"][0]
                     self._fg_score = float(entry["value"])
                     self._fg_label = entry["value_classification"]
-                    self._persist_fg()
+                    await asyncio.to_thread(self._persist_fg)
                     self._update_cache()
         except Exception as exc:
             log.warning("fg_fetch_error", exc=str(exc))
@@ -80,6 +85,8 @@ class SentimentProvider:
         try:
             from src.data.provider_cache import get_provider_cache
 
+            if not math.isfinite(self._fg_score):
+                return  # do not publish an unfetched Fear & Greed value
             recent = self._headlines[-20:] if self._headlines else []
             vader_avg = sum(h["vader_compound"] for h in recent) / len(recent) if recent else 0.0
             get_provider_cache().set_sentiment(self._fg_score, self._fg_label, vader_avg)
@@ -118,11 +125,21 @@ class SentimentProvider:
                             rows.extend(self._parse_rss(text, url, vader))
                     except Exception as exc:
                         log.warning("rss_source_error", url=url, exc=str(exc))
+            # Feeds re-serve the same items every poll: keep only unseen
+            # (source, guid/title) keys so vader_avg and history are not
+            # the latest batch repeated (DAT-011).
+            fresh = []
+            for row in rows:
+                key = (row["source"], row.pop("_key"))
+                if key not in self._seen:
+                    self._seen.add(key)
+                    fresh.append(row)
+            rows = fresh
             if rows:
                 self._headlines.extend(rows)
                 if len(self._headlines) > 2000:
                     self._headlines = self._headlines[-2000:]
-                self._persist_headlines(rows)
+                await asyncio.to_thread(self._persist_headlines, rows)
                 self._update_cache()
         except Exception as exc:
             log.warning("rss_fetch_error", exc=str(exc))
@@ -136,10 +153,25 @@ class SentimentProvider:
                 if title_el is None or not title_el.text:
                     continue
                 headline = title_el.text.strip()
+                guid_el = item.find("guid")
+                guid = guid_el.text.strip() if guid_el is not None and guid_el.text else headline
+                published = datetime.now(UTC)
+                pub_el = item.find("pubDate")
+                if pub_el is not None and pub_el.text:
+                    try:
+                        parsed = parsedate_to_datetime(pub_el.text.strip())
+                        published = (
+                            parsed.astimezone(UTC)
+                            if parsed.tzinfo
+                            else parsed.replace(tzinfo=UTC)
+                        )
+                    except (TypeError, ValueError):
+                        pass  # unparseable pubDate: fall back to fetch time
                 score = vader.polarity_scores(headline)["compound"]  # type: ignore[attr-defined]
                 rows.append(
                     {
-                        "timestamp_utc": datetime.now(UTC),
+                        "timestamp_utc": published,
+                        "_key": guid,
                         "headline": headline,
                         "vader_compound": score,
                         "source": source,

@@ -5613,6 +5613,253 @@
         }
       ],
       "depends_on": []
+    },
+    {
+      "id": "REG-1320",
+      "kind": "regression",
+      "title": "Timescale backend matches SQLite for V6 intelligence fields (DAT-007)",
+      "statement": "Timescale store_intelligence_features persists and fetch returns all 17 *_v6 columns, rejects unknown keys using the same allowlist as SQLite, and model_metrics upsert resets created_at.",
+      "criticality": "medium",
+      "subsystem": "data",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite; audit finding DAT-007",
+      "failure_mode": "Timescale silently dropped V6 fields and unknown keys, and kept the old created_at so latest_model_metrics ordering differed between backends.",
+      "owning_modules": [
+        "src/data/storage.py",
+        "src/data/timescale_storage.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_data_layer_dat_fixes.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1321",
+      "kind": "regression",
+      "title": "Orderbook/trade flush never read-modify-writes and keeps the last snapshot (DAT-008)",
+      "statement": "Orderbook and trade flushes write a new part file per flush instead of rewriting the day's parquet, and latest_mid() survives a flush.",
+      "criticality": "medium",
+      "subsystem": "data",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite; audit finding DAT-008",
+      "failure_mode": "Each flush re-read and rewrote the whole day file on the event loop (O(n^2)) and cleared the snapshot buffer, so latest_mid() returned None after each flush.",
+      "owning_modules": [
+        "src/data/orderbook_stream.py",
+        "src/data/exchange_flow_provider.py",
+        "src/data/sentiment_provider.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_data_layer_dat_fixes.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1322",
+      "kind": "regression",
+      "title": "Deribit polling survives disk and cycle errors and checks HTTP status (DAT-009)",
+      "statement": "A persist error or a failed cycle does not end DeribitProvider.run_loop; non-2xx responses are not parsed as results; orderbook requests use bounded concurrency.",
+      "criticality": "medium",
+      "subsystem": "data",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite; audit finding DAT-009",
+      "failure_mode": "An unguarded _persist ended polling permanently and a 429 body was parsed as an empty result.",
+      "owning_modules": [
+        "src/data/deribit_provider.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_data_layer_dat_fixes.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1323",
+      "kind": "regression",
+      "title": "Macro date is the market date and stale cache files are ignored (DAT-010)",
+      "statement": "MacroProvider rows carry the last market date of the stalest series, one-column Close frames are squeezed, and cached files older than the stale limit are not served.",
+      "criticality": "medium",
+      "subsystem": "data",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite; audit finding DAT-010",
+      "failure_mode": "The row date was the fetch date so the staleness budget could never trip.",
+      "owning_modules": [
+        "src/data/macro_provider.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_data_layer_dat_fixes.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1324",
+      "kind": "regression",
+      "title": "RSS headlines are deduplicated and use pubDate (DAT-011)",
+      "statement": "SentimentProvider keeps each (source, guid) headline once and timestamps it with pubDate when parseable.",
+      "criticality": "medium",
+      "subsystem": "data",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite; audit finding DAT-011",
+      "failure_mode": "The same feed items were re-appended every poll, so vader_avg was the latest batch repeated and history was misdated.",
+      "owning_modules": [
+        "src/data/sentiment_provider.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_data_layer_dat_fixes.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1325",
+      "kind": "regression",
+      "title": "DuckDBStore serialises concurrent writers (DAT-012)",
+      "statement": "DuckDBStore guards its single connection with a lock, uses strictly increasing ms keys so same-ms writes do not overwrite, and accepts None feature values.",
+      "criticality": "medium",
+      "subsystem": "data",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite; audit finding DAT-012",
+      "failure_mode": "The docstring claimed thread safety but transactions could interleave and same-ms writes overwrote each other.",
+      "owning_modules": [
+        "src/data/duckdb_store.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_data_layer_dat_fixes.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1326",
+      "kind": "regression",
+      "title": "Granger test is multiple-testing corrected and time-aligned (DAT-013)",
+      "statement": "GrangerCausalityDetector applies Bonferroni over tested lags, joins labelled series on timestamp, and evicts a symbol's result when its test fails.",
+      "criticality": "medium",
+      "subsystem": "data",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite; audit finding DAT-013",
+      "failure_mode": "Min p over 5 lags at 0.05 gave about 23% false positives, series were tail-aligned, and failed symbols kept stale results.",
+      "owning_modules": [
+        "src/causal/granger.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_data_layer_dat_fixes.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1327",
+      "kind": "regression",
+      "title": "AssetGNN does not emit random-weight embeddings (DAT-014)",
+      "statement": "The untrained GAT path is not used by run() until trained weights are loaded, runs in eval mode, and its input projection is built once with a fixed seed.",
+      "criticality": "medium",
+      "subsystem": "data",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite; audit finding DAT-014",
+      "failure_mode": "A fresh untrained Linear and active dropout made embeddings and contagion scores random per call.",
+      "owning_modules": [
+        "src/causal/asset_gnn.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_data_layer_dat_fixes.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1328",
+      "kind": "regression",
+      "title": "DepthDetectorV2 verifies a sha256 manifest before unpickling (DAT-015)",
+      "statement": "DepthDetectorV2.save writes sha256 manifests and load refuses any pickle whose manifest is missing or mismatched.",
+      "criticality": "medium",
+      "subsystem": "data",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite; audit finding DAT-015",
+      "failure_mode": "Three pickles were loaded without integrity verification, unlike the v1 detector.",
+      "owning_modules": [
+        "src/regime/depth_detector_v2.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_data_layer_dat_fixes.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1329",
+      "kind": "regression",
+      "title": "GARCH refit must converge and pipeline guards garch_window (DAT-016)",
+      "statement": "rolling_garch_forecast discards a non-converged fit, and build_feature_matrix min-rows includes garch_window.",
+      "criticality": "medium",
+      "subsystem": "data",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite; audit finding DAT-016",
+      "failure_mode": "result.success was ignored so non-converged parameters were used, and the training min_required omitted garch_window.",
+      "owning_modules": [
+        "src/regime/garch.py",
+        "src/features/pipeline.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_data_layer_dat_fixes.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1330",
+      "kind": "regression",
+      "title": "No fabricated sentiment or mempool values when the source is down (DAT-017)",
+      "statement": "SentimentProvider has unknown (NaN) Fear and Greed until fetched and does not publish it to the cache, and mempool features are NaN when the node or fee estimate is unavailable.",
+      "criticality": "medium",
+      "subsystem": "data",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite; audit finding DAT-017",
+      "failure_mode": "Zeros, 0.0001 feerate and 50/Neutral were indistinguishable from real readings, contradicting the REG-0008 NaN policy.",
+      "owning_modules": [
+        "src/features/mempool.py",
+        "src/data/sentiment_provider.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_data_layer_dat_fixes.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
     }
   ]
 }

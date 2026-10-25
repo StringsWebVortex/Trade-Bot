@@ -47,11 +47,11 @@ deletion of the thing it points at.
 
 | Status | Entries |
 |---|---|
-| VERIFIED | 216 |
+| VERIFIED | 227 |
 | PARTIAL | 3 |
 | PLANNED | 0 |
 | ACCEPTED GAP | 0 |
-| **Total** | **219** |
+| **Total** | **230** |
 
 ## Summary by subsystem
 
@@ -62,7 +62,7 @@ deletion of the thing it points at.
 | Portfolio | 1 | 1 |
 | Signal and features | 6 | 6 |
 | Models and leakage | 10 | 10 |
-| Data, money and time | 10 | 9 |
+| Data, money and time | 21 | 20 |
 | API and WebSocket | 21 | 21 |
 | Cryptography and secrets | 30 | 30 |
 | Supply chain and artifacts | 7 | 7 |
@@ -740,6 +740,149 @@ MarketDataFetcher.initialize() must open each venue independently, record an una
   - `tests/test_fetcher_venue_degradation.py` (regression)
 
 > Observed against Binance answering HTTP 451 'Service unavailable from a restricted location' on both mainnet and testnet from an affected network, which made the backend unstartable however healthy OKX and everything else was. initialize() built both venues and loaded their markets in one unisolated sequence. GET /venues and POST /venues/{venue}/reconnect expose the state and the recovery so neither needs a restart. layer: test-suite
+
+#### `REG-1320` — Timescale backend matches SQLite for V6 intelligence fields (DAT-007)
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+Timescale store_intelligence_features persists and fetch returns all 17 *_v6 columns, rejects unknown keys using the same allowlist as SQLite, and model_metrics upsert resets created_at.
+
+- **If violated:** Timescale silently dropped V6 fields and unknown keys, and kept the old created_at so latest_model_metrics ordering differed between backends.
+- **Owned by:** `src/data/storage.py`, `src/data/timescale_storage.py`
+- **Verification:**
+  - `tests/test_data_layer_dat_fixes.py` (regression)
+
+> layer: test-suite; audit finding DAT-007
+
+#### `REG-1321` — Orderbook/trade flush never read-modify-writes and keeps the last snapshot (DAT-008)
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+Orderbook and trade flushes write a new part file per flush instead of rewriting the day's parquet, and latest_mid() survives a flush.
+
+- **If violated:** Each flush re-read and rewrote the whole day file on the event loop (O(n^2)) and cleared the snapshot buffer, so latest_mid() returned None after each flush.
+- **Owned by:** `src/data/orderbook_stream.py`, `src/data/exchange_flow_provider.py`, `src/data/sentiment_provider.py`
+- **Verification:**
+  - `tests/test_data_layer_dat_fixes.py` (regression)
+
+> layer: test-suite; audit finding DAT-008
+
+#### `REG-1322` — Deribit polling survives disk and cycle errors and checks HTTP status (DAT-009)
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+A persist error or a failed cycle does not end DeribitProvider.run_loop; non-2xx responses are not parsed as results; orderbook requests use bounded concurrency.
+
+- **If violated:** An unguarded _persist ended polling permanently and a 429 body was parsed as an empty result.
+- **Owned by:** `src/data/deribit_provider.py`
+- **Verification:**
+  - `tests/test_data_layer_dat_fixes.py` (regression)
+
+> layer: test-suite; audit finding DAT-009
+
+#### `REG-1323` — Macro date is the market date and stale cache files are ignored (DAT-010)
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+MacroProvider rows carry the last market date of the stalest series, one-column Close frames are squeezed, and cached files older than the stale limit are not served.
+
+- **If violated:** The row date was the fetch date so the staleness budget could never trip.
+- **Owned by:** `src/data/macro_provider.py`
+- **Verification:**
+  - `tests/test_data_layer_dat_fixes.py` (regression)
+
+> layer: test-suite; audit finding DAT-010
+
+#### `REG-1324` — RSS headlines are deduplicated and use pubDate (DAT-011)
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+SentimentProvider keeps each (source, guid) headline once and timestamps it with pubDate when parseable.
+
+- **If violated:** The same feed items were re-appended every poll, so vader_avg was the latest batch repeated and history was misdated.
+- **Owned by:** `src/data/sentiment_provider.py`
+- **Verification:**
+  - `tests/test_data_layer_dat_fixes.py` (regression)
+
+> layer: test-suite; audit finding DAT-011
+
+#### `REG-1325` — DuckDBStore serialises concurrent writers (DAT-012)
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+DuckDBStore guards its single connection with a lock, uses strictly increasing ms keys so same-ms writes do not overwrite, and accepts None feature values.
+
+- **If violated:** The docstring claimed thread safety but transactions could interleave and same-ms writes overwrote each other.
+- **Owned by:** `src/data/duckdb_store.py`
+- **Verification:**
+  - `tests/test_data_layer_dat_fixes.py` (regression)
+
+> layer: test-suite; audit finding DAT-012
+
+#### `REG-1326` — Granger test is multiple-testing corrected and time-aligned (DAT-013)
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+GrangerCausalityDetector applies Bonferroni over tested lags, joins labelled series on timestamp, and evicts a symbol's result when its test fails.
+
+- **If violated:** Min p over 5 lags at 0.05 gave about 23% false positives, series were tail-aligned, and failed symbols kept stale results.
+- **Owned by:** `src/causal/granger.py`
+- **Verification:**
+  - `tests/test_data_layer_dat_fixes.py` (regression)
+
+> layer: test-suite; audit finding DAT-013
+
+#### `REG-1327` — AssetGNN does not emit random-weight embeddings (DAT-014)
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+The untrained GAT path is not used by run() until trained weights are loaded, runs in eval mode, and its input projection is built once with a fixed seed.
+
+- **If violated:** A fresh untrained Linear and active dropout made embeddings and contagion scores random per call.
+- **Owned by:** `src/causal/asset_gnn.py`
+- **Verification:**
+  - `tests/test_data_layer_dat_fixes.py` (regression)
+
+> layer: test-suite; audit finding DAT-014
+
+#### `REG-1328` — DepthDetectorV2 verifies a sha256 manifest before unpickling (DAT-015)
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+DepthDetectorV2.save writes sha256 manifests and load refuses any pickle whose manifest is missing or mismatched.
+
+- **If violated:** Three pickles were loaded without integrity verification, unlike the v1 detector.
+- **Owned by:** `src/regime/depth_detector_v2.py`
+- **Verification:**
+  - `tests/test_data_layer_dat_fixes.py` (regression)
+
+> layer: test-suite; audit finding DAT-015
+
+#### `REG-1329` — GARCH refit must converge and pipeline guards garch_window (DAT-016)
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+rolling_garch_forecast discards a non-converged fit, and build_feature_matrix min-rows includes garch_window.
+
+- **If violated:** result.success was ignored so non-converged parameters were used, and the training min_required omitted garch_window.
+- **Owned by:** `src/regime/garch.py`, `src/features/pipeline.py`
+- **Verification:**
+  - `tests/test_data_layer_dat_fixes.py` (regression)
+
+> layer: test-suite; audit finding DAT-016
+
+#### `REG-1330` — No fabricated sentiment or mempool values when the source is down (DAT-017)
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+SentimentProvider has unknown (NaN) Fear and Greed until fetched and does not publish it to the cache, and mempool features are NaN when the node or fee estimate is unavailable.
+
+- **If violated:** Zeros, 0.0001 feerate and 50/Neutral were indistinguishable from real readings, contradicting the REG-0008 NaN policy.
+- **Owned by:** `src/features/mempool.py`, `src/data/sentiment_provider.py`
+- **Verification:**
+  - `tests/test_data_layer_dat_fixes.py` (regression)
+
+> layer: test-suite; audit finding DAT-017
 
 ## API and WebSocket
 
@@ -2838,4 +2981,4 @@ To add or change an entry, edit the registry and regenerate this file. See
 `docs/quality/TEST_STRATEGY.md` for the taxonomy the `test_type` column draws
 on, and `docs/quality/IMPLEMENTATION_PLAN.md` for what each phase delivers.
 
-Registry version: 1.0.0 — 219 entries.
+Registry version: 1.0.0 — 230 entries.

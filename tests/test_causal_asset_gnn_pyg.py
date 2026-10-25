@@ -39,6 +39,7 @@ def test_model_is_built_when_torch_geometric_is_importable():
 def test_run_uses_the_gat_model_and_returns_d_model_embeddings():
     with installed():
         gnn = asset_gnn.AssetGNN(n_layers=2, hidden_dim=8, n_heads=2, d_model=16)
+        gnn._pyg_trained = True  # GAT path is only used once weights are trained
         features = pd.DataFrame(np.random.default_rng(1).normal(size=(2, 5)))
         result = gnn.run(_price_df(), features)
 
@@ -76,3 +77,27 @@ def test_run_returns_empty_result_for_empty_inputs(empty):
         result = gnn.run(prices, features)
     assert result.edge_count == 0
     assert result.asset_embeddings == {}
+
+
+def test_untrained_gat_is_not_used_and_output_is_deterministic():
+    """DAT-014: an untrained GAT emits random noise, so run() must use the
+    deterministic numpy path until trained weights are loaded, and repeated
+    calls must agree."""
+    with installed():
+        gnn = asset_gnn.AssetGNN(n_layers=2, hidden_dim=8, n_heads=2, d_model=16)
+        features = pd.DataFrame(np.random.default_rng(1).normal(size=(2, 5)))
+        first = gnn.run(_price_df(), features)
+        second = gnn.run(_price_df(), features)
+    assert len(first.asset_embeddings["BTC"]) == 8  # numpy path, not d_model
+    assert first.asset_embeddings == second.asset_embeddings
+
+
+def test_trained_gat_path_is_eval_mode_and_repeatable():
+    """DAT-014: dropout must be off and the projection built once."""
+    with installed():
+        gnn = asset_gnn.AssetGNN(n_layers=2, hidden_dim=8, n_heads=2, d_model=16)
+        assert gnn._pyg_model.training is False
+        features = np.random.default_rng(2).normal(size=(2, 5)).astype(np.float32)
+        a = gnn._run_pyg(features, [(0, 1), (1, 0)])
+        b = gnn._run_pyg(features, [(0, 1), (1, 0)])
+    np.testing.assert_allclose(a, b)

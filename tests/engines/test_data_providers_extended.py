@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import math
 
 import pandas as pd
 
@@ -17,8 +18,8 @@ class TestSentimentProvider:
 
         sp = SentimentProvider()
         score, label = sp.latest_fg()
-        assert score == 50.0
-        assert label == "Neutral"
+        assert math.isnan(score)  # unknown until fetched (REG-0008 NaN policy)
+        assert label == "Unknown"
 
     def test_recent_headlines_empty(self) -> None:
         from src.data.sentiment_provider import SentimentProvider

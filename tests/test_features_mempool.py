@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from unittest.mock import patch
 
 import pytest
@@ -16,6 +17,12 @@ class _FakeResponse:
     async def json(self, content_type=None):
         return self._payload
 
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc):
+        return False
+
 
 class _FakeSession:
     def __init__(self, info: dict, fees: dict) -> None:
@@ -28,7 +35,7 @@ class _FakeSession:
     async def __aexit__(self, *exc):
         return False
 
-    async def post(self, url, json, headers, **_kwargs):
+    def post(self, url, json, headers, **_kwargs):
         if json["method"] == "getmempoolinfo":
             return _FakeResponse({"result": self._info})
         return _FakeResponse({"result": self._fees})
@@ -57,15 +64,29 @@ async def test_fetch_mempool_features_high_fee_pressure_is_capped_at_one():
     assert feats.fee_pressure == 1.0
 
 
-async def test_fetch_mempool_features_falls_back_to_zero_on_error():
+async def test_fetch_mempool_features_is_nan_not_zero_on_error():
     with patch("aiohttp.ClientSession", side_effect=OSError("no route to host")):
         feats = await fetch_mempool_features()
 
-    assert feats.tx_count == 0
-    assert feats.fee_rate_p50_sat == 0.0
-    assert feats.fee_rate_p90_sat == 0.0
-    assert feats.mempool_bytes == 0
-    assert feats.fee_pressure == 0.0
+    # A down node is unknown, not "no congestion" (REG-0008 NaN policy).
+    for value in (
+        feats.tx_count,
+        feats.fee_rate_p50_sat,
+        feats.fee_rate_p90_sat,
+        feats.mempool_bytes,
+        feats.fee_pressure,
+    ):
+        assert math.isnan(value)
+
+
+async def test_fetch_mempool_features_missing_feerate_is_nan_not_default():
+    """estimatesmartfee omits feerate when it cannot estimate; that must not
+    become a fabricated 0.0001 BTC/kB."""
+    fake_session = _FakeSession(info={"size": 1, "bytes": 1}, fees={"errors": ["no data"]})
+    with patch("aiohttp.ClientSession", return_value=fake_session):
+        feats = await fetch_mempool_features()
+    assert math.isnan(feats.fee_pressure)
+    assert math.isnan(feats.fee_rate_p50_sat)
 
 
 async def test_fetch_mempool_features_accepts_explicit_credentials():

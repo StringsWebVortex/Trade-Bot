@@ -743,7 +743,7 @@ class TestIntelligenceFeatures:
             symbol="BTC/USDT",
             timeframe="1h",
             bar_ts=1_700_000_000_000,
-            features={"vol_ratio": 1.2, "rsi_14": 55.0},
+            features={"intelligence_sopr": 1.2, "direction_v6": 1},
             confidence=0.85,
             source="live",
         )

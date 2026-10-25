@@ -9,7 +9,8 @@ Uses statsmodels `grangercausalitytests` on a rolling window.
 
 Output:
   granger_btc_to_alt: dict mapping alt_symbol → is_caused_by_btc (bool)
-  lead_lag_seconds:   dict mapping alt_symbol → estimated lead in bars
+  granger_lag_<ALT>:  best lag in bars (see to_feature_vector); no wall-clock
+                      lead is produced
 """
 
 from __future__ import annotations
@@ -93,16 +94,25 @@ class GrangerCausalityDetector:
             try:
                 prices = _as_series(raw_prices)
                 alt_ret = np.log(prices / prices.shift(1)).dropna().iloc[-self._window :]
-                n = min(len(btc_ret), len(alt_ret))
-                if n < _MIN_WINDOW:
-                    continue
-
-                df = pd.DataFrame(
-                    {"alt": alt_ret.values[-n:], "btc": btc_ret.values[-n:]},
-                    dtype=float,
-                )
+                if not (
+                    isinstance(btc_ret.index, pd.DatetimeIndex)
+                    and isinstance(alt_ret.index, pd.DatetimeIndex)
+                ):
+                    # Unlabelled buffers (ndarray/list): tail alignment is the
+                    # only option the caller leaves us.
+                    n = min(len(btc_ret), len(alt_ret))
+                    df = pd.DataFrame(
+                        {"alt": alt_ret.values[-n:], "btc": btc_ret.values[-n:]},
+                        dtype=float,
+                    )
+                else:
+                    # Labelled series: join on timestamp so differing end
+                    # times or gaps cannot misalign the pair (DAT-013).
+                    df = pd.concat({"alt": alt_ret, "btc": btc_ret}, axis=1, join="inner")
+                    df = df.astype(float)
                 df = df.dropna()
                 if len(df) < _MIN_WINDOW:
+                    self._results.pop(symbol, None)
                     continue
 
                 # No verbose= kwarg: deprecated in statsmodels 0.14 and removed
@@ -110,16 +120,19 @@ class GrangerCausalityDetector:
                 # nothing by default, which is what verbose=False asked for.
                 test_result = grangercausalitytests(df[["alt", "btc"]], maxlag=self._max_lag)
 
-                best_pval = 1.0
+                raw_best = 1.0
                 best_lag = 1
                 best_fstat = 0.0
                 for lag in range(1, self._max_lag + 1):
                     pval = test_result[lag][0]["ssr_ftest"][1]  # F-test p-value
                     fstat = test_result[lag][0]["ssr_ftest"][0]
-                    if pval < best_pval:
-                        best_pval = float(pval)
+                    if pval < raw_best:
+                        raw_best = float(pval)
                         best_lag = lag
                         best_fstat = float(fstat)
+                # Bonferroni over the lags searched: the minimum of max_lag
+                # p-values is not a p-value (~23% FWER at 5 lags, alpha 0.05).
+                best_pval = min(1.0, raw_best * self._max_lag)
 
                 self._results[symbol] = GrangerResult(
                     treatment="BTC",
@@ -131,6 +144,7 @@ class GrangerCausalityDetector:
                 )
             except Exception as exc:
                 log.debug("granger_test_failed", symbol=symbol, exc=str(exc))
+                self._results.pop(symbol, None)  # never serve a stale edge
 
         return self._results
 

@@ -147,6 +147,8 @@ class DepthDetectorV2:
         joblib.dump(self._model, model_dir / f"{stem}_hmm9.pkl")
         joblib.dump(self._scaler, model_dir / f"{stem}_scaler9.pkl")
         joblib.dump(self._state_to_label, model_dir / f"{stem}_labels9.pkl")
+        for name in ("hmm9", "scaler9", "labels9"):
+            _write_manifest(model_dir / f"{stem}_{name}.pkl")
 
     def load(self, model_dir: Path) -> bool:
         import joblib
@@ -156,6 +158,15 @@ class DepthDetectorV2:
         p_scaler = model_dir / f"{stem}_scaler9.pkl"
         p_labels = model_dir / f"{stem}_labels9.pkl"
         if not (p_model.exists() and p_scaler.exists() and p_labels.exists()):
+            return False
+        # Verify every pickle against its sha256 manifest BEFORE unpickling,
+        # as the v1 detector does; a missing or mismatched manifest refuses
+        # the load (DAT-015).
+        try:
+            for path in (p_model, p_scaler, p_labels):
+                _verify_manifest(path)
+        except (RuntimeError, ValueError, OSError) as exc:
+            log.error("depth_detector_v2_integrity_failed", exc=str(exc))
             return False
         self._model = joblib.load(p_model)
         self._scaler = joblib.load(p_scaler)

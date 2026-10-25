@@ -54,12 +54,6 @@ class _Session:
         return _Resp({"result": {"ok": True}})
 
 
-class _AwaitableSession(_Session):
-    """``mempool`` awaits ``post`` directly rather than using it as a context."""
-
-    async def post(self, url, json, headers=None, **kwargs):  # type: ignore[override]
-        return _Session.post(self, url, json, headers=headers, **kwargs)
-
 
 def test_the_header_helper_encodes_credentials():
     assert basic_auth_header("rpcuser", "rpcpass") == {"Authorization": _EXPECTED}
@@ -78,8 +72,8 @@ async def test_mempool_features_are_real_and_authenticated(monkeypatch):
 
     from src.features import mempool
 
-    _AwaitableSession.seen = []
-    monkeypatch.setattr(aiohttp, "ClientSession", _AwaitableSession)
+    _Session.seen = []
+    monkeypatch.setattr(aiohttp, "ClientSession", _Session)
 
     feats = await mempool.fetch_mempool_features(
         rpc_url="http://node/", rpc_user="rpcuser", rpc_pass="rpcpass"
@@ -88,7 +82,7 @@ async def test_mempool_features_are_real_and_authenticated(monkeypatch):
     # a live node must not be reported as an empty mempool
     assert feats.tx_count == 7
     assert feats.mempool_bytes == 2048
-    assert _AwaitableSession.seen == [{"Authorization": _EXPECTED}] * 2
+    assert _Session.seen == [{"Authorization": _EXPECTED}] * 2
 
 
 @pytest.mark.asyncio

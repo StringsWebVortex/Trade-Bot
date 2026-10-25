@@ -69,7 +69,7 @@ class TestDepthHandling:
         stream._snapshots = [_snapshot() for _ in range(999)]
         stream._handle_depth(_depth())
         assert stream._snapshots == []
-        assert list((tmp_path / "orderbook" / "btcusdt").glob("*.parquet"))
+        assert list((tmp_path / "orderbook" / "btcusdt").rglob("*.parquet"))
 
 
 def _snapshot() -> OrderbookSnapshot:
@@ -103,18 +103,30 @@ class TestOrderbookFlush:
         stream = _stream(tmp_path)
         stream._snapshots = [_snapshot() for _ in range(3)]
         stream._flush_orderbook()
-        [path] = list((tmp_path / "orderbook" / "btcusdt").glob("*.parquet"))
+        [path] = list((tmp_path / "orderbook" / "btcusdt").rglob("*.parquet"))
         assert len(pd.read_parquet(path)) == 3
         assert stream._snapshots == []
 
-    def test_a_second_flush_appends_to_the_same_file(self, tmp_path: Path) -> None:
+    def test_a_second_flush_writes_a_new_part_file(self, tmp_path: Path) -> None:
         stream = _stream(tmp_path)
         stream._snapshots = [_snapshot() for _ in range(2)]
         stream._flush_orderbook()
         stream._snapshots = [_snapshot() for _ in range(3)]
         stream._flush_orderbook()
-        [path] = list((tmp_path / "orderbook" / "btcusdt").glob("*.parquet"))
-        assert len(pd.read_parquet(path)) == 5
+        parts = list((tmp_path / "orderbook" / "btcusdt").rglob("*.parquet"))
+        assert len(parts) == 2  # one part file per flush, no read-modify-write
+        assert sum(len(pd.read_parquet(p)) for p in parts) == 5
+
+
+    def test_latest_mid_survives_a_flush(self, tmp_path: Path) -> None:
+        """DAT-008: a flush must not blank latest_mid() until the next message."""
+        stream = _stream(tmp_path)
+        stream._handle_depth(_depth())
+        mid = stream.latest_mid()
+        assert mid is not None
+        stream._flush_orderbook()
+        assert stream._snapshots == []
+        assert stream.latest_mid() == mid
 
 
 class TestTradeHandling:
@@ -135,7 +147,7 @@ class TestTradeHandling:
         stream._trades = [_event() for _ in range(4999)]
         stream._handle_trade(_trade())
         assert stream._trades == []
-        assert list((tmp_path / "trades" / "btcusdt").glob("*.parquet"))
+        assert list((tmp_path / "trades" / "btcusdt").rglob("*.parquet"))
 
 
 def _event() -> TradeEvent:
@@ -153,18 +165,20 @@ class TestTradeFlush:
         stream = _stream(tmp_path)
         stream._trades = [_event() for _ in range(4)]
         stream._flush_trades()
-        [path] = list((tmp_path / "trades" / "btcusdt").glob("*.parquet"))
-        assert len(pd.read_parquet(path)) == 4
+        parts = list((tmp_path / "trades" / "btcusdt").rglob("*.parquet"))
+        assert len(parts) == 2  # one part file per flush, no read-modify-write
+        assert sum(len(pd.read_parquet(p)) for p in parts) == 4
         assert stream._trades == []
 
-    def test_a_second_flush_appends_to_the_same_file(self, tmp_path: Path) -> None:
+    def test_a_second_flush_writes_a_new_part_file(self, tmp_path: Path) -> None:
         stream = _stream(tmp_path)
         stream._trades = [_event() for _ in range(2)]
         stream._flush_trades()
         stream._trades = [_event() for _ in range(2)]
         stream._flush_trades()
-        [path] = list((tmp_path / "trades" / "btcusdt").glob("*.parquet"))
-        assert len(pd.read_parquet(path)) == 4
+        parts = list((tmp_path / "trades" / "btcusdt").rglob("*.parquet"))
+        assert len(parts) == 2  # one part file per flush, no read-modify-write
+        assert sum(len(pd.read_parquet(p)) for p in parts) == 4
 
 
 class _FakeWS:

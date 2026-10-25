@@ -188,6 +188,10 @@ def rolling_garch_forecast(
                     method="L-BFGS-B",
                     bounds=[(1e-10, None), (0.0, 1.0), (0.0, 1.0)],
                 )
+                if not result.success:
+                    # Do not trust a non-converged optimiser's parameters
+                    # (DAT-016): treat it as a failed refit.
+                    raise RuntimeError(f"GARCH optimiser did not converge: {result.message}")
                 omega, alpha, beta = result.x
                 params = Garch11Params(
                     omega=float(omega), alpha=float(alpha), beta=float(beta), scale=scale
