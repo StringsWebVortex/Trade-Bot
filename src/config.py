@@ -1009,11 +1009,25 @@ class StrategySettings(BaseSettings):
         description="Block strategy selection during detected regime transitions.",
     )
 
+    @model_validator(mode="after")
+    def _check_cross_field_invariants(self) -> StrategySettings:
+        """An inverted pair silently gates every trade off (API-031)."""
+        if self.mr_min_half_life > self.mr_max_half_life:
+            raise ValueError("mr_min_half_life must be <= mr_max_half_life")
+        if self.mr_exit_z >= self.mr_entry_z:
+            raise ValueError("mr_exit_z must be < mr_entry_z")
+        if self.bo_exit_period > self.bo_entry_period:
+            raise ValueError("bo_exit_period must be <= bo_entry_period")
+        if self.bo_min_atr_pct >= self.bo_max_atr_pct:
+            raise ValueError("bo_min_atr_pct must be < bo_max_atr_pct")
+        return self
+
 
 class Settings(BaseSettings):
     """
     Root settings object.  Single source of truth for the entire application.
-    Loaded once via get_settings() and cached for the process lifetime.
+    Loaded via get_settings() and cached; fields outside the startup-only set
+    may be overridden at runtime through the /controls surface.
 
     Environment variables:
       TRADING_MODE   : "paper" (default) | "live"

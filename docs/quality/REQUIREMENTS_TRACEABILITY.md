@@ -47,24 +47,24 @@ deletion of the thing it points at.
 
 | Status | Entries |
 |---|---|
-| VERIFIED | 216 |
+| VERIFIED | 219 |
 | PARTIAL | 3 |
 | PLANNED | 0 |
 | ACCEPTED GAP | 0 |
-| **Total** | **219** |
+| **Total** | **222** |
 
 ## Summary by subsystem
 
 | Subsystem | Entries | Verified |
 |---|---|---|
 | Risk | 11 | 11 |
-| Execution | 13 | 12 |
+| Execution | 14 | 13 |
 | Portfolio | 1 | 1 |
 | Signal and features | 6 | 6 |
 | Models and leakage | 10 | 10 |
 | Data, money and time | 10 | 9 |
-| API and WebSocket | 21 | 21 |
-| Cryptography and secrets | 30 | 30 |
+| API and WebSocket | 22 | 22 |
+| Cryptography and secrets | 31 | 31 |
 | Supply chain and artifacts | 7 | 7 |
 | Resilience and recovery | 24 | 24 |
 | Release and production | 14 | 14 |
@@ -392,6 +392,20 @@ When intelligence is enabled, an order from the existing primary timeframe proce
 - **Verification:**
   - `tests/test_horizon_order_gate.py` (regression)
   - `tests/test_horizon_decision.py` (unit)
+
+> layer: test-suite
+
+#### `REG-1400` — Execution and risk helpers fail safe on null, NaN and out-of-range inputs
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+A router order with null filled/average yields a zero-fill result; push_return records no covariance; capacity eviction never drops COMPLETED or IN_FLIGHT keys within TTL; vol_target_size treats the target as daily against annualised vol and rejects non-finite input; RiskGate.size rejects NaN and check_drift fails safe on an unknown horizon; a missing average fill price is derived from cost/filled and never from the request price; pending_approvals does not mutate the queue.
+
+- **If violated:** Null venue fields raised TypeError, NaN passed risk thresholds, evicted idempotency keys reopened the duplicate-order window, sizing mixed daily and annualised units, and fills were booked at a price that never traded.
+- **Owned by:** `src/execution/router.py`, `src/execution/idempotency.py`, `src/execution/exchange_contract.py`, `src/execution/paper.py`, `src/execution/live.py`, `src/risk/gate.py`, `src/risk/vol_target_sizer.py`, `src/risk/portfolio_correlation.py`, `src/risk/performance_drift.py`
+- **Verification:**
+  - `tests/test_phase6_exec_api_lows.py` (regression)
+  - `tests/contract/test_exchange_order_contract.py` (contract)
 
 > layer: test-suite
 
@@ -1010,6 +1024,19 @@ The default API_CORS_ORIGINS allows both loopback spellings of the dashboard dev
 
 > layer: test-suite
 
+#### `REG-1401` — Control-plane tables and settings reject malformed or mutable definitions
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+Control sliders keep a zero bound, lifecycle TRANSITIONS/INVERSE/STAGE_FOR/SUPERVISOR_TYPES are read-only, and StrategySettings rejects inverted min/max and entry/exit pairs.
+
+- **If violated:** A ge=0 bound was dropped, lookup tables were writable at runtime, and inverted strategy parameters silently gated off every trade.
+- **Owned by:** `src/api/control_surface.py`, `src/runtime/contracts.py`, `src/runtime/changes.py`, `src/runtime/supervisor.py`, `src/config.py`
+- **Verification:**
+  - `tests/test_phase6_exec_api_lows.py` (regression)
+
+> layer: test-suite
+
 ## Cryptography and secrets
 
 #### `GOV-051` — no eval or exec in src
@@ -1368,6 +1395,19 @@ The integrated terminal adds a command-execution surface; nothing reaches it exc
   - `tests/terminal/test_terminal_server.py` (security)
   - `tests/terminal/test_terminal_host.py` (security)
   - `frontend/src/desktop/terminalBridge.test.js` (security)
+
+> layer: test-suite
+
+#### `SEC-1400` — Security helpers fail closed on unknown or ambiguous inputs
+
+**VERIFIED** · medium · security_regression · source: OPS-2026-10-25
+
+Key postures claiming any capability outside READ/TRADE (including margin and futures) are refused; ApiSigner payload fields are delimited so distinct requests never sign identically; CredentialVault refuses unknown exchanges and out-of-range key indices; the SSRF guard blocks every non-global range including CGNAT; CORS credentials are off and non-loopback origins must use https.
+
+- **If violated:** Margin/futures keys passed the posture check, request fields could be shifted between path and body under one signature, distinct exchanges derived one key, CGNAT addresses were reachable, and http origins were accepted off loopback.
+- **Owned by:** `src/security/exchange_key_posture.py`, `src/security/api_signer.py`, `src/security/credential_vault.py`, `src/security/ssrf.py`, `src/api/middleware.py`, `src/api/main.py`
+- **Verification:**
+  - `tests/test_phase6_exec_api_lows.py` (security)
 
 > layer: test-suite
 
@@ -2838,4 +2878,4 @@ To add or change an entry, edit the registry and regenerate this file. See
 `docs/quality/TEST_STRATEGY.md` for the taxonomy the `test_type` column draws
 on, and `docs/quality/IMPLEMENTATION_PLAN.md` for what each phase delivers.
 
-Registry version: 1.0.0 — 219 entries.
+Registry version: 1.0.0 — 222 entries.

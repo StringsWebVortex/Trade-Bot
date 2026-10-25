@@ -7,7 +7,7 @@ requires() and src/api/access_control.py. With only API_SECRET_KEY configured
 every valid key holds that role, so the gates are inert until the optional
 API_READONLY_KEY is set.
 
-Endpoints:
+Endpoints (illustrative, not exhaustive; /openapi.json lists every route):
   GET  /health                     — system health + storage counts
   GET  /status                     — equity, positions, regime, execution mode
   GET  /trades                     — paginated trade history
@@ -608,7 +608,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # SCAN3-012: validate_cors_config moved inside lifespan so misconfiguration
     # raises at startup time, not at import time (which caused confusing traces
     # in test suites and deployment tooling that imports the module for route inspection).
-    validate_cors_config(cfg.api.cors_origins, allow_credentials=True)
+    validate_cors_config(cfg.api.cors_origins, allow_credentials=False)
     # Security: warn loudly if binding outside loopback without TLS proxy
     if cfg.api.host not in ("127.0.0.1", "::1", "localhost"):
         has_tls = bool(os.environ.get("HTTPS_CERT", "").strip())
@@ -757,13 +757,6 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                 task.cancel()
             await asyncio.gather(*ws_tasks, return_exceptions=True)
 
-        # Close the subscription before cancelling, so the fan-out loop's
-        # `async for` ends on its own rather than being torn out of an await.
-        ws_subscription.close()
-        trace_subscription.close()
-        for task in ws_tasks:
-            task.cancel()
-        await asyncio.gather(*ws_tasks, return_exceptions=True)
         if _state.runtime_upgrades is not None:
             _state.runtime_upgrades.close()
         if _state.runtime is not None:
@@ -818,7 +811,7 @@ app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cfg.api.cors_origins,
-    allow_credentials=True,
+    allow_credentials=False,  # auth is header-based (X-API-Key); no cookies (API-024)
     # M-06: restrict to actual HTTP methods used — GET and POST only
     allow_methods=["GET", "POST"],
     allow_headers=["x-api-key", "content-type"],
@@ -2681,7 +2674,7 @@ async def models_status() -> dict[str, Any]:
         else:
             entry["artifact_count"] = 0
 
-    return {"model_dir": str(model_dir), "timeframes": status}
+    return {"timeframes": status}
 
 
 @app.post(
@@ -3180,6 +3173,8 @@ async def get_strategy_portfolio(timeframe: str | None = None) -> dict[str, Any]
     orch = _state.orchestrator
     if orch is None:
         return {"evaluations": {}, "reason": "orchestrator_not_started"}
+    if timeframe is not None:
+        timeframe = _parse_timeframe_or_400(timeframe).value
     payload = orch.portfolio_evaluation(timeframe)
     if timeframe is not None:
         return {"timeframe": timeframe, "evaluation": payload}

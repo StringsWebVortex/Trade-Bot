@@ -284,9 +284,15 @@ def parse_order(
         )
 
     filled_qty = _coerce_positive(response.get("filled"))
-    average_price = _coerce_positive(
-        response.get("average") if response.get("average") is not None else response.get("price")
-    )
+    # ``price`` is the REQUEST price on a limit order, not what traded, so it is
+    # never a fill-price fallback (EXR-024). A missing average is derived from
+    # cost / filled; if that is unusable too, the terminal-fill check below
+    # flags the order for reconciliation.
+    if response.get("average") is not None:
+        average_price = _coerce_positive(response.get("average"))
+    else:
+        cost = _coerce_positive(response.get("cost"))
+        average_price = cost / filled_qty if cost is not None and filled_qty is not None else None
     remaining_qty = _coerce_non_negative(response.get("remaining"))
 
     if status in TERMINAL_FILLED:

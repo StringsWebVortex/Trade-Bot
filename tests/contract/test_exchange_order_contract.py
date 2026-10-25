@@ -155,10 +155,16 @@ class TestATerminalFillMustCarryAUsableFill:
         update = parse_order(response(average=0.0, price=50_000.0))
         assert update.needs_reconciliation
 
-    def test_a_missing_average_does_fall_through_to_price(self):
+    def test_a_missing_average_never_falls_through_to_the_request_price(self):
+        # EXR-024: `price` is what was asked for on a limit order, not what traded.
         update = parse_order(response(average=_ABSENT, price=50_000.0))
+        assert update.needs_reconciliation
+        assert "fill price" in update.reason
+
+    def test_a_missing_average_is_derived_from_cost_over_filled(self):
+        update = parse_order(response(average=_ABSENT, price=51_000.0, cost=24_990.0, filled=0.5))
         assert update.is_usable
-        assert update.average_price == 50_000.0
+        assert update.average_price == 49_980.0
 
     def test_a_non_terminal_status_is_not_required_to_carry_a_fill(self):
         assert parse_order(response(status="open", filled=_ABSENT, average=_ABSENT)).is_usable

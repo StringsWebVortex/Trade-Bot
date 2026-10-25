@@ -5613,6 +5613,93 @@
         }
       ],
       "depends_on": []
+    },
+    {
+      "id": "REG-1400",
+      "kind": "regression",
+      "title": "Execution and risk helpers fail safe on null, NaN and out-of-range inputs",
+      "statement": "A router order with null filled/average yields a zero-fill result; push_return records no covariance; capacity eviction never drops COMPLETED or IN_FLIGHT keys within TTL; vol_target_size treats the target as daily against annualised vol and rejects non-finite input; RiskGate.size rejects NaN and check_drift fails safe on an unknown horizon; a missing average fill price is derived from cost/filled and never from the request price; pending_approvals does not mutate the queue.",
+      "criticality": "medium",
+      "subsystem": "execution",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "Null venue fields raised TypeError, NaN passed risk thresholds, evicted idempotency keys reopened the duplicate-order window, sizing mixed daily and annualised units, and fills were booked at a price that never traded.",
+      "owning_modules": [
+        "src/execution/router.py",
+        "src/execution/idempotency.py",
+        "src/execution/exchange_contract.py",
+        "src/execution/paper.py",
+        "src/execution/live.py",
+        "src/risk/gate.py",
+        "src/risk/vol_target_sizer.py",
+        "src/risk/portfolio_correlation.py",
+        "src/risk/performance_drift.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_phase6_exec_api_lows.py",
+          "test_type": "regression"
+        },
+        {
+          "test": "tests/contract/test_exchange_order_contract.py",
+          "test_type": "contract"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "SEC-1400",
+      "kind": "security_regression",
+      "title": "Security helpers fail closed on unknown or ambiguous inputs",
+      "statement": "Key postures claiming any capability outside READ/TRADE (including margin and futures) are refused; ApiSigner payload fields are delimited so distinct requests never sign identically; CredentialVault refuses unknown exchanges and out-of-range key indices; the SSRF guard blocks every non-global range including CGNAT; CORS credentials are off and non-loopback origins must use https.",
+      "criticality": "medium",
+      "subsystem": "security",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "Margin/futures keys passed the posture check, request fields could be shifted between path and body under one signature, distinct exchanges derived one key, CGNAT addresses were reachable, and http origins were accepted off loopback.",
+      "owning_modules": [
+        "src/security/exchange_key_posture.py",
+        "src/security/api_signer.py",
+        "src/security/credential_vault.py",
+        "src/security/ssrf.py",
+        "src/api/middleware.py",
+        "src/api/main.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_phase6_exec_api_lows.py",
+          "test_type": "security"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1401",
+      "kind": "regression",
+      "title": "Control-plane tables and settings reject malformed or mutable definitions",
+      "statement": "Control sliders keep a zero bound, lifecycle TRANSITIONS/INVERSE/STAGE_FOR/SUPERVISOR_TYPES are read-only, and StrategySettings rejects inverted min/max and entry/exit pairs.",
+      "criticality": "low",
+      "subsystem": "api",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "A ge=0 bound was dropped, lookup tables were writable at runtime, and inverted strategy parameters silently gated off every trade.",
+      "owning_modules": [
+        "src/api/control_surface.py",
+        "src/runtime/contracts.py",
+        "src/runtime/changes.py",
+        "src/runtime/supervisor.py",
+        "src/config.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_phase6_exec_api_lows.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
     }
   ]
 }
