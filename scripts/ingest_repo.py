@@ -4,8 +4,12 @@
 Walks every first-party source/doc file tracked by git, chunks + embeds them
 with the local zero-cost embedding model, and replaces the `documents`
 collection's contents with the result. Run this any time the repo has moved
-on from what's indexed -- it's idempotent (clears and rebuilds), not
-incremental.
+on from what's indexed -- it's idempotent (rebuilds), not incremental.
+
+The new chunks are inserted first, tagged with this run's id, and the previous
+contents are deleted only once every batch is in (audit OPS-009). A run that
+fails partway removes its own partial insert and leaves the previous index
+serving, instead of an empty or half-built collection.
 
 Excludes frontend/, .venv/, crypto-predictor/ to match this project's
 existing standalone-sub-project / non-first-party exclusions (see
@@ -18,6 +22,7 @@ import os
 import subprocess
 import sys
 import time
+import uuid
 from pathlib import Path
 
 # `python scripts/x.py` puts scripts/ on sys.path, not the repo root, so the
@@ -81,23 +86,30 @@ def main() -> None:
     print(f"Chunked into {len(all_chunks)} chunks ({len(skipped)} files skipped).")
 
     col = get_collection()
-    deleted = col.delete_many({}).deleted_count
-    print(f"Cleared {deleted} stale documents from the collection.")
+    run_id = uuid.uuid4().hex
 
     t0 = time.time()
     inserted = 0
-    for i in range(0, len(all_chunks), EMBED_BATCH_SIZE):
-        batch_chunks = all_chunks[i : i + EMBED_BATCH_SIZE]
-        batch_sources = all_sources[i : i + EMBED_BATCH_SIZE]
-        vectors = embed_batch(batch_chunks)
-        docs = [
-            {"text": c, "embedding": v, "source": s}
-            for c, v, s in zip(batch_chunks, vectors, batch_sources, strict=True)
-        ]
-        if docs:
-            col.insert_many(docs)
-            inserted += len(docs)
-        print(f"  embedded+inserted {inserted}/{len(all_chunks)}", file=sys.stderr)
+    try:
+        for i in range(0, len(all_chunks), EMBED_BATCH_SIZE):
+            batch_chunks = all_chunks[i : i + EMBED_BATCH_SIZE]
+            batch_sources = all_sources[i : i + EMBED_BATCH_SIZE]
+            vectors = embed_batch(batch_chunks)
+            docs = [
+                {"text": c, "embedding": v, "source": s, "run_id": run_id}
+                for c, v, s in zip(batch_chunks, vectors, batch_sources, strict=True)
+            ]
+            if docs:
+                col.insert_many(docs)
+                inserted += len(docs)
+            print(f"  embedded+inserted {inserted}/{len(all_chunks)}", file=sys.stderr)
+    except BaseException:
+        removed = col.delete_many({"run_id": run_id}).deleted_count
+        print(f"Ingest failed; removed {removed} partial chunks, previous index kept.")
+        raise
+
+    deleted = col.delete_many({"run_id": {"$ne": run_id}}).deleted_count
+    print(f"Cleared {deleted} stale documents from the collection.")
 
     elapsed = time.time() - t0
     print(f"Inserted {inserted} chunks from {len(files) - len(skipped)} files in {elapsed:.1f}s.")
