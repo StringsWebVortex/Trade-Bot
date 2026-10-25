@@ -2040,10 +2040,10 @@ SHA8 df9b68c6; total lines 221.
 
 ### frontend/package.json
 
-SHA8 f1ae54c1; total lines 77.
+SHA8 922dfdc2; total lines 77.
 
-- CHUNK_ID = frontend/package.json#1-38#f1ae54c1 — [[F:frontend/package.json#1-38#f1ae54c1]].
-- CHUNK_ID = frontend/package.json#39-77#f1ae54c1 — [[F:frontend/package.json#39-77#f1ae54c1]].
+- CHUNK_ID = frontend/package.json#1-38#922dfdc2 — [[F:frontend/package.json#1-38#922dfdc2]].
+- CHUNK_ID = frontend/package.json#39-77#922dfdc2 — [[F:frontend/package.json#39-77#922dfdc2]].
 
 ### .github/workflows/ci.yml
 
