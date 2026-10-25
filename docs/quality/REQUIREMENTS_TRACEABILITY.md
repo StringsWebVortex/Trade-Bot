@@ -47,11 +47,11 @@ deletion of the thing it points at.
 
 | Status | Entries |
 |---|---|
-| VERIFIED | 228 |
+| VERIFIED | 232 |
 | PARTIAL | 3 |
 | PLANNED | 0 |
 | ACCEPTED GAP | 0 |
-| **Total** | **231** |
+| **Total** | **235** |
 
 ## Summary by subsystem
 
@@ -62,13 +62,13 @@ deletion of the thing it points at.
 | Portfolio | 1 | 1 |
 | Signal and features | 7 | 7 |
 | Models and leakage | 11 | 11 |
-| Data, money and time | 10 | 9 |
-| API and WebSocket | 21 | 21 |
+| Data, money and time | 11 | 10 |
+| API and WebSocket | 22 | 22 |
 | Cryptography and secrets | 32 | 32 |
 | Supply chain and artifacts | 7 | 7 |
 | Resilience and recovery | 26 | 26 |
 | Release and production | 14 | 14 |
-| Governance | 65 | 64 |
+| Governance | 67 | 66 |
 | Terminal and process center | 13 | 13 |
 
 ## Outstanding work by phase
@@ -771,6 +771,19 @@ MarketDataFetcher.initialize() must open each venue independently, record an una
 
 > Observed against Binance answering HTTP 451 'Service unavailable from a restricted location' on both mainnet and testnet from an affected network, which made the backend unstartable however healthy OKX and everything else was. initialize() built both venues and loaded their markets in one unisolated sequence. GET /venues and POST /venues/{venue}/reconnect expose the state and the recovery so neither needs a restart. layer: test-suite
 
+#### `REG-1702` — kg/ and rag_mongo/ share one MongoClient factory and one URI check
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+kg.db builds its MongoClient through rag_mongo.db._client_for and checks MONGODB_URI through rag_mongo.db.require_uri, so a process that uses both packages holds one cached client for the shared cluster and both raise the same missing-URI error.
+
+- **If violated:** Copy-pasted client factories with separate lru_caches build a second MongoClient pool (its own connections and monitor threads) for the same cluster in review/retrieval.py and rag_smoke.py, and the two copies of the URI check drift apart.
+- **Owned by:** `kg/db.py`, `rag_mongo/db.py`
+- **Verification:**
+  - `tests/test_mongo_client_reuse.py` (regression)
+
+> Audit DOC-015. Skill/MCP duplicates were removed by #511. The kg/query._subgraph vs review/retrieval.graph duplication waits for open PR #502. layer: test-suite
+
 ## API and WebSocket
 
 #### `INV-032` — GUI backpressure never reaches the trading loop
@@ -1039,6 +1052,19 @@ The default API_CORS_ORIGINS allows both loopback spellings of the dashboard dev
   - `tests/test_startup_readiness.py` (regression)
 
 > layer: test-suite
+
+#### `REG-1703` — One environment variable never binds two settings fields
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+Across Settings and every sub-settings class it composes, each prefix+field env name (or validation alias) resolves to exactly one field; in particular StrategyPortfolioSettings and StrategySettings, which share env_prefix STRATEGY_, declare no common field name.
+
+- **If violated:** A field added to one STRATEGY_ class under a name the other already uses is fed by the same env var, so an operator tuning one strategy layer silently retunes the other with no error.
+- **Owned by:** `src/config.py`
+- **Verification:**
+  - `tests/test_settings_env_namespace.py` (regression)
+
+> Audit API-031 (prefix half). A guard rather than a prefix rename: no collision exists today and a rename would change the env var names operators set. layer: test-suite
 
 ## Cryptography and secrets
 
@@ -2810,6 +2836,34 @@ The collector retries the signed job-log download and names the final cause; a g
 
 > Follow-up to REG-1604: once failures were published, the first one seen was this. No test fed the collector a failing log download. layer: test-suite
 
+#### `REG-1700` — The CI TimescaleDB service and scripts/timescaledb.sh pin the image by digest
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+The timescaledb service image in ci.yml is a digest-only reference (timescale/timescaledb@sha256:<64 hex>), and scripts/timescaledb.sh names the identical string, so every run of a commit provisions the same database engine.
+
+- **If violated:** A re-pushed or moved tag silently changes the TimescaleDB build the timescale storage tests run against, between two runs of the same commit or between CI and the local script.
+- **Owned by:** `.github/workflows/ci.yml`, `scripts/timescaledb.sh`
+- **Depends on:** `REG-0013`
+- **Verification:**
+  - `tests/test_timescaledb_script.py` (regression)
+
+> Audit OPS-011 (digest pins). The digest is Docker Hub's index digest for 2.17.2-pg17. Digest only, no tag, because podman refuses tag+digest references. The compose pg16 image is not changed here: moving it to pg17 needs a data-volume migration (owner decision) and docker-compose.yml is in open PR #507. layer: test-suite
+
+#### `REG-1701` — rag-ingest.yml's CPU torch pre-pass uses requirements.txt's torch spec
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+The CPU-index torch pre-pass in rag-ingest.yml carries exactly the torch spec requirements.txt declares, as ci.yml and the Dockerfile do under REG-1600.
+
+- **If violated:** The ingest job pre-installs a CPU torch older than requirements.txt accepts; pip then pulls the CUDA-bundling PyPI wheel and the runner's disk fills, which is the failure the pre-pass exists to prevent.
+- **Owned by:** `.github/workflows/rag-ingest.yml`
+- **Depends on:** `REG-1600`
+- **Verification:**
+  - `tests/test_phase7_ops_findings.py` (regression)
+
+> Audit OPS-011 leftover after #509: rag-ingest.yml kept torch>=2.3. nightly-quality.yml has the same drift but is in open PR #507 and is fixed after it merges. layer: test-suite
+
 ## Terminal and process center
 
 #### `TERM-001` — Terminal sessions are real PTYs that every client shares
@@ -3002,4 +3056,4 @@ To add or change an entry, edit the registry and regenerate this file. See
 `docs/quality/TEST_STRATEGY.md` for the taxonomy the `test_type` column draws
 on, and `docs/quality/IMPLEMENTATION_PLAN.md` for what each phase delivers.
 
-Registry version: 1.0.0 — 231 entries.
+Registry version: 1.0.0 — 235 entries.

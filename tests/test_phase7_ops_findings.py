@@ -5,7 +5,9 @@ OPS-011: ci.yml and the Dockerfile pre-install torch from the CPU index with a
 floor of 2.3 while requirements.txt requires 2.14. The pre-pass exists so that
 requirements.txt finds torch already satisfied; a pre-pass that may resolve an
 older wheel than requirements.txt accepts lets pip fetch torch again from PyPI,
-which is the CUDA-bundling wheel GOV-015/REG-0012 keep out.
+which is the CUDA-bundling wheel GOV-015/REG-0012 keep out. rag-ingest.yml
+kept the 2.3 floor after #509 aligned the other two, so it is checked here too
+(nightly-quality.yml joins once its open edits land).
 
 OPS-012: npm audit passes with a warning when the registry cannot be reached.
 That is deliberate on pull requests, but on the weekly schedule and a manual
@@ -15,6 +17,7 @@ otherwise the scan can be green for weeks without having run once.
 Decides:
   - REG-1600 — The CPU torch pre-pass uses the same version spec as requirements.txt
   - REG-1601 — A scheduled npm audit that could not reach the registry fails
+  - REG-1701 — rag-ingest.yml's CPU torch pre-pass uses requirements.txt's spec
 """
 
 from __future__ import annotations
@@ -37,7 +40,9 @@ def _requirements_torch_spec() -> str:
     raise AssertionError("requirements.txt does not name torch")
 
 
-@pytest.mark.parametrize("path", [".github/workflows/ci.yml", "Dockerfile"])
+@pytest.mark.parametrize(
+    "path", [".github/workflows/ci.yml", ".github/workflows/rag-ingest.yml", "Dockerfile"]
+)
 def test_cpu_torch_prepass_matches_requirements_spec(path: str) -> None:
     """REG-1600: every CPU-index pre-pass carries requirements.txt's torch spec."""
     text = (PROJECT_ROOT / path).read_text(encoding="utf-8")

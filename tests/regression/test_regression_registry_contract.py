@@ -236,6 +236,12 @@ class TestTheRegistryHasAPlaceForDefects:
             "REG-1608",
             # REG-1609: one failed job-log download failed the whole report.
             "REG-1609",
+            # REG-1700..1703: audit OPS-011 (digest pins, rag-ingest torch
+            # floor), DOC-015 and API-031 -- block C of the phase 7 findings.
+            "REG-1700",
+            "REG-1701",
+            "REG-1702",
+            "REG-1703",
             # REG-1704: audit STR-21 -- carry and arbitrage entries gated on
             # fixed thresholds no cost measurement produced.
             "REG-1704",
@@ -537,9 +543,11 @@ class TestTheMetricsCollector:
         # huggingface-hub pulled in unbounded -- supply-chain, 2 to 3.
         # REG-1609 adds the collector's one-log-fails-all regression -- test-suite, 35.
         # REG-1605..1608 add four more audit findings no test exercised -- test-suite, 39.
+        # REG-1700..1703 add four block C audit regressions no test exercised --
+        # test-suite, 43.
         # REG-1704 adds the fixed-threshold carry/arbitrage regression (STR-21):
-        # no test asked what the thresholds cost to clear -- test-suite, 40.
-        assert metric["value"] == {"test-suite": 40, "review": 1, "supply-chain": 3}
+        # no test asked what the thresholds cost to clear -- test-suite, 44.
+        assert metric["value"] == {"test-suite": 44, "review": 1, "supply-chain": 3}
 
     def test_zero_escaped_defects_would_be_stated_explicitly(self, collector, monkeypatch):
         # "We have not measured this" and "this is zero" are different
