@@ -47,11 +47,11 @@ deletion of the thing it points at.
 
 | Status | Entries |
 |---|---|
-| VERIFIED | 216 |
+| VERIFIED | 220 |
 | PARTIAL | 3 |
 | PLANNED | 0 |
 | ACCEPTED GAP | 0 |
-| **Total** | **219** |
+| **Total** | **223** |
 
 ## Summary by subsystem
 
@@ -61,8 +61,8 @@ deletion of the thing it points at.
 | Execution | 13 | 12 |
 | Portfolio | 1 | 1 |
 | Signal and features | 6 | 6 |
-| Models and leakage | 10 | 10 |
-| Data, money and time | 10 | 9 |
+| Models and leakage | 11 | 11 |
+| Data, money and time | 13 | 12 |
 | API and WebSocket | 21 | 21 |
 | Cryptography and secrets | 30 | 30 |
 | Supply chain and artifacts | 7 | 7 |
@@ -610,6 +610,19 @@ Orchestrator._metrics_payload() builds a complete metrics snapshot for every tic
 
 > Pins payload completeness with and without an executor, the method-vs-property fact the bug turned on, and the original TypeError as a negative case. layer: test-suite
 
+#### `REG-1090` — BOCPD changepoint probability responds to a mean shift
+
+**VERIFIED** · high · regression · source: OPS-2026-10-25
+
+BayesianOnlineChangepointDetector.update reports the relative collapse of the expected run length, which rises well above the hazard rate after a step change in the mean, and the run_length=0 hypothesis always survives pruning.
+
+- **If violated:** With a constant hazard the mass on run_length=0 is identically the hazard rate, so the reported changepoint probability and the ensemble agreement score carried no information; a pruned r=0 hypothesis raised StopIteration.
+- **Owned by:** `src/regime/changepoint.py`
+- **Verification:**
+  - `tests/test_changepoint.py` (regression)
+
+> layer: test-suite
+
 ## Data, money and time
 
 #### `INV-008` — A stale market-data sample cannot be treated as current
@@ -740,6 +753,45 @@ MarketDataFetcher.initialize() must open each venue independently, record an una
   - `tests/test_fetcher_venue_degradation.py` (regression)
 
 > Observed against Binance answering HTTP 451 'Service unavailable from a restricted location' on both mainnet and testnet from an affected network, which made the backend unstartable however healthy OKX and everything else was. initialize() built both venues and loaded their markets in one unisolated sequence. GET /venues and POST /venues/{venue}/reconnect expose the state and the recovery so neither needs a restart. layer: test-suite
+
+#### `REG-1091` — MVRV is NaN without a chain-wide realised-cap source
+
+**VERIFIED** · high · regression · source: OPS-2026-10-25
+
+OnChainFeatureExtractor reports mvrv as NaN; node-wallet listunspent is never used to build a realised cap.
+
+- **If violated:** MVRV was market cap divided by node-wallet BTC times spot, an arbitrary number presented as a bound.
+- **Owned by:** `src/features/onchain.py`
+- **Verification:**
+  - `tests/test_onchain_no_fabricated_values.py` (regression)
+
+> layer: test-suite
+
+#### `REG-1092` — Triple-barrier unresolved tail rows are NaN, not time exits
+
+**VERIFIED** · high · regression · source: OPS-2026-10-25
+
+triple_barrier_labels_with_offsets returns NaN label and offset for rows whose holding window extends past the data and that have not hit a barrier.
+
+- **If violated:** Unresolved tail rows were labelled -1 (time exit), inflating time_exit_fraction and selecting tail rows by whether they happened to resolve early.
+- **Owned by:** `src/features/pipeline.py`
+- **Verification:**
+  - `tests/test_features.py` (regression)
+
+> layer: test-suite
+
+#### `REG-1093` — Lookahead intelligence-feature broadcast helper removed
+
+**VERIFIED** · high · regression · source: OPS-2026-10-25
+
+src/features/intelligence_features.py exposes no add_intelligence_features helper that broadcasts a current IntelligenceMetrics snapshot onto historical rows.
+
+- **If violated:** The unused helper stamped today's on-chain values on every past bar, a lookahead hazard if used for training.
+- **Owned by:** `src/features/intelligence_features.py`
+- **Verification:**
+  - `tests/test_intelligence_features_coverage.py` (regression)
+
+> layer: test-suite
 
 ## API and WebSocket
 
@@ -2838,4 +2890,4 @@ To add or change an entry, edit the registry and regenerate this file. See
 `docs/quality/TEST_STRATEGY.md` for the taxonomy the `test_type` column draws
 on, and `docs/quality/IMPLEMENTATION_PLAN.md` for what each phase delivers.
 
-Registry version: 1.0.0 — 219 entries.
+Registry version: 1.0.0 — 223 entries.

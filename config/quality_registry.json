@@ -5613,6 +5613,94 @@
         }
       ],
       "depends_on": []
+    },
+    {
+      "id": "REG-1090",
+      "kind": "regression",
+      "title": "BOCPD changepoint probability responds to a mean shift",
+      "statement": "BayesianOnlineChangepointDetector.update reports the relative collapse of the expected run length, which rises well above the hazard rate after a step change in the mean, and the run_length=0 hypothesis always survives pruning.",
+      "criticality": "high",
+      "subsystem": "model",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "With a constant hazard the mass on run_length=0 is identically the hazard rate, so the reported changepoint probability and the ensemble agreement score carried no information; a pruned r=0 hypothesis raised StopIteration.",
+      "owning_modules": [
+        "src/regime/changepoint.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_changepoint.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1091",
+      "kind": "regression",
+      "title": "MVRV is NaN without a chain-wide realised-cap source",
+      "statement": "OnChainFeatureExtractor reports mvrv as NaN; node-wallet listunspent is never used to build a realised cap.",
+      "criticality": "high",
+      "subsystem": "data",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "MVRV was market cap divided by node-wallet BTC times spot, an arbitrary number presented as a bound.",
+      "owning_modules": [
+        "src/features/onchain.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_onchain_no_fabricated_values.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1092",
+      "kind": "regression",
+      "title": "Triple-barrier unresolved tail rows are NaN, not time exits",
+      "statement": "triple_barrier_labels_with_offsets returns NaN label and offset for rows whose holding window extends past the data and that have not hit a barrier.",
+      "criticality": "high",
+      "subsystem": "data",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "Unresolved tail rows were labelled -1 (time exit), inflating time_exit_fraction and selecting tail rows by whether they happened to resolve early.",
+      "owning_modules": [
+        "src/features/pipeline.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_features.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1093",
+      "kind": "regression",
+      "title": "Lookahead intelligence-feature broadcast helper removed",
+      "statement": "src/features/intelligence_features.py exposes no add_intelligence_features helper that broadcasts a current IntelligenceMetrics snapshot onto historical rows.",
+      "criticality": "high",
+      "subsystem": "data",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "The unused helper stamped today's on-chain values on every past bar, a lookahead hazard if used for training.",
+      "owning_modules": [
+        "src/features/intelligence_features.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_intelligence_features_coverage.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
     }
   ]
 }

@@ -8,7 +8,6 @@ import pandas as pd
 from src.features.intelligence_features import (
     IntelligenceFeatureMatrix,
     IntelligenceMetrics,
-    add_intelligence_features,
 )
 
 
@@ -102,65 +101,6 @@ def test_intelligence_metrics_zero_defaults():
 
 
 # ---------------------------------------------------------------------------
-# add_intelligence_features
-# ---------------------------------------------------------------------------
-
-
-def test_add_intelligence_features_empty_df_returns_empty():
-    df = pd.DataFrame()
-    m = _make_metrics()
-    result = add_intelligence_features(df, m)
-    assert result.empty
-
-
-def test_add_intelligence_features_adds_columns():
-    df = _make_df()
-    m = _make_metrics()
-    result = add_intelligence_features(df, m)
-    # Columns use 'intelligence_' prefix
-    intel_cols = [c for c in result.columns if c.startswith("intelligence_")]
-    assert len(intel_cols) >= 18
-    assert any("netflow" in c for c in result.columns)
-    assert any("whale" in c for c in result.columns)
-    assert any("defi_tvl" in c for c in result.columns)
-
-
-def test_add_intelligence_features_does_not_mutate_input():
-    df = _make_df()
-    orig_cols = list(df.columns)
-    m = _make_metrics()
-    add_intelligence_features(df, m)
-    assert list(df.columns) == orig_cols
-
-
-def test_add_intelligence_features_correct_values():
-    df = _make_df(5)
-    m = _make_metrics(whale_buy_sell_ratio=2.5, confidence=0.9)
-    result = add_intelligence_features(df, m)
-    whale_col = next(c for c in result.columns if "whale_buy_sell_ratio" in c)
-    conf_col = next(c for c in result.columns if "confidence" in c)
-    assert (result[whale_col] == 2.5).all()
-    assert (result[conf_col] == 0.9).all()
-
-
-def test_add_intelligence_features_preserves_original_columns():
-    df = _make_df()
-    m = _make_metrics()
-    result = add_intelligence_features(df, m)
-    assert "close" in result.columns
-    assert "volume" in result.columns
-
-
-def test_add_intelligence_features_broadcasts_scalar():
-    df = _make_df(20)
-    m = _make_metrics(exchange_netflow_7d_zscore=-1.5)
-    result = add_intelligence_features(df, m)
-    assert len(result) == 20
-    netflow_col = next(c for c in result.columns if "netflow" in c)
-    assert (result[netflow_col] == -1.5).all()
-
-
-# ---------------------------------------------------------------------------
 # IntelligenceFeatureMatrix
 # ---------------------------------------------------------------------------
 
@@ -192,3 +132,10 @@ def test_feature_matrix_with_labels():
     assert fm.y_direction is not None
     assert fm.y_meta is not None
     assert fm.intelligence_metrics is not None
+
+
+def test_lookahead_broadcast_helper_removed() -> None:
+    """DAT-006: broadcasting one current snapshot onto history is lookahead."""
+    import src.features.intelligence_features as mod
+
+    assert not hasattr(mod, "add_intelligence_features")
