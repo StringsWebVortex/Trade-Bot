@@ -29,7 +29,7 @@
 # below exercises.
 
 # python:3.11-slim -- matches .python-version, which is what CI installs
-FROM python@sha256:bab1b7ef4b450c81002278d035eff85ebe394ae94df904f7a3ba14f7e16e487b AS build
+FROM python@sha256:67ee282bdbe5ece1e38ea94fa68f1420e969e6176e6c826b9acc931055011bfb AS build
 
 WORKDIR /build
 
@@ -64,7 +64,7 @@ COPY scripts ./scripts
 
 # ---------------------------------------------------------------------------
 
-FROM python@sha256:bab1b7ef4b450c81002278d035eff85ebe394ae94df904f7a3ba14f7e16e487b AS runtime
+FROM python@sha256:67ee282bdbe5ece1e38ea94fa68f1420e969e6176e6c826b9acc931055011bfb AS runtime
 
 # Pin the base, then patch it.
 #
