@@ -783,6 +783,8 @@ EventBus.total_dropped retains drops of detached subscribers; the quality gate r
   - `tests/test_data_intel_low_findings.py` (regression)
   - `tests/test_crypto_intel_signal_path.py` (regression)
 
+> Low-severity audit findings DAT-020..DAT-036 that no test exercised. layer: test-suite
+
 #### `REG-1702` — kg/ and rag_mongo/ share one MongoClient factory and one URI check
 
 **VERIFIED** · low · regression · source: OPS-2026-10-25

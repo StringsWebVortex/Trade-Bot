@@ -24,7 +24,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 9 | P0 | config/command_policy.json | JSON | 264 | 84e63848 | Tool command and CI observation policy |
 | 10 | P0 | config/horizons.yaml | YAML | 53 | 2ede87ec | Auxiliary prediction horizon definitions |
 | 11 | P0 | config/math_registry.json | JSON | 1903 | 8fa18ffc | Mathematical object registry |
-| 12 | P0 | config/quality_registry.json | JSON | 6037 | 8f6235dc | Requirements, regressions and deciding tests |
+| 12 | P0 | config/quality_registry.json | JSON | 6038 | 6b47f920 | Requirements, regressions and deciding tests |
 | 13 | P0 | config/risk.yaml | YAML | 26 | dd4766f8 | Horizon/intelligence risk, distinct from core Settings |
 | 14 | P0 | docker-compose.yml | YAML | 82 | 80ec3eca | API/Timescale/optional-worker composition |
 | 15 | P0 | docs/quality/CI_GATE_ARCHITECTURE.md | Markdown | 255 | 02726345 | CI gates |
@@ -78,7 +78,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 8 | P0 | config/command_policy.json | JSON | 264 | 84e63848 | Tool command and CI observation policy |
 | 9 | P0 | config/horizons.yaml | YAML | 53 | 2ede87ec | Auxiliary prediction horizon definitions |
 | 10 | P0 | config/math_registry.json | JSON | 1903 | 8fa18ffc | Mathematical object registry |
-| 11 | P0 | config/quality_registry.json | JSON | 6037 | 8f6235dc | Requirements, regressions and deciding tests |
+| 11 | P0 | config/quality_registry.json | JSON | 6038 | 6b47f920 | Requirements, regressions and deciding tests |
 | 12 | P0 | config/risk.yaml | YAML | 26 | dd4766f8 | Horizon/intelligence risk, distinct from core Settings |
 | 13 | P0 | docker-compose.yml | YAML | 82 | 80ec3eca | API/Timescale/optional-worker composition |
 | 14 | P0 | docs/quality/CI_GATE_ARCHITECTURE.md | Markdown | 255 | 02726345 | CI gates |
@@ -183,7 +183,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 113 | P1 | docs/quality/QUALITY_BASELINE.md | Markdown | 125 | bbc75e22 |  |
 | 114 | P1 | docs/quality/QUALITY_METRICS.md | Markdown | 122 | 386b71a5 |  |
 | 115 | P1 | docs/quality/QUALITY_POLICY.md | Markdown | 232 | 8c4629b8 |  |
-| 116 | P1 | docs/quality/REQUIREMENTS_TRACEABILITY.md | Markdown | 3071 | 3ad7656c |  |
+| 116 | P1 | docs/quality/REQUIREMENTS_TRACEABILITY.md | Markdown | 3073 | 03b28ffb |  |
 | 117 | P1 | docs/quality/ROOT_CAUSE_TEMPLATE.md | Markdown | 84 | a55b20e9 |  |
 | 118 | P1 | docs/quality/TEST_STRATEGY.md | Markdown | 252 | efbde1ba |  |
 | 119 | P1 | docs/runtime/IMPLEMENTATION_MATRIX.md | Markdown | 79 | 7e5cd563 |  |
@@ -295,7 +295,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 225 | P1 | src/data/deribit_provider.py | Python | 138 | c84580bb |  |
 | 226 | P1 | src/data/duckdb_store.py | Python | 188 | ffa0a16c |  |
 | 227 | P1 | src/data/exchange_flow_provider.py | Python | 143 | 507e5b4c |  |
-| 228 | P1 | src/data/feeds.py | Python | 171 | 52ffc544 |  |
+| 228 | P1 | src/data/feeds.py | Python | 170 | e428e67b |  |
 | 229 | P1 | src/data/macro_provider.py | Python | 121 | 1ae5a9dd |  |
 | 230 | P1 | src/data/orderbook_stream.py | Python | 290 | 957a507c |  |
 | 231 | P1 | src/data/provider_cache.py | Python | 96 | 71eedd48 |  |
@@ -611,7 +611,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 541 | P1 | tests/authorization/test_object_references.py | Python | 183 | fe2a77b6 |  |
 | 542 | P1 | tests/component/__init__.py | Python | 0 | e3b0c442 |  |
 | 543 | P1 | tests/component/test_clock_policy.py | Python | 164 | 2b63ae2d |  |
-| 544 | P1 | tests/component/test_data_quality_gate.py | Python | 474 | e2e86202 |  |
+| 544 | P1 | tests/component/test_data_quality_gate.py | Python | 474 | cce1da8a |  |
 | 545 | P1 | tests/component/test_money_representation.py | Python | 231 | 44d8855e |  |
 | 546 | P1 | tests/conftest.py | Python | 326 | fbd2d315 |  |
 | 547 | P1 | tests/contract/__init__.py | Python | 0 | e3b0c442 |  |
@@ -692,7 +692,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 622 | P1 | tests/quality/test_qe_id_allocation.py | Python | 225 | 4afa7d1b |  |
 | 623 | P1 | tests/quality/test_qe_skill.py | Python | 357 | eb33c545 |  |
 | 624 | P1 | tests/quality/test_quality_docs_in_sync.py | Python | 72 | ef1e542a |  |
-| 625 | P1 | tests/quality/test_quality_registry.py | Python | 798 | 070d5c52 |  |
+| 625 | P1 | tests/quality/test_quality_registry.py | Python | 802 | fb2963cb |  |
 | 626 | P1 | tests/quality/test_quality_registry_schema.py | Python | 267 | b7e5f7a2 |  |
 | 627 | P1 | tests/recovery/__init__.py | Python | 0 | e3b0c442 |  |
 | 628 | P1 | tests/recovery/test_chaos_suite.py | Python | 173 | ead89296 |  |
@@ -704,7 +704,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 634 | P1 | tests/regime/test_garch.py | Python | 148 | 8a4195c0 |  |
 | 635 | P1 | tests/regression/__init__.py | Python | 0 | e3b0c442 |  |
 | 636 | P1 | tests/regression/test_metrics_payload.py | Python | 120 | 094976c7 |  |
-| 637 | P1 | tests/regression/test_regression_registry_contract.py | Python | 654 | 9f54fed1 |  |
+| 637 | P1 | tests/regression/test_regression_registry_contract.py | Python | 657 | d88f49f0 |  |
 | 638 | P1 | tests/risk/__init__.py | Python | 0 | e3b0c442 |  |
 | 639 | P1 | tests/risk/test_probability_bounds.py | Python | 137 | a3b65a78 |  |
 | 640 | P1 | tests/risk/test_risk_limit_boundaries.py | Python | 300 | 37b9b36e |  |
@@ -846,12 +846,12 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 776 | P1 | tests/test_crt.py | Python | 236 | dd77ffd3 |  |
 | 777 | P1 | tests/test_crypto_architect_skill.py | Python | 317 | bbaaaf83 |  |
 | 778 | P1 | tests/test_crypto_intel_main.py | Python | 145 | a4922355 |  |
-| 779 | P1 | tests/test_crypto_intel_signal_path.py | Python | 732 | 6b9c54da |  |
+| 779 | P1 | tests/test_crypto_intel_signal_path.py | Python | 733 | 68ff99b3 |  |
 | 780 | P1 | tests/test_crypto_intel_v6_coverage.py | Python | 819 | 346198a8 |  |
 | 781 | P1 | tests/test_cvar_notional_cap.py | Python | 142 | 8fd8fa91 |  |
 | 782 | P1 | tests/test_data_duckdb_feeds.py | Python | 172 | 2d8520e8 |  |
 | 783 | P1 | tests/test_data_feeds.py | Python | 187 | 1920d4fc |  |
-| 784 | P1 | tests/test_data_intel_low_findings.py | Python | 202 | bbcd588e |  |
+| 784 | P1 | tests/test_data_intel_low_findings.py | Python | 207 | 0a7f099d |  |
 | 785 | P1 | tests/test_decision_log_wiring.py | Python | 170 | a348027d |  |
 | 786 | P1 | tests/test_decision_log_writer.py | Python | 67 | 1ef2fb2c |  |
 | 787 | P1 | tests/test_depth_detector_v2_edges.py | Python | 135 | 0bdbfaa9 |  |

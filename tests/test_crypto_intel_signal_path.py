@@ -2,6 +2,7 @@
 
 Decides:
   - REG-0031 — Horizon drift detection suppresses the signal and is persisted as measured
+  - REG-1430 — Data and intelligence low-severity defects: bus drop total, naive now, funding units, NaN guards
 """
 
 from __future__ import annotations

@@ -5638,7 +5638,8 @@
           "test": "tests/test_crypto_intel_signal_path.py",
           "test_type": "regression"
         }
-      ]
+      ],
+      "notes": "Low-severity audit findings DAT-020..DAT-036 that no test exercised. layer: test-suite"
     },
     {
       "id": "SEC-0012",

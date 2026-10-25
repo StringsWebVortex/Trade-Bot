@@ -145,7 +145,12 @@ def test_registry_node_selector_and_missing_vocabulary_key(tmp_path: Path) -> No
     import json
     from types import SimpleNamespace
 
-    from src.quality.registry import PROJECT_ROOT, RegistryError, _check_node_selector, load_registry
+    from src.quality.registry import (
+        PROJECT_ROOT,
+        RegistryError,
+        _check_node_selector,
+        load_registry,
+    )
 
     f = tmp_path / "test_x.py"
     f.write_text("def test_real():\n    pass\n")
