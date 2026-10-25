@@ -1649,6 +1649,7 @@ SHA8 a2efe8f2; total lines 805.
 
 - WorkerTask (class, lines 42-54): CHUNK_ID = src/workers/orchestrator.py#42-54#a2efe8f2 — [[F:src/workers/orchestrator.py#42-54#a2efe8f2]].
 - WorkerResult (class, lines 58-88): CHUNK_ID = src/workers/orchestrator.py#58-88#a2efe8f2 — [[F:src/workers/orchestrator.py#58-88#a2efe8f2]].
+- _handle_worker_sigterm (function, lines 91-93): CHUNK_ID = src/workers/orchestrator.py#91-93#a2efe8f2 — [[F:src/workers/orchestrator.py#91-93#a2efe8f2]].
 - _model_worker (function, lines 96-135): CHUNK_ID = src/workers/orchestrator.py#96-135#a2efe8f2 — [[F:src/workers/orchestrator.py#96-135#a2efe8f2]].
 - _run_horizon_inference (function, lines 138-175, slice 1): CHUNK_ID = src/workers/orchestrator.py#138-175#a2efe8f2 — [[F:src/workers/orchestrator.py#138-175#a2efe8f2]].
 - _run_horizon_inference (function, lines 176-213, slice 2): CHUNK_ID = src/workers/orchestrator.py#176-213#a2efe8f2 — [[F:src/workers/orchestrator.py#176-213#a2efe8f2]].
@@ -1761,6 +1762,7 @@ SHA8 1de280b9; total lines 616.
 
 - is_local_check_execution (function, lines 169-175): CHUNK_ID = common/command_schema.py#169-175#1de280b9 — [[F:common/command_schema.py#169-175#1de280b9]].
 - classify (function, lines 489-505): CHUNK_ID = common/command_schema.py#489-505#1de280b9 — [[F:common/command_schema.py#489-505#1de280b9]].
+- is_exact_patch_apply_command (function, lines 508-521): CHUNK_ID = common/command_schema.py#508-521#1de280b9 — [[F:common/command_schema.py#508-521#1de280b9]].
 - is_ci_log_access (function, lines 535-548): CHUNK_ID = common/command_schema.py#535-548#1de280b9 — [[F:common/command_schema.py#535-548#1de280b9]].
 - rank (function, lines 551-556): CHUNK_ID = common/command_schema.py#551-556#1de280b9 — [[F:common/command_schema.py#551-556#1de280b9]].
 - redact (function, lines 559-589): CHUNK_ID = common/command_schema.py#559-589#1de280b9 — [[F:common/command_schema.py#559-589#1de280b9]].

@@ -781,7 +781,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 711 | P1 | tests/test_api_and_fsm_coverage.py | Python | 310 | 49b66cc7 |  |
 | 712 | P1 | tests/test_api_auth_middleware.py | Python | 242 | f60f816f |  |
 | 713 | P1 | tests/test_api_dunder_main.py | Python | 49 | b2a7da69 |  |
-| 714 | P1 | tests/test_api_main_coverage.py | Python | 1694 | c5e1747a |  |
+| 714 | P1 | tests/test_api_main_coverage.py | Python | 1690 | 6d8b754c |  |
 | 715 | P1 | tests/test_api_main_edges.py | Python | 107 | 5b383da8 |  |
 | 716 | P1 | tests/test_api_main_endpoints_coverage.py | Python | 505 | b4a50b87 |  |
 | 717 | P1 | tests/test_api_operations_endpoints.py | Python | 203 | fae70eb8 |  |
@@ -843,7 +843,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 773 | P1 | tests/test_crypto_architect_skill.py | Python | 317 | bbaaaf83 |  |
 | 774 | P1 | tests/test_crypto_intel_main.py | Python | 145 | a4922355 |  |
 | 775 | P1 | tests/test_crypto_intel_signal_path.py | Python | 720 | 6f1adb26 |  |
-| 776 | P1 | tests/test_crypto_intel_v6_coverage.py | Python | 819 | 346198a8 |  |
+| 776 | P1 | tests/test_crypto_intel_v6_coverage.py | Python | 830 | 2f3e13a8 |  |
 | 777 | P1 | tests/test_cvar_notional_cap.py | Python | 142 | 8fd8fa91 |  |
 | 778 | P1 | tests/test_data_duckdb_feeds.py | Python | 172 | 2d8520e8 |  |
 | 779 | P1 | tests/test_data_feeds.py | Python | 187 | 1920d4fc |  |
@@ -942,7 +942,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 872 | P1 | tests/test_kg_resolve.py | Python | 37 | ff9b7ea5 |  |
 | 873 | P1 | tests/test_law12_cipher_suite_pattern.py | Python | 97 | a4f90962 |  |
 | 874 | P1 | tests/test_live_additional_coverage.py | Python | 399 | 0644eff8 |  |
-| 875 | P1 | tests/test_live_executor_coverage.py | Python | 1054 | 7090871f |  |
+| 875 | P1 | tests/test_live_executor_coverage.py | Python | 1074 | f5eb42d9 |  |
 | 876 | P1 | tests/test_live_executor_fsm.py | Python | 294 | 7152c4b2 |  |
 | 877 | P1 | tests/test_live_fill_quantity.py | Python | 94 | 6099f076 |  |
 | 878 | P1 | tests/test_live_fsm_integration.py | Python | 164 | 38096cc5 |  |
@@ -1003,7 +1003,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 933 | P1 | tests/test_orchestrator_strategy_portfolio.py | Python | 1006 | 1368f85d |  |
 | 934 | P1 | tests/test_orchestrator_trace_id.py | Python | 104 | d83d9eb2 |  |
 | 935 | P1 | tests/test_order_fsm.py | Python | 448 | 7131ca04 |  |
-| 936 | P1 | tests/test_order_fsm_registry.py | Python | 197 | 306520b9 |  |
+| 936 | P1 | tests/test_order_fsm_registry.py | Python | 196 | e4be2652 |  |
 | 937 | P1 | tests/test_order_fsm_transition_table.py | Python | 45 | 619dfda6 |  |
 | 938 | P1 | tests/test_order_manager.py | Python | 351 | 6630c734 |  |
 | 939 | P1 | tests/test_order_manager_fill_validation.py | Python | 99 | 8e2f56d2 |  |
@@ -1059,7 +1059,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 989 | P1 | tests/test_review_build_context.py | Python | 97 | 42731935 |  |
 | 990 | P1 | tests/test_review_retrieval.py | Python | 71 | 52be750e |  |
 | 991 | P1 | tests/test_rfc6979_nonces.py | Python | 178 | 0af4946b |  |
-| 992 | P1 | tests/test_risk_controls_api.py | Python | 629 | 08329c9c |  |
+| 992 | P1 | tests/test_risk_controls_api.py | Python | 629 | c39c0904 |  |
 | 993 | P1 | tests/test_risk_gate.py | Python | 180 | 63870140 |  |
 | 994 | P1 | tests/test_risk_gates.py | Python | 413 | 1938500a |  |
 | 995 | P1 | tests/test_risk_gates_coverage.py | Python | 328 | 557dedb8 |  |
@@ -1074,7 +1074,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 1004 | P1 | tests/test_scripts_path_bootstrap.py | Python | 95 | c4c1c928 |  |
 | 1005 | P1 | tests/test_secp256k1.py | Python | 448 | c4cb6103 |  |
 | 1006 | P1 | tests/test_security_pqc_posture.py | Python | 76 | 00928e99 |  |
-| 1007 | P1 | tests/test_self_tuning_api.py | Python | 200 | 71ad01e6 |  |
+| 1007 | P1 | tests/test_self_tuning_api.py | Python | 200 | 5a14228b |  |
 | 1008 | P1 | tests/test_self_tuning_settings.py | Python | 30 | e6355fa6 |  |
 | 1009 | P1 | tests/test_selftest_rate_limit.py | Python | 118 | b1ab3ae0 |  |
 | 1010 | P1 | tests/test_shadow_model_promotion.py | Python | 401 | 381394fd |  |
@@ -1137,7 +1137,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 1067 | P1 | tests/test_upgrade_optuna_wf.py | Python | 122 | 5d224880 |  |
 | 1068 | P1 | tests/test_upgrade_registry.py | Python | 211 | f4a8a163 |  |
 | 1069 | P1 | tests/test_upgrade_shadow_deploy.py | Python | 186 | d41a29fc |  |
-| 1070 | P1 | tests/test_venue_api.py | Python | 331 | f72a5e5e |  |
+| 1070 | P1 | tests/test_venue_api.py | Python | 332 | 94aef052 |  |
 | 1071 | P1 | tests/test_venue_controls.py | Python | 271 | 7f06c733 |  |
 | 1072 | P1 | tests/test_venue_controls_api.py | Python | 220 | 2a9ad18a |  |
 | 1073 | P1 | tests/test_vol_target_sizer.py | Python | 213 | 2fbf4ca2 |  |
