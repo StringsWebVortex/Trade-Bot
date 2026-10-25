@@ -17,7 +17,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 2 | P0 | .github/workflows/ci.yml | YAML | 408 | 157db505 | CI jobs and gate composition |
 | 3 | P0 | AGENTS.md | Markdown | 46 | c98828a6 | Engineering workflow and safety contract |
 | 4 | P0 | CLAUDE.md | Markdown | 658 | 17e4fd71 | Architecture, quality, CI and project policy |
-| 5 | P0 | Dockerfile | Other text/source | 142 | 63505f02 | Container runtime, identity, healthcheck and entrypoint |
+| 5 | P0 | Dockerfile | Other text/source | 145 | db5c42f1 | Container runtime, identity, healthcheck and entrypoint |
 | 6 | P0 | Makefile | Other text/source | 45 | f5f88b46 | Developer commands governed by repository policy |
 | 7 | P0 | README.md | Markdown | 467 | 930f180e | Purpose, usage and declared architecture |
 | 8 | P0 | config/architecture_layers.json | JSON | 78 | 734d6397 | Enforced import layering |
@@ -71,7 +71,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 1 | P0 | .github/workflows/ci.yml | YAML | 408 | 157db505 | CI jobs and gate composition |
 | 2 | P0 | AGENTS.md | Markdown | 46 | c98828a6 | Engineering workflow and safety contract |
 | 3 | P0 | CLAUDE.md | Markdown | 658 | 17e4fd71 | Architecture, quality, CI and project policy |
-| 4 | P0 | Dockerfile | Other text/source | 142 | 63505f02 | Container runtime, identity, healthcheck and entrypoint |
+| 4 | P0 | Dockerfile | Other text/source | 145 | db5c42f1 | Container runtime, identity, healthcheck and entrypoint |
 | 5 | P0 | Makefile | Other text/source | 45 | f5f88b46 | Developer commands governed by repository policy |
 | 6 | P0 | README.md | Markdown | 467 | 930f180e | Purpose, usage and declared architecture |
 | 7 | P0 | config/architecture_layers.json | JSON | 78 | 734d6397 | Enforced import layering |
