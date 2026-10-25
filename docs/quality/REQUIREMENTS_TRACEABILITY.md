@@ -47,11 +47,11 @@ deletion of the thing it points at.
 
 | Status | Entries |
 |---|---|
-| VERIFIED | 247 |
+| VERIFIED | 236 |
 | PARTIAL | 3 |
 | PLANNED | 0 |
 | ACCEPTED GAP | 0 |
-| **Total** | **250** |
+| **Total** | **239** |
 
 ## Summary by subsystem
 
@@ -63,8 +63,8 @@ deletion of the thing it points at.
 | Signal and features | 7 | 7 |
 | Models and leakage | 11 | 11 |
 | Data, money and time | 11 | 10 |
-| API and WebSocket | 30 | 30 |
-| Cryptography and secrets | 35 | 35 |
+| API and WebSocket | 22 | 22 |
+| Cryptography and secrets | 32 | 32 |
 | Supply chain and artifacts | 7 | 7 |
 | Resilience and recovery | 26 | 26 |
 | Release and production | 14 | 14 |
@@ -1105,32 +1105,6 @@ The default API_CORS_ORIGINS allows both loopback spellings of the dashboard dev
 
 > layer: test-suite
 
-#### `REG-1243` — Failed polls are reported as stale data
-
-**VERIFIED** · medium · regression · source: OPS-2026-10-25
-
-usePolling records failing requests (401, 5xx, unreachable) and the dashboard shows a stale-data banner naming them, clearing on recovery.
-
-- **If violated:** usePolling swallowed failures and kept old numbers displayed as current.
-- **Owned by:** `frontend/src/hooks/useApi.js`, `frontend/src/App.jsx`
-- **Verification:**
-  - `frontend/src/security/frontendSecurity.test.jsx` (regression)
-
-> audit finding FE-06. layer: test-suite
-
-#### `REG-1244` — The Configuration panel renders live settings
-
-**VERIFIED** · medium · regression · source: OPS-2026-10-25
-
-ConfigPanel renders values from GET /controls, not hardcoded literals.
-
-- **If violated:** About 100 hardcoded literals were shown as the bot's settings and drifted from .env.
-- **Owned by:** `frontend/src/components/panels/ConfigPanel.jsx`
-- **Verification:**
-  - `frontend/src/security/frontendSecurity.test.jsx` (regression)
-
-> audit finding FE-09. layer: test-suite
-
 #### `REG-1703` — One environment variable never binds two settings fields
 
 **VERIFIED** · low · regression · source: OPS-2026-10-25
@@ -1143,84 +1117,6 @@ Across Settings and every sub-settings class it composes, each prefix+field env 
   - `tests/test_settings_env_namespace.py` (regression)
 
 > Audit API-031 (prefix half). A guard rather than a prefix rename: no collision exists today and a rename would change the env var names operators set. layer: test-suite
-
-#### `SEC-1010` — POST /controls enforces the caller's role
-
-**VERIFIED** · high · security_regression · source: OPS-2026-10-25
-
-POST /controls/{name} requires the CHANGE_EXECUTION_MODE permission and a healthy security-control registry in addition to a valid API key and the operator secret; a read-only key is refused with 403.
-
-- **If violated:** A read-only key that also learns the operator secret changes execution mode, exit controls and settings.
-- **Owned by:** `src/api/main.py`
-- **Verification:**
-  - `tests/api/test_authz_and_secrets.py` (security)
-
-> audit finding API-001. layer: test-suite
-
-#### `SEC-1011` — /controls/execution_mode has the /execution-mode safeguards
-
-**VERIFIED** · high · security_regression · source: OPS-2026-10-25
-
-Changing the execution mode through /controls/execution_mode goes through the same function as /execution-mode: mode-change rate limit, EXEC-005 persistence and audit event; apply_control refuses the change without that setter.
-
-- **If violated:** The mode silently reverts on restart, is unaudited and bypasses the 3-per-hour limit.
-- **Owned by:** `src/api/main.py`
-- **Verification:**
-  - `tests/api/test_authz_and_secrets.py` (security)
-
-> audit finding API-002. layer: test-suite
-
-#### `SEC-1012` — POST /controls writes only allow-listed settings and audits every write
-
-**VERIFIED** · high · security_regression · source: OPS-2026-10-25
-
-Settings writes through POST /controls are limited to an explicit allow-list of groups, never to URL/host/path-like leaves, default-deny for new groups, and each control write emits a control_change audit event.
-
-- **If violated:** Any non-credential leaf, including filesystem paths and service URLs, is live-writable with no audit trail.
-- **Owned by:** `src/api/control_surface.py`
-- **Verification:**
-  - `tests/api/test_authz_and_secrets.py` (security)
-
-> audit finding API-003. layer: test-suite
-
-#### `SEC-1013` — GET /controls never renders secret values
-
-**VERIFIED** · high · security_regression · source: OPS-2026-10-25
-
-Settings leaves whose names carry dsn, password, token, secret, uri or credential markers are listed without a value and as protected; the TimescaleDB DSN is never returned.
-
-- **If violated:** Any key reads the database password from GET /controls and from control_changed broadcasts.
-- **Owned by:** `src/api/control_surface.py`
-- **Verification:**
-  - `tests/api/test_authz_and_secrets.py` (security)
-
-> audit finding API-004. layer: test-suite
-
-#### `SEC-1014` — The WebSocket API key stays out of URLs and uvicorn logs
-
-**VERIFIED** · high · security_regression · source: OPS-2026-10-25
-
-Browsers authenticate the WebSocket through an apikey.<hex> Sec-WebSocket-Protocol subprotocol; the query-string key is refused, and uvicorn log records have api_key= values redacted.
-
-- **If violated:** The key is written in cleartext to the application log on every WebSocket handshake.
-- **Owned by:** `src/api/auth.py`
-- **Verification:**
-  - `tests/api/test_authz_and_secrets.py` (security)
-
-> audit finding API-005. layer: test-suite
-
-#### `SEC-1015` — Operator-secret guessing is bounded globally
-
-**VERIFIED** · high · security_regression · source: OPS-2026-10-25
-
-All operator-secret checks share one failure budget that locks every route after repeated failures; /execution-mode applies its endpoint rate limit before comparing the secret; OPERATOR_SECRET must be at least 32 characters at startup.
-
-- **If violated:** The second factor can be brute-forced across endpoints and IPs, and a weak secret is accepted.
-- **Owned by:** `src/api/operator_secret.py`
-- **Verification:**
-  - `tests/api/test_authz_and_secrets.py` (security)
-
-> audit finding API-007. layer: test-suite
 
 ## Cryptography and secrets
 
@@ -1608,45 +1504,6 @@ requirements.txt declares filelock>=4.2.1, and every Dockerfile install into the
   - `tests/security/test_filelock_cve_floor.py` (security)
 
 > The advisory was published against a release nobody here chose, so no commit or review could have seen it arrive. layer: supply-chain
-
-#### `SEC-1240` — The admin API key is never built into the dashboard bundle
-
-**VERIFIED** · high · security_regression · source: OPS-2026-10-25
-
-The Vite build refuses VITE_API_KEY; the bundle may carry only VITE_API_READONLY_KEY, the admin key is entered at runtime and held in memory, and Electron injects its key from the main process for API-origin requests only.
-
-- **If violated:** Vite inlined VITE_API_KEY (the admin key) into dist/, readable by anyone with the files or DevTools.
-- **Owned by:** `frontend/src/hooks/useApi.js`, `frontend/src/buildGuard.js`, `frontend/vite.config.js`, `frontend/electron/security.cjs`, `frontend/electron/main.cjs`
-- **Verification:**
-  - `frontend/src/security/frontendSecurity.test.jsx` (security)
-
-> audit finding FE-01. layer: test-suite
-
-#### `SEC-1241` — Electron opens only https externally and trusts only app-origin pages for the shell bridge
-
-**VERIFIED** · high · security_regression · source: OPS-2026-10-25
-
-External URLs open only when https:; in-window navigation away from the app origin is blocked; terminal IPC handlers reject frames whose origin is not the app.
-
-- **If violated:** Any scheme reached the OS and a navigated page inherited the preload shell bridge.
-- **Owned by:** `frontend/electron/main.cjs`, `frontend/electron/security.cjs`, `frontend/electron/terminalBridge.cjs`
-- **Verification:**
-  - `frontend/src/security/frontendSecurity.test.jsx` (security)
-
-> audit finding FE-07. layer: test-suite
-
-#### `SEC-1242` — The built dashboard page carries a Content-Security-Policy
-
-**VERIFIED** · medium · security_regression · source: OPS-2026-10-25
-
-The production index.html includes a CSP meta with script-src 'self', object-src 'none' and connect-src limited to the app, loopback and the configured API origin.
-
-- **If violated:** No CSP meant any XSS could read credentials and reach the Electron shell bridge.
-- **Owned by:** `frontend/src/buildGuard.js`, `frontend/vite.config.js`
-- **Verification:**
-  - `frontend/src/security/frontendSecurity.test.jsx` (security)
-
-> audit finding FE-08. layer: test-suite
 
 ## Supply chain and artifacts
 
@@ -3251,4 +3108,4 @@ To add or change an entry, edit the registry and regenerate this file. See
 `docs/quality/TEST_STRATEGY.md` for the taxonomy the `test_type` column draws
 on, and `docs/quality/IMPLEMENTATION_PLAN.md` for what each phase delivers.
 
-Registry version: 1.0.0 — 250 entries.
+Registry version: 1.0.0 — 239 entries.

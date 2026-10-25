@@ -508,14 +508,14 @@ See **codebase-analysis-docs/STATE_BLOCKS.md** for Phase 1–6 checkpoints: inde
 
 Use these anchors with the matching current hash in codebase-analysis-docs/CHUNK_INDEX.md. Regenerate the index after source modifications.
 
-- API lifespan and resource ownership: [[F:src/api/main.py#588-625#58a7b930]]
-- WebSocket authentication/fan-out entry: [[F:src/api/main.py#1993-2030#58a7b930]]
-- API key validation and role selection: [[F:src/api/auth.py#94-133#7b3169c1]]
+- API lifespan and resource ownership: [[F:src/api/main.py#584-621#a71ca019]]
+- WebSocket authentication/fan-out entry: [[F:src/api/main.py#2007-2044#a71ca019]]
+- API key validation and role selection: [[F:src/api/auth.py#94-133#c9a226cf]]
 - Primary configuration model: [[F:src/config.py#1013-1050#566fc015]]
 - Atomic live risk-control update: [[F:src/config.py#1419-1458#566fc015]]
-- Main orchestrator startup: [[F:src/engine/orchestrator.py#464-501#144441a5]]
-- Main trading tick: [[F:src/engine/orchestrator.py#1226-1263#144441a5]]
-- Retraining and model routing: [[F:src/engine/orchestrator.py#1991-2028#144441a5]]
+- Main orchestrator startup: [[F:src/engine/orchestrator.py#433-470#144441a5]]
+- Main trading tick: [[F:src/engine/orchestrator.py#1195-1232#144441a5]]
+- Retraining and model routing: [[F:src/engine/orchestrator.py#1963-2000#144441a5]]
 - Signal computation: [[F:src/engine/signal_engine.py#663-700#c4c078db]]
 - Training features and labels: [[F:src/features/pipeline.py#771-808#32403b07]]
 - Ordered first-failure risk evaluation: [[F:src/risk/gates.py#669-706#36a7f38f]]

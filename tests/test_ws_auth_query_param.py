@@ -31,58 +31,39 @@ def _keys(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("API_READONLY_KEY", raising=False)
 
 
-def _proto(key: str) -> str:
-    return f"tradebot.v1, apikey.{key.encode().hex()}"
-
-
-def _ws(header: str | None = None, query: str | None = None, proto: str | None = None) -> MagicMock:
+def _ws(header: str | None = None, query: str | None = None) -> MagicMock:
     ws = MagicMock()
     ws.headers = {"x-api-key": header} if header else {}
-    if proto:
-        ws.headers["sec-websocket-protocol"] = proto
     ws.query_params = {"api_key": query} if query else {}
     ws.close = AsyncMock()
     return ws
 
 
-class TestSubprotocolFallback:
-    """SEC-1014: the browser key rides Sec-WebSocket-Protocol, not the URL."""
+class TestQueryParamFallback:
+    @pytest.mark.asyncio
+    async def test_a_browser_style_query_param_authenticates(self) -> None:
+        """The exact shape frontend/src/App.jsx sends."""
+        assert await verify_ws_key(_ws(query=_PRIMARY)) is Role.TRADE_AUTHORIZING
 
     @pytest.mark.asyncio
-    async def test_a_browser_style_subprotocol_authenticates(self) -> None:
-        """The exact shape frontend/src/hooks/useApi.js sends."""
-        assert await verify_ws_key(_ws(proto=_proto(_PRIMARY))) is Role.TRADE_AUTHORIZING
-
-    @pytest.mark.asyncio
-    async def test_a_query_param_key_is_no_longer_accepted(self) -> None:
-        """
-        uvicorn logs the handshake URL in cleartext; a key accepted from the
-        query string is a key written to the log. Would fail before SEC-1014.
-        """
+    async def test_the_socket_is_not_closed_on_a_valid_query_param(self) -> None:
         ws = _ws(query=_PRIMARY)
+        await verify_ws_key(ws)
+        ws.close.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_a_wrong_query_param_is_still_rejected(self) -> None:
+        ws = _ws(query="z" * 40)
         with pytest.raises(HTTPException):
             await verify_ws_key(ws)
         ws.close.assert_awaited_once_with(code=4401)
 
     @pytest.mark.asyncio
-    async def test_a_wrong_subprotocol_key_is_rejected(self) -> None:
-        ws = _ws(proto=_proto("z" * 40))
-        with pytest.raises(HTTPException):
-            await verify_ws_key(ws)
-        ws.close.assert_awaited_once_with(code=4401)
-
-    @pytest.mark.asyncio
-    async def test_a_malformed_hex_subprotocol_is_rejected(self) -> None:
-        ws = _ws(proto="tradebot.v1, apikey.not-hex")
-        with pytest.raises(HTTPException):
-            await verify_ws_key(ws)
-
-    @pytest.mark.asyncio
-    async def test_a_read_only_key_resolves_to_its_role(
+    async def test_a_read_only_key_resolves_to_its_role_over_the_query(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setenv("API_READONLY_KEY", _READONLY)
-        assert await verify_ws_key(_ws(proto=_proto(_READONLY))) is Role.READ_ONLY
+        assert await verify_ws_key(_ws(query=_READONLY)) is Role.READ_ONLY
 
 
 class TestHeaderStillPreferred:
@@ -96,9 +77,7 @@ class TestHeaderStillPreferred:
         Query strings appear in proxy and access logs where headers do not,
         so a client that can set a header must keep using it.
         """
-        assert await verify_ws_key(_ws(header=_PRIMARY, proto=_proto("z" * 40))) is (
-            Role.TRADE_AUTHORIZING
-        )
+        assert await verify_ws_key(_ws(header=_PRIMARY, query="z" * 40)) is (Role.TRADE_AUTHORIZING)
 
     @pytest.mark.asyncio
     async def test_neither_supplied_is_rejected(self) -> None:
@@ -108,7 +87,7 @@ class TestHeaderStillPreferred:
         ws.close.assert_awaited_once_with(code=4401)
 
 
-def test_the_frontend_sends_the_subprotocol_the_server_reads() -> None:
+def test_the_frontend_still_sends_the_parameter_the_server_reads() -> None:
     """
     The break was a name/mechanism mismatch across the boundary, so pin the
     contract from the frontend side too — the server's own tests could not
@@ -127,9 +106,6 @@ def test_the_frontend_sends_the_subprotocol_the_server_reads() -> None:
         for path in frontend_src.rglob(pattern)
     ]
     assert sources, f"no frontend sources found under {frontend_src}"
-    assert any("apikey." in text for text in sources), (
-        "frontend no longer sends the apikey.<hex> subprotocol — update the server"
-    )
-    assert not any("?api_key=" in text for text in sources), (
-        "frontend puts the API key in the URL, where uvicorn logs it"
+    assert any("api_key=" in text for text in sources), (
+        "frontend no longer sends ?api_key= — update the server"
     )

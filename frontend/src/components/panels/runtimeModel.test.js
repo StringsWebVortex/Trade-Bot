@@ -150,7 +150,7 @@ describe('palette and counts', () => {
     expect(runtimeProblemText(notStarted)).toContain('Runtime platform not started');
     expect(runtimeProblemText(notStarted)).toContain('/readyz');
     const rejected = { ...apiProblem(401), detail: 'Invalid API key' };
-    expect(runtimeProblemText(rejected)).toContain('VITE_API_READONLY_KEY');
+    expect(runtimeProblemText(rejected)).toContain('VITE_API_KEY');
     expect(runtimeProblemText(rejected)).toContain('(Invalid API key)');
     const unreachable = { ...apiProblem(0), detail: null };
     expect(runtimeProblemText(unreachable)).toBe(apiProblem(0).message);

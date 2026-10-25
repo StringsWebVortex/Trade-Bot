@@ -22,6 +22,7 @@ never be given to an automated client.
 
 from __future__ import annotations
 
+import hmac
 import os
 from pathlib import Path
 from typing import Any, Literal
@@ -30,7 +31,6 @@ from pydantic import BaseModel, Field
 
 from src.agent_control.model import ManifestError, to_dict
 from src.agent_control.store import STATE_DIR_ENV, STATE_DIR_NAME, TaskStore
-from src.api.operator_secret import OperatorSecretError, verify_operator_secret
 from src.runtime.adaptive import SYSTEM_EVALUATOR
 from src.runtime.changes import (
     ROLE_APPROVER,
@@ -103,10 +103,11 @@ class RuntimeDesiredBody(OperatorFactor):
 
 def check_operator_secret(secret: str) -> None:
     """SEC-007: the same second factor as /controls and /execution-mode."""
-    try:
-        verify_operator_secret(secret)
-    except OperatorSecretError as exc:
-        raise RuntimeControlError(exc.status, exc.detail) from exc
+    expected = os.environ.get("OPERATOR_SECRET", "").strip()
+    if not expected:
+        raise RuntimeControlError(503, "OPERATOR_SECRET is not configured.")
+    if not hmac.compare_digest(secret.encode("utf-8"), expected.encode("utf-8")):
+        raise RuntimeControlError(401, "Invalid operator secret.")
 
 
 def actor_for(body: OperatorFactor) -> Actor:

@@ -250,9 +250,6 @@ class TestTheRegistryHasAPlaceForDefects:
             "REG-1041",
             "REG-1042",
             "REG-1043",
-            # REG-1243/1244: audit FE-06 and FE-09 (frontend honesty).
-            "REG-1243",
-            "REG-1244",
         }
         # SEC-0005: `.gitignore` carried a bare `.env`, which matches that one
         # name and nothing else -- so `.env.bak.<timestamp>` from a
@@ -284,17 +281,6 @@ class TestTheRegistryHasAPlaceForDefects:
             "SEC-0009",
             "SEC-0010",
             "SEC-0012",
-            # SEC-1010..1015: API authorization and secret-handling audit.
-            "SEC-1010",
-            "SEC-1011",
-            "SEC-1012",
-            "SEC-1013",
-            "SEC-1014",
-            "SEC-1015",
-            # SEC-1240..1242: frontend secret exposure and Electron hardening.
-            "SEC-1240",
-            "SEC-1241",
-            "SEC-1242",
         }
 
     def test_every_filed_defect_names_a_permanent_test(self, registry):
@@ -566,9 +552,9 @@ class TestTheMetricsCollector:
         # test-suite, 43.
         # REG-1704 adds the fixed-threshold carry/arbitrage regression (STR-21):
         # no test asked what the thresholds cost to clear -- test-suite, 44.
-        # REG-1040..1043, REG-1243/1244, SEC-1010..1015 and SEC-1240..1242 add
-        # fifteen audit findings -- test-suite, 59.
-        assert metric["value"] == {"test-suite": 59, "review": 1, "supply-chain": 3}
+        # REG-1040..1043 add the execution-accounting audit findings (EXR-006,
+        # EXR-007, EXR-008, EXR-012) -- test-suite, 48.
+        assert metric["value"] == {"test-suite": 48, "review": 1, "supply-chain": 3}
 
     def test_zero_escaped_defects_would_be_stated_explicitly(self, collector, monkeypatch):
         # "We have not measured this" and "this is zero" are different

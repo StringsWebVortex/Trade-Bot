@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import {
-  useWebSocket, useStream, usePolling, useStalePolls, setSessionApiKey, useOperatorAction, postJson, useReadiness,
+  useWebSocket, useStream, usePolling, useOperatorAction, postJson, useReadiness,
 } from './hooks/useApi';
 import { ControlHubPanel } from './components/panels/ControlHubPanel';
 import { Panel } from './components/Panel';
@@ -191,7 +191,7 @@ function Dashboard() {
       render: () => <ApprovalsPanel approvals={approvals} onResolve={handleApprovalResolve} />,
     },
     risk: { accent: 'var(--c-claude)', render: () => <RiskControlsPanel riskControls={riskControls} onUpdate={handleRiskUpdate} /> },
-    config: { accent: 'var(--c-silver)', render: () => <ConfigPanel /> },
+    config: { accent: 'var(--c-silver)', render: () => <ConfigPanel status={status} /> },
     selftuning: { accent: 'var(--c-cyan)', render: () => <SelfTuningPanel action={action} /> },
     strategies: { accent: 'var(--c-purple)', render: () => <StrategiesPanel action={action} /> },
     runtime: { accent: 'var(--c-cyan)', render: () => <RuntimePanel operatorAction={action} /> },
@@ -255,7 +255,6 @@ function Dashboard() {
       <div className="app-main">
         <main ref={viewportRef} className="workspace-viewport" aria-label="Dashboard workspace">
           <StartupBanner report={readiness.report} problem={readiness.problem} />
-          <StalePollBanner />
           {showPanelManager && (
             <PanelManager
               layout={layout}
@@ -299,19 +298,6 @@ function Dashboard() {
         Arrow keys move the panel one grid step; Shift with an arrow key resizes it.
         Escape restores a maximized panel.
       </p>
-    </div>
-  );
-}
-
-/** FE-06: say so when polled data is stale instead of showing it as current. */
-function StalePollBanner() {
-  const stale = useStalePolls();
-  if (stale.length === 0) return null;
-  return (
-    <div role="alert" style={{ padding: '6px 10px', fontSize: 11, color: 'var(--c-red, #f66)' }}>
-      Showing stale data: {stale.length} request{stale.length === 1 ? '' : 's'} failing
-      ({stale.slice(0, 3).map((s) => `${s.path} ${s.problem.kind}`).join(', ')}).
-      {' '}{stale[0].problem.message}
     </div>
   );
 }
@@ -385,15 +371,6 @@ function Header({
             value={operatorSecret}
             onChange={(e) => setOperatorSecret(e.target.value)}
             placeholder="Secret"
-          />
-          <input
-            className="input-sm"
-            style={{ width: 100 }}
-            type="password"
-            autoComplete="off"
-            onChange={(e) => setSessionApiKey(e.target.value)}
-            placeholder="Admin key"
-            title="Held in memory for this page load only; never stored or built into the bundle."
           />
         </div>
       </div>

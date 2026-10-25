@@ -306,7 +306,7 @@ describe('useApiResource and useReadiness', () => {
     const { data, problem } = result.current;
     expect(data).toBeNull();
     expect(problem.kind).toBe('unauthorized');
-    expect(problem.message).toContain('VITE_API_READONLY_KEY');
+    expect(problem.message).toContain('VITE_API_KEY');
     expect(problem.detail).toBe('Invalid API key');
   });
 

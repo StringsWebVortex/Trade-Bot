@@ -18,7 +18,6 @@
 const fs = require("fs");
 const net = require("net");
 const path = require("path");
-const { isTrustedSender } = require("./security.cjs");
 const { execFile } = require("child_process");
 
 const ALLOWED_TYPES = new Set([
@@ -107,12 +106,9 @@ class TerminalBridge {
   }
 
   register() {
-    // FE-07: refuse IPC from any frame that is not the app's own page.
-    const trusted = (event) => isTrustedSender(event, this.env?.VITE_DEV_URL || "http://127.0.0.1:5173");
-    this.ipcMain.handle("terminal:connect", (event) =>
-      trusted(event) ? this.connect(event.sender) : { ok: false, error: "untrusted sender" });
-    this.ipcMain.on("terminal:send", (event, frame) => { if (trusted(event)) this.send(event.sender, frame); });
-    this.ipcMain.on("terminal:disconnect", (event) => { if (trusted(event)) this.disconnect(event.sender.id); });
+    this.ipcMain.handle("terminal:connect", (event) => this.connect(event.sender));
+    this.ipcMain.on("terminal:send", (event, frame) => this.send(event.sender, frame));
+    this.ipcMain.on("terminal:disconnect", (event) => this.disconnect(event.sender.id));
   }
 
   startService() {

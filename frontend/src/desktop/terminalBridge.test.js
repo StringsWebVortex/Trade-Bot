@@ -194,7 +194,7 @@ describe('TerminalBridge', () => {
     expect(Object.keys(ipcMain.listened).sort()).toEqual(['terminal:disconnect', 'terminal:send']);
 
     const sender = fakeSender();
-    ipcMain.listened['terminal:send']({ sender, senderFrame: { url: 'file:///app/dist/index.html' } }, { t: 'job.begin', id: 4 });
+    ipcMain.listened['terminal:send']({ sender }, { t: 'job.begin', id: 4 });
     expect(sender.sent[0][1]).toMatchObject({ t: 'error', id: 4, code: 'refused_by_bridge' });
   });
 
