@@ -180,7 +180,9 @@ def performance_weighted_allocate(
         remaining = max(1.0 - sum(raw.values()), 0.0)
         score_total = sum(scores.values())
         for sid, score in scores.items():
-            raw[sid] = remaining * (score / score_total if score_total > 0.0 else 1.0 / len(scores))
+            # All-zero scores carry no edge: weight 0 so an all-zero set
+            # still falls through to the equal-weight fallback below.
+            raw[sid] = remaining * score / score_total if score_total > 0.0 else 0.0
 
     # If all active strategies are in warm-up (all equal_share), the result is
     # identical to equal_weight - no normalization surprise.
