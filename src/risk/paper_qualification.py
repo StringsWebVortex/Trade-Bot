@@ -301,7 +301,10 @@ def assert_qualified_for_live(
     except TypeError as exc:
         raise NotQualifiedError(f"qualification record is incomplete: {exc}") from exc
 
-    if record.strategy_id != expected_strategy_id or stored.get("strategy_id") != expected_strategy_id:
+    if (
+        record.strategy_id != expected_strategy_id
+        or stored.get("strategy_id") != expected_strategy_id
+    ):
         raise NotQualifiedError(
             f"qualification record is for strategy {record.strategy_id!r}, "
             f"not {expected_strategy_id!r}"
