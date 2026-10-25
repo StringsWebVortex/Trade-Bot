@@ -562,7 +562,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 492 | P1 | src/tuning/backtest_harness.py | Python | 680 | 77cf3737 |  |
 | 493 | P1 | src/tuning/bayesian_proposer.py | Python | 106 | a627571c |  |
 | 494 | P1 | src/tuning/bootstrap.py | Python | 368 | a02f4e2a |  |
-| 495 | P1 | src/tuning/engine_backtest.py | Python | 356 | 24e6be77 |  |
+| 495 | P1 | src/tuning/engine_backtest.py | Python | 355 | 7029c2fc |  |
 | 496 | P1 | src/tuning/evaluator.py | Python | 246 | 2668b06f |  |
 | 497 | P1 | src/tuning/factor_search.py | Python | 164 | 87889afc |  |
 | 498 | P1 | src/tuning/gate.py | Python | 73 | f3f2ae55 |  |
