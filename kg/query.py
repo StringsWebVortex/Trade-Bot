@@ -29,9 +29,40 @@ def _candidate_names(question: str) -> list[str]:
 
 
 _STOPWORDS = frozenset(
-    {"the", "and", "what", "who", "which", "where", "when", "how", "why", "are", "was",
-     "were", "does", "did", "for", "with", "about", "from", "that", "this", "there",
-     "their", "you", "your", "have", "has", "had", "can", "tell", "show", "list", "give"}
+    {
+        "the",
+        "and",
+        "what",
+        "who",
+        "which",
+        "where",
+        "when",
+        "how",
+        "why",
+        "are",
+        "was",
+        "were",
+        "does",
+        "did",
+        "for",
+        "with",
+        "about",
+        "from",
+        "that",
+        "this",
+        "there",
+        "their",
+        "you",
+        "your",
+        "have",
+        "has",
+        "had",
+        "can",
+        "tell",
+        "show",
+        "list",
+        "give",
+    }
 )
 
 

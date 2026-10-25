@@ -30,7 +30,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.config import get_settings  # noqa: E402
 
-
 _ARTIFACT_PATTERNS = ("xgb_direction_*_{tf}.joblib", "xgb_meta_*_{tf}.joblib")
 
 

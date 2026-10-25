@@ -20,7 +20,6 @@ def _seeded_global_rng():
     np.random.set_state(state)
 
 
-
 class _TinyMLP(nn.Module):
     def __init__(self) -> None:
         super().__init__()

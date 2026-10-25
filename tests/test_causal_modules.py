@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import numpy as np
-import pytest
 import pandas as pd
+import pytest
 
 # ─── Granger ──────────────────────────────────────────────────────────────────
 
@@ -17,7 +17,6 @@ def _seeded_global_rng():
     np.random.seed(12345)
     yield
     np.random.set_state(state)
-
 
 
 class TestGrangerCausalityDetector:

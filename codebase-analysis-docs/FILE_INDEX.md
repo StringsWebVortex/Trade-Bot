@@ -240,7 +240,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 170 | P1 | scripts/assert_jobs_green.py | Python | 151 | cdf5cb03 |  |
 | 171 | P1 | scripts/backfill.py | Python | 130 | 664b08bf |  |
 | 172 | P1 | scripts/check_coverage_floors.py | Python | 123 | 809921a0 |  |
-| 173 | P1 | scripts/check_model_artifacts.py | Python | 78 | 19d65a1c |  |
+| 173 | P1 | scripts/check_model_artifacts.py | Python | 77 | 5e6268f1 |  |
 | 174 | P1 | scripts/check_mutation_score.py | Python | 224 | 253635dd |  |
 | 175 | P1 | scripts/check_production_readiness.py | Python | 178 | 6c642773 |  |
 | 176 | P1 | scripts/check_static_invariants.py | Python | 1872 | fb8a691f |  |
@@ -793,7 +793,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 723 | P1 | tests/test_api_terminal_jobs.py | Python | 196 | ba84a1ac |  |
 | 724 | P1 | tests/test_apply_ci_patch.py | Python | 63 | 1e1da1aa |  |
 | 725 | P1 | tests/test_apply_repo_ruleset.py | Python | 288 | e1799986 |  |
-| 726 | P1 | tests/test_arch_baseline_is_current.py | Python | 82 | b2769232 |  |
+| 726 | P1 | tests/test_arch_baseline_is_current.py | Python | 83 | f3fc9289 |  |
 | 727 | P1 | tests/test_architecture_layers.py | Python | 181 | 954aa9c3 |  |
 | 728 | P1 | tests/test_assert_jobs_green.py | Python | 244 | e9cbd0ce |  |
 | 729 | P1 | tests/test_attribution.py | Python | 267 | 79185ed1 |  |
@@ -814,7 +814,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 744 | P1 | tests/test_causal_asset_gnn_pyg.py | Python | 78 | b3e0219f |  |
 | 745 | P1 | tests/test_causal_dowhy_scm.py | Python | 125 | 7eb0139c |  |
 | 746 | P1 | tests/test_causal_inference.py | Python | 243 | 917865bc |  |
-| 747 | P1 | tests/test_causal_modules.py | Python | 226 | 0c44d3b2 |  |
+| 747 | P1 | tests/test_causal_modules.py | Python | 225 | 2791a85a |  |
 | 748 | P1 | tests/test_changepoint.py | Python | 80 | abb1294c |  |
 | 749 | P1 | tests/test_ci_diagnostics.py | Python | 706 | 2085e619 |  |
 | 750 | P1 | tests/test_ci_diagnostics_log_unavailable.py | Python | 118 | 2251cb89 |  |
@@ -1145,7 +1145,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 1075 | P1 | tests/test_unified_ledger.py | Python | 74 | 1aba3c25 |  |
 | 1076 | P1 | tests/test_unified_ledger_wiring.py | Python | 202 | 79f1a38e |  |
 | 1077 | P1 | tests/test_universe_returns.py | Python | 281 | 8f951606 |  |
-| 1078 | P1 | tests/test_upgrade_modules.py | Python | 292 | 10f1ff47 |  |
+| 1078 | P1 | tests/test_upgrade_modules.py | Python | 291 | e7863485 |  |
 | 1079 | P1 | tests/test_upgrade_optuna_wf.py | Python | 122 | 5d224880 |  |
 | 1080 | P1 | tests/test_upgrade_registry.py | Python | 211 | f4a8a163 |  |
 | 1081 | P1 | tests/test_upgrade_shadow_deploy.py | Python | 186 | d41a29fc |  |
@@ -1264,7 +1264,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 1194 | P2 | kg/db.py | Python | 39 | 29dd8727 |  |
 | 1195 | P2 | kg/extract.py | Python | 21 | c97eece2 |  |
 | 1196 | P2 | kg/ingest.py | Python | 9 | 34d740a2 |  |
-| 1197 | P2 | kg/query.py | Python | 66 | cf15dbbf |  |
+| 1197 | P2 | kg/query.py | Python | 97 | bbabf6d6 |  |
 | 1198 | P2 | kg/resolve.py | Python | 30 | 2277a38a |  |
 | 1199 | P2 | kg/schema.py | Python | 42 | 86f3afdb |  |
 | 1200 | P2 | kg_cli.py | Python | 30 | e83e37da |  |
