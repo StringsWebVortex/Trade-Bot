@@ -47,11 +47,11 @@ deletion of the thing it points at.
 
 | Status | Entries |
 |---|---|
-| VERIFIED | 217 |
+| VERIFIED | 218 |
 | PARTIAL | 3 |
 | PLANNED | 0 |
 | ACCEPTED GAP | 0 |
-| **Total** | **220** |
+| **Total** | **221** |
 
 ## Summary by subsystem
 
@@ -60,7 +60,7 @@ deletion of the thing it points at.
 | Risk | 11 | 11 |
 | Execution | 13 | 12 |
 | Portfolio | 1 | 1 |
-| Signal and features | 6 | 6 |
+| Signal and features | 7 | 7 |
 | Models and leakage | 10 | 10 |
 | Data, money and time | 11 | 10 |
 | API and WebSocket | 21 | 21 |
@@ -483,6 +483,18 @@ SOPR, NVT and MVRV are either genuinely computed or NaN; no on-chain metric retu
   - `tests/test_onchain_no_fabricated_values.py` (regression)
 
 > Escaped to production: the constant reached the live feature dict in src/intel.py and was persisted to intelligence_features_history beside measured columns. The test suite could not catch it because the test that existed asserted the placeholder (== 1.0) rather than the requirement, so the layer that should have caught it is the review that accepted a return of a bare literal from a metric together with a docstring describing a computation the body never performed. layer: review
+
+#### `REG-1070` — Live inference scores the latest closed bar
+
+**VERIFIED** · critical · regression · source: OPS-2026-10-25
+
+Live inference scores the feature row of the newest closed bar (label-independent), refuses a matrix whose last row is not the last bar, and the engine slices off a forming bar rather than skipping the tick
+
+- **If violated:** Live path scored an older, lookahead-selected labelled row; HMM fed a gapped series
+- **Verification:**
+  - `tests/features/test_closed_bar_inference.py` (regression)
+
+> Audit DAT-001, EXR-003
 
 ## Models and leakage
 
@@ -2850,4 +2862,4 @@ To add or change an entry, edit the registry and regenerate this file. See
 `docs/quality/TEST_STRATEGY.md` for the taxonomy the `test_type` column draws
 on, and `docs/quality/IMPLEMENTATION_PLAN.md` for what each phase delivers.
 
-Registry version: 1.0.0 — 220 entries.
+Registry version: 1.0.0 — 221 entries.
