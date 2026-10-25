@@ -8,6 +8,8 @@ ingest_repo.py runs for the better part of an hour.
 
 MongoClient is not constructed here -- these tests patch it. Building a real
 one would open sockets, and the network guard in conftest blocks that.
+
+REG-1702 (DOC-015): kg/ and rag_mongo/ share one cached client and one URI check.
 """
 
 from __future__ import annotations

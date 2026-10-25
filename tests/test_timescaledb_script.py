@@ -12,6 +12,8 @@ REG-0013: the script these six call sites name did not exist at all. The
 README documented `bash scripts/timescaledb.sh up`, `src/config.py` and
 `src/data/storage.py` pointed at it in comments, and the skip message every
 one of those 92 tests printed told the reader to run it. Nothing checked.
+
+REG-1700 (OPS-011): the image is pinned by digest, identically in both places.
 """
 
 from __future__ import annotations

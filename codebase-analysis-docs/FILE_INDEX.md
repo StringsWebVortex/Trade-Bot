@@ -974,7 +974,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 904 | P1 | tests/test_model_trainer_coverage.py | Python | 1217 | 0ba5f420 |  |
 | 905 | P1 | tests/test_models_gnn_head.py | Python | 41 | ff4a7fe2 |  |
 | 906 | P1 | tests/test_models_gnn_head_pyg.py | Python | 46 | 5aeb6ee0 |  |
-| 907 | P1 | tests/test_mongo_client_reuse.py | Python | 89 | becf8b18 |  |
+| 907 | P1 | tests/test_mongo_client_reuse.py | Python | 91 | 190bba2b |  |
 | 908 | P1 | tests/test_no_claude_automation.py | Python | 56 | d5c1bfe7 |  |
 | 909 | P1 | tests/test_ntt.py | Python | 156 | dbe3cf15 |  |
 | 910 | P1 | tests/test_numbertheory_analytics.py | Python | 287 | 5d2d0bf4 |  |
@@ -1115,7 +1115,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 1045 | P1 | tests/test_timescale_mock_coverage.py | Python | 827 | b022bb76 |  |
 | 1046 | P1 | tests/test_timescale_storage.py | Python | 974 | f069317c |  |
 | 1047 | P1 | tests/test_timescale_storage_fake_pool.py | Python | 346 | 05fc212a |  |
-| 1048 | P1 | tests/test_timescaledb_script.py | Python | 136 | 6ccf931f |  |
+| 1048 | P1 | tests/test_timescaledb_script.py | Python | 138 | e966aba4 |  |
 | 1049 | P1 | tests/test_tools_example_tools.py | Python | 49 | aadb0a71 |  |
 | 1050 | P1 | tests/test_tools_registry.py | Python | 94 | 7df6f271 |  |
 | 1051 | P1 | tests/test_trade_auditor.py | Python | 267 | 77ae8084 |  |
