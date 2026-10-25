@@ -229,6 +229,8 @@ class TestTheRegistryHasAPlaceForDefects:
             # REG-1604: the CI diagnostics collector held its own report check
             # in_progress, so no prfail report ever finalized.
             "REG-1604",
+            # REG-1609: one failed job-log download failed the whole report.
+            "REG-1609",
             # REG-1700..1703: audit OPS-011 (digest pins, rag-ingest torch
             # floor), DOC-015 and API-031 -- block C of the phase 7 findings.
             "REG-1700",
@@ -529,11 +531,12 @@ class TestTheMetricsCollector:
         # REG-0031 adds the horizon drift-suppression regression -- test-suite, 29.
         # REG-1600..1603 add four audit regressions no test exercised -- test-suite, 33.
         # REG-1604 adds the collector self-wait regression -- test-suite, 34.
-        # REG-1700..1703 add four block C audit regressions no test exercised --
-        # test-suite, 38.
         # SEC-0012: filelock's CVE was published against a release torch and
         # huggingface-hub pulled in unbounded -- supply-chain, 2 to 3.
-        assert metric["value"] == {"test-suite": 38, "review": 1, "supply-chain": 3}
+        # REG-1609 adds the collector's one-log-fails-all regression -- test-suite, 35.
+        # REG-1700..1703 add four block C audit regressions no test exercised --
+        # test-suite, 39.
+        assert metric["value"] == {"test-suite": 39, "review": 1, "supply-chain": 3}
 
     def test_zero_escaped_defects_would_be_stated_explicitly(self, collector, monkeypatch):
         # "We have not measured this" and "this is zero" are different

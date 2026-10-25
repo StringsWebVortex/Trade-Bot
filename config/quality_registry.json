@@ -5661,6 +5661,30 @@
       "notes": "Observed on PRs #502, #506, #508 and #509, whose reports never finalized after #467 removed only the job-level self-wait. No test ran the collector end to end against its own check writes. layer: test-suite"
     },
     {
+      "id": "REG-1609",
+      "kind": "regression",
+      "title": "One unavailable job log no longer fails the whole diagnostics report",
+      "statement": "The collector retries the signed job-log download and names the final cause; a green job whose log cannot be fetched adds nothing, and a failed job's gets a log_unavailable record, so the report still finalizes and says which failure lines are missing.",
+      "criticality": "medium",
+      "subsystem": "governance",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "A single failed signed-URL log download raised through the collector, so the report was published as collection failed and ./scripts/prfail showed no job's failures at all (PR #512).",
+      "owning_modules": [
+        "scripts/ci_diagnostics.py"
+      ],
+      "depends_on": [
+        "REG-1604"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_ci_diagnostics_log_unavailable.py",
+          "test_type": "regression"
+        }
+      ],
+      "notes": "Follow-up to REG-1604: once failures were published, the first one seen was this. No test fed the collector a failing log download. layer: test-suite"
+    },
+    {
       "id": "REG-1600",
       "kind": "regression",
       "title": "The CPU torch pre-pass uses the same version spec as requirements.txt",

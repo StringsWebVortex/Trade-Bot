@@ -47,11 +47,11 @@ deletion of the thing it points at.
 
 | Status | Entries |
 |---|---|
-| VERIFIED | 226 |
+| VERIFIED | 227 |
 | PARTIAL | 3 |
 | PLANNED | 0 |
 | ACCEPTED GAP | 0 |
-| **Total** | **229** |
+| **Total** | **230** |
 
 ## Summary by subsystem
 
@@ -68,7 +68,7 @@ deletion of the thing it points at.
 | Supply chain and artifacts | 7 | 7 |
 | Resilience and recovery | 26 | 26 |
 | Release and production | 14 | 14 |
-| Governance | 65 | 64 |
+| Governance | 66 | 65 |
 | Terminal and process center | 12 | 12 |
 
 ## Outstanding work by phase
@@ -2766,6 +2766,20 @@ scripts/ci_diagnostics.py writes the report master only as a completed check run
 
 > Observed on PRs #502, #506, #508 and #509, whose reports never finalized after #467 removed only the job-level self-wait. No test ran the collector end to end against its own check writes. layer: test-suite
 
+#### `REG-1609` — One unavailable job log no longer fails the whole diagnostics report
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+The collector retries the signed job-log download and names the final cause; a green job whose log cannot be fetched adds nothing, and a failed job's gets a log_unavailable record, so the report still finalizes and says which failure lines are missing.
+
+- **If violated:** A single failed signed-URL log download raised through the collector, so the report was published as collection failed and ./scripts/prfail showed no job's failures at all (PR #512).
+- **Owned by:** `scripts/ci_diagnostics.py`
+- **Depends on:** `REG-1604`
+- **Verification:**
+  - `tests/test_ci_diagnostics_log_unavailable.py` (regression)
+
+> Follow-up to REG-1604: once failures were published, the first one seen was this. No test fed the collector a failing log download. layer: test-suite
+
 #### `REG-1700` — The CI TimescaleDB service and scripts/timescaledb.sh pin the image by digest
 
 **VERIFIED** · low · regression · source: OPS-2026-10-25
@@ -2973,4 +2987,4 @@ To add or change an entry, edit the registry and regenerate this file. See
 `docs/quality/TEST_STRATEGY.md` for the taxonomy the `test_type` column draws
 on, and `docs/quality/IMPLEMENTATION_PLAN.md` for what each phase delivers.
 
-Registry version: 1.0.0 — 229 entries.
+Registry version: 1.0.0 — 230 entries.
