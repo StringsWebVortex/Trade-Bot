@@ -292,7 +292,11 @@ def parse_order(
         average_price = _coerce_positive(response.get("average"))
     else:
         cost = _coerce_positive(response.get("cost"))
-        average_price = cost / filled_qty if cost is not None and filled_qty is not None else None
+        average_price = (
+            _coerce_positive(cost / filled_qty)
+            if cost is not None and filled_qty is not None
+            else None
+        )
     remaining_qty = _coerce_non_negative(response.get("remaining"))
 
     if status in TERMINAL_FILLED:

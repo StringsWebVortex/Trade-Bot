@@ -358,7 +358,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 288 | P1 | src/eventbus/envelope.py | Python | 123 | a6618b0d |  |
 | 289 | P1 | src/execution/__init__.py | Python | 1 | 01ba4719 |  |
 | 290 | P1 | src/execution/base.py | Python | 134 | d3cad1e1 |  |
-| 291 | P1 | src/execution/exchange_contract.py | Python | 316 | dd935618 |  |
+| 291 | P1 | src/execution/exchange_contract.py | Python | 320 | 56c3bfb7 |  |
 | 292 | P1 | src/execution/idempotency.py | Python | 297 | 31be547d |  |
 | 293 | P1 | src/execution/live_fsm_integration.py | Python | 128 | 65178552 |  |
 | 294 | P1 | src/execution/mode_persistence.py | Python | 110 | d236a952 |  |
@@ -836,7 +836,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 766 | P1 | tests/test_control_surface.py | Python | 337 | 29da84ee |  |
 | 767 | P1 | tests/test_control_write.py | Python | 226 | 6ec589f2 |  |
 | 768 | P1 | tests/test_coverage_boost.py | Python | 446 | a3a83684 |  |
-| 769 | P1 | tests/test_coverage_boost2.py | Python | 394 | e911097a |  |
+| 769 | P1 | tests/test_coverage_boost2.py | Python | 381 | 17688dc5 |  |
 | 770 | P1 | tests/test_coverage_boost3.py | Python | 733 | 3ab3036e |  |
 | 771 | P1 | tests/test_coverage_boost4.py | Python | 311 | 4776b184 |  |
 | 772 | P1 | tests/test_coverage_boost5.py | Python | 572 | 7908050d |  |
@@ -1012,7 +1012,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 942 | P1 | tests/test_order_fsm.py | Python | 448 | 7131ca04 |  |
 | 943 | P1 | tests/test_order_fsm_registry.py | Python | 197 | 306520b9 |  |
 | 944 | P1 | tests/test_order_fsm_transition_table.py | Python | 45 | 619dfda6 |  |
-| 945 | P1 | tests/test_order_manager.py | Python | 351 | 6630c734 |  |
+| 945 | P1 | tests/test_order_manager.py | Python | 364 | de91e0ec |  |
 | 946 | P1 | tests/test_order_manager_fill_validation.py | Python | 99 | 8e2f56d2 |  |
 | 947 | P1 | tests/test_order_manager_incremental_fill.py | Python | 127 | 08fbbf5b |  |
 | 948 | P1 | tests/test_order_manager_log_context.py | Python | 101 | 845ae29b |  |
@@ -1020,7 +1020,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 950 | P1 | tests/test_order_throttler.py | Python | 263 | f834e01a |  |
 | 951 | P1 | tests/test_orderbook_stream_coverage.py | Python | 259 | 538331e7 |  |
 | 952 | P1 | tests/test_orderbook_stream_publish.py | Python | 179 | 3567e651 |  |
-| 953 | P1 | tests/test_paper_executor.py | Python | 871 | 5b9055d8 |  |
+| 953 | P1 | tests/test_paper_executor.py | Python | 873 | 09baf587 |  |
 | 954 | P1 | tests/test_paper_only_timeframe_routing.py | Python | 90 | e01ca3ef |  |
 | 955 | P1 | tests/test_percent_vs_fraction_units.py | Python | 105 | 37edfb9c |  |
 | 956 | P1 | tests/test_performance_drift.py | Python | 582 | ded23fb2 |  |
@@ -1070,7 +1070,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 1000 | P1 | tests/test_review_retrieval.py | Python | 71 | 52be750e |  |
 | 1001 | P1 | tests/test_rfc6979_nonces.py | Python | 178 | 0af4946b |  |
 | 1002 | P1 | tests/test_risk_controls_api.py | Python | 629 | 08329c9c |  |
-| 1003 | P1 | tests/test_risk_gate.py | Python | 180 | 63870140 |  |
+| 1003 | P1 | tests/test_risk_gate.py | Python | 179 | 221fe900 |  |
 | 1004 | P1 | tests/test_risk_gates.py | Python | 413 | 1938500a |  |
 | 1005 | P1 | tests/test_risk_gates_coverage.py | Python | 328 | 557dedb8 |  |
 | 1006 | P1 | tests/test_risk_gates_intelligence.py | Python | 149 | 21eec210 |  |
@@ -1152,7 +1152,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 1082 | P1 | tests/test_venue_api.py | Python | 331 | f72a5e5e |  |
 | 1083 | P1 | tests/test_venue_controls.py | Python | 271 | 7f06c733 |  |
 | 1084 | P1 | tests/test_venue_controls_api.py | Python | 220 | 2a9ad18a |  |
-| 1085 | P1 | tests/test_vol_target_sizer.py | Python | 213 | 2fbf4ca2 |  |
+| 1085 | P1 | tests/test_vol_target_sizer.py | Python | 215 | dee46b89 |  |
 | 1086 | P1 | tests/test_whale_gate_advisory.py | Python | 103 | f93c3d14 |  |
 | 1087 | P1 | tests/test_whale_ratio_failure_path.py | Python | 77 | 4bdd41b9 |  |
 | 1088 | P1 | tests/test_worker_trader.py | Python | 247 | b0481a7e |  |
