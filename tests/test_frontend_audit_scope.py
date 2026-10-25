@@ -1,4 +1,4 @@
-"""SEC-0007, SEC-0008: the frontend dependency tree carries no open advisory.
+"""SEC-0007, SEC-0008, SEC-0011: the frontend dependency tree carries no open advisory.
 
 SEC-0008 is the second case and took the opposite shape. Two critical advisories
 failed Security gate on every pull request, both ``shell-quote``

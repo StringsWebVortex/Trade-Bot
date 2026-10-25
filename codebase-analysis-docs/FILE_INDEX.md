@@ -704,7 +704,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 634 | P1 | tests/regime/test_garch.py | Python | 148 | 8a4195c0 |  |
 | 635 | P1 | tests/regression/__init__.py | Python | 0 | e3b0c442 |  |
 | 636 | P1 | tests/regression/test_metrics_payload.py | Python | 120 | 094976c7 |  |
-| 637 | P1 | tests/regression/test_regression_registry_contract.py | Python | 654 | 9f54fed1 |  |
+| 637 | P1 | tests/regression/test_regression_registry_contract.py | Python | 657 | c7a036e7 |  |
 | 638 | P1 | tests/risk/__init__.py | Python | 0 | e3b0c442 |  |
 | 639 | P1 | tests/risk/test_probability_bounds.py | Python | 137 | a3b65a78 |  |
 | 640 | P1 | tests/risk/test_risk_limit_boundaries.py | Python | 300 | 37b9b36e |  |
@@ -901,7 +901,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 831 | P1 | tests/test_fetcher_symbol_precision.py | Python | 94 | fef0ec91 |  |
 | 832 | P1 | tests/test_fetcher_venue_degradation.py | Python | 195 | 505ce832 |  |
 | 833 | P1 | tests/test_folklore_gate.py | Python | 213 | 3c91b2db |  |
-| 834 | P1 | tests/test_frontend_audit_scope.py | Python | 187 | 99bf6863 |  |
+| 834 | P1 | tests/test_frontend_audit_scope.py | Python | 187 | 2c082658 |  |
 | 835 | P1 | tests/test_funding_carry.py | Python | 101 | cc7256d7 |  |
 | 836 | P1 | tests/test_gap015_backfill.py | Python | 394 | 1b36ebf2 |  |
 | 837 | P1 | tests/test_gap015_intelligence_training.py | Python | 150 | 5f0a0cbc |  |
