@@ -492,7 +492,7 @@ def collapse_oos_predictions(
     idx = np.concatenate(idx_parts)
     ret = np.concatenate(ret_parts)
     pred = np.concatenate(pred_parts).astype(np.float64)
-    uniq, first, inv = np.unique(idx, return_index=True, return_inverse=True)
+    _uniq, first, inv = np.unique(idx, return_index=True, return_inverse=True)
     votes = np.bincount(inv, weights=pred) / np.bincount(inv)
     return ret[first], (votes >= 0.5).astype(np.int8)
 

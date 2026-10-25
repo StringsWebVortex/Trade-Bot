@@ -710,7 +710,7 @@ class EnsemblePredictor:
         actual = np.asarray(y_hold, dtype=float)
         try:
             if name == "arima":
-                fitted = getattr(member, "model")
+                fitted = member.model
                 preds = np.asarray(fitted.forecast(steps=len(actual)), dtype=float)
             elif name == "lstm":
                 lookback = int(getattr(member, "lookback", 20))
@@ -727,7 +727,7 @@ class EnsemblePredictor:
             else:
                 cols = getattr(member, "_feature_cols", None)
                 X_in = X_hold[cols] if cols else X_hold
-                fitted = getattr(member, "model")
+                fitted = member.model
                 preds = np.asarray(fitted.predict(X_in), dtype=float).ravel()
         except Exception as e:
             log.error("ensemble_holdout_failed", model=name, error=str(e), exc_info=True)

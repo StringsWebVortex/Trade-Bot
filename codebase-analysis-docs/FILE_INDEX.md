@@ -57,7 +57,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 42 | P0 | src/intelligence/client.py | Python | 706 | e799d7be | Provider aggregator and caches |
 | 43 | P0 | src/models/model_registry.py | Python | 156 | 91ea9f0b | Model bundle and promotion |
 | 44 | P0 | src/models/online_trainer.py | Python | 366 | 6c961c51 | Online prediction/outcome learning |
-| 45 | P0 | src/models/trainer.py | Python | 1773 | 8a76a66f | Training, CPCV/OOS metrics and artifact validation |
+| 45 | P0 | src/models/trainer.py | Python | 1773 | c66f0f8c | Training, CPCV/OOS metrics and artifact validation |
 | 46 | P0 | src/regime/detector.py | Python | 828 | 4ca13328 | HMM regime detector |
 | 47 | P0 | src/risk/gates.py | Python | 1281 | 36a7f38f | Sequential trading gates and exits |
 | 48 | P0 | src/runtime/changes.py | Python | 783 | 310891d5 | Runtime change lifecycle and audit |
@@ -111,7 +111,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 41 | P0 | src/intelligence/client.py | Python | 706 | e799d7be | Provider aggregator and caches |
 | 42 | P0 | src/models/model_registry.py | Python | 156 | 91ea9f0b | Model bundle and promotion |
 | 43 | P0 | src/models/online_trainer.py | Python | 366 | 6c961c51 | Online prediction/outcome learning |
-| 44 | P0 | src/models/trainer.py | Python | 1773 | 8a76a66f | Training, CPCV/OOS metrics and artifact validation |
+| 44 | P0 | src/models/trainer.py | Python | 1773 | c66f0f8c | Training, CPCV/OOS metrics and artifact validation |
 | 45 | P0 | src/regime/detector.py | Python | 828 | 4ca13328 | HMM regime detector |
 | 46 | P0 | src/risk/gates.py | Python | 1281 | 36a7f38f | Sequential trading gates and exits |
 | 47 | P0 | src/runtime/changes.py | Python | 783 | 310891d5 | Runtime change lifecycle and audit |
@@ -385,7 +385,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 315 | P1 | src/intelligence/__init__.py | Python | 18 | 7fb63030 |  |
 | 316 | P1 | src/intelligence/calibration.py | Python | 133 | 44372c76 |  |
 | 317 | P1 | src/intelligence/causal_inference.py | Python | 454 | eee0bfea |  |
-| 318 | P1 | src/intelligence/ensemble_predictor.py | Python | 1023 | ab61642c |  |
+| 318 | P1 | src/intelligence/ensemble_predictor.py | Python | 1023 | 7aa09de2 |  |
 | 319 | P1 | src/intelligence/intelligence_adapter.py | Python | 145 | 9adedd75 |  |
 | 320 | P1 | src/intelligence/lstm_runtime.py | Python | 16 | 39702e4d |  |
 | 321 | P1 | src/intelligence/macro_indicators.py | Python | 147 | a2289d90 |  |
@@ -704,7 +704,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 634 | P1 | tests/regime/test_garch.py | Python | 148 | 8a4195c0 |  |
 | 635 | P1 | tests/regression/__init__.py | Python | 0 | e3b0c442 |  |
 | 636 | P1 | tests/regression/test_metrics_payload.py | Python | 120 | 094976c7 |  |
-| 637 | P1 | tests/regression/test_regression_registry_contract.py | Python | 654 | 9f54fed1 |  |
+| 637 | P1 | tests/regression/test_regression_registry_contract.py | Python | 663 | d362fd7d |  |
 | 638 | P1 | tests/risk/__init__.py | Python | 0 | e3b0c442 |  |
 | 639 | P1 | tests/risk/test_probability_bounds.py | Python | 137 | a3b65a78 |  |
 | 640 | P1 | tests/risk/test_risk_limit_boundaries.py | Python | 300 | 37b9b36e |  |
