@@ -14,10 +14,10 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | # | Priority | Path | Type | Lines | SHA8 | Why it matters |
 | ---: | --- | --- | --- | ---: | --- | --- |
 | 1 | P0 | .github/workflows/ci-diagnostics.yml | YAML | 44 | 00c6ca90 | SHA-bound CI diagnostics collector |
-| 2 | P0 | .github/workflows/ci.yml | YAML | 408 | 1afd1d2e | CI jobs and gate composition |
+| 2 | P0 | .github/workflows/ci.yml | YAML | 408 | 157db505 | CI jobs and gate composition |
 | 3 | P0 | AGENTS.md | Markdown | 46 | c98828a6 | Engineering workflow and safety contract |
 | 4 | P0 | CLAUDE.md | Markdown | 658 | f481b299 | Architecture, quality, CI and project policy |
-| 5 | P0 | Dockerfile | Other text/source | 142 | 63505f02 | Container runtime, identity, healthcheck and entrypoint |
+| 5 | P0 | Dockerfile | Other text/source | 145 | db5c42f1 | Container runtime, identity, healthcheck and entrypoint |
 | 6 | P0 | Makefile | Other text/source | 46 | 9544ed34 | Developer commands governed by repository policy |
 | 7 | P0 | README.md | Markdown | 466 | 6d46aebf | Purpose, usage and declared architecture |
 | 8 | P0 | config/architecture_layers.json | JSON | 78 | 734d6397 | Enforced import layering |
@@ -68,10 +68,10 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 
 | # | Priority | Path | Type | Lines | SHA8 | Notes |
 | ---: | --- | --- | --- | ---: | --- | --- |
-| 1 | P0 | .github/workflows/ci.yml | YAML | 408 | 1afd1d2e | CI jobs and gate composition |
+| 1 | P0 | .github/workflows/ci.yml | YAML | 408 | 157db505 | CI jobs and gate composition |
 | 2 | P0 | AGENTS.md | Markdown | 46 | c98828a6 | Engineering workflow and safety contract |
 | 3 | P0 | CLAUDE.md | Markdown | 658 | f481b299 | Architecture, quality, CI and project policy |
-| 4 | P0 | Dockerfile | Other text/source | 142 | 63505f02 | Container runtime, identity, healthcheck and entrypoint |
+| 4 | P0 | Dockerfile | Other text/source | 145 | db5c42f1 | Container runtime, identity, healthcheck and entrypoint |
 | 5 | P0 | Makefile | Other text/source | 46 | 9544ed34 | Developer commands governed by repository policy |
 | 6 | P0 | README.md | Markdown | 466 | 6d46aebf | Purpose, usage and declared architecture |
 | 7 | P0 | config/architecture_layers.json | JSON | 78 | 734d6397 | Enforced import layering |
@@ -135,13 +135,13 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 65 | P1 | .github/pull_request_template.md | Markdown | 15 | e8ad60ce |  |
 | 66 | P1 | .github/rulesets/main-protection.json | JSON | 110 | 585c7190 |  |
 | 67 | P1 | .github/workflows/ci-diagnostics.yml | YAML | 44 | 00c6ca90 |  |
-| 68 | P1 | .github/workflows/codeql.yml | YAML | 118 | 0a720b76 |  |
-| 69 | P1 | .github/workflows/deploy.yml | YAML | 173 | 0a5699c6 |  |
-| 70 | P1 | .github/workflows/nightly-quality.yml | YAML | 141 | 44436fa9 |  |
-| 71 | P1 | .github/workflows/pr-auto-update.yml | YAML | 309 | 35b663ab |  |
-| 72 | P1 | .github/workflows/rag-ingest.yml | YAML | 54 | 61ce5844 |  |
-| 73 | P1 | .github/workflows/release.yml | YAML | 133 | dfddb74d |  |
-| 74 | P1 | .github/workflows/security.yml | YAML | 476 | 6337eba3 |  |
+| 68 | P1 | .github/workflows/codeql.yml | YAML | 118 | 92cec6ba |  |
+| 69 | P1 | .github/workflows/deploy.yml | YAML | 173 | b4b44dc3 |  |
+| 70 | P1 | .github/workflows/nightly-quality.yml | YAML | 141 | 08f2db1b |  |
+| 71 | P1 | .github/workflows/pr-auto-update.yml | YAML | 309 | 9122095b |  |
+| 72 | P1 | .github/workflows/rag-ingest.yml | YAML | 54 | 3ef87ddd |  |
+| 73 | P1 | .github/workflows/release.yml | YAML | 133 | b595cd54 |  |
+| 74 | P1 | .github/workflows/security.yml | YAML | 476 | fa6294fe |  |
 | 75 | P1 | .github/workflows/workflow-lint.yml | YAML | 112 | efae0a17 |  |
 | 76 | P1 | config/arch_baseline.json | JSON | 39 | f96b26e3 |  |
 | 77 | P1 | config/exchange_key_posture.json | JSON | 23 | eed97927 |  |
