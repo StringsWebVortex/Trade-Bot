@@ -54,6 +54,25 @@ def test_bash_output_is_replaced_without_changing_tool_shape():
     assert len(output["stdout"].splitlines()) <= 4
 
 
+def test_prfail_report_keeps_every_failure_up_to_the_larger_budget():
+    """DOC-021: the CI report used to be cut to its first 3 error lines."""
+    gate = load_gate()
+    raw = "\n".join(f"ERROR: check {i} failed" for i in range(12))
+
+    def stdout_for(command):
+        event = {
+            "tool_name": "Bash",
+            "tool_input": {"command": command},
+            "tool_response": {"stdout": raw, "stderr": "", "interrupted": False, "isImage": False},
+        }
+        return gate.transform(event)["hookSpecificOutput"]["updatedToolOutput"]["stdout"]
+
+    report = stdout_for("./scripts/prfail --pr 123")
+    assert all(f"check {i} failed" in report for i in range(12))
+    assert "check 11 failed" not in stdout_for("./scripts/prfail --pr 123; echo hi")
+    assert "check 11 failed" not in stdout_for("pytest")
+
+
 def test_bash_success_summary_is_small():
     gate = load_gate()
     raw = "\n".join(f"progress {i}" for i in range(500))

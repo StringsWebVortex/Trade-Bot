@@ -109,17 +109,31 @@ class ValidationReport:
     component: str
     findings: list[Finding] = field(default_factory=list)
 
-    def apply_baseline(self, fingerprints: set[str]) -> int:
+    def apply_baseline(self, fingerprints: set[str], counts: dict[str, int] | None = None) -> int:
         """Mark known-accepted findings as suppressed; return how many matched.
 
         The gate then fails only on findings introduced after the baseline was
         written, which is what makes it usable on an existing codebase.
+
+        A fingerprint carries no line or evidence, so on its own it would also
+        hide every NEW instance of the same check in the same file. ``counts``
+        bounds that: at most ``counts[fp]`` failures per fingerprint are
+        suppressed (a fingerprint missing from ``counts`` allows one), so a
+        second ``verify=False`` in an already-baselined file fails the gate.
+        ``counts=None`` is the legacy unbounded form, kept for old baselines.
         """
         count = 0
-        for f in self.findings:
-            if not f.passed and f.fingerprint in fingerprints:
-                f.suppressed = True
-                count += 1
+        used: dict[str, int] = {}
+        ordered = sorted(
+            (f for f in self.findings if not f.passed and f.fingerprint in fingerprints),
+            key=lambda f: (f.line is None, f.line or 0),
+        )
+        for f in ordered:
+            if counts is not None and used.get(f.fingerprint, 0) >= counts.get(f.fingerprint, 1):
+                continue
+            used[f.fingerprint] = used.get(f.fingerprint, 0) + 1
+            f.suppressed = True
+            count += 1
         return count
 
     def open_failures(self) -> list[Finding]:
@@ -127,6 +141,13 @@ class ValidationReport:
 
     def fingerprints(self) -> list[str]:
         return sorted({f.fingerprint for f in self.findings if not f.passed})
+
+    def fingerprint_counts(self) -> dict[str, int]:
+        counts: dict[str, int] = {}
+        for f in self.findings:
+            if not f.passed:
+                counts[f.fingerprint] = counts.get(f.fingerprint, 0) + 1
+        return dict(sorted(counts.items()))
 
     def passed(self, fail_threshold: Severity = Severity.HIGH) -> bool:
         return not any(f.severity >= fail_threshold for f in self.open_failures())
@@ -1517,6 +1538,7 @@ def main() -> None:
                     "component": args.component,
                     "generated_by": "validate_arch.py v3.0",
                     "fingerprints": report.fingerprints(),
+                    "counts": report.fingerprint_counts(),
                 },
                 indent=2,
             )
@@ -1536,10 +1558,14 @@ def main() -> None:
         try:
             data = json.loads(args.baseline.read_text(encoding="utf-8"))
             known = set(data["fingerprints"])
+            raw_counts = data.get("counts")
+            counts = (
+                {str(k): int(v) for k, v in raw_counts.items()} if raw_counts is not None else None
+            )
         except (OSError, ValueError, KeyError, TypeError) as exc:
             print(f"ERROR: Malformed baseline {args.baseline}: {exc}", file=sys.stderr)
             sys.exit(2)
-        report.apply_baseline(known)
+        report.apply_baseline(known, counts)
 
     if args.sarif:
         output = json.dumps(report.to_sarif(fail_threshold=fail_sev), indent=2)

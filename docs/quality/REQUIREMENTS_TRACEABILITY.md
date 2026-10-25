@@ -47,11 +47,11 @@ deletion of the thing it points at.
 
 | Status | Entries |
 |---|---|
-| VERIFIED | 216 |
+| VERIFIED | 225 |
 | PARTIAL | 3 |
 | PLANNED | 0 |
 | ACCEPTED GAP | 0 |
-| **Total** | **219** |
+| **Total** | **228** |
 
 ## Summary by subsystem
 
@@ -64,12 +64,12 @@ deletion of the thing it points at.
 | Models and leakage | 10 | 10 |
 | Data, money and time | 10 | 9 |
 | API and WebSocket | 21 | 21 |
-| Cryptography and secrets | 30 | 30 |
+| Cryptography and secrets | 31 | 31 |
 | Supply chain and artifacts | 7 | 7 |
-| Resilience and recovery | 24 | 24 |
+| Resilience and recovery | 27 | 27 |
 | Release and production | 14 | 14 |
-| Governance | 60 | 59 |
-| Terminal and process center | 12 | 12 |
+| Governance | 64 | 63 |
+| Terminal and process center | 13 | 13 |
 
 ## Outstanding work by phase
 
@@ -1371,6 +1371,19 @@ The integrated terminal adds a command-execution surface; nothing reaches it exc
 
 > layer: test-suite
 
+#### `SEC-1225` — Orchestrator workers default to read-only tools
+
+**VERIFIED** · high · security_regression · source: OPS-2026-10-25
+
+WORKER_ALLOWED_TOOLS defaults to Read,Grep,Glob; shell access is an explicit opt-in.
+
+- **If violated:** LLM-authored subtasks ran with pre-approved Bash, so injected content became shell execution.
+- **Owned by:** `orchestrator/config.py`
+- **Verification:**
+  - `tests/test_orchestrator_pkg_run.py` (security)
+
+> layer: test-suite
+
 ## Supply chain and artifacts
 
 #### `SUP-001` — Every workflow declares least-privilege permissions
@@ -1762,6 +1775,45 @@ When the lifespan raises -- the fetcher reaching no exchange venue, the orchestr
 - **Owned by:** `src/api/main.py`
 - **Verification:**
   - `tests/test_startup_readiness.py` (regression)
+
+> layer: test-suite
+
+#### `REG-1221` — Dead-task scan observes watched tasks
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+RuntimeMonitor reports a watched asyncio task that ends with an exception and ignores cancelled or clean ones.
+
+- **If violated:** asyncio.all_tasks() never returns finished tasks, so the dead-task probe could not fire.
+- **Owned by:** `src/diagnostics/runtime_monitor.py`
+- **Verification:**
+  - `tests/test_runtime_monitor_coverage.py` (regression)
+
+> layer: test-suite
+
+#### `REG-1222` — ECC worker thread stops and never blocks on a full queue
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+The ECC worker exits when its stop event is set and drops a result instead of blocking when the output queue is full.
+
+- **If violated:** The loop was while True with an unbounded put, so shutdown always timed out and the thread leaked.
+- **Owned by:** `src/workers/orchestrator.py`
+- **Verification:**
+  - `tests/test_workers_orchestrator_coverage.py` (regression)
+
+> layer: test-suite
+
+#### `REG-1223` — scale() counts the ECC slot and stops the exact process
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+scale(n) targets n-1 model workers, spawns the difference, stops popped processes directly, and shutdown terminates any survivor.
+
+- **If violated:** scale compared n with model workers only (spawned none after start(n)) and sentinels on a shared queue left popped processes alive and untracked.
+- **Owned by:** `src/workers/orchestrator.py`
+- **Verification:**
+  - `tests/test_workers_orchestrator_coverage.py` (regression)
 
 > layer: test-suite
 
@@ -2659,6 +2711,60 @@ Every scripts/ path named in the README, in src/ comments or in a test's skip me
 
 > scripts/timescaledb.sh was referenced from six call sites -- README.md three times, src/config.py, src/data/storage.py and the skip message in tests/test_timescale_storage.py -- and did not exist; removed by the config purge (#144) without the references going with it. The test guards the general form (a named scripts/ path that is absent) as well as this one file, and pins the script to ci.yml's service block so the local and CI databases cannot drift apart silently. layer: test-suite
 
+#### `REG-1226` — Orchestrator survives a failing worker and prose-wrapped plans
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+A failing worker becomes an error digest without discarding the others, concurrency is capped, and the planner uses a JSON schema with a lenient fallback.
+
+- **If violated:** fut.result() raised and discarded every other digest; planner json.loads failed on fence or prose variants.
+- **Owned by:** `orchestrator/run.py`, `orchestrator/planner.py`
+- **Verification:**
+  - `tests/test_orchestrator_pkg_run.py` (regression)
+  - `tests/test_orchestrator_pkg_planner.py` (regression)
+
+> layer: test-suite
+
+#### `REG-1227` — prfail report is not truncated to three lines
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+The observation gate applies the larger diagnostic budget to the exact ./scripts/prfail --pr N command.
+
+- **If violated:** All Bash output was cut to 3 lines, hiding most CI diagnostics.
+- **Owned by:** `.claude/hooks/observation_gate.py`
+- **Verification:**
+  - `tests/test_observation_gate.py` (regression)
+
+> layer: test-suite
+
+#### `SEC-1220` — Attested CI evidence only counts with a prfail verdict
+
+**VERIFIED** · high · security_regression · source: OPS-2026-10-25
+
+A CI_NOTICE evidence record satisfies a required validation only when the reliability store holds a green prfail verdict for that exact HEAD.
+
+- **If violated:** The gated agent could record_ci --state success with any SHA and satisfy completion by attesting to it.
+- **Owned by:** `src/agent_control/completion.py`, `src/agent_control/reliability.py`
+- **Verification:**
+  - `tests/agent_control/test_completion.py` (security)
+  - `tests/agent_control/test_reliability.py` (security)
+
+> layer: test-suite
+
+#### `SEC-1228` — Arch baseline bounds suppression by count
+
+**VERIFIED** · high · security_regression · source: OPS-2026-10-25
+
+A baselined fingerprint suppresses at most its recorded number of findings, so a new instance in an already-baselined file fails the gate.
+
+- **If violated:** Fingerprints have no line or evidence, so any new instance of a baselined check in that file was silently suppressed.
+- **Owned by:** `.claude/skills/crypto-architect/scripts/validate_arch.py`, `config/arch_baseline.json`
+- **Verification:**
+  - `tests/test_crypto_architect_skill.py` (security)
+
+> layer: test-suite
+
 ## Terminal and process center
 
 #### `TERM-001` — Terminal sessions are real PTYs that every client shares
@@ -2810,6 +2916,19 @@ When `tradebot-term attach` ends, it sends session.detach as a request and waits
 
 > Visible only when the daemon is slower to read than the CLI is to close, so it failed on a loaded runner and passed on an idle one. The test records the calls attach makes instead of racing a real socket. layer: test-suite
 
+#### `SEC-1224` — Terminal daemon and PTYs get an allowlisted environment
+
+**VERIFIED** · high · security_regression · source: OPS-2026-10-25
+
+The terminal daemon and session shells inherit only allowlisted variables and never names that look secret.
+
+- **If violated:** The daemon inherited the caller's full environment, handing exchange keys and OPERATOR_SECRET to every terminal session.
+- **Owned by:** `src/terminal/config.py`, `src/terminal/cli.py`, `src/terminal/sessions.py`
+- **Verification:**
+  - `tests/terminal/test_terminal_cli.py` (security)
+
+> layer: test-suite
+
 
 ---
 
@@ -2838,4 +2957,4 @@ To add or change an entry, edit the registry and regenerate this file. See
 `docs/quality/TEST_STRATEGY.md` for the taxonomy the `test_type` column draws
 on, and `docs/quality/IMPLEMENTATION_PLAN.md` for what each phase delivers.
 
-Registry version: 1.0.0 — 219 entries.
+Registry version: 1.0.0 — 228 entries.

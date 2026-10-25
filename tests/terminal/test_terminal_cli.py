@@ -493,6 +493,30 @@ class TestLifecycleHelpers:
         assert launched["env"]["PYTHONPATH"].endswith(os.pathsep + "/elsewhere")
         assert config.log_path.stat().st_size == 0
 
+    def test_spawn_detached_does_not_pass_secrets_to_the_daemon(self, config, monkeypatch):
+        """AGT-023: the daemon used to inherit the caller's whole environment."""
+        monkeypatch.setenv("BINANCE_API_SECRET", "s3cret")
+        monkeypatch.setenv("OPERATOR_SECRET", "op")
+        monkeypatch.setenv("TB_TERMINAL_API_TOKEN", "tok")
+        monkeypatch.setenv("UNRELATED_VAR", "x")
+        monkeypatch.setenv("PATH", "/usr/bin")
+        launched = {}
+        monkeypatch.setattr(cli.subprocess, "Popen", lambda argv, **kw: launched.update(kw))
+        cli._spawn_detached(config)
+        env = launched["env"]
+        assert env["PATH"] == "/usr/bin"
+        leaked = {"BINANCE_API_SECRET", "OPERATOR_SECRET", "TB_TERMINAL_API_TOKEN", "UNRELATED_VAR"}
+        assert not leaked & set(env)
+
+    def test_session_manager_default_environment_is_scrubbed(self, monkeypatch):
+        from src.terminal.config import scrubbed_environment
+
+        monkeypatch.setenv("EXCHANGE_API_KEY", "k")
+        monkeypatch.setenv("LANG", "C.UTF-8")
+        env = scrubbed_environment()
+        assert "EXCHANGE_API_KEY" not in env
+        assert env["LANG"] == "C.UTF-8"
+
 
 class TestHelpers:
     @pytest.mark.parametrize(

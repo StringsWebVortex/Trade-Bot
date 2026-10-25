@@ -293,6 +293,16 @@ def gate(
     return ReliabilityResult(True)
 
 
+def ci_is_green(sha: str | None) -> bool:
+    """True only when a ``scripts/prfail`` verdict recorded in the reliability
+    store says CI is green for exactly ``sha`` (AGT-003: agent attestation alone is not proof)."""
+    if not sha:
+        return False
+    with _locked() as path:
+        data = _load(path)
+    return data.get("ci", {}).get(sha, {}).get("status") == "green"
+
+
 def snapshot() -> dict[str, Any]:
     with _locked() as path:
         return _load(path)

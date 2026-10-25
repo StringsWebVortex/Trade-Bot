@@ -5613,6 +5613,217 @@
         }
       ],
       "depends_on": []
+    },
+    {
+      "id": "SEC-1220",
+      "kind": "security_regression",
+      "title": "Attested CI evidence only counts with a prfail verdict",
+      "statement": "A CI_NOTICE evidence record satisfies a required validation only when the reliability store holds a green prfail verdict for that exact HEAD.",
+      "criticality": "high",
+      "subsystem": "governance",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "The gated agent could record_ci --state success with any SHA and satisfy completion by attesting to it.",
+      "owning_modules": [
+        "src/agent_control/completion.py",
+        "src/agent_control/reliability.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/agent_control/test_completion.py",
+          "test_type": "security"
+        },
+        {
+          "test": "tests/agent_control/test_reliability.py",
+          "test_type": "security"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1221",
+      "kind": "regression",
+      "title": "Dead-task scan observes watched tasks",
+      "statement": "RuntimeMonitor reports a watched asyncio task that ends with an exception and ignores cancelled or clean ones.",
+      "criticality": "medium",
+      "subsystem": "resilience",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "asyncio.all_tasks() never returns finished tasks, so the dead-task probe could not fire.",
+      "owning_modules": [
+        "src/diagnostics/runtime_monitor.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_runtime_monitor_coverage.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1222",
+      "kind": "regression",
+      "title": "ECC worker thread stops and never blocks on a full queue",
+      "statement": "The ECC worker exits when its stop event is set and drops a result instead of blocking when the output queue is full.",
+      "criticality": "medium",
+      "subsystem": "resilience",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "The loop was while True with an unbounded put, so shutdown always timed out and the thread leaked.",
+      "owning_modules": [
+        "src/workers/orchestrator.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_workers_orchestrator_coverage.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1223",
+      "kind": "regression",
+      "title": "scale() counts the ECC slot and stops the exact process",
+      "statement": "scale(n) targets n-1 model workers, spawns the difference, stops popped processes directly, and shutdown terminates any survivor.",
+      "criticality": "medium",
+      "subsystem": "resilience",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "scale compared n with model workers only (spawned none after start(n)) and sentinels on a shared queue left popped processes alive and untracked.",
+      "owning_modules": [
+        "src/workers/orchestrator.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_workers_orchestrator_coverage.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "SEC-1224",
+      "kind": "security_regression",
+      "title": "Terminal daemon and PTYs get an allowlisted environment",
+      "statement": "The terminal daemon and session shells inherit only allowlisted variables and never names that look secret.",
+      "criticality": "high",
+      "subsystem": "terminal",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "The daemon inherited the caller's full environment, handing exchange keys and OPERATOR_SECRET to every terminal session.",
+      "owning_modules": [
+        "src/terminal/config.py",
+        "src/terminal/cli.py",
+        "src/terminal/sessions.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/terminal/test_terminal_cli.py",
+          "test_type": "security"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "SEC-1225",
+      "kind": "security_regression",
+      "title": "Orchestrator workers default to read-only tools",
+      "statement": "WORKER_ALLOWED_TOOLS defaults to Read,Grep,Glob; shell access is an explicit opt-in.",
+      "criticality": "high",
+      "subsystem": "security",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "LLM-authored subtasks ran with pre-approved Bash, so injected content became shell execution.",
+      "owning_modules": [
+        "orchestrator/config.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_orchestrator_pkg_run.py",
+          "test_type": "security"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1226",
+      "kind": "regression",
+      "title": "Orchestrator survives a failing worker and prose-wrapped plans",
+      "statement": "A failing worker becomes an error digest without discarding the others, concurrency is capped, and the planner uses a JSON schema with a lenient fallback.",
+      "criticality": "medium",
+      "subsystem": "governance",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "fut.result() raised and discarded every other digest; planner json.loads failed on fence or prose variants.",
+      "owning_modules": [
+        "orchestrator/run.py",
+        "orchestrator/planner.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_orchestrator_pkg_run.py",
+          "test_type": "regression"
+        },
+        {
+          "test": "tests/test_orchestrator_pkg_planner.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1227",
+      "kind": "regression",
+      "title": "prfail report is not truncated to three lines",
+      "statement": "The observation gate applies the larger diagnostic budget to the exact ./scripts/prfail --pr N command.",
+      "criticality": "medium",
+      "subsystem": "governance",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "All Bash output was cut to 3 lines, hiding most CI diagnostics.",
+      "owning_modules": [
+        ".claude/hooks/observation_gate.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_observation_gate.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "SEC-1228",
+      "kind": "security_regression",
+      "title": "Arch baseline bounds suppression by count",
+      "statement": "A baselined fingerprint suppresses at most its recorded number of findings, so a new instance in an already-baselined file fails the gate.",
+      "criticality": "high",
+      "subsystem": "governance",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "Fingerprints have no line or evidence, so any new instance of a baselined check in that file was silently suppressed.",
+      "owning_modules": [
+        ".claude/skills/crypto-architect/scripts/validate_arch.py",
+        "config/arch_baseline.json"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_crypto_architect_skill.py",
+          "test_type": "security"
+        }
+      ],
+      "depends_on": []
     }
   ]
 }

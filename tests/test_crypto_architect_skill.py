@@ -306,6 +306,25 @@ def test_malformed_baseline_is_an_input_error(va, in_tmp: Path, monkeypatch) -> 
     )
 
 
+def test_baseline_count_does_not_hide_a_new_instance_in_a_baselined_file(va) -> None:
+    """DOC-022: a fingerprint has no line, so a 2nd identical finding used to be suppressed too."""
+    old = va.Finding("LAW5", "verify=False", False, va.Severity.CRITICAL, "e", file="a.py", line=3)
+    new = va.Finding("LAW5", "verify=False", False, va.Severity.CRITICAL, "e", file="a.py", line=9)
+    report = va.ValidationReport("t", [old, new])
+    assert report.fingerprint_counts() == {old.fingerprint: 2}
+    assert report.apply_baseline({old.fingerprint}, {old.fingerprint: 1}) == 1
+    assert old.suppressed and not new.suppressed
+    assert report.passed() is False
+
+
+def test_baseline_with_matching_count_suppresses_every_accepted_instance(va) -> None:
+    a = va.Finding("LAW5", "verify=False", False, va.Severity.CRITICAL, "e", file="a.py", line=3)
+    b = va.Finding("LAW5", "verify=False", False, va.Severity.CRITICAL, "e", file="a.py", line=9)
+    report = va.ValidationReport("t", [a, b])
+    assert report.apply_baseline({a.fingerprint}, {a.fingerprint: 2}) == 2
+    assert report.passed() is True
+
+
 def test_baseline_suppresses_known_findings_without_hiding_new_ones(va) -> None:
     known = va.Finding("LAW6", "known", False, va.Severity.CRITICAL, "e", file="a.py")
     new = va.Finding("LAW6", "new", False, va.Severity.CRITICAL, "e", file="a.py")

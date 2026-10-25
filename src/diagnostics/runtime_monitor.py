@@ -123,6 +123,23 @@ class RuntimeMonitor:
         self._task: asyncio.Task | None = None
         self._snapshot: HealthSnapshot | None = None
         self._running = False
+        self._dead_tasks: dict[str, str] = {}
+
+    def watch_task(self, task: asyncio.Task) -> None:
+        """Track ``task`` so that dying with an exception is reported as an alert.
+
+        ``asyncio.all_tasks()`` never returns finished tasks, so death can only
+        be observed through a done-callback (AGT-012).
+        """
+
+        def _on_done(t: asyncio.Task) -> None:
+            if t.cancelled():
+                return
+            exc = t.exception()
+            if exc is not None:
+                self._dead_tasks[t.get_name()] = f"{type(exc).__name__}: {exc}"
+
+        task.add_done_callback(_on_done)
 
     # ------------------------------------------------------------------ #
     # Registration API
@@ -340,12 +357,8 @@ class RuntimeMonitor:
         else:
             self._results[pr_name] = ProbeResult(name=pr_name, passed=True, value=round(mem_mb, 1))
 
-        # 4. Asyncio task death scan
-        dead = [
-            t.get_name()
-            for t in asyncio.all_tasks()
-            if t.done() and not t.cancelled() and t.get_name() not in ("Task-1",)
-        ]
+        # 4. Asyncio task death scan (tasks registered via watch_task)
+        dead = list(self._dead_tasks)
         if dead:
             log.error("health_probe.dead_tasks_detected", tasks=dead)
             alerts.append(f"dead_tasks: {dead}")
