@@ -47,11 +47,11 @@ deletion of the thing it points at.
 
 | Status | Entries |
 |---|---|
-| VERIFIED | 216 |
+| VERIFIED | 217 |
 | PARTIAL | 3 |
 | PLANNED | 0 |
 | ACCEPTED GAP | 0 |
-| **Total** | **219** |
+| **Total** | **220** |
 
 ## Summary by subsystem
 
@@ -62,7 +62,7 @@ deletion of the thing it points at.
 | Portfolio | 1 | 1 |
 | Signal and features | 6 | 6 |
 | Models and leakage | 10 | 10 |
-| Data, money and time | 10 | 9 |
+| Data, money and time | 11 | 10 |
 | API and WebSocket | 21 | 21 |
 | Cryptography and secrets | 30 | 30 |
 | Supply chain and artifacts | 7 | 7 |
@@ -740,6 +740,18 @@ MarketDataFetcher.initialize() must open each venue independently, record an una
   - `tests/test_fetcher_venue_degradation.py` (regression)
 
 > Observed against Binance answering HTTP 451 'Service unavailable from a restricted location' on both mainnet and testnet from an affected network, which made the backend unstartable however healthy OKX and everything else was. initialize() built both venues and loaded their markets in one unisolated sequence. GET /venues and POST /venues/{venue}/reconnect expose the state and the recovery so neither needs a restart. layer: test-suite
+
+#### `REG-1071` — Forming candles are never persisted
+
+**VERIFIED** · critical · regression · source: OPS-2026-10-25
+
+The fetcher drops rows whose ts + timeframe exceeds now, so an unfinished candle is never stored
+
+- **If violated:** Partial candle stored permanently (insert-only storage, gap_fill resumes after it)
+- **Verification:**
+  - `tests/features/test_closed_bar_inference.py` (regression)
+
+> Audit DAT-002, EXR-003
 
 ## API and WebSocket
 
@@ -2838,4 +2850,4 @@ To add or change an entry, edit the registry and regenerate this file. See
 `docs/quality/TEST_STRATEGY.md` for the taxonomy the `test_type` column draws
 on, and `docs/quality/IMPLEMENTATION_PLAN.md` for what each phase delivers.
 
-Registry version: 1.0.0 — 219 entries.
+Registry version: 1.0.0 — 220 entries.

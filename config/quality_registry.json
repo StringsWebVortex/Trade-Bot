@@ -5613,6 +5613,24 @@
         }
       ],
       "depends_on": []
+    },
+    {
+      "id": "REG-1071",
+      "kind": "regression",
+      "title": "Forming candles are never persisted",
+      "statement": "The fetcher drops rows whose ts + timeframe exceeds now, so an unfinished candle is never stored",
+      "criticality": "critical",
+      "subsystem": "data",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "Partial candle stored permanently (insert-only storage, gap_fill resumes after it)",
+      "verification": [
+        {
+          "test": "tests/features/test_closed_bar_inference.py",
+          "test_type": "regression"
+        }
+      ],
+      "notes": "Audit DAT-002, EXR-003"
     }
   ]
 }
