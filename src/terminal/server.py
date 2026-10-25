@@ -236,7 +236,8 @@ class TerminalServer:
     ) -> None:
         sock = writer.get_extra_info("socket")
         uid = auth.peer_uid(sock) if sock is not None else None
-        if uid is not None and uid != os.getuid():
+        # AGT-030: fail closed when the peer uid cannot be determined.
+        if uid is None or uid != os.getuid():
             log.warning("terminal.unix_refused_peer", peer_uid=uid)
             writer.close()
             return

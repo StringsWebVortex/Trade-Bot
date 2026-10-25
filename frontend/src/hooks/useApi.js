@@ -32,6 +32,17 @@ export function apiFetch(path, opts = {}) {
  * credential the server never checks. Returns the parsed body, or null
  * after alerting.
  */
+// FE-16: failures are reported through a registered notifier (the app shows a
+// banner); alert() is only the fallback when nothing is listening.
+let _errorNotifier = null;
+export function setErrorNotifier(fn) {
+  _errorNotifier = fn;
+}
+function reportError(message) {
+  if (_errorNotifier) _errorNotifier(message);
+  else alert(message);
+}
+
 export async function postJson(path, body) {
   try {
     const res = await apiFetch(path, {
@@ -41,12 +52,12 @@ export async function postJson(path, body) {
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      alert(`Request failed: ${err.detail || res.status}`);
+      reportError(`Request failed: ${err.detail || res.status}`);
       return null;
     }
     return await res.json();
   } catch (e) {
-    alert(`Request failed: ${e.message || 'network error'}`);
+    reportError(`Request failed: ${e.message || 'network error'}`);
     return null;
   }
 }
@@ -443,7 +454,7 @@ export function useOperatorAction() {
 
   const action = useCallback(async (path, method, body) => {
     if (!operatorSecret) {
-      alert('Enter the operator secret first.');
+      reportError('Enter the operator secret first.');
       return null;
     }
     try {
@@ -454,12 +465,12 @@ export function useOperatorAction() {
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        alert(`Action failed: ${err.detail || res.status}`);
+        reportError(`Action failed: ${err.detail || res.status}`);
         return null;
       }
       return await res.json();
     } catch (e) {
-      alert(`Action failed: ${e.message || 'network error'}`);
+      reportError(`Action failed: ${e.message || 'network error'}`);
       return null;
     }
   }, [operatorId, operatorSecret]);

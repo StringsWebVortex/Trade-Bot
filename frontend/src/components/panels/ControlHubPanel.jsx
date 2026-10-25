@@ -239,7 +239,10 @@ export function ControlHubPanel({ operatorAction, refreshToken }) {
 
       {groups.map(([group, controls]) => (
         <section key={group}>
-          <h3
+          <h3 style={{ margin: 0 }}>
+          <button
+            type="button"
+            aria-expanded={!collapsed.has(group)}
             onClick={() =>
               setCollapsed((prev) => {
                 const next = new Set(prev);
@@ -254,10 +257,16 @@ export function ControlHubPanel({ operatorAction, refreshToken }) {
               color: 'var(--c-faint)',
               cursor: 'pointer',
               userSelect: 'none',
+              background: 'none',
+              border: 0,
+              padding: 0,
+              font: 'inherit',
+              textAlign: 'left',
             }}
           >
             {collapsed.has(group) ? '▸' : '▾'} {GROUP_TITLES[group] || group}{' '}
             <span style={{ opacity: 0.6 }}>({controls.length})</span>
+          </button>
           </h3>
           <div
             hidden={collapsed.has(group)}

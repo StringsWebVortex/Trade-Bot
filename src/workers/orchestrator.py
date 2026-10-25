@@ -456,6 +456,19 @@ def _utxos_with_ages(utxos: list[dict]) -> list[dict]:
     return converted
 
 
+def redact_url(url: str) -> str:
+    """Drop any ``user:pass@`` userinfo before a URL is logged (AGT-020)."""
+    from urllib.parse import urlsplit
+
+    parts = urlsplit(url)
+    if parts.username is None and parts.password is None:
+        return url
+    host = parts.hostname or ""
+    if parts.port:
+        host = f"{host}:{parts.port}"
+    return parts._replace(netloc=f"***@{host}").geturl()
+
+
 def _fetch_recent_block_transactions(
     rpc_url: str,
     rpc_user: str,
@@ -477,6 +490,7 @@ def _fetch_recent_block_transactions(
             auth=(rpc_user, rpc_pass),
             timeout=timeout,
         )
+        resp.raise_for_status()
         payload = resp.json()
         if payload.get("error"):
             raise RuntimeError(f"{method} failed: {payload['error']}")
@@ -503,7 +517,7 @@ def _ecc_worker(
     Uses coincurve C bindings which release the GIL, so this runs in a thread
     without blocking the asyncio event loop.
     """
-    log.info("ecc_worker_started", rpc_url=rpc_url)
+    log.info("ecc_worker_started", rpc_url=redact_url(rpc_url))
 
     from src.ecc.ecdsa_scan import ECDSAScanner
     from src.ecc.secp256k1_cluster import Secp256k1ClusterWorker
@@ -659,8 +673,8 @@ class WorkerOrchestrator:
         self,
         n_workers: int = 8,
         btc_rpc_url: str = "http://127.0.0.1:8332",
-        btc_rpc_user: str = "crypto",
-        btc_rpc_pass: str = "crypto",
+        btc_rpc_user: str = "",
+        btc_rpc_pass: str = "",
         ecc_interval: float = 60.0,
         ecc_enabled: bool = True,
     ) -> None:

@@ -47,11 +47,11 @@ deletion of the thing it points at.
 
 | Status | Entries |
 |---|---|
-| VERIFIED | 239 |
+| VERIFIED | 246 |
 | PARTIAL | 3 |
 | PLANNED | 0 |
 | ACCEPTED GAP | 0 |
-| **Total** | **242** |
+| **Total** | **249** |
 
 ## Summary by subsystem
 
@@ -63,13 +63,13 @@ deletion of the thing it points at.
 | Signal and features | 7 | 7 |
 | Models and leakage | 11 | 11 |
 | Data, money and time | 11 | 10 |
-| API and WebSocket | 23 | 23 |
-| Cryptography and secrets | 33 | 33 |
+| API and WebSocket | 24 | 24 |
+| Cryptography and secrets | 34 | 34 |
 | Supply chain and artifacts | 7 | 7 |
-| Resilience and recovery | 27 | 27 |
+| Resilience and recovery | 29 | 29 |
 | Release and production | 14 | 14 |
-| Governance | 69 | 68 |
-| Terminal and process center | 15 | 15 |
+| Governance | 70 | 69 |
+| Terminal and process center | 17 | 17 |
 
 ## Outstanding work by phase
 
@@ -1067,6 +1067,21 @@ usePolling drops late responses after path change/unmount and refetches on refre
 
 > layer: test-suite
 
+#### `REG-1503` — Dashboard operator errors, approvals and accessibility
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+Operator failures go to a banner, approvals fold through a pure tested function, and control group headers are buttons with aria-expanded (FE-12, FE-14, FE-16, FE-21).
+
+- **If violated:** Blocking alert() storms; untested approvals reducer; click-only headers.
+- **Owned by:** `frontend/src/hooks/useApi.js`, `frontend/src/approvals.js`, `frontend/src/App.jsx`, `frontend/src/components/panels/ControlHubPanel.jsx`
+- **Verification:**
+  - `frontend/src/approvals.test.js` (regression)
+  - `frontend/src/hooks/useApi.test.js` (regression)
+  - `frontend/src/components/panels/ControlHubPanel.test.jsx` (regression)
+
+> layer: test-suite
+
 #### `REG-1703` — One environment variable never binds two settings fields
 
 **VERIFIED** · low · regression · source: OPS-2026-10-25
@@ -1480,6 +1495,19 @@ A remote beginning with "-" is refused before git runs and the remote follows "-
 
 > layer: test-suite
 
+#### `SEC-1499` — ECC worker has no default RPC password and redacts URLs
+
+**VERIFIED** · low · security_regression · source: OPS-2026-10-25
+
+Default BTC RPC credentials are empty, userinfo is redacted from logged URLs and HTTP errors raise (AGT-020).
+
+- **If violated:** Hardcoded crypto/crypto credentials; URL credentials logged; HTTP errors parsed as JSON.
+- **Owned by:** `src/workers/orchestrator.py`, `src/intel.py`
+- **Verification:**
+  - `tests/test_workers_orchestrator.py` (regression)
+
+> layer: test-suite
+
 ## Supply chain and artifacts
 
 #### `SUP-001` — Every workflow declares least-privilege permissions
@@ -1884,6 +1912,32 @@ A persistent tick stall increments consecutive_failures each cycle instead of re
 - **Owned by:** `src/diagnostics/runtime_monitor.py`
 - **Verification:**
   - `tests/test_runtime_monitor_coverage.py` (regression)
+
+> layer: test-suite
+
+#### `REG-1498` — Task instrumentation is opt-in, kwargs-safe and arg-free
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+The asyncio task factory forwards name=/context=, instrumentation is off by default, and process args are not logged (AGT-014).
+
+- **If violated:** Installing the factory would break task creation and could log secrets passed as process args.
+- **Owned by:** `src/diagnostics/instrumentation.py`
+- **Verification:**
+  - `tests/test_instrumentation.py` (regression)
+
+> layer: test-suite
+
+#### `REG-1500` — Trader worker closes storage when the fetcher fails to open
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+If open_fetcher raises, storage.close() still runs (AGT-022).
+
+- **If violated:** The DuckDB handle leaked on fetcher start-up failure.
+- **Owned by:** `src/workers/trader.py`
+- **Verification:**
+  - `tests/test_worker_trader.py` (regression)
 
 > layer: test-suite
 
@@ -2833,6 +2887,19 @@ The header is created with exclusive create; an existing log keeps its content (
 
 > layer: test-suite
 
+#### `REG-1497` — Agent reliability state fails closed and follows the state dir
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+A corrupt reliability.json blocks the gate and is backed up, CI repeat events are seen by the gate, and the file lives under TB_AGENT_STATE_DIR (AGT-007, AGT-008).
+
+- **If violated:** A corrupt file silently erased failure history; state could split across two locations.
+- **Owned by:** `src/agent_control/reliability.py`
+- **Verification:**
+  - `tests/agent_control/test_reliability.py` (regression)
+
+> layer: test-suite
+
 #### `REG-1600` — The CPU torch pre-pass uses the same version spec as requirements.txt
 
 **VERIFIED** · low · regression · source: OPS-2026-10-25
@@ -3107,6 +3174,19 @@ If TerminalServer construction raises, run_daemon still releases the flock (AGT-
 
 > layer: test-suite
 
+#### `REG-1501` — Terminal job reporter does not hold an idle connection
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+JobReporter disconnects after each batch and uses a larger reader limit (AGT-025).
+
+- **If violated:** Unread broadcast frames overflowed the server queue and dropped job.end, leaving app jobs running forever.
+- **Owned by:** `src/terminal/jobs.py`
+- **Verification:**
+  - `tests/terminal/test_terminal_install_jobs.py` (regression)
+
+> layer: test-suite
+
 #### `REG-1606` — The terminal token is kept in memory, never in browser storage
 
 **VERIFIED** · medium · regression · source: OPS-2026-10-25
@@ -3119,6 +3199,20 @@ The dashboard keeps the terminal daemon token in memory only and removes any cop
   - `frontend/src/components/terminal/terminalUi.test.jsx` (regression)
 
 > Audit FE-15. layer: test-suite
+
+#### `SEC-1502` — Terminal purge and peer-uid checks fail closed
+
+**VERIFIED** · low · security_regression · source: OPS-2026-10-25
+
+uninstall --purge refuses a directory without the terminal token, and a peer with unknown uid is refused (AGT-029, AGT-030).
+
+- **If violated:** A mis-set state dir could be deleted; unknown peers were accepted.
+- **Owned by:** `src/terminal/install.py`, `src/terminal/server.py`
+- **Verification:**
+  - `tests/terminal/test_terminal_install_jobs.py` (regression)
+  - `tests/terminal/test_terminal_server.py` (regression)
+
+> layer: test-suite
 
 
 ---
@@ -3148,4 +3242,4 @@ To add or change an entry, edit the registry and regenerate this file. See
 `docs/quality/TEST_STRATEGY.md` for the taxonomy the `test_type` column draws
 on, and `docs/quality/IMPLEMENTATION_PLAN.md` for what each phase delivers.
 
-Registry version: 1.0.0 — 242 entries.
+Registry version: 1.0.0 — 249 entries.

@@ -13,7 +13,9 @@ import {
   RECONNECT_BASE_MS,
   RECONNECT_CAP_MS,
   apiProblem,
+  postJson,
   reconnectDelay,
+  setErrorNotifier,
   useApiResource,
   usePolling,
   useReadiness,
@@ -414,5 +416,23 @@ describe('useApiResource and useReadiness', () => {
     expect(apiProblem(500)).toMatchObject({ kind: 'error', status: 500 });
     expect(apiProblem(500).message).toContain('HTTP 500');
     expect(apiProblem(403).kind).toBe('unauthorized');
+  });
+});
+
+describe('operator error reporting (FE-16/FE-21)', () => {
+  afterEach(() => {
+    setErrorNotifier(null);
+    vi.unstubAllGlobals();
+  });
+
+  it('routes a failed postJson to the notifier instead of alert()', async () => {
+    const alertSpy = vi.fn();
+    vi.stubGlobal('alert', alertSpy);
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({ ok: false, status: 500, json: () => Promise.resolve({ detail: 'nope' }) })));
+    const seen = [];
+    setErrorNotifier((m) => seen.push(m));
+    expect(await postJson('/x', {})).toBeNull();
+    expect(seen).toEqual(['Request failed: nope']);
+    expect(alertSpy).not.toHaveBeenCalled();
   });
 });

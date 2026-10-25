@@ -5776,6 +5776,177 @@
       "depends_on": []
     },
     {
+      "id": "REG-1497",
+      "kind": "regression",
+      "title": "Agent reliability state fails closed and follows the state dir",
+      "statement": "A corrupt reliability.json blocks the gate and is backed up, CI repeat events are seen by the gate, and the file lives under TB_AGENT_STATE_DIR (AGT-007, AGT-008).",
+      "criticality": "low",
+      "subsystem": "governance",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "A corrupt file silently erased failure history; state could split across two locations.",
+      "owning_modules": [
+        "src/agent_control/reliability.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/agent_control/test_reliability.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1498",
+      "kind": "regression",
+      "title": "Task instrumentation is opt-in, kwargs-safe and arg-free",
+      "statement": "The asyncio task factory forwards name=/context=, instrumentation is off by default, and process args are not logged (AGT-014).",
+      "criticality": "low",
+      "subsystem": "resilience",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "Installing the factory would break task creation and could log secrets passed as process args.",
+      "owning_modules": [
+        "src/diagnostics/instrumentation.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_instrumentation.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "SEC-1499",
+      "kind": "security_regression",
+      "title": "ECC worker has no default RPC password and redacts URLs",
+      "statement": "Default BTC RPC credentials are empty, userinfo is redacted from logged URLs and HTTP errors raise (AGT-020).",
+      "criticality": "low",
+      "subsystem": "security",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "Hardcoded crypto/crypto credentials; URL credentials logged; HTTP errors parsed as JSON.",
+      "owning_modules": [
+        "src/workers/orchestrator.py",
+        "src/intel.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_workers_orchestrator.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1500",
+      "kind": "regression",
+      "title": "Trader worker closes storage when the fetcher fails to open",
+      "statement": "If open_fetcher raises, storage.close() still runs (AGT-022).",
+      "criticality": "low",
+      "subsystem": "resilience",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "The DuckDB handle leaked on fetcher start-up failure.",
+      "owning_modules": [
+        "src/workers/trader.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_worker_trader.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1501",
+      "kind": "regression",
+      "title": "Terminal job reporter does not hold an idle connection",
+      "statement": "JobReporter disconnects after each batch and uses a larger reader limit (AGT-025).",
+      "criticality": "low",
+      "subsystem": "terminal",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "Unread broadcast frames overflowed the server queue and dropped job.end, leaving app jobs running forever.",
+      "owning_modules": [
+        "src/terminal/jobs.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/terminal/test_terminal_install_jobs.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "SEC-1502",
+      "kind": "security_regression",
+      "title": "Terminal purge and peer-uid checks fail closed",
+      "statement": "uninstall --purge refuses a directory without the terminal token, and a peer with unknown uid is refused (AGT-029, AGT-030).",
+      "criticality": "low",
+      "subsystem": "terminal",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "A mis-set state dir could be deleted; unknown peers were accepted.",
+      "owning_modules": [
+        "src/terminal/install.py",
+        "src/terminal/server.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/terminal/test_terminal_install_jobs.py",
+          "test_type": "regression"
+        },
+        {
+          "test": "tests/terminal/test_terminal_server.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1503",
+      "kind": "regression",
+      "title": "Dashboard operator errors, approvals and accessibility",
+      "statement": "Operator failures go to a banner, approvals fold through a pure tested function, and control group headers are buttons with aria-expanded (FE-12, FE-14, FE-16, FE-21).",
+      "criticality": "low",
+      "subsystem": "api",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "Blocking alert() storms; untested approvals reducer; click-only headers.",
+      "owning_modules": [
+        "frontend/src/hooks/useApi.js",
+        "frontend/src/approvals.js",
+        "frontend/src/App.jsx",
+        "frontend/src/components/panels/ControlHubPanel.jsx"
+      ],
+      "verification": [
+        {
+          "test": "frontend/src/approvals.test.js",
+          "test_type": "regression"
+        },
+        {
+          "test": "frontend/src/hooks/useApi.test.js",
+          "test_type": "regression"
+        },
+        {
+          "test": "frontend/src/components/panels/ControlHubPanel.test.jsx",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
       "id": "SEC-0012",
       "kind": "security_regression",
       "title": "The runtime manifest never resolves a vulnerable filelock",

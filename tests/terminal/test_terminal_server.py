@@ -325,6 +325,12 @@ class TestConnectionLimits:
         client = await AsyncClient.connect(daemon.config.socket_path, hello=False)
         assert await client.closed()
 
+    async def test_a_peer_with_unknown_uid_is_refused(self, daemon, monkeypatch):
+        """AGT-030: fail closed when SO_PEERCRED is unavailable."""
+        monkeypatch.setattr(auth, "peer_uid", lambda _sock: None)
+        client = await AsyncClient.connect(daemon.config.socket_path, hello=False)
+        assert await client.closed()
+
 
 class TestLifecycle:
     async def test_stopping_ends_every_session_and_removes_files(self, config, short_tmp):

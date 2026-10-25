@@ -28,6 +28,15 @@ describe('ControlHubPanel', () => {
     expect(screen.getByText('a b/c')).toBeTruthy();
   });
 
+  it('FE-14: group headers are buttons that expose aria-expanded', async () => {
+    api.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => SURFACE });
+    render(<ControlHubPanel operatorAction={vi.fn()} refreshToken={0} />);
+    const toggle = await screen.findByRole('button', { name: /g/ });
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    fireEvent.click(toggle);
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+  });
+
   it('URL-encodes the control name when writing', async () => {
     api.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => SURFACE });
     const op = vi.fn().mockResolvedValue({ ok: true });

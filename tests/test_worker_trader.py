@@ -208,6 +208,21 @@ class TestTheWorkerCleansUpWhenTheLoopFails:
         assert made[0].shutdown_calls == 0
 
 
+    async def test_a_fetcher_open_failure_closes_the_storage(self):
+        """AGT-022."""
+        build, _made, _built = _orchestrators()
+
+        @contextlib.asynccontextmanager
+        async def failing(_storage):
+            raise RuntimeError("no fetcher")
+            yield
+
+        with _patched(build) as env, patch.object(trader, "open_fetcher", failing):
+            with pytest.raises(RuntimeError, match="no fetcher"):
+                await asyncio.wait_for(trader._run(), timeout=5)
+        assert env.storage.closed == 1
+
+
 class TestTheEntrypoint:
     def test_main_configures_logging_before_it_runs_the_loop(self):
         settings = SimpleNamespace(log_level="INFO", log_as_json=False)
