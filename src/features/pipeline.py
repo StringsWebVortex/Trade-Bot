@@ -156,6 +156,9 @@ COL_LABEL: Final[str] = "label"
 _TIME_EXIT_WARN_FRACTION: Final[float] = 0.66
 COL_META_LABEL: Final[str] = "meta_label"
 COL_RETURN: Final[str] = "log_return"
+# INT-001: realised log return from entry (close[t]) to the label's barrier exit
+# (close[t + offset]). Unlike COL_RETURN it lies strictly after the features.
+COL_FORWARD_RETURN: Final[str] = "forward_log_return"
 
 # Required input OHLCV columns
 _REQ_COLS: Final[frozenset[str]] = frozenset({"open", "high", "low", "close", "volume"})
@@ -690,6 +693,10 @@ class FeatureMatrix:
     meta        : meta-label series (aligned to features index)
     daily_vol   : per-bar volatility series (used for barrier width)
     log_returns : log return series (used by trainer for sample weights)
+    forward_returns : realised log return from each bar's close to its label's
+        barrier exit. This, not ``log_returns`` (the return of the bar that has
+        just closed, concurrent with the features), is what a prediction made
+        at that bar earns. None only for matrices built by hand.
     """
 
     features: pd.DataFrame
@@ -700,6 +707,7 @@ class FeatureMatrix:
     daily_vol: pd.Series
     log_returns: pd.Series
     dropped_rows: int = field(default=0)
+    forward_returns: pd.Series | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -907,6 +915,13 @@ def build_feature_matrix(
         daily_vol=daily_vol,
     )
 
+    # INT-001: forward return from entry to the barrier exit, per bar.
+    _pos = np.arange(len(close)) + tb_offsets.to_numpy(dtype=np.float64)
+    _ok = np.isfinite(_pos) & (_pos < len(close))
+    _exit_px = np.full(len(close), np.nan)
+    _exit_px[_ok] = close.to_numpy(dtype=np.float64)[_pos[_ok].astype(np.int64)]
+    fwd_ret = pd.Series(np.log(_exit_px / close.to_numpy(dtype=np.float64)), index=bars.index)
+
     # Barrier calibration check. Labels dominated by the vertical barrier mean
     # the horizontal ones are unreachable inside max_holding, so the clock is
     # doing the labelling and the model is learning drift rather than the
@@ -940,6 +955,7 @@ def build_feature_matrix(
             COL_GARCH_VOL: garch_vol,
             COL_LABEL: tb_labels,
             COL_RETURN: log_ret,
+            COL_FORWARD_RETURN: fwd_ret,
         },
         index=bars.index,
     )
@@ -982,6 +998,7 @@ def build_feature_matrix(
         daily_vol=daily_vol.reindex(feature_df_dir.index),
         log_returns=feature_df_dir[COL_RETURN],
         dropped_rows=dropped,
+        forward_returns=feature_df_dir[COL_FORWARD_RETURN],
     )
 
 

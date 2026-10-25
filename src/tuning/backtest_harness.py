@@ -52,6 +52,7 @@ from src.features.pipeline import (
 from src.models.trainer import (
     _FEATURE_COLUMNS_ATTR,
     ModelTrainer,
+    evaluation_returns,
     oos_sharpe_and_drawdown,
 )
 from src.regime.garch import rolling_garch_forecast
@@ -445,7 +446,8 @@ def run_feature_window_backtest(
     # whichever sequence type FEATURE_COLUMNS is.
     champion_features = champion_features.loc[valid, list(FEATURE_COLUMNS)]
     challenger_features = challenger_features.loc[valid, list(FEATURE_COLUMNS)]
-    log_ret = baseline.log_returns.reindex(idx).loc[valid].to_numpy(dtype=np.float64)
+    scored = pd.Series(evaluation_returns(baseline), index=idx)
+    log_ret = scored.loc[valid].to_numpy(dtype=np.float64)
 
     champion_pred = _predict_direction_batch(direction_model, champion_features)
     challenger_pred = _predict_direction_batch(direction_model, challenger_features)

@@ -5613,6 +5613,141 @@
         }
       ],
       "depends_on": []
+    },
+    {
+      "id": "REG-1100",
+      "kind": "regression",
+      "title": "OOS Sharpe and drawdown are scored on the forward label return",
+      "statement": "build_feature_matrix carries forward_returns (log return from entry to the barrier exit) and ModelTrainer scores every CPCV prediction on it, never on the concurrent bar return.",
+      "criticality": "high",
+      "subsystem": "model",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "The live gate scored a prediction made at bar t on the t-1 to t move, which the features already contain, inflating Sharpe and deflating drawdown (INT-001).",
+      "owning_modules": [
+        "src/features/pipeline.py",
+        "src/models/trainer.py",
+        "src/tuning/backtest_harness.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_model_eval_leakage.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1101",
+      "kind": "regression",
+      "title": "The ensemble regresses on the forward label return",
+      "statement": "train_ensemble fits EnsemblePredictor on fm.forward_returns and passes the label horizon so validation is purged.",
+      "criticality": "high",
+      "subsystem": "model",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "Members learned to reconstruct the concurrent bar return from features and the nowcast was blended into live p_long as a forecast (INT-002).",
+      "owning_modules": [
+        "src/models/trainer.py",
+        "src/intelligence/ensemble_predictor.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_model_eval_leakage.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1102",
+      "kind": "regression",
+      "title": "Meta-labels are built from out-of-fold primary predictions",
+      "statement": "train_meta_label and the cache-provenance path derive p_long, confidence and meta-labels from purged k-fold out-of-fold predictions, never from the final direction model's in-sample output.",
+      "criticality": "high",
+      "subsystem": "model",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "The meta model learned to bet on optimistic in-sample confidence that does not hold out of sample (INT-003).",
+      "owning_modules": [
+        "src/models/trainer.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_model_eval_leakage.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1103",
+      "kind": "regression",
+      "title": "CPCV purges and embargoes every contiguous test block",
+      "statement": "build_cpcv_folds removes training samples within purge_gap before and embargo after each contiguous block of test groups, including non-adjacent groups.",
+      "criticality": "high",
+      "subsystem": "model",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "Purge and embargo were measured from the min and max of all test groups, leaving the boundaries of interior test blocks unprotected so labels leaked (INT-004).",
+      "owning_modules": [
+        "src/models/trainer.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_model_eval_leakage.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1104",
+      "kind": "regression",
+      "title": "CPCV counts each test sample once",
+      "statement": "OOS Sharpe, drawdown and n_trades are computed over unique test samples (majority-voted) with a fixed per-timeframe annualisation factor, not over the concatenation of all folds.",
+      "criticality": "high",
+      "subsystem": "model",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "Each sample appeared in about 9 folds, so n_trades passed min_trades_live_gate by a large overcount and the Sharpe scaled with the duplicated sample count (INT-005).",
+      "owning_modules": [
+        "src/models/trainer.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_model_eval_leakage.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1105",
+      "kind": "regression",
+      "title": "Ensemble member weights and uncertainty come from out-of-sample error",
+      "statement": "EnsemblePredictor.fit scores members on a purged chronological holdout; members without a holdout score keep rmse=inf and receive zero weight.",
+      "criticality": "high",
+      "subsystem": "model",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "Inverse in-sample RMSE gave most weight to the member that overfit most and produced intervals that were too narrow (INT-007).",
+      "owning_modules": [
+        "src/intelligence/ensemble_predictor.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_model_eval_leakage.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
     }
   ]
 }

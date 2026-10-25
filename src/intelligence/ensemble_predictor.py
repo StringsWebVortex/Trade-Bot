@@ -31,6 +31,7 @@ Rasmussen & Williams (2006) Gaussian Processes for Machine Learning.
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import hmac
 import importlib.util
@@ -648,29 +649,95 @@ class EnsemblePredictor:
         self._feature_cols: list[str] | None = None
         self._update_weights()
 
-    def fit(self, X: pd.DataFrame, y: pd.Series) -> None:
+    # Fraction of the (chronologically last) rows held out to score members.
+    _HOLDOUT_FRACTION = 0.2
+    # Minimum rows on each side of the holdout split for the score to mean anything.
+    _MIN_HOLDOUT_TRAIN = 30
+    _MIN_HOLDOUT_TEST = 10
+
+    def fit(self, X: pd.DataFrame, y: pd.Series, label_horizon: int = 0) -> None:
         """
-        Fit all ensemble members.
+        Fit all ensemble members, then score them out of sample (INT-007).
 
-        BUG FIX: previously called `model.fit(X, y)` identically for every
-        model, but ARIMA and XGBoost/LSTM are not interchangeable here:
-
-        - ARIMAPredictor.fit() takes a single univariate `timeseries`
-          argument (it models the target's own autocorrelation structure,
-          not a feature matrix). Calling it with (X, y) raised a TypeError
-          on every single fit, silently swallowed by the broad except --
-          meaning ARIMA was never actually trained through this path.
-        - LSTMPredictor.fit() expects pre-windowed 3D sequences
-          (n_samples, lookback, 1), not a raw tabular DataFrame. Calling it
-          with the raw (X, y) either raised inside Keras or silently
-          produced a meaningless fit.
-
-        Each model is now dispatched with the input shape it actually
-        requires, and weights are refreshed immediately after fitting
-        (previously weights stayed at their stale pre-fit values until the
-        next predict() call, which could mislead a caller checking
-        .weights right after .fit()).
+        Each member's ``rmse`` -- which drives the inverse-RMSE weights and the
+        aleatoric uncertainty -- used to be its fit error on its own training
+        rows, so the member that overfit most got the most weight and the
+        credible intervals were too narrow. The score now comes from a
+        chronological holdout: fresh members are fitted on the head of the
+        data, scored on the tail, and the ``label_horizon`` rows between the
+        two are purged because a label there reaches into the holdout. The
+        shipped members are then fitted on all rows and keep the holdout score.
+        A member with no holdout score keeps ``rmse = inf`` and so gets zero
+        weight rather than an optimistic one.
         """
+        n = len(y)
+        holdout_n = int(n * self._HOLDOUT_FRACTION)
+        split = n - holdout_n
+        train_end = split - max(0, int(label_horizon))
+        oos_rmse: dict[str, float] = {}
+        if train_end >= self._MIN_HOLDOUT_TRAIN and holdout_n >= self._MIN_HOLDOUT_TEST:
+            scratch = EnsemblePredictor()
+            scratch.models = copy.deepcopy(self.models)
+            scratch._fit_members(X.iloc[:train_end], y.iloc[:train_end])
+            for name, member in scratch.models.items():
+                oos_rmse[name] = self._holdout_rmse(
+                    name, member, X.iloc[split:], y.iloc[split:], y.iloc[:train_end]
+                )
+        else:
+            log.warning(
+                "ensemble_holdout_insufficient_data",
+                have=n,
+                reason="no out-of-sample member scores; members get zero weight",
+            )
+
+        self._fit_members(X, y)
+        for name, member in self.models.items():
+            if member.is_fitted:
+                member.rmse = oos_rmse.get(name, np.inf)
+        self._update_weights()
+
+    @staticmethod
+    def _holdout_rmse(
+        name: str,
+        member: PredictionModel,
+        X_hold: pd.DataFrame,
+        y_hold: pd.Series,
+        y_train: pd.Series,
+    ) -> float:
+        """RMSE of a member fitted on the head against the held-out tail; inf if unavailable."""
+        if not member.is_fitted:
+            return float("inf")
+        actual = np.asarray(y_hold, dtype=float)
+        try:
+            if name == "arima":
+                fitted = getattr(member, "model")
+                preds = np.asarray(fitted.forecast(steps=len(actual)), dtype=float)
+            elif name == "lstm":
+                lookback = int(getattr(member, "lookback", 20))
+                hist = np.concatenate([np.asarray(y_train, dtype=float)[-lookback:], actual])
+                if len(hist) < lookback + len(actual):
+                    return float("inf")
+                preds = np.array(
+                    [
+                        member.predict(pd.DataFrame([hist[i : i + lookback]]))
+                        for i in range(len(actual))
+                    ],
+                    dtype=float,
+                )
+            else:
+                cols = getattr(member, "_feature_cols", None)
+                X_in = X_hold[cols] if cols else X_hold
+                fitted = getattr(member, "model")
+                preds = np.asarray(fitted.predict(X_in), dtype=float).ravel()
+        except Exception as e:
+            log.error("ensemble_holdout_failed", model=name, error=str(e), exc_info=True)
+            return float("inf")
+        if preds.shape != actual.shape or not np.all(np.isfinite(preds)):
+            return float("inf")
+        return float(np.sqrt(np.mean((preds - actual) ** 2)))
+
+    def _fit_members(self, X: pd.DataFrame, y: pd.Series) -> None:
+        """Fit every member on (X, y); each member's ``rmse`` is its in-sample error."""
         log.info("ensemble_fitting", num_models=len(self.models))
         self._feature_cols = list(X.columns)
 
