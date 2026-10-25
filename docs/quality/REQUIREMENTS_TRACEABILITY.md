@@ -47,11 +47,11 @@ deletion of the thing it points at.
 
 | Status | Entries |
 |---|---|
-| VERIFIED | 221 |
+| VERIFIED | 222 |
 | PARTIAL | 3 |
 | PLANNED | 0 |
 | ACCEPTED GAP | 0 |
-| **Total** | **224** |
+| **Total** | **225** |
 
 ## Summary by subsystem
 
@@ -68,7 +68,7 @@ deletion of the thing it points at.
 | Supply chain and artifacts | 7 | 7 |
 | Resilience and recovery | 26 | 26 |
 | Release and production | 14 | 14 |
-| Governance | 62 | 61 |
+| Governance | 63 | 62 |
 | Terminal and process center | 12 | 12 |
 
 ## Outstanding work by phase
@@ -2726,6 +2726,20 @@ When npm audit cannot reach the registry after its retries, the Security workflo
 
 > Audit OPS-012. The fixAvailable:false downgrade is unchanged (documented decision in security.yml; npm_audit_verdict.py is edited by an open PR). No test read what the audit step does after its retries on a scheduled run, so only a suite check could catch it. layer: test-suite
 
+#### `REG-1604` — The CI diagnostics collector never leaves its own report check in progress
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+scripts/ci_diagnostics.py writes the report master only as a completed check run: it settles a master an older collector left in_progress before waiting, publishes the finalized master once every source workflow is terminal, and on failure records the reason in a completed neutral master that ./scripts/prfail reports.
+
+- **If violated:** The in_progress master joins a source workflow run's check suite and holds it open, the collector waits on it until its deadline, and every ./scripts/prfail call answers 'Diagnostics report is not finalized', so the only permitted CI diagnostic route returns nothing for any pull request.
+- **Owned by:** `scripts/ci_diagnostics.py`
+- **Depends on:** `GOV-013`
+- **Verification:**
+  - `tests/test_ci_diagnostics_never_self_blocks.py` (regression)
+
+> Observed on PRs #502, #506, #508 and #509, whose reports never finalized after #467 removed only the job-level self-wait. No test ran the collector end to end against its own check writes. layer: test-suite
+
 ## Terminal and process center
 
 #### `TERM-001` — Terminal sessions are real PTYs that every client shares
@@ -2905,4 +2919,4 @@ To add or change an entry, edit the registry and regenerate this file. See
 `docs/quality/TEST_STRATEGY.md` for the taxonomy the `test_type` column draws
 on, and `docs/quality/IMPLEMENTATION_PLAN.md` for what each phase delivers.
 
-Registry version: 1.0.0 — 224 entries.
+Registry version: 1.0.0 — 225 entries.
