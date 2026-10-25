@@ -47,11 +47,11 @@ deletion of the thing it points at.
 
 | Status | Entries |
 |---|---|
-| VERIFIED | 216 |
+| VERIFIED | 217 |
 | PARTIAL | 3 |
 | PLANNED | 0 |
 | ACCEPTED GAP | 0 |
-| **Total** | **219** |
+| **Total** | **220** |
 
 ## Summary by subsystem
 
@@ -68,7 +68,7 @@ deletion of the thing it points at.
 | Supply chain and artifacts | 7 | 7 |
 | Resilience and recovery | 24 | 24 |
 | Release and production | 14 | 14 |
-| Governance | 60 | 59 |
+| Governance | 61 | 60 |
 | Terminal and process center | 12 | 12 |
 
 ## Outstanding work by phase
@@ -2659,6 +2659,20 @@ Every scripts/ path named in the README, in src/ comments or in a test's skip me
 
 > scripts/timescaledb.sh was referenced from six call sites -- README.md three times, src/config.py, src/data/storage.py and the skip message in tests/test_timescale_storage.py -- and did not exist; removed by the config purge (#144) without the references going with it. The test guards the general form (a named scripts/ path that is absent) as well as this one file, and pins the script to ci.yml's service block so the local and CI databases cannot drift apart silently. layer: test-suite
 
+#### `REG-1604` — The CI diagnostics collector never leaves its own report check in progress
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+scripts/ci_diagnostics.py writes the report master only as a completed check run: it settles a master an older collector left in_progress before waiting, publishes the finalized master once every source workflow is terminal, and on failure records the reason in a completed neutral master that ./scripts/prfail reports.
+
+- **If violated:** The in_progress master joins a source workflow run's check suite and holds it open, the collector waits on it until its deadline, and every ./scripts/prfail call answers 'Diagnostics report is not finalized', so the only permitted CI diagnostic route returns nothing for any pull request.
+- **Owned by:** `scripts/ci_diagnostics.py`
+- **Depends on:** `GOV-013`
+- **Verification:**
+  - `tests/test_ci_diagnostics_never_self_blocks.py` (regression)
+
+> Observed on PRs #502, #506, #508 and #509, whose reports never finalized after #467 removed only the job-level self-wait. No test ran the collector end to end against its own check writes. layer: test-suite
+
 ## Terminal and process center
 
 #### `TERM-001` — Terminal sessions are real PTYs that every client shares
@@ -2838,4 +2852,4 @@ To add or change an entry, edit the registry and regenerate this file. See
 `docs/quality/TEST_STRATEGY.md` for the taxonomy the `test_type` column draws
 on, and `docs/quality/IMPLEMENTATION_PLAN.md` for what each phase delivers.
 
-Registry version: 1.0.0 — 219 entries.
+Registry version: 1.0.0 — 220 entries.

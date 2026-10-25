@@ -220,6 +220,9 @@ class TestTheRegistryHasAPlaceForDefects:
             "REG-0029",
             "REG-0030",
             "REG-0031",
+            # REG-1604: the CI diagnostics collector held its own report check
+            # in_progress, so no prfail report ever finalized.
+            "REG-1604",
         }
         # SEC-0005: `.gitignore` carried a bare `.env`, which matches that one
         # name and nothing else -- so `.env.bak.<timestamp>` from a
@@ -511,7 +514,8 @@ class TestTheMetricsCollector:
         # test-suite, 23 to 27.
         # REG-0030 adds the risk-gated horizon-order-path regression -- test-suite, 28.
         # REG-0031 adds the horizon drift-suppression regression -- test-suite, 29.
-        assert metric["value"] == {"test-suite": 29, "review": 1, "supply-chain": 2}
+        # REG-1604 adds the collector self-wait regression -- test-suite, 30.
+        assert metric["value"] == {"test-suite": 30, "review": 1, "supply-chain": 2}
 
     def test_zero_escaped_defects_would_be_stated_explicitly(self, collector, monkeypatch):
         # "We have not measured this" and "this is zero" are different

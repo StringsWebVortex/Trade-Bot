@@ -5613,6 +5613,30 @@
         }
       ],
       "depends_on": []
+    },
+    {
+      "id": "REG-1604",
+      "kind": "regression",
+      "title": "The CI diagnostics collector never leaves its own report check in progress",
+      "statement": "scripts/ci_diagnostics.py writes the report master only as a completed check run: it settles a master an older collector left in_progress before waiting, publishes the finalized master once every source workflow is terminal, and on failure records the reason in a completed neutral master that ./scripts/prfail reports.",
+      "criticality": "medium",
+      "subsystem": "governance",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "The in_progress master joins a source workflow run's check suite and holds it open, the collector waits on it until its deadline, and every ./scripts/prfail call answers 'Diagnostics report is not finalized', so the only permitted CI diagnostic route returns nothing for any pull request.",
+      "owning_modules": [
+        "scripts/ci_diagnostics.py"
+      ],
+      "depends_on": [
+        "GOV-013"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_ci_diagnostics_never_self_blocks.py",
+          "test_type": "regression"
+        }
+      ],
+      "notes": "Observed on PRs #502, #506, #508 and #509, whose reports never finalized after #467 removed only the job-level self-wait. No test ran the collector end to end against its own check writes. layer: test-suite"
     }
   ]
 }
