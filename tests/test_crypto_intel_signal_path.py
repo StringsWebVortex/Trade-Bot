@@ -88,6 +88,10 @@ def intel(tmp_path, monkeypatch):
     )
     monkeypatch.setattr("src.intel._HORIZONS_CONFIG", horizons)
     monkeypatch.setenv("DUCKDB_PATH", str(tmp_path / "intel.duckdb"))
+    # INT-017: no default RPC credentials; configure them so the on-chain
+    # extractor exists to be stubbed below.
+    monkeypatch.setenv("BTC_RPC_USER", "test-user")
+    monkeypatch.setenv("BTC_RPC_PASS", "test-pass")
     obj = CryptoIntelligence(config_path=cfg)
     obj._orchestrator = _FakeOrchestrator()
 

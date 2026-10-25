@@ -529,59 +529,19 @@ class TestOKXProvider:
         assert result == pytest.approx(500.0)
 
     @pytest.mark.asyncio
-    async def test_fetch_whale_taker_ratio_success_and_caches(self):
+    async def test_fetch_whale_taker_ratio_serves_cached_value(self):
         p = OKXIntelligenceProvider()
-        raw = {"data": [["1700000000000", "1.5"]]}
-        with (
-            patch.object(p._perp, "market", return_value={"id": "BTC-USDT-SWAP"}),
-            patch.object(
-                p._perp,
-                "publicGetRubikStatContractsLongShortAccountRatio",
-                new=AsyncMock(return_value=raw),
-            ),
-        ):
-            result = await p._fetch_whale_taker_ratio()
-        assert result == pytest.approx(1.5)
+        p._set_cache(f"whale:{p._perp_symbol}", 1.5)
         with patch.object(p._perp, "market", side_effect=AssertionError("no")):
-            cached = await p._fetch_whale_taker_ratio()
-        assert cached == result
+            assert await p._fetch_whale_taker_ratio() == pytest.approx(1.5)
 
     @pytest.mark.asyncio
-    async def test_fetch_whale_taker_ratio_clamped_to_max(self):
+    async def test_fetch_whale_taker_ratio_raises_without_taker_source(self):
+        # INT-020: OKX exposes only the positioning ratio, which is not taker
+        # flow, so there is no value to report (no neutral 1.0 fabrication).
         p = OKXIntelligenceProvider()
-        raw = {"data": [["1700000000000", "50.0"]]}
-        with (
-            patch.object(p._perp, "market", return_value={"id": "BTC-USDT-SWAP"}),
-            patch.object(
-                p._perp,
-                "publicGetRubikStatContractsLongShortAccountRatio",
-                new=AsyncMock(return_value=raw),
-            ),
-        ):
-            result = await p._fetch_whale_taker_ratio()
-        assert result == pytest.approx(10.0)
-
-    @pytest.mark.asyncio
-    async def test_fetch_whale_taker_ratio_empty_data_falls_back_neutral(self):
-        p = OKXIntelligenceProvider()
-        raw = {"data": []}
-        with (
-            patch.object(p._perp, "market", return_value={"id": "BTC-USDT-SWAP"}),
-            patch.object(
-                p._perp,
-                "publicGetRubikStatContractsLongShortAccountRatio",
-                new=AsyncMock(return_value=raw),
-            ),
-        ):
-            result = await p._fetch_whale_taker_ratio()
-        assert result == 1.0
-
-    @pytest.mark.asyncio
-    async def test_fetch_whale_taker_ratio_exception_falls_back_neutral(self):
-        p = OKXIntelligenceProvider()
-        with patch.object(p._perp, "market", side_effect=RuntimeError("boom")):
-            result = await p._fetch_whale_taker_ratio()
-        assert result == 1.0
+        with pytest.raises(RuntimeError, match="unavailable"):
+            await p._fetch_whale_taker_ratio()
 
 
 # ---------------------------------------------------------------------------
