@@ -1096,7 +1096,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 1026 | P1 | tests/test_slippage.py | Python | 183 | 5e33dbf9 |  |
 | 1027 | P1 | tests/test_small_module_gaps.py | Python | 413 | d4829feb |  |
 | 1028 | P1 | tests/test_startup_readiness.py | Python | 844 | 4829f182 |  |
-| 1029 | P1 | tests/test_static_invariants.py | Python | 1589 | cb1c834c |  |
+| 1029 | P1 | tests/test_static_invariants.py | Python | 1589 | 193b3bc9 |  |
 | 1030 | P1 | tests/test_static_invariants_blind_spots.py | Python | 140 | 44ec7d50 |  |
 | 1031 | P1 | tests/test_storage.py | Python | 1071 | 61979b83 |  |
 | 1032 | P1 | tests/test_storage_write_rollback.py | Python | 102 | e5d9d7f3 |  |
