@@ -18,7 +18,6 @@ regression has reappeared -- see .project-intel/GAPS.md Gap-014.
 from __future__ import annotations
 
 import asyncio
-import os
 from typing import Any
 
 import pytest

@@ -1068,7 +1068,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 998 | P1 | tests/test_review_build_context.py | Python | 97 | 42731935 |  |
 | 999 | P1 | tests/test_review_retrieval.py | Python | 71 | 52be750e |  |
 | 1000 | P1 | tests/test_rfc6979_nonces.py | Python | 178 | 0af4946b |  |
-| 1001 | P1 | tests/test_risk_controls_api.py | Python | 629 | c39c0904 |  |
+| 1001 | P1 | tests/test_risk_controls_api.py | Python | 628 | 4ccb97f8 |  |
 | 1002 | P1 | tests/test_risk_gate.py | Python | 180 | 63870140 |  |
 | 1003 | P1 | tests/test_risk_gates.py | Python | 413 | 1938500a |  |
 | 1004 | P1 | tests/test_risk_gates_coverage.py | Python | 328 | 557dedb8 |  |
