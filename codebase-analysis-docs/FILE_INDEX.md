@@ -24,7 +24,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 9 | P0 | config/command_policy.json | JSON | 264 | 84e63848 | Tool command and CI observation policy |
 | 10 | P0 | config/horizons.yaml | YAML | 53 | 2ede87ec | Auxiliary prediction horizon definitions |
 | 11 | P0 | config/math_registry.json | JSON | 1903 | 8fa18ffc | Mathematical object registry |
-| 12 | P0 | config/quality_registry.json | JSON | 5618 | f4b5c4df | Requirements, regressions and deciding tests |
+| 12 | P0 | config/quality_registry.json | JSON | 5671 | 331fe4d8 | Requirements, regressions and deciding tests |
 | 13 | P0 | config/risk.yaml | YAML | 26 | dd4766f8 | Horizon/intelligence risk, distinct from core Settings |
 | 14 | P0 | docker-compose.yml | YAML | 82 | 80ec3eca | API/Timescale/optional-worker composition |
 | 15 | P0 | docs/quality/CI_GATE_ARCHITECTURE.md | Markdown | 255 | 02726345 | CI gates |
@@ -78,7 +78,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 8 | P0 | config/command_policy.json | JSON | 264 | 84e63848 | Tool command and CI observation policy |
 | 9 | P0 | config/horizons.yaml | YAML | 53 | 2ede87ec | Auxiliary prediction horizon definitions |
 | 10 | P0 | config/math_registry.json | JSON | 1903 | 8fa18ffc | Mathematical object registry |
-| 11 | P0 | config/quality_registry.json | JSON | 5618 | f4b5c4df | Requirements, regressions and deciding tests |
+| 11 | P0 | config/quality_registry.json | JSON | 5671 | 331fe4d8 | Requirements, regressions and deciding tests |
 | 12 | P0 | config/risk.yaml | YAML | 26 | dd4766f8 | Horizon/intelligence risk, distinct from core Settings |
 | 13 | P0 | docker-compose.yml | YAML | 82 | 80ec3eca | API/Timescale/optional-worker composition |
 | 14 | P0 | docs/quality/CI_GATE_ARCHITECTURE.md | Markdown | 255 | 02726345 | CI gates |
@@ -183,7 +183,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 113 | P1 | docs/quality/QUALITY_BASELINE.md | Markdown | 125 | bbc75e22 |  |
 | 114 | P1 | docs/quality/QUALITY_METRICS.md | Markdown | 122 | 386b71a5 |  |
 | 115 | P1 | docs/quality/QUALITY_POLICY.md | Markdown | 232 | 8c4629b8 |  |
-| 116 | P1 | docs/quality/REQUIREMENTS_TRACEABILITY.md | Markdown | 2841 | 1a38d32a |  |
+| 116 | P1 | docs/quality/REQUIREMENTS_TRACEABILITY.md | Markdown | 2870 | cc430fdc |  |
 | 117 | P1 | docs/quality/ROOT_CAUSE_TEMPLATE.md | Markdown | 84 | a55b20e9 |  |
 | 118 | P1 | docs/quality/TEST_STRATEGY.md | Markdown | 252 | efbde1ba |  |
 | 119 | P1 | docs/runtime/IMPLEMENTATION_MATRIX.md | Markdown | 79 | 7e5cd563 |  |
@@ -269,13 +269,13 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 199 | P1 | src/agent_control/branch_audit.py | Python | 370 | 51341382 |  |
 | 200 | P1 | src/agent_control/cli.py | Python | 500 | 4995ee3c |  |
 | 201 | P1 | src/agent_control/completion.py | Python | 233 | 5ae66004 |  |
-| 202 | P1 | src/agent_control/git_safety.py | Python | 314 | b23a822c |  |
+| 202 | P1 | src/agent_control/git_safety.py | Python | 417 | 8ce48eac |  |
 | 203 | P1 | src/agent_control/gitstate.py | Python | 303 | 57485d18 |  |
 | 204 | P1 | src/agent_control/hooks.py | Python | 186 | d0297aad |  |
 | 205 | P1 | src/agent_control/model.py | Python | 654 | ff6d3393 |  |
 | 206 | P1 | src/agent_control/reliability.py | Python | 298 | 4d3bc290 |  |
 | 207 | P1 | src/agent_control/store.py | Python | 152 | 4fac49db |  |
-| 208 | P1 | src/agent_control/workspace.py | Python | 716 | 4e0e96e2 |  |
+| 208 | P1 | src/agent_control/workspace.py | Python | 731 | d40f1594 |  |
 | 209 | P1 | src/api/__init__.py | Python | 1 | 01ba4719 |  |
 | 210 | P1 | src/api/control_surface.py | Python | 497 | 23e77ea2 |  |
 | 211 | P1 | src/api/error_hygiene.py | Python | 191 | e525a93b |  |
@@ -588,9 +588,9 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 518 | P1 | tests/agent_control/test_branch_audit.py | Python | 277 | c2e5d55e |  |
 | 519 | P1 | tests/agent_control/test_cli.py | Python | 310 | 63625b96 |  |
 | 520 | P1 | tests/agent_control/test_completion.py | Python | 307 | fa5977c7 |  |
-| 521 | P1 | tests/agent_control/test_git_safety.py | Python | 187 | 8c09a9be |  |
+| 521 | P1 | tests/agent_control/test_git_safety.py | Python | 229 | 8376d501 |  |
 | 522 | P1 | tests/agent_control/test_gitstate.py | Python | 253 | ccff552d |  |
-| 523 | P1 | tests/agent_control/test_hooks.py | Python | 202 | edddae05 |  |
+| 523 | P1 | tests/agent_control/test_hooks.py | Python | 218 | 79028fa9 |  |
 | 524 | P1 | tests/agent_control/test_model.py | Python | 471 | b7fdd280 |  |
 | 525 | P1 | tests/agent_control/test_reliability.py | Python | 243 | 370c1631 |  |
 | 526 | P1 | tests/agent_control/test_store.py | Python | 148 | 3d540971 |  |
@@ -1025,7 +1025,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 955 | P1 | tests/test_post_trade_bounded_history.py | Python | 116 | efe91648 |  |
 | 956 | P1 | tests/test_pq_transport_honesty.py | Python | 71 | 192085cb |  |
 | 957 | P1 | tests/test_pr_auto_update_workflow.py | Python | 305 | 6fca044a |  |
-| 958 | P1 | tests/test_pre_tool_use_hook.py | Python | 498 | 399c5a23 |  |
+| 958 | P1 | tests/test_pre_tool_use_hook.py | Python | 507 | 6287b55e |  |
 | 959 | P1 | tests/test_price_preview_path.py | Python | 477 | 01b18608 |  |
 | 960 | P1 | tests/test_primality.py | Python | 292 | 5aa66d08 |  |
 | 961 | P1 | tests/test_prime_field.py | Python | 311 | abe47d09 |  |
@@ -1172,7 +1172,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 1102 | P2 | .claude/hooks/completion_gate.py | Python | 25 | 4753b1c8 |  |
 | 1103 | P2 | .claude/hooks/observation_failure.py | Python | 93 | 6a2ba65b |  |
 | 1104 | P2 | .claude/hooks/observation_gate.py | Python | 615 | 93085de5 |  |
-| 1105 | P2 | .claude/hooks/pre_tool_use.py | Python | 1024 | 355088fc |  |
+| 1105 | P2 | .claude/hooks/pre_tool_use.py | Python | 1036 | ae07a64d |  |
 | 1106 | P2 | .claude/hooks/precompact_checkpoint.py | Python | 25 | d68a10de |  |
 | 1107 | P2 | .claude/hooks/quality_gate.py | Python | 27 | 2c809a53 |  |
 | 1108 | P2 | .claude/hooks/session-start.sh | Shell | 116 | 52bfdaa6 |  |
