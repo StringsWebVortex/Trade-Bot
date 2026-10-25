@@ -47,11 +47,11 @@ deletion of the thing it points at.
 
 | Status | Entries |
 |---|---|
-| VERIFIED | 216 |
+| VERIFIED | 223 |
 | PARTIAL | 3 |
 | PLANNED | 0 |
 | ACCEPTED GAP | 0 |
-| **Total** | **219** |
+| **Total** | **226** |
 
 ## Summary by subsystem
 
@@ -61,14 +61,14 @@ deletion of the thing it points at.
 | Execution | 13 | 12 |
 | Portfolio | 1 | 1 |
 | Signal and features | 6 | 6 |
-| Models and leakage | 10 | 10 |
-| Data, money and time | 10 | 9 |
+| Models and leakage | 11 | 11 |
+| Data, money and time | 13 | 12 |
 | API and WebSocket | 21 | 21 |
 | Cryptography and secrets | 30 | 30 |
 | Supply chain and artifacts | 7 | 7 |
 | Resilience and recovery | 24 | 24 |
 | Release and production | 14 | 14 |
-| Governance | 60 | 59 |
+| Governance | 63 | 62 |
 | Terminal and process center | 12 | 12 |
 
 ## Outstanding work by phase
@@ -610,6 +610,17 @@ Orchestrator._metrics_payload() builds a complete metrics snapshot for every tic
 
 > Pins payload completeness with and without an executor, the method-vs-property fact the bug turned on, and the original TypeError as a negative case. layer: test-suite
 
+#### `REG-1525` — Model-artifact preflight matches exact trainer filenames per timeframe
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+scripts/check_model_artifacts._artifacts_for matches xgb_direction/xgb_meta names with an exact timeframe segment, so 5m does not match 15m artifacts.
+
+- **If violated:** A substring glob reported the 5m timeframe as present when only 15m models existed.
+- **Owned by:** `scripts/check_model_artifacts.py`
+- **Verification:**
+  - `tests/test_low_findings_regressions.py` (regression)
+
 ## Data, money and time
 
 #### `INV-008` — A stale market-data sample cannot be treated as current
@@ -740,6 +751,39 @@ MarketDataFetcher.initialize() must open each venue independently, record an una
   - `tests/test_fetcher_venue_degradation.py` (regression)
 
 > Observed against Binance answering HTTP 451 'Service unavailable from a restricted location' on both mainnet and testnet from an affected network, which made the backend unstartable however healthy OKX and everything else was. initialize() built both venues and loaded their markets in one unisolated sequence. GET /venues and POST /venues/{venue}/reconnect expose the state and the recovery so neither needs a restart. layer: test-suite
+
+#### `REG-1520` — RAG re-ingest replaces a source's chunks instead of duplicating them
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+rag_mongo.ingest.ingest_text deletes existing chunks for the source after embedding and before insert, and leaves them intact if embedding fails.
+
+- **If violated:** Each re-ingest appended a second copy of every chunk, skewing vector and hybrid retrieval.
+- **Owned by:** `rag_mongo/ingest.py`
+- **Verification:**
+  - `tests/test_low_findings_regressions.py` (regression)
+
+#### `REG-1521` — Knowledge-graph and review retrieval return no edges when no entity matches
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+kg.query._subgraph and review.retrieval.graph return an empty list for an empty entity set, and kg candidate-name extraction drops stopwords.
+
+- **If violated:** Arbitrary first-N edges were presented to the model as grounding for unrelated questions.
+- **Owned by:** `kg/query.py`, `review/retrieval.py`
+- **Verification:**
+  - `tests/test_low_findings_regressions.py` (regression)
+
+#### `REG-1522` — Feature indicators never emit infinite values and RSI handles no-loss windows
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+crypto-predictor indicators replace +/-inf with NaN in ratio features, and RSI is 100 for a window with no losses and 50 for a flat window.
+
+- **If violated:** Infinite OBV/Bollinger/volume ratios passed dropna and reached the model; no-loss RSI rows were dropped.
+- **Owned by:** `crypto-predictor/indicators.py`
+- **Verification:**
+  - `tests/test_low_findings_regressions.py` (regression)
 
 ## API and WebSocket
 
@@ -2659,6 +2703,39 @@ Every scripts/ path named in the README, in src/ comments or in a test's skip me
 
 > scripts/timescaledb.sh was referenced from six call sites -- README.md three times, src/config.py, src/data/storage.py and the skip message in tests/test_timescale_storage.py -- and did not exist; removed by the config purge (#144) without the references going with it. The test guards the general form (a named scripts/ path that is absent) as well as this one file, and pins the script to ci.yml's service block so the local and CI databases cannot drift apart silently. layer: test-suite
 
+#### `REG-1523` — Coverage floor check fails when the report measures zero files
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+scripts/check_coverage_floors.main returns 1 when the coverage JSON has no files.
+
+- **If violated:** An empty report printed 'All 0 measured files' and passed the per-file floor.
+- **Owned by:** `scripts/check_coverage_floors.py`
+- **Verification:**
+  - `tests/test_low_findings_regressions.py` (regression)
+
+#### `REG-1524` — All-green gate tolerates null job payloads and rejects stale allowances with exit 2
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+scripts/assert_jobs_green treats a null job payload as missing, and returns 2 when ALLOW_SKIPPED names a job that is not in needs.
+
+- **If violated:** A null payload raised AttributeError, and a stale skip allowance only printed a warning.
+- **Owned by:** `scripts/assert_jobs_green.py`
+- **Verification:**
+  - `tests/test_low_findings_regressions.py` (regression)
+
+#### `REG-1526` — Mutation floor fails closed on timeout and clears the shared cache per subsystem
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+scripts/check_mutation_score.run_subsystem clears mutmut's cache before each subsystem and scores a timeout as a failed floor.
+
+- **If violated:** Subsystem scores shared mutants with earlier subsystems, and a timeout raised an uncaught traceback instead of a verdict.
+- **Owned by:** `scripts/check_mutation_score.py`
+- **Verification:**
+  - `tests/test_low_findings_regressions.py` (regression)
+
 ## Terminal and process center
 
 #### `TERM-001` — Terminal sessions are real PTYs that every client shares
@@ -2838,4 +2915,4 @@ To add or change an entry, edit the registry and regenerate this file. See
 `docs/quality/TEST_STRATEGY.md` for the taxonomy the `test_type` column draws
 on, and `docs/quality/IMPLEMENTATION_PLAN.md` for what each phase delivers.
 
-Registry version: 1.0.0 — 219 entries.
+Registry version: 1.0.0 — 226 entries.

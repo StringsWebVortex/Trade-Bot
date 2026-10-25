@@ -31,6 +31,18 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from src.config import get_settings  # noqa: E402
 
 
+_ARTIFACT_PATTERNS = ("xgb_direction_*_{tf}.joblib", "xgb_meta_*_{tf}.joblib")
+
+
+def _artifacts_for(model_dir: Path, tf: str) -> list[Path]:
+    # Match the trainer's exact names. A substring match let "*5m*" match the
+    # 15m artifacts, so the 5m preflight reported OK with no 5m model on disk.
+    found: list[Path] = []
+    for pattern in _ARTIFACT_PATTERNS:
+        found.extend(p for p in model_dir.rglob(pattern.format(tf=tf)) if p.is_file())
+    return found
+
+
 def main() -> int:
     settings = get_settings()
     model_dir: Path = settings.storage.model_dir
@@ -52,8 +64,7 @@ def main() -> int:
         # Trainer naming convention: files under model_dir contain the
         # timeframe value in their name (see src/models/trainer.py save
         # paths). A missing timeframe means startup will retrain it.
-        matches = list(model_dir.rglob(f"*{tf.value}*"))
-        matches = [p for p in matches if p.is_file()]
+        matches = _artifacts_for(model_dir, tf.value)
         if matches:
             print(f"[ OK ] {tf.value}: {len(matches)} file(s)")
         else:

@@ -5613,6 +5613,161 @@
         }
       ],
       "depends_on": []
+    },
+    {
+      "id": "REG-1520",
+      "kind": "regression",
+      "title": "RAG re-ingest replaces a source's chunks instead of duplicating them",
+      "statement": "rag_mongo.ingest.ingest_text deletes existing chunks for the source after embedding and before insert, and leaves them intact if embedding fails.",
+      "criticality": "low",
+      "subsystem": "data",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "",
+      "failure_mode": "Each re-ingest appended a second copy of every chunk, skewing vector and hybrid retrieval.",
+      "owning_modules": [
+        "rag_mongo/ingest.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_low_findings_regressions.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1521",
+      "kind": "regression",
+      "title": "Knowledge-graph and review retrieval return no edges when no entity matches",
+      "statement": "kg.query._subgraph and review.retrieval.graph return an empty list for an empty entity set, and kg candidate-name extraction drops stopwords.",
+      "criticality": "low",
+      "subsystem": "data",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "",
+      "failure_mode": "Arbitrary first-N edges were presented to the model as grounding for unrelated questions.",
+      "owning_modules": [
+        "kg/query.py",
+        "review/retrieval.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_low_findings_regressions.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1522",
+      "kind": "regression",
+      "title": "Feature indicators never emit infinite values and RSI handles no-loss windows",
+      "statement": "crypto-predictor indicators replace +/-inf with NaN in ratio features, and RSI is 100 for a window with no losses and 50 for a flat window.",
+      "criticality": "low",
+      "subsystem": "data",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "",
+      "failure_mode": "Infinite OBV/Bollinger/volume ratios passed dropna and reached the model; no-loss RSI rows were dropped.",
+      "owning_modules": [
+        "crypto-predictor/indicators.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_low_findings_regressions.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1523",
+      "kind": "regression",
+      "title": "Coverage floor check fails when the report measures zero files",
+      "statement": "scripts/check_coverage_floors.main returns 1 when the coverage JSON has no files.",
+      "criticality": "low",
+      "subsystem": "governance",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "",
+      "failure_mode": "An empty report printed 'All 0 measured files' and passed the per-file floor.",
+      "owning_modules": [
+        "scripts/check_coverage_floors.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_low_findings_regressions.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1524",
+      "kind": "regression",
+      "title": "All-green gate tolerates null job payloads and rejects stale allowances with exit 2",
+      "statement": "scripts/assert_jobs_green treats a null job payload as missing, and returns 2 when ALLOW_SKIPPED names a job that is not in needs.",
+      "criticality": "low",
+      "subsystem": "governance",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "",
+      "failure_mode": "A null payload raised AttributeError, and a stale skip allowance only printed a warning.",
+      "owning_modules": [
+        "scripts/assert_jobs_green.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_low_findings_regressions.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1525",
+      "kind": "regression",
+      "title": "Model-artifact preflight matches exact trainer filenames per timeframe",
+      "statement": "scripts/check_model_artifacts._artifacts_for matches xgb_direction/xgb_meta names with an exact timeframe segment, so 5m does not match 15m artifacts.",
+      "criticality": "low",
+      "subsystem": "model",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "",
+      "failure_mode": "A substring glob reported the 5m timeframe as present when only 15m models existed.",
+      "owning_modules": [
+        "scripts/check_model_artifacts.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_low_findings_regressions.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1526",
+      "kind": "regression",
+      "title": "Mutation floor fails closed on timeout and clears the shared cache per subsystem",
+      "statement": "scripts/check_mutation_score.run_subsystem clears mutmut's cache before each subsystem and scores a timeout as a failed floor.",
+      "criticality": "low",
+      "subsystem": "governance",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "",
+      "failure_mode": "Subsystem scores shared mutants with earlier subsystems, and a timeout raised an uncaught traceback instead of a verdict.",
+      "owning_modules": [
+        "scripts/check_mutation_score.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_low_findings_regressions.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
     }
   ]
 }

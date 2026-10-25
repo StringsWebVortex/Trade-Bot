@@ -513,7 +513,7 @@ Never weaken a gate merely to pass. If a rule is wrong, change it deliberately a
 `config/architecture_layers.json` defines:
 
 **foundation**
-→ config, logging_setup, mathcore, quality
+→ agent_control, config, eventbus, logging_setup, mathcore, quality, resource_limits
 
 **crypto**
 → ecc, security
@@ -528,7 +528,7 @@ Never weaken a gate merely to pass. If a rule is wrong, change it deliberately a
 → execution, risk, strategies
 
 **orchestration**
-→ engine, intel, upgrade, workers
+→ engine, intel, runtime, terminal, upgrade, workers
 
 **edge**
 → api
@@ -537,7 +537,7 @@ Packages may import their own layer or lower layers, never higher layers.
 
 `scripts/check_static_invariants.py` enforces layering. `check_import_cycles` separately detects module-level cycles; package-level cycles are also prohibited because they can hide behind deferred/submodule imports.
 
-`accepted_upward_edges` is a ratchet containing the six currently documented inversions:
+`accepted_upward_edges` is a ratchet. It is currently empty: there are no documented inversions.
 
 * remove the entry when the inversion is fixed;
 * never add an entry merely to suppress a violation;

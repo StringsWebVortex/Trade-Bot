@@ -32,7 +32,7 @@ Before writing code, answer these. They take a minute and they change what
 gets built:
 
 1. **Which requirement does this serve?** A registry id. If none fits, this
-   change is introducing a requirement — add it (`scripts/qe_new_requirement.py`)
+   change is introducing a requirement — add it (`.claude/skills/quality-engineering/scripts/qe_new_requirement.py`)
    rather than proceeding without one. A behaviour nobody agreed to is a
    behaviour nothing decides.
 
