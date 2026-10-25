@@ -14,6 +14,7 @@ proposals for a cooldown period -- this is the mechanism that makes
 
 from __future__ import annotations
 
+import contextlib
 import threading
 import time
 from dataclasses import dataclass
@@ -105,10 +106,9 @@ class PostPromotionWatchdog:
     def _restore_registry(self, param_name: str, value: float) -> None:
         if self._registry is None:
             return
-        try:
+        # not registered here: nothing live reads it
+        with contextlib.suppress(UnknownParameterError):
             self._registry.update_current(param_name, value)
-        except UnknownParameterError:
-            pass  # not registered here; nothing live reads it
 
     def probation_params(self) -> list[str]:
         """Names currently in probation (for feeding closed-trade outcomes)."""

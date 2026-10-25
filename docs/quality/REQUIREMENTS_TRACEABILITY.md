@@ -239,7 +239,7 @@ After a live promotion the runner starts post-promotion probation; a watchdog ro
 - **Verification:**
   - `tests/test_tuning_promotion_rollback_wiring.py` (regression)
 
-> audit finding STR-04
+> audit finding STR-04. layer: test-suite
 
 ## Execution
 
@@ -651,7 +651,7 @@ The promotion gate rejects a primary-metric improvement that fails the deflated 
 - **Verification:**
   - `tests/test_tuning_gate_multiple_testing.py` (regression)
 
-> audit finding STR-05
+> audit finding STR-05. layer: test-suite
 
 #### `REG-1112` — Feature-window backtest excludes training bars
 
@@ -664,7 +664,7 @@ run_feature_window_backtest scores only bars after oos_start_ms (the frozen mode
 - **Verification:**
   - `tests/test_tuning_feature_window_oos.py` (regression)
 
-> audit finding STR-06
+> audit finding STR-06. layer: test-suite
 
 #### `REG-1113` — Optuna walk-forward is embargoed and prunes failed folds
 
@@ -677,7 +677,7 @@ WalkForwardStudy leaves an embargo gap between train and test, keeps remainder r
 - **Verification:**
   - `tests/test_upgrade_optuna_wf_leakage.py` (regression)
 
-> audit finding MTH-009
+> audit finding MTH-009. layer: test-suite
 
 #### `REG-1114` — Shadow deployment promotes only on a significant paired improvement
 
@@ -690,7 +690,7 @@ ShadowDeployer promotes only with at least min_samples paired returns, a Sharpe 
 - **Verification:**
   - `tests/test_upgrade_shadow_deploy_significance.py` (regression)
 
-> audit finding MTH-010
+> audit finding MTH-010. layer: test-suite
 
 #### `REG-1115` — ModelRegistry promotion needs paired windows and a minimum improvement
 
@@ -703,7 +703,7 @@ ModelRegistry.evaluate_shadow requires equal-length shadow and live windows and 
 - **Verification:**
   - `tests/test_model_registry_promotion_gate.py` (regression)
 
-> audit finding INT-024
+> audit finding INT-024. layer: test-suite
 
 #### `REG-1605` — LLL and the BLS12-381 pairing do not redo work they can update
 

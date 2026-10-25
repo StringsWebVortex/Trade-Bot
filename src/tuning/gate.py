@@ -33,7 +33,6 @@ from src.tuning.evaluator import (
 )
 from src.tuning.registry import TunableParameter
 
-
 # Minimum deflated-Sharpe probability once the attempt count is accounted for.
 _DSR_MIN_PROBABILITY: Final[float] = 0.95
 
