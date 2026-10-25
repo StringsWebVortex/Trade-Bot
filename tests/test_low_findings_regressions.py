@@ -1,6 +1,20 @@
 """Regression tests for Low-severity audit findings (phase 6).
 
 Each test fails on the pre-fix behaviour it names.
+
+Decides:
+  - REG-1520 — RAG re-ingest replaces a source's chunks instead of duplicating them
+  - REG-1521 — Knowledge-graph and review retrieval return no edges when no entity matches
+  - REG-1522 — Feature indicators never emit infinite values and RSI handles no-loss windows
+  - REG-1523 — Coverage floor check fails when the report measures zero files
+  - REG-1524 — All-green gate tolerates null job payloads and rejects stale allowances with exit 2
+  - REG-1525 — Model-artifact preflight matches exact trainer filenames per timeframe
+  - REG-1526 — Mutation floor fails closed on timeout and clears the shared cache per subsystem
+  - REG-1527 — Ruleset drift check compares rule parameters the file sets
+  - REG-1528 — CI diagnostic values decode percent-escapes once, with %25 last
+  - REG-1529 — Quality id regex accepts registry ids past the old digit caps
+  - REG-1530 — Review context refuses option-shaped refs and provenance refuses escaping names
+  - REG-1531 — Market fetchers drop the still-forming last candle
 """
 
 from __future__ import annotations

@@ -93,24 +93,49 @@ def _enclosing_function(tree: ast.Module) -> dict[ast.AST, str]:
     return owner
 
 
+def _module_name(path: Path) -> str:
+    """``src/a/b.py`` -> ``src.a.b``; ``src/a/__init__.py`` -> ``src.a``."""
+    return _rel(path)[:-3].replace("/", ".").removesuffix(".__init__")
+
+
+def _imported_modules(node: ast.ImportFrom | ast.Import, path: Path) -> list[str]:
+    """
+    The absolute module names an import statement in ``path`` reaches.
+
+    A relative import is resolved against the file's own package (audit
+    SCR-011): skipping it left every cycle and package edge written as
+    ``from .x import y`` invisible, and src/mathcore alone uses dozens of them.
+    ``from . import x`` names its submodules, so those are returned; an
+    absolute ``from a import b`` returns ``a`` only, as it always has.
+    """
+    if isinstance(node, ast.Import):
+        return [alias.name for alias in node.names]
+    if not node.level:
+        return [node.module] if node.module else []
+    package = _module_name(path).split(".")
+    if path.name != "__init__.py":
+        package = package[:-1]
+    base = package[: len(package) - (node.level - 1)]
+    if not base:
+        return []
+    if node.module:
+        return [".".join([*base, node.module])]
+    return [".".join([*base, alias.name]) for alias in node.names]
+
+
 def check_import_cycles() -> list[str]:
     """
     Module-level import cycles fail at import time, and no test can run to
     report it — the collection error is all you get.
     """
-    modules: dict[str, Path] = {}
-    for path in _py_files(SRC):
-        name = _rel(path)[:-3].replace("/", ".")
-        modules[name.removesuffix(".__init__")] = path
+    modules: dict[str, Path] = {_module_name(path): path for path in _py_files(SRC)}
 
     graph: dict[str, set[str]] = {}
     for name, path in modules.items():
         edges: set[str] = set()
         for node in _parse(path).body:  # top level only; a deferred import cannot cycle
-            if isinstance(node, ast.ImportFrom) and node.module and node.module.startswith("src"):
-                edges.add(node.module)
-            elif isinstance(node, ast.Import):
-                edges.update(a.name for a in node.names if a.name.startswith("src"))
+            if isinstance(node, (ast.ImportFrom, ast.Import)):
+                edges.update(_imported_modules(node, path))
         graph[name] = {e for e in edges if e in modules}
 
     white, grey, black = 0, 1, 2
@@ -168,13 +193,9 @@ def _package_edges() -> tuple[dict[tuple[str, str], str], set[str]]:
             continue
         packages.add(package)
         for node in ast.walk(_parse(path)):
-            if isinstance(node, ast.ImportFrom) and node.module:
-                modules = [node.module]
-            elif isinstance(node, ast.Import):
-                modules = [alias.name for alias in node.names]
-            else:
+            if not isinstance(node, (ast.ImportFrom, ast.Import)):
                 continue
-            for module in modules:
+            for module in _imported_modules(node, path):
                 if not module.startswith("src."):
                     continue
                 target = module.split(".")[1]
@@ -433,6 +454,13 @@ def check_every_gate_status_is_reachable() -> list[str]:
             stack_source = ast.dump(node)
 
     # Which check_* functions does the stack actually call?
+    # Renaming GateStatus or evaluate_all_gates must not turn this into a
+    # check that passes because it found nothing to check (audit SCR-011).
+    if not members:
+        return ["src/risk/gates.py: no GateStatus class with members -- the check has no subject"]
+    if not stack_source:
+        return ["src/risk/gates.py: no evaluate_all_gates() -- the check has no gate stack"]
+
     called = set(re.findall(r"id='(check_\w+)'", stack_source))
     produced: set[str] = set()
     for node in ast.walk(tree):
@@ -1020,6 +1048,51 @@ _MUTABLE_FACTORIES = frozenset(
 _AUTH_CALL_NAMES = frozenset({"verify_ws_key", "api_key_header", "require_permission"})
 
 
+_ROUTE_METHODS = frozenset({"get", "post", "put", "delete", "patch", "websocket"})
+_ROUTE_REGISTRARS = frozenset({"add_api_route", "add_api_websocket_route"})
+
+
+def _call_name(call: ast.Call) -> str | None:
+    if isinstance(call.func, ast.Name):
+        return call.func.id
+    if isinstance(call.func, ast.Attribute):
+        return call.func.attr
+    return None
+
+
+def _route_modules() -> list[Path]:
+    """src/api/main.py, plus every src module that builds a FastAPI app or an APIRouter."""
+    main = SRC / "api" / "main.py"
+    found = [main] if main.exists() else []
+    for path in _py_files(SRC):
+        if path == main:
+            continue
+        if any(
+            isinstance(node, ast.Call) and _call_name(node) in {"FastAPI", "APIRouter"}
+            for node in ast.walk(_parse(path))
+        ):
+            found.append(path)
+    return found
+
+
+def _first_statement_authenticates(function: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
+    """The handler's first statement (after a docstring) makes an auth call."""
+    body = function.body
+    if (
+        body
+        and isinstance(body[0], ast.Expr)
+        and isinstance(body[0].value, ast.Constant)
+        and isinstance(body[0].value.value, str)
+    ):
+        body = body[1:]
+    if not body:
+        return False
+    return any(
+        isinstance(call, ast.Call) and _call_name(call) in _AUTH_CALL_NAMES
+        for call in ast.walk(body[0])
+    )
+
+
 def check_every_route_is_authenticated() -> list[str]:
     """
     Every HTTP route and WebSocket must authenticate.
@@ -1036,48 +1109,50 @@ def check_every_route_is_authenticated() -> list[str]:
     happen before add_ws_client(), or a raising auth leaks a client slot.
     Demanding the decorator form would report that as unguarded and push
     someone to "fix" a correct ordering.
+
+    The in-body form counts only as the first statement: an auth call after a
+    side effect authenticates too late (audit OPS-023). Every module that
+    builds an app or a router is scanned, and so is `add_api_route`, since a
+    route registered either way serves the same; finding no route module at
+    all is reported rather than passed (SCR-011).
     """
-    main = SRC / "api" / "main.py"
-    if not main.exists():
-        return []
+    modules = _route_modules()
+    if not modules:
+        return ["src/: no FastAPI app or APIRouter found -- the route check has no subject"]
 
     problems: list[str] = []
-    for node in ast.walk(_parse(main)):
-        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            continue
-        for dec in node.decorator_list:
-            if not (isinstance(dec, ast.Call) and isinstance(dec.func, ast.Attribute)):
-                continue
-            if dec.func.attr not in (
-                "get",
-                "post",
-                "put",
-                "delete",
-                "patch",
-                "websocket",
+    for path in modules:
+        for node in ast.walk(_parse(path)):
+            if (
+                isinstance(node, ast.Call)
+                and _call_name(node) in _ROUTE_REGISTRARS
+                and not any(kw.arg == "dependencies" for kw in node.keywords)
             ):
-                continue
-            if any(kw.arg == "dependencies" for kw in dec.keywords):
-                continue
-            body_authenticates = any(
-                isinstance(call, ast.Call)
-                and (
-                    (isinstance(call.func, ast.Name) and call.func.id in _AUTH_CALL_NAMES)
-                    or (isinstance(call.func, ast.Attribute) and call.func.attr in _AUTH_CALL_NAMES)
+                problems.append(
+                    f"{_rel(path)}:{node.lineno} {_call_name(node)}() has no dependencies= "
+                    "guard -- it serves unauthenticated"
                 )
-                for call in ast.walk(node)
-            )
-            if body_authenticates:
+            if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 continue
-            route = (
-                dec.args[0].value
-                if dec.args and isinstance(dec.args[0], ast.Constant)
-                else "<unknown>"
-            )
-            problems.append(
-                f"{_rel(main)}:{node.lineno} {dec.func.attr.upper()} {route} has no "
-                "dependencies= guard and no in-body auth call — it serves unauthenticated"
-            )
+            for dec in node.decorator_list:
+                if not (isinstance(dec, ast.Call) and isinstance(dec.func, ast.Attribute)):
+                    continue
+                if dec.func.attr not in _ROUTE_METHODS:
+                    continue
+                if any(kw.arg == "dependencies" for kw in dec.keywords):
+                    continue
+                if _first_statement_authenticates(node):
+                    continue
+                route = (
+                    dec.args[0].value
+                    if dec.args and isinstance(dec.args[0], ast.Constant)
+                    else "<unknown>"
+                )
+                problems.append(
+                    f"{_rel(path)}:{node.lineno} {dec.func.attr.upper()} {route} has no "
+                    "dependencies= guard and no auth call as its first statement — it "
+                    "serves unauthenticated"
+                )
     return problems
 
 
@@ -1593,6 +1668,11 @@ def check_no_assert_in_src() -> list[str]:
     return problems
 
 
+def _code_files() -> list[Path]:
+    """src/ and scripts/: the scripts run in CI and on the operator's machine too (SCR-011)."""
+    return [*_py_files(SRC), *_py_files(REPO / "scripts")]
+
+
 def check_no_eval_or_exec() -> list[str]:
     """
     ``eval`` and ``exec`` accept a string and run it as code. In a trading
@@ -1601,7 +1681,7 @@ def check_no_eval_or_exec() -> list[str]:
     remote-code-execution primitive. Nothing in ``src/`` needs either.
     """
     problems: list[str] = []
-    for path in _py_files(SRC):
+    for path in _code_files():
         for node in ast.walk(_parse(path)):
             if (
                 isinstance(node, ast.Call)
@@ -1609,7 +1689,7 @@ def check_no_eval_or_exec() -> list[str]:
                 and node.func.id in {"eval", "exec"}
             ):
                 problems.append(
-                    f"{_rel(path)}:{node.lineno}: {node.func.id}() in src/ -- refuse code from a string"
+                    f"{_rel(path)}:{node.lineno}: {node.func.id}() -- refuse code from a string"
                 )
     return problems
 
@@ -1621,7 +1701,7 @@ def check_yaml_uses_safe_load() -> list[str]:
     ``yaml.safe_load`` is the only entry point that refuses those tags.
     """
     problems: list[str] = []
-    for path in _py_files(SRC):
+    for path in _code_files():
         for node in ast.walk(_parse(path)):
             if (
                 isinstance(node, ast.Call)
@@ -1629,9 +1709,23 @@ def check_yaml_uses_safe_load() -> list[str]:
                 and node.func.attr == "load"
                 and isinstance(node.func.value, ast.Name)
                 and node.func.value.id == "yaml"
+                and not _names_a_safe_loader(node)
             ):
                 problems.append(f"{_rel(path)}:{node.lineno}: yaml.load() -- use yaml.safe_load()")
     return problems
+
+
+_SAFE_YAML_LOADERS = frozenset({"SafeLoader", "CSafeLoader"})
+
+
+def _names_a_safe_loader(call: ast.Call) -> bool:
+    """``yaml.load(text, Loader=yaml.SafeLoader)`` is safe_load spelled out (SCR-011)."""
+    loaders = [kw.value for kw in call.keywords if kw.arg == "Loader"] + call.args[1:2]
+    for loader in loaders:
+        name = loader.attr if isinstance(loader, ast.Attribute) else getattr(loader, "id", None)
+        if name in _SAFE_YAML_LOADERS:
+            return True
+    return False
 
 
 def check_no_subprocess_shell_true() -> list[str]:
@@ -1643,7 +1737,7 @@ def check_no_subprocess_shell_true() -> list[str]:
     kernel handle argument boundaries.
     """
     problems: list[str] = []
-    for path in _py_files(SRC):
+    for path in _code_files():
         for node in ast.walk(_parse(path)):
             if not isinstance(node, ast.Call):
                 continue
