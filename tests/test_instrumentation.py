@@ -9,6 +9,9 @@ suite into every test that starts a thread.
 The multiprocessing wrapper is asserted by installation, not by spawning:
 starting a real process to cover ten lines of logging is a poor trade against
 the flakiness it invites in a sandboxed runner.
+
+Decides:
+  - REG-1498 — Task instrumentation is opt-in, kwargs-safe and arg-free
 """
 
 from __future__ import annotations

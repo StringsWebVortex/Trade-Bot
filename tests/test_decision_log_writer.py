@@ -1,4 +1,8 @@
-"""Tests for the v10 self-updating decision log writer."""
+"""Tests for the v10 self-updating decision log writer.
+
+Decides:
+  - REG-1493 — Decision log header creation never truncates
+"""
 
 from __future__ import annotations
 

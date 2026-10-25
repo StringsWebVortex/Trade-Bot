@@ -13,6 +13,10 @@ terminal service is absent or slow.
 Decides:
   - TERM-007 -- the host CLI and application jobs share the process registry
   - TERM-008 -- install, start and stop never clobber and never orphan
+
+Decides:
+  - REG-1501 — Terminal job reporter does not hold an idle connection
+  - SEC-1502 — Terminal purge and peer-uid checks fail closed
 """
 
 from __future__ import annotations

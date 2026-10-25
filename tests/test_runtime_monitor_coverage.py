@@ -3,7 +3,11 @@
 Decides:
   - REL-004 — Automatic halt triggers are machine-enforced
 
-  - REG-0028 — regression coverage for the recorded behavior."""
+  - REG-0028 — regression coverage for the recorded behavior.
+
+Decides:
+  - REG-1492 — Tick-stall failures accumulate toward escalation
+"""
 
 from __future__ import annotations
 

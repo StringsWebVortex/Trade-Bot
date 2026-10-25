@@ -16,6 +16,9 @@ module can take is asserted here, including the two that are failures:
 Collaborators are patched at `src.workers.trader`, so no settings file,
 storage backend, exchange fetcher or orchestrator is built. Nothing waits on
 wall-clock time: the test is released by the fake orchestrator's own events.
+
+Decides:
+  - REG-1500 — Trader worker closes storage when the fetcher fails to open
 """
 
 from __future__ import annotations

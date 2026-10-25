@@ -13,6 +13,9 @@ Decides:
   - TERM-007 -- the host CLI lists, creates, attaches to, inspects and detaches
   - TERM-008 -- install, start and stop never clobber and never orphan
   - REG-0025 -- attach closes only after the daemon has applied what it sent
+
+Decides:
+  - REG-1494 — Terminal CLI stop/pid/tail are safe
 """
 
 from __future__ import annotations

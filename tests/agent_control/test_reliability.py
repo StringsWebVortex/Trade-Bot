@@ -1,4 +1,9 @@
-"""GOV-057 / GOV-063 -- deterministic agent reliability controls."""
+"""GOV-057 / GOV-063 -- deterministic agent reliability controls.
+
+Decides:
+  - REG-1491 — CI failure fingerprint normalises whitespace
+  - REG-1497 — Agent reliability state fails closed and follows the state dir
+"""
 
 from __future__ import annotations
 

@@ -9,6 +9,9 @@ What these tests would catch:
   hidden-WIP failure this layer exists to prevent;
 * a merge or rebase left in progress not being reported;
 * a git failure or unparsable output silently treated as "nothing there".
+
+Decides:
+  - SEC-1490 — Agent git remote is never parsed as a git option
 """
 
 from __future__ import annotations

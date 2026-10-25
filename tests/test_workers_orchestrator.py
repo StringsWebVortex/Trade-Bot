@@ -1,4 +1,8 @@
-"""Tests for WorkerOrchestrator — multiprocessing pool + ECC thread."""
+"""Tests for WorkerOrchestrator — multiprocessing pool + ECC thread.
+
+Decides:
+  - SEC-1499 — ECC worker has no default RPC password and redacts URLs
+"""
 
 from __future__ import annotations
 

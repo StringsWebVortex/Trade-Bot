@@ -18,6 +18,10 @@ Decides:
   - TERM-004 -- the terminal is local-only and authenticated
   - TERM-006 -- closing a session or stopping the service leaves no orphan
   - SEC-0010 -- no path hands a shell to anyone but the local user who owns it
+
+Decides:
+  - REG-1495 — Terminal daemon releases its instance lock on construction failure
+  - SEC-1502 — Terminal purge and peer-uid checks fail closed
 """
 
 from __future__ import annotations

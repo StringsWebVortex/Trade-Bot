@@ -1654,6 +1654,7 @@ SHA8 dab9bdc5; total lines 819.
 
 - WorkerTask (class, lines 42-54): CHUNK_ID = src/workers/orchestrator.py#42-54#dab9bdc5 — [[F:src/workers/orchestrator.py#42-54#dab9bdc5]].
 - WorkerResult (class, lines 58-88): CHUNK_ID = src/workers/orchestrator.py#58-88#dab9bdc5 — [[F:src/workers/orchestrator.py#58-88#dab9bdc5]].
+- _handle_worker_sigterm (function, lines 91-93): CHUNK_ID = src/workers/orchestrator.py#91-93#dab9bdc5 — [[F:src/workers/orchestrator.py#91-93#dab9bdc5]].
 - _model_worker (function, lines 96-135): CHUNK_ID = src/workers/orchestrator.py#96-135#dab9bdc5 — [[F:src/workers/orchestrator.py#96-135#dab9bdc5]].
 - _run_horizon_inference (function, lines 138-175, slice 1): CHUNK_ID = src/workers/orchestrator.py#138-175#dab9bdc5 — [[F:src/workers/orchestrator.py#138-175#dab9bdc5]].
 - _run_horizon_inference (function, lines 176-213, slice 2): CHUNK_ID = src/workers/orchestrator.py#176-213#dab9bdc5 — [[F:src/workers/orchestrator.py#176-213#dab9bdc5]].
@@ -1767,6 +1768,7 @@ SHA8 1de280b9; total lines 616.
 
 - is_local_check_execution (function, lines 169-175): CHUNK_ID = common/command_schema.py#169-175#1de280b9 — [[F:common/command_schema.py#169-175#1de280b9]].
 - classify (function, lines 489-505): CHUNK_ID = common/command_schema.py#489-505#1de280b9 — [[F:common/command_schema.py#489-505#1de280b9]].
+- is_exact_patch_apply_command (function, lines 508-521): CHUNK_ID = common/command_schema.py#508-521#1de280b9 — [[F:common/command_schema.py#508-521#1de280b9]].
 - is_ci_log_access (function, lines 535-548): CHUNK_ID = common/command_schema.py#535-548#1de280b9 — [[F:common/command_schema.py#535-548#1de280b9]].
 - rank (function, lines 551-556): CHUNK_ID = common/command_schema.py#551-556#1de280b9 — [[F:common/command_schema.py#551-556#1de280b9]].
 - redact (function, lines 559-589): CHUNK_ID = common/command_schema.py#559-589#1de280b9 — [[F:common/command_schema.py#559-589#1de280b9]].
@@ -1903,64 +1905,64 @@ SHA8 57c8c650; total lines 161.
 
 ## tests/terminal/test_terminal_server.py
 
-SHA8 fe67faf0; total lines 536.
+SHA8 e767a615; total lines 540.
 
-- _output (function, lines 44-46): CHUNK_ID = tests/terminal/test_terminal_server.py#44-46#fe67faf0 — [[F:tests/terminal/test_terminal_server.py#44-46#fe67faf0]].
-- _collect_output (function, lines 49-54): CHUNK_ID = tests/terminal/test_terminal_server.py#49-54#fe67faf0 — [[F:tests/terminal/test_terminal_server.py#49-54#fe67faf0]].
-- finished (function, lines 57-58): CHUNK_ID = tests/terminal/test_terminal_server.py#57-58#fe67faf0 — [[F:tests/terminal/test_terminal_server.py#57-58#fe67faf0]].
-- session_event (function, lines 61-62): CHUNK_ID = tests/terminal/test_terminal_server.py#61-62#fe67faf0 — [[F:tests/terminal/test_terminal_server.py#61-62#fe67faf0]].
-- foreground_sleep (function, lines 65-78): CHUNK_ID = tests/terminal/test_terminal_server.py#65-78#fe67faf0 — [[F:tests/terminal/test_terminal_server.py#65-78#fe67faf0]].
-- _error_code (function, lines 81-83): CHUNK_ID = tests/terminal/test_terminal_server.py#81-83#fe67faf0 — [[F:tests/terminal/test_terminal_server.py#81-83#fe67faf0]].
-- TestHello (class, lines 86-123, slice 1): CHUNK_ID = tests/terminal/test_terminal_server.py#86-123#fe67faf0 — [[F:tests/terminal/test_terminal_server.py#86-123#fe67faf0]].
-- TestHello (class, lines 124-156, slice 2): CHUNK_ID = tests/terminal/test_terminal_server.py#124-156#fe67faf0 — [[F:tests/terminal/test_terminal_server.py#124-156#fe67faf0]].
-- TestHello.test_hello_returns_a_welcome_and_a_snapshot (method, lines 87-95): CHUNK_ID = tests/terminal/test_terminal_server.py#87-95#fe67faf0 — [[F:tests/terminal/test_terminal_server.py#87-95#fe67faf0]].
-- TestHello.test_the_welcome_describes_the_daemon (method, lines 97-106): CHUNK_ID = tests/terminal/test_terminal_server.py#97-106#fe67faf0 — [[F:tests/terminal/test_terminal_server.py#97-106#fe67faf0]].
-- TestHello.test_a_bad_first_frame_closes_the_connection (method, lines 115-120): CHUNK_ID = tests/terminal/test_terminal_server.py#115-120#fe67faf0 — [[F:tests/terminal/test_terminal_server.py#115-120#fe67faf0]].
-- TestHello.test_a_bad_client_kind_is_refused_but_hello_can_be_retried (method, lines 122-132): CHUNK_ID = tests/terminal/test_terminal_server.py#122-132#fe67faf0 — [[F:tests/terminal/test_terminal_server.py#122-132#fe67faf0]].
-- TestHello.test_malformed_frames_are_answered_not_fatal (method, lines 134-148): CHUNK_ID = tests/terminal/test_terminal_server.py#134-148#fe67faf0 — [[F:tests/terminal/test_terminal_server.py#134-148#fe67faf0]].
-- TestHello.test_an_oversized_frame_ends_the_connection (method, lines 150-156): CHUNK_ID = tests/terminal/test_terminal_server.py#150-156#fe67faf0 — [[F:tests/terminal/test_terminal_server.py#150-156#fe67faf0]].
-- TestSharedSessions (class, lines 159-196, slice 1): CHUNK_ID = tests/terminal/test_terminal_server.py#159-196#fe67faf0 — [[F:tests/terminal/test_terminal_server.py#159-196#fe67faf0]].
-- TestSharedSessions (class, lines 197-234, slice 2): CHUNK_ID = tests/terminal/test_terminal_server.py#197-234#fe67faf0 — [[F:tests/terminal/test_terminal_server.py#197-234#fe67faf0]].
-- TestSharedSessions (class, lines 235-254, slice 3): CHUNK_ID = tests/terminal/test_terminal_server.py#235-254#fe67faf0 — [[F:tests/terminal/test_terminal_server.py#235-254#fe67faf0]].
-- TestSharedSessions.test_two_clients_see_one_set_of_sessions (method, lines 160-197, slice 1): CHUNK_ID = tests/terminal/test_terminal_server.py#160-197#fe67faf0 — [[F:tests/terminal/test_terminal_server.py#160-197#fe67faf0]].
-- TestSharedSessions.test_two_clients_see_one_set_of_sessions (method, lines 198-212, slice 2): CHUNK_ID = tests/terminal/test_terminal_server.py#198-212#fe67faf0 — [[F:tests/terminal/test_terminal_server.py#198-212#fe67faf0]].
-- TestSharedSessions.test_running_output_signals_and_kill (method, lines 214-241): CHUNK_ID = tests/terminal/test_terminal_server.py#214-241#fe67faf0 — [[F:tests/terminal/test_terminal_server.py#214-241#fe67faf0]].
-- TestSharedSessions.test_a_job_and_its_result (method, lines 243-254): CHUNK_ID = tests/terminal/test_terminal_server.py#243-254#fe67faf0 — [[F:tests/terminal/test_terminal_server.py#243-254#fe67faf0]].
-- TestJobRegistration (class, lines 257-295): CHUNK_ID = tests/terminal/test_terminal_server.py#257-295#fe67faf0 — [[F:tests/terminal/test_terminal_server.py#257-295#fe67faf0]].
-- TestJobRegistration.test_an_application_job_runs_through_the_registry (method, lines 258-285): CHUNK_ID = tests/terminal/test_terminal_server.py#258-285#fe67faf0 — [[F:tests/terminal/test_terminal_server.py#258-285#fe67faf0]].
-- TestJobRegistration.test_job_requests_cannot_touch_terminal_processes (method, lines 287-295): CHUNK_ID = tests/terminal/test_terminal_server.py#287-295#fe67faf0 — [[F:tests/terminal/test_terminal_server.py#287-295#fe67faf0]].
-- TestConnectionLimits (class, lines 298-332): CHUNK_ID = tests/terminal/test_terminal_server.py#298-332#fe67faf0 — [[F:tests/terminal/test_terminal_server.py#298-332#fe67faf0]].
-- TestConnectionLimits.test_beyond_the_client_limit_a_connection_is_refused (method, lines 299-309): CHUNK_ID = tests/terminal/test_terminal_server.py#299-309#fe67faf0 — [[F:tests/terminal/test_terminal_server.py#299-309#fe67faf0]].
-- TestConnectionLimits.test_a_silent_connection_is_dropped (method, lines 311-321): CHUNK_ID = tests/terminal/test_terminal_server.py#311-321#fe67faf0 — [[F:tests/terminal/test_terminal_server.py#311-321#fe67faf0]].
-- TestConnectionLimits.test_a_peer_running_as_another_user_is_refused (method, lines 323-326): CHUNK_ID = tests/terminal/test_terminal_server.py#323-326#fe67faf0 — [[F:tests/terminal/test_terminal_server.py#323-326#fe67faf0]].
-- TestConnectionLimits.test_a_peer_with_unknown_uid_is_refused (method, lines 328-332): CHUNK_ID = tests/terminal/test_terminal_server.py#328-332#fe67faf0 — [[F:tests/terminal/test_terminal_server.py#328-332#fe67faf0]].
-- TestLifecycle (class, lines 335-376): CHUNK_ID = tests/terminal/test_terminal_server.py#335-376#fe67faf0 — [[F:tests/terminal/test_terminal_server.py#335-376#fe67faf0]].
-- TestLifecycle.test_stopping_ends_every_session_and_removes_files (method, lines 336-347): CHUNK_ID = tests/terminal/test_terminal_server.py#336-347#fe67faf0 — [[F:tests/terminal/test_terminal_server.py#336-347#fe67faf0]].
-- TestLifecycle.test_a_second_daemon_is_refused (method, lines 349-351): CHUNK_ID = tests/terminal/test_terminal_server.py#349-351#fe67faf0 — [[F:tests/terminal/test_terminal_server.py#349-351#fe67faf0]].
-- TestLifecycle.test_root_is_refused_unless_allowed (method, lines 353-356): CHUNK_ID = tests/terminal/test_terminal_server.py#353-356#fe67faf0 — [[F:tests/terminal/test_terminal_server.py#353-356#fe67faf0]].
-- TestLifecycle.test_the_websocket_listener_binds_loopback_only (method, lines 358-366): CHUNK_ID = tests/terminal/test_terminal_server.py#358-366#fe67faf0 — [[F:tests/terminal/test_terminal_server.py#358-366#fe67faf0]].
-- TestLifecycle.test_a_failed_background_task_is_logged_not_raised (method, lines 368-376): CHUNK_ID = tests/terminal/test_terminal_server.py#368-376#fe67faf0 — [[F:tests/terminal/test_terminal_server.py#368-376#fe67faf0]].
-- FakeWebSocket (class, lines 379-402): CHUNK_ID = tests/terminal/test_terminal_server.py#379-402#fe67faf0 — [[F:tests/terminal/test_terminal_server.py#379-402#fe67faf0]].
-- FakeWebSocket.__init__ (method, lines 382-386): CHUNK_ID = tests/terminal/test_terminal_server.py#382-386#fe67faf0 — [[F:tests/terminal/test_terminal_server.py#382-386#fe67faf0]].
-- FakeWebSocket.__aiter__ (method, lines 388-389): CHUNK_ID = tests/terminal/test_terminal_server.py#388-389#fe67faf0 — [[F:tests/terminal/test_terminal_server.py#388-389#fe67faf0]].
-- FakeWebSocket.__anext__ (method, lines 391-396): CHUNK_ID = tests/terminal/test_terminal_server.py#391-396#fe67faf0 — [[F:tests/terminal/test_terminal_server.py#391-396#fe67faf0]].
-- FakeWebSocket.send (method, lines 398-399): CHUNK_ID = tests/terminal/test_terminal_server.py#398-399#fe67faf0 — [[F:tests/terminal/test_terminal_server.py#398-399#fe67faf0]].
-- FakeWebSocket.close (method, lines 401-402): CHUNK_ID = tests/terminal/test_terminal_server.py#401-402#fe67faf0 — [[F:tests/terminal/test_terminal_server.py#401-402#fe67faf0]].
-- FakeHandshake (class, lines 405-407): CHUNK_ID = tests/terminal/test_terminal_server.py#405-407#fe67faf0 — [[F:tests/terminal/test_terminal_server.py#405-407#fe67faf0]].
-- FakeHandshake.respond (method, lines 406-407): CHUNK_ID = tests/terminal/test_terminal_server.py#406-407#fe67faf0 — [[F:tests/terminal/test_terminal_server.py#406-407#fe67faf0]].
-- ws_server (function, lines 411-415): CHUNK_ID = tests/terminal/test_terminal_server.py#411-415#fe67faf0 — [[F:tests/terminal/test_terminal_server.py#411-415#fe67faf0]].
-- _request (function, lines 418-419): CHUNK_ID = tests/terminal/test_terminal_server.py#418-419#fe67faf0 — [[F:tests/terminal/test_terminal_server.py#418-419#fe67faf0]].
-- _hello (function, lines 422-426): CHUNK_ID = tests/terminal/test_terminal_server.py#422-426#fe67faf0 — [[F:tests/terminal/test_terminal_server.py#422-426#fe67faf0]].
-- TestWebSocket (class, lines 433-470, slice 1): CHUNK_ID = tests/terminal/test_terminal_server.py#433-470#fe67faf0 — [[F:tests/terminal/test_terminal_server.py#433-470#fe67faf0]].
-- TestWebSocket (class, lines 471-480, slice 2): CHUNK_ID = tests/terminal/test_terminal_server.py#471-480#fe67faf0 — [[F:tests/terminal/test_terminal_server.py#471-480#fe67faf0]].
-- TestWebSocket.test_the_dashboard_origin_on_loopback_is_admitted (method, lines 442-443): CHUNK_ID = tests/terminal/test_terminal_server.py#442-443#fe67faf0 — [[F:tests/terminal/test_terminal_server.py#442-443#fe67faf0]].
-- TestWebSocket.test_anything_else_is_refused_before_the_socket_opens (method, lines 457-458): CHUNK_ID = tests/terminal/test_terminal_server.py#457-458#fe67faf0 — [[F:tests/terminal/test_terminal_server.py#457-458#fe67faf0]].
-- TestWebSocket.test_a_browser_needs_the_token (method, lines 460-480): CHUNK_ID = tests/terminal/test_terminal_server.py#460-480#fe67faf0 — [[F:tests/terminal/test_terminal_server.py#460-480#fe67faf0]].
-- _never (function, lines 483-485): CHUNK_ID = tests/terminal/test_terminal_server.py#483-485#fe67faf0 — [[F:tests/terminal/test_terminal_server.py#483-485#fe67faf0]].
-- TestClientConnection (class, lines 488-520): CHUNK_ID = tests/terminal/test_terminal_server.py#488-520#fe67faf0 — [[F:tests/terminal/test_terminal_server.py#488-520#fe67faf0]].
-- TestClientConnection.test_a_client_that_cannot_keep_up_is_cut_off (method, lines 489-507): CHUNK_ID = tests/terminal/test_terminal_server.py#489-507#fe67faf0 — [[F:tests/terminal/test_terminal_server.py#489-507#fe67faf0]].
-- TestClientConnection.test_a_dead_transport_ends_the_loop (method, lines 509-520): CHUNK_ID = tests/terminal/test_terminal_server.py#509-520#fe67faf0 — [[F:tests/terminal/test_terminal_server.py#509-520#fe67faf0]].
-- test_instance_lock_released_when_server_construction_fails (function, lines 523-536): CHUNK_ID = tests/terminal/test_terminal_server.py#523-536#fe67faf0 — [[F:tests/terminal/test_terminal_server.py#523-536#fe67faf0]].
+- _output (function, lines 48-50): CHUNK_ID = tests/terminal/test_terminal_server.py#48-50#e767a615 — [[F:tests/terminal/test_terminal_server.py#48-50#e767a615]].
+- _collect_output (function, lines 53-58): CHUNK_ID = tests/terminal/test_terminal_server.py#53-58#e767a615 — [[F:tests/terminal/test_terminal_server.py#53-58#e767a615]].
+- finished (function, lines 61-62): CHUNK_ID = tests/terminal/test_terminal_server.py#61-62#e767a615 — [[F:tests/terminal/test_terminal_server.py#61-62#e767a615]].
+- session_event (function, lines 65-66): CHUNK_ID = tests/terminal/test_terminal_server.py#65-66#e767a615 — [[F:tests/terminal/test_terminal_server.py#65-66#e767a615]].
+- foreground_sleep (function, lines 69-82): CHUNK_ID = tests/terminal/test_terminal_server.py#69-82#e767a615 — [[F:tests/terminal/test_terminal_server.py#69-82#e767a615]].
+- _error_code (function, lines 85-87): CHUNK_ID = tests/terminal/test_terminal_server.py#85-87#e767a615 — [[F:tests/terminal/test_terminal_server.py#85-87#e767a615]].
+- TestHello (class, lines 90-127, slice 1): CHUNK_ID = tests/terminal/test_terminal_server.py#90-127#e767a615 — [[F:tests/terminal/test_terminal_server.py#90-127#e767a615]].
+- TestHello (class, lines 128-160, slice 2): CHUNK_ID = tests/terminal/test_terminal_server.py#128-160#e767a615 — [[F:tests/terminal/test_terminal_server.py#128-160#e767a615]].
+- TestHello.test_hello_returns_a_welcome_and_a_snapshot (method, lines 91-99): CHUNK_ID = tests/terminal/test_terminal_server.py#91-99#e767a615 — [[F:tests/terminal/test_terminal_server.py#91-99#e767a615]].
+- TestHello.test_the_welcome_describes_the_daemon (method, lines 101-110): CHUNK_ID = tests/terminal/test_terminal_server.py#101-110#e767a615 — [[F:tests/terminal/test_terminal_server.py#101-110#e767a615]].
+- TestHello.test_a_bad_first_frame_closes_the_connection (method, lines 119-124): CHUNK_ID = tests/terminal/test_terminal_server.py#119-124#e767a615 — [[F:tests/terminal/test_terminal_server.py#119-124#e767a615]].
+- TestHello.test_a_bad_client_kind_is_refused_but_hello_can_be_retried (method, lines 126-136): CHUNK_ID = tests/terminal/test_terminal_server.py#126-136#e767a615 — [[F:tests/terminal/test_terminal_server.py#126-136#e767a615]].
+- TestHello.test_malformed_frames_are_answered_not_fatal (method, lines 138-152): CHUNK_ID = tests/terminal/test_terminal_server.py#138-152#e767a615 — [[F:tests/terminal/test_terminal_server.py#138-152#e767a615]].
+- TestHello.test_an_oversized_frame_ends_the_connection (method, lines 154-160): CHUNK_ID = tests/terminal/test_terminal_server.py#154-160#e767a615 — [[F:tests/terminal/test_terminal_server.py#154-160#e767a615]].
+- TestSharedSessions (class, lines 163-200, slice 1): CHUNK_ID = tests/terminal/test_terminal_server.py#163-200#e767a615 — [[F:tests/terminal/test_terminal_server.py#163-200#e767a615]].
+- TestSharedSessions (class, lines 201-238, slice 2): CHUNK_ID = tests/terminal/test_terminal_server.py#201-238#e767a615 — [[F:tests/terminal/test_terminal_server.py#201-238#e767a615]].
+- TestSharedSessions (class, lines 239-258, slice 3): CHUNK_ID = tests/terminal/test_terminal_server.py#239-258#e767a615 — [[F:tests/terminal/test_terminal_server.py#239-258#e767a615]].
+- TestSharedSessions.test_two_clients_see_one_set_of_sessions (method, lines 164-201, slice 1): CHUNK_ID = tests/terminal/test_terminal_server.py#164-201#e767a615 — [[F:tests/terminal/test_terminal_server.py#164-201#e767a615]].
+- TestSharedSessions.test_two_clients_see_one_set_of_sessions (method, lines 202-216, slice 2): CHUNK_ID = tests/terminal/test_terminal_server.py#202-216#e767a615 — [[F:tests/terminal/test_terminal_server.py#202-216#e767a615]].
+- TestSharedSessions.test_running_output_signals_and_kill (method, lines 218-245): CHUNK_ID = tests/terminal/test_terminal_server.py#218-245#e767a615 — [[F:tests/terminal/test_terminal_server.py#218-245#e767a615]].
+- TestSharedSessions.test_a_job_and_its_result (method, lines 247-258): CHUNK_ID = tests/terminal/test_terminal_server.py#247-258#e767a615 — [[F:tests/terminal/test_terminal_server.py#247-258#e767a615]].
+- TestJobRegistration (class, lines 261-299): CHUNK_ID = tests/terminal/test_terminal_server.py#261-299#e767a615 — [[F:tests/terminal/test_terminal_server.py#261-299#e767a615]].
+- TestJobRegistration.test_an_application_job_runs_through_the_registry (method, lines 262-289): CHUNK_ID = tests/terminal/test_terminal_server.py#262-289#e767a615 — [[F:tests/terminal/test_terminal_server.py#262-289#e767a615]].
+- TestJobRegistration.test_job_requests_cannot_touch_terminal_processes (method, lines 291-299): CHUNK_ID = tests/terminal/test_terminal_server.py#291-299#e767a615 — [[F:tests/terminal/test_terminal_server.py#291-299#e767a615]].
+- TestConnectionLimits (class, lines 302-336): CHUNK_ID = tests/terminal/test_terminal_server.py#302-336#e767a615 — [[F:tests/terminal/test_terminal_server.py#302-336#e767a615]].
+- TestConnectionLimits.test_beyond_the_client_limit_a_connection_is_refused (method, lines 303-313): CHUNK_ID = tests/terminal/test_terminal_server.py#303-313#e767a615 — [[F:tests/terminal/test_terminal_server.py#303-313#e767a615]].
+- TestConnectionLimits.test_a_silent_connection_is_dropped (method, lines 315-325): CHUNK_ID = tests/terminal/test_terminal_server.py#315-325#e767a615 — [[F:tests/terminal/test_terminal_server.py#315-325#e767a615]].
+- TestConnectionLimits.test_a_peer_running_as_another_user_is_refused (method, lines 327-330): CHUNK_ID = tests/terminal/test_terminal_server.py#327-330#e767a615 — [[F:tests/terminal/test_terminal_server.py#327-330#e767a615]].
+- TestConnectionLimits.test_a_peer_with_unknown_uid_is_refused (method, lines 332-336): CHUNK_ID = tests/terminal/test_terminal_server.py#332-336#e767a615 — [[F:tests/terminal/test_terminal_server.py#332-336#e767a615]].
+- TestLifecycle (class, lines 339-380): CHUNK_ID = tests/terminal/test_terminal_server.py#339-380#e767a615 — [[F:tests/terminal/test_terminal_server.py#339-380#e767a615]].
+- TestLifecycle.test_stopping_ends_every_session_and_removes_files (method, lines 340-351): CHUNK_ID = tests/terminal/test_terminal_server.py#340-351#e767a615 — [[F:tests/terminal/test_terminal_server.py#340-351#e767a615]].
+- TestLifecycle.test_a_second_daemon_is_refused (method, lines 353-355): CHUNK_ID = tests/terminal/test_terminal_server.py#353-355#e767a615 — [[F:tests/terminal/test_terminal_server.py#353-355#e767a615]].
+- TestLifecycle.test_root_is_refused_unless_allowed (method, lines 357-360): CHUNK_ID = tests/terminal/test_terminal_server.py#357-360#e767a615 — [[F:tests/terminal/test_terminal_server.py#357-360#e767a615]].
+- TestLifecycle.test_the_websocket_listener_binds_loopback_only (method, lines 362-370): CHUNK_ID = tests/terminal/test_terminal_server.py#362-370#e767a615 — [[F:tests/terminal/test_terminal_server.py#362-370#e767a615]].
+- TestLifecycle.test_a_failed_background_task_is_logged_not_raised (method, lines 372-380): CHUNK_ID = tests/terminal/test_terminal_server.py#372-380#e767a615 — [[F:tests/terminal/test_terminal_server.py#372-380#e767a615]].
+- FakeWebSocket (class, lines 383-406): CHUNK_ID = tests/terminal/test_terminal_server.py#383-406#e767a615 — [[F:tests/terminal/test_terminal_server.py#383-406#e767a615]].
+- FakeWebSocket.__init__ (method, lines 386-390): CHUNK_ID = tests/terminal/test_terminal_server.py#386-390#e767a615 — [[F:tests/terminal/test_terminal_server.py#386-390#e767a615]].
+- FakeWebSocket.__aiter__ (method, lines 392-393): CHUNK_ID = tests/terminal/test_terminal_server.py#392-393#e767a615 — [[F:tests/terminal/test_terminal_server.py#392-393#e767a615]].
+- FakeWebSocket.__anext__ (method, lines 395-400): CHUNK_ID = tests/terminal/test_terminal_server.py#395-400#e767a615 — [[F:tests/terminal/test_terminal_server.py#395-400#e767a615]].
+- FakeWebSocket.send (method, lines 402-403): CHUNK_ID = tests/terminal/test_terminal_server.py#402-403#e767a615 — [[F:tests/terminal/test_terminal_server.py#402-403#e767a615]].
+- FakeWebSocket.close (method, lines 405-406): CHUNK_ID = tests/terminal/test_terminal_server.py#405-406#e767a615 — [[F:tests/terminal/test_terminal_server.py#405-406#e767a615]].
+- FakeHandshake (class, lines 409-411): CHUNK_ID = tests/terminal/test_terminal_server.py#409-411#e767a615 — [[F:tests/terminal/test_terminal_server.py#409-411#e767a615]].
+- FakeHandshake.respond (method, lines 410-411): CHUNK_ID = tests/terminal/test_terminal_server.py#410-411#e767a615 — [[F:tests/terminal/test_terminal_server.py#410-411#e767a615]].
+- ws_server (function, lines 415-419): CHUNK_ID = tests/terminal/test_terminal_server.py#415-419#e767a615 — [[F:tests/terminal/test_terminal_server.py#415-419#e767a615]].
+- _request (function, lines 422-423): CHUNK_ID = tests/terminal/test_terminal_server.py#422-423#e767a615 — [[F:tests/terminal/test_terminal_server.py#422-423#e767a615]].
+- _hello (function, lines 426-430): CHUNK_ID = tests/terminal/test_terminal_server.py#426-430#e767a615 — [[F:tests/terminal/test_terminal_server.py#426-430#e767a615]].
+- TestWebSocket (class, lines 437-474, slice 1): CHUNK_ID = tests/terminal/test_terminal_server.py#437-474#e767a615 — [[F:tests/terminal/test_terminal_server.py#437-474#e767a615]].
+- TestWebSocket (class, lines 475-484, slice 2): CHUNK_ID = tests/terminal/test_terminal_server.py#475-484#e767a615 — [[F:tests/terminal/test_terminal_server.py#475-484#e767a615]].
+- TestWebSocket.test_the_dashboard_origin_on_loopback_is_admitted (method, lines 446-447): CHUNK_ID = tests/terminal/test_terminal_server.py#446-447#e767a615 — [[F:tests/terminal/test_terminal_server.py#446-447#e767a615]].
+- TestWebSocket.test_anything_else_is_refused_before_the_socket_opens (method, lines 461-462): CHUNK_ID = tests/terminal/test_terminal_server.py#461-462#e767a615 — [[F:tests/terminal/test_terminal_server.py#461-462#e767a615]].
+- TestWebSocket.test_a_browser_needs_the_token (method, lines 464-484): CHUNK_ID = tests/terminal/test_terminal_server.py#464-484#e767a615 — [[F:tests/terminal/test_terminal_server.py#464-484#e767a615]].
+- _never (function, lines 487-489): CHUNK_ID = tests/terminal/test_terminal_server.py#487-489#e767a615 — [[F:tests/terminal/test_terminal_server.py#487-489#e767a615]].
+- TestClientConnection (class, lines 492-524): CHUNK_ID = tests/terminal/test_terminal_server.py#492-524#e767a615 — [[F:tests/terminal/test_terminal_server.py#492-524#e767a615]].
+- TestClientConnection.test_a_client_that_cannot_keep_up_is_cut_off (method, lines 493-511): CHUNK_ID = tests/terminal/test_terminal_server.py#493-511#e767a615 — [[F:tests/terminal/test_terminal_server.py#493-511#e767a615]].
+- TestClientConnection.test_a_dead_transport_ends_the_loop (method, lines 513-524): CHUNK_ID = tests/terminal/test_terminal_server.py#513-524#e767a615 — [[F:tests/terminal/test_terminal_server.py#513-524#e767a615]].
+- test_instance_lock_released_when_server_construction_fails (function, lines 527-540): CHUNK_ID = tests/terminal/test_terminal_server.py#527-540#e767a615 — [[F:tests/terminal/test_terminal_server.py#527-540#e767a615]].
 
 ## Additional non-Python source slices
 
