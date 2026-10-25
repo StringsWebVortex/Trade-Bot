@@ -4,6 +4,13 @@ Covers: forming candles dropped by both fetchers (SCR-007); unlabelable tail
 rows kept as NaN instead of fabricated "down" labels (SCR-008); the training
 purge gap, non-overlapping P&L with horizon-correct annualisation, and
 time-ordered calibration folds (DOC-014). Network is replaced by fakes.
+
+Decides:
+  - REG-1280 — Standalone predictor drops the still-forming candle
+  - REG-1281 — Predictor labels never fabricate a down move for unlabelable tail rows
+  - REG-1282 — Walk-forward training purges labels that overlap the test window
+  - REG-1283 — Backtest P&L uses non-overlapping holds and horizon-correct annualisation
+  - REG-1284 — Probability calibration folds are time-ordered
 """
 
 from __future__ import annotations
@@ -24,8 +31,9 @@ sys.path.insert(0, str(PKG))
 import backtest  # noqa: E402
 import data_fetch  # noqa: E402
 import data_fetch_kraken  # noqa: E402
-import risk  # noqa: E402
 from indicators import forward_direction_label  # noqa: E402
+
+import risk  # noqa: E402
 
 
 class _Resp:

@@ -124,9 +124,7 @@ class TestOnBarAsync:
         bids = [[49990.0, 1.0], [49980.0, 2.0]]
         asks = [[50010.0, 1.0], [50020.0, 2.0]]
         result = self._run(intel.on_bar("BTC/USDT", ohlcv, bids=bids, asks=asks))
-        assert result is None or (
-            isinstance(result, IntelSignal) and result.symbol == "BTC/USDT"
-        )
+        assert result is None or (isinstance(result, IntelSignal) and result.symbol == "BTC/USDT")
         intel.close()
 
     def test_on_bar_with_derivatives_data(self, tmp_path) -> None:
@@ -137,9 +135,7 @@ class TestOnBarAsync:
         ohlcv = {"close": 50000.0, "volume": 10.0}
         deriv = {"oi_usd": 1e9, "funding_rate": 0.0001, "liquidations_usd": 5e6}
         result = self._run(intel.on_bar("BTC/USDT", ohlcv, derivatives_data=deriv))
-        assert result is None or (
-            isinstance(result, IntelSignal) and result.symbol == "BTC/USDT"
-        )
+        assert result is None or (isinstance(result, IntelSignal) and result.symbol == "BTC/USDT")
         intel.close()
 
 

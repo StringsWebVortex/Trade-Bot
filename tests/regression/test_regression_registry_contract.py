@@ -245,6 +245,13 @@ class TestTheRegistryHasAPlaceForDefects:
             # REG-1704: audit STR-21 -- carry and arbitrage entries gated on
             # fixed thresholds no cost measurement produced.
             "REG-1704",
+            # REG-1280..1284: standalone crypto-predictor audit findings (SCR-007,
+            # SCR-008, DOC-014), each filed with its deciding test.
+            "REG-1280",
+            "REG-1281",
+            "REG-1282",
+            "REG-1283",
+            "REG-1284",
         }
         # SEC-0005: `.gitignore` carried a bare `.env`, which matches that one
         # name and nothing else -- so `.env.bak.<timestamp>` from a
@@ -547,7 +554,9 @@ class TestTheMetricsCollector:
         # test-suite, 43.
         # REG-1704 adds the fixed-threshold carry/arbitrage regression (STR-21):
         # no test asked what the thresholds cost to clear -- test-suite, 44.
-        assert metric["value"] == {"test-suite": 44, "review": 1, "supply-chain": 3}
+        # REG-1280..1284 add five crypto-predictor audit regressions no test
+        # exercised -- test-suite, 49.
+        assert metric["value"] == {"test-suite": 49, "review": 1, "supply-chain": 3}
 
     def test_zero_escaped_defects_would_be_stated_explicitly(self, collector, monkeypatch):
         # "We have not measured this" and "this is zero" are different

@@ -6026,7 +6026,8 @@
           "test": "tests/test_crypto_predictor_regressions.py",
           "test_type": "regression"
         }
-      ]
+      ],
+      "notes": "Audit SCR-007, SCR-008 and DOC-014 (standalone crypto-predictor). layer: test-suite"
     },
     {
       "id": "REG-1281",
@@ -6047,7 +6048,8 @@
           "test": "tests/test_crypto_predictor_regressions.py",
           "test_type": "regression"
         }
-      ]
+      ],
+      "notes": "Audit SCR-007, SCR-008 and DOC-014 (standalone crypto-predictor). layer: test-suite"
     },
     {
       "id": "REG-1282",
@@ -6067,7 +6069,8 @@
           "test": "tests/test_crypto_predictor_regressions.py",
           "test_type": "regression"
         }
-      ]
+      ],
+      "notes": "Audit SCR-007, SCR-008 and DOC-014 (standalone crypto-predictor). layer: test-suite"
     },
     {
       "id": "REG-1283",
@@ -6087,7 +6090,8 @@
           "test": "tests/test_crypto_predictor_regressions.py",
           "test_type": "regression"
         }
-      ]
+      ],
+      "notes": "Audit SCR-007, SCR-008 and DOC-014 (standalone crypto-predictor). layer: test-suite"
     },
     {
       "id": "REG-1284",
@@ -6107,7 +6111,8 @@
           "test": "tests/test_crypto_predictor_regressions.py",
           "test_type": "regression"
         }
-      ]
+      ],
+      "notes": "Audit SCR-007, SCR-008 and DOC-014 (standalone crypto-predictor). layer: test-suite"
     }
   ]
 }

@@ -638,6 +638,8 @@ forward_direction_label returns NaN for the last horizon rows, so they are dropp
 - **Verification:**
   - `tests/test_crypto_predictor_regressions.py` (regression)
 
+> Audit SCR-007, SCR-008 and DOC-014 (standalone crypto-predictor). layer: test-suite
+
 #### `REG-1282` — Walk-forward training purges labels that overlap the test window
 
 **VERIFIED** · medium · regression · source: OPS-2026-10-25
@@ -648,6 +650,8 @@ walk_forward_backtest excludes the last horizon training rows before each test b
 - **Owned by:** `crypto-predictor/backtest.py`
 - **Verification:**
   - `tests/test_crypto_predictor_regressions.py` (regression)
+
+> Audit SCR-007, SCR-008 and DOC-014 (standalone crypto-predictor). layer: test-suite
 
 #### `REG-1283` — Backtest P&L uses non-overlapping holds and horizon-correct annualisation
 
@@ -660,6 +664,8 @@ evaluate compounds returns only on every horizon-th row and annualises with sqrt
 - **Verification:**
   - `tests/test_crypto_predictor_regressions.py` (regression)
 
+> Audit SCR-007, SCR-008 and DOC-014 (standalone crypto-predictor). layer: test-suite
+
 #### `REG-1284` — Probability calibration folds are time-ordered
 
 **VERIFIED** · medium · regression · source: OPS-2026-10-25
@@ -670,6 +676,8 @@ calibrate_probabilities uses TimeSeriesSplit so the calibrator never trains on r
 - **Owned by:** `crypto-predictor/risk.py`
 - **Verification:**
   - `tests/test_crypto_predictor_regressions.py` (regression)
+
+> Audit SCR-007, SCR-008 and DOC-014 (standalone crypto-predictor). layer: test-suite
 
 #### `REG-1605` — LLL and the BLS12-381 pairing do not redo work they can update
 
@@ -825,6 +833,8 @@ crypto-predictor data fetchers never return the still-open candle: Binance rows 
 - **Owned by:** `crypto-predictor/data_fetch.py`, `crypto-predictor/data_fetch_kraken.py`
 - **Verification:**
   - `tests/test_crypto_predictor_regressions.py` (regression)
+
+> Audit SCR-007, SCR-008 and DOC-014 (standalone crypto-predictor). layer: test-suite
 
 #### `REG-1702` — kg/ and rag_mongo/ share one MongoClient factory and one URI check
 
