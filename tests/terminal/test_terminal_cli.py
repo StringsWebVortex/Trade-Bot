@@ -10,6 +10,7 @@ would. Attaching never stops a session; the terminal is restored however the
 attach ends.
 
 Decides:
+  - SEC-1224 -- see config/quality_registry.json
   - TERM-007 -- the host CLI lists, creates, attaches to, inspects and detaches
   - TERM-008 -- install, start and stop never clobber and never orphan
   - REG-0025 -- attach closes only after the daemon has applied what it sent

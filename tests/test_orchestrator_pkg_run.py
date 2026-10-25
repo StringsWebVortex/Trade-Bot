@@ -1,4 +1,6 @@
-"""Tests for orchestrator/run.py (the plan-big/execute-small entry point)."""
+"""Tests for orchestrator/run.py (the plan-big/execute-small entry point).
+
+Decides: REG-1226, SEC-1225"""
 
 from __future__ import annotations
 

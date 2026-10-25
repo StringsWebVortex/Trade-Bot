@@ -4,6 +4,8 @@ validator's model-lifecycle checks, report contracts and exit codes.
 Every validator case runs against a minimal module written to ``tmp_path``
 and asserts the finding a reviewer or CI gate would act on, never the
 presence of a keyword in the validator itself.
+
+Decides: SEC-1228
 """
 
 from __future__ import annotations

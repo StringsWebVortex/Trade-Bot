@@ -1,4 +1,6 @@
-"""GOV-057 / GOV-063 -- deterministic agent reliability controls."""
+"""GOV-057 / GOV-063 -- deterministic agent reliability controls.
+
+Decides: SEC-1220"""
 
 from __future__ import annotations
 

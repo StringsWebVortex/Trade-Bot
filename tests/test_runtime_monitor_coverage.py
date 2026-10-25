@@ -1,6 +1,7 @@
 """Tests for src/diagnostics/runtime_monitor.py (27% → target 80%+).
 
 Decides:
+  - REG-1221 -- see config/quality_registry.json
   - REL-004 — Automatic halt triggers are machine-enforced
 
   - REG-0028 — regression coverage for the recorded behavior."""

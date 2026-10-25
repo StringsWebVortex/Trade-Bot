@@ -1,6 +1,7 @@
 """Tests for the PostToolUse observation gate.
 
 Decides:
+  - REG-1227 -- see config/quality_registry.json
   - GOV-057 — all model-visible tool observations cross the repository boundary
 """
 

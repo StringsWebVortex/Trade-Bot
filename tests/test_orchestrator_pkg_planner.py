@@ -1,5 +1,7 @@
 """Tests for orchestrator/planner.py (the new plan-big/execute-small package,
-distinct from src/engine/orchestrator.py covered by tests/test_orchestrator*.py)."""
+distinct from src/engine/orchestrator.py covered by tests/test_orchestrator*.py).
+
+Decides: REG-1226"""
 
 from __future__ import annotations
 

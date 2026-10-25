@@ -588,12 +588,12 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 518 | P1 | tests/agent_control/conftest.py | Python | 123 | 8bce4f3e |  |
 | 519 | P1 | tests/agent_control/test_branch_audit.py | Python | 277 | c2e5d55e |  |
 | 520 | P1 | tests/agent_control/test_cli.py | Python | 310 | 63625b96 |  |
-| 521 | P1 | tests/agent_control/test_completion.py | Python | 321 | 719564e2 |  |
+| 521 | P1 | tests/agent_control/test_completion.py | Python | 323 | 85e4eca9 |  |
 | 522 | P1 | tests/agent_control/test_git_safety.py | Python | 187 | 8c09a9be |  |
 | 523 | P1 | tests/agent_control/test_gitstate.py | Python | 253 | ccff552d |  |
 | 524 | P1 | tests/agent_control/test_hooks.py | Python | 202 | edddae05 |  |
 | 525 | P1 | tests/agent_control/test_model.py | Python | 471 | b7fdd280 |  |
-| 526 | P1 | tests/agent_control/test_reliability.py | Python | 253 | 04155492 |  |
+| 526 | P1 | tests/agent_control/test_reliability.py | Python | 255 | 52aa17ca |  |
 | 527 | P1 | tests/agent_control/test_store.py | Python | 148 | 3d540971 |  |
 | 528 | P1 | tests/agent_control/test_workspace.py | Python | 354 | 57897d20 |  |
 | 529 | P1 | tests/api/__init__.py | Python | 0 | e3b0c442 |  |
@@ -704,7 +704,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 634 | P1 | tests/regime/test_garch.py | Python | 148 | 8a4195c0 |  |
 | 635 | P1 | tests/regression/__init__.py | Python | 0 | e3b0c442 |  |
 | 636 | P1 | tests/regression/test_metrics_payload.py | Python | 120 | 094976c7 |  |
-| 637 | P1 | tests/regression/test_regression_registry_contract.py | Python | 654 | 9f54fed1 |  |
+| 637 | P1 | tests/regression/test_regression_registry_contract.py | Python | 663 | 6e9035e4 |  |
 | 638 | P1 | tests/risk/__init__.py | Python | 0 | e3b0c442 |  |
 | 639 | P1 | tests/risk/test_probability_bounds.py | Python | 137 | a3b65a78 |  |
 | 640 | P1 | tests/risk/test_risk_limit_boundaries.py | Python | 300 | 37b9b36e |  |
@@ -770,7 +770,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 700 | P1 | tests/terminal/__init__.py | Python | 0 | e3b0c442 |  |
 | 701 | P1 | tests/terminal/_support.py | Python | 350 | 06109a83 |  |
 | 702 | P1 | tests/terminal/conftest.py | Python | 50 | b7931e73 |  |
-| 703 | P1 | tests/terminal/test_terminal_cli.py | Python | 581 | 342ee520 |  |
+| 703 | P1 | tests/terminal/test_terminal_cli.py | Python | 582 | f4401908 |  |
 | 704 | P1 | tests/terminal/test_terminal_host.py | Python | 284 | 342b5d4a |  |
 | 705 | P1 | tests/terminal/test_terminal_install_jobs.py | Python | 228 | 59540c99 |  |
 | 706 | P1 | tests/terminal/test_terminal_markers_buffer.py | Python | 104 | 9e5c40b8 |  |
@@ -844,7 +844,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 774 | P1 | tests/test_coverage_mid_batch.py | Python | 254 | 94b0772c |  |
 | 775 | P1 | tests/test_cross_exchange_arb.py | Python | 105 | 74948a3a |  |
 | 776 | P1 | tests/test_crt.py | Python | 236 | dd77ffd3 |  |
-| 777 | P1 | tests/test_crypto_architect_skill.py | Python | 336 | e65074ac |  |
+| 777 | P1 | tests/test_crypto_architect_skill.py | Python | 338 | 6c504eaa |  |
 | 778 | P1 | tests/test_crypto_intel_main.py | Python | 145 | a4922355 |  |
 | 779 | P1 | tests/test_crypto_intel_signal_path.py | Python | 720 | 6f1adb26 |  |
 | 780 | P1 | tests/test_crypto_intel_v6_coverage.py | Python | 819 | 346198a8 |  |
@@ -984,7 +984,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 914 | P1 | tests/test_nutms.py | Python | 82 | 67f6f381 |  |
 | 915 | P1 | tests/test_observation_boundary_contract.py | Python | 301 | a4492759 |  |
 | 916 | P1 | tests/test_observation_failure.py | Python | 42 | 0d9f7362 |  |
-| 917 | P1 | tests/test_observation_gate.py | Python | 206 | c20d930d |  |
+| 917 | P1 | tests/test_observation_gate.py | Python | 207 | dd7919bf |  |
 | 918 | P1 | tests/test_onchain_arkham_cryptoquant.py | Python | 222 | 3e33d989 |  |
 | 919 | P1 | tests/test_onchain_base_coverage.py | Python | 359 | 7b57a71f |  |
 | 920 | P1 | tests/test_onchain_no_fabricated_values.py | Python | 129 | 7ca1355a |  |
@@ -999,8 +999,8 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 929 | P1 | tests/test_orchestrator_coverage.py | Python | 1578 | 30877624 |  |
 | 930 | P1 | tests/test_orchestrator_crypto_box_paths.py | Python | 416 | d50c119c |  |
 | 931 | P1 | tests/test_orchestrator_extra_coverage.py | Python | 1545 | 83990bea |  |
-| 932 | P1 | tests/test_orchestrator_pkg_planner.py | Python | 59 | 465cd8a3 |  |
-| 933 | P1 | tests/test_orchestrator_pkg_run.py | Python | 65 | 83cbae19 |  |
+| 932 | P1 | tests/test_orchestrator_pkg_planner.py | Python | 61 | 16f461f4 |  |
+| 933 | P1 | tests/test_orchestrator_pkg_run.py | Python | 67 | 4593b436 |  |
 | 934 | P1 | tests/test_orchestrator_pkg_synthesizer.py | Python | 24 | 886ce774 |  |
 | 935 | P1 | tests/test_orchestrator_pkg_worker.py | Python | 18 | f681910b |  |
 | 936 | P1 | tests/test_orchestrator_registry_publish.py | Python | 130 | 710f80f2 |  |
@@ -1078,7 +1078,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 1008 | P1 | tests/test_router_fee_parsing.py | Python | 221 | 711816d4 |  |
 | 1009 | P1 | tests/test_rpc_basic_auth.py | Python | 105 | 0782f493 |  |
 | 1010 | P1 | tests/test_runtime_monitor_concurrent_probes.py | Python | 182 | e340073b |  |
-| 1011 | P1 | tests/test_runtime_monitor_coverage.py | Python | 431 | 79da2161 |  |
+| 1011 | P1 | tests/test_runtime_monitor_coverage.py | Python | 432 | abc16958 |  |
 | 1012 | P1 | tests/test_safe_primes.py | Python | 438 | 1d4ae1d2 |  |
 | 1013 | P1 | tests/test_scripts_path_bootstrap.py | Python | 95 | c4c1c928 |  |
 | 1014 | P1 | tests/test_secp256k1.py | Python | 448 | c4cb6103 |  |
@@ -1156,7 +1156,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 1086 | P1 | tests/test_whale_ratio_failure_path.py | Python | 77 | 4bdd41b9 |  |
 | 1087 | P1 | tests/test_worker_trader.py | Python | 247 | b0481a7e |  |
 | 1088 | P1 | tests/test_workers_orchestrator.py | Python | 164 | 5f14b63f |  |
-| 1089 | P1 | tests/test_workers_orchestrator_coverage.py | Python | 501 | 0045b80d |  |
+| 1089 | P1 | tests/test_workers_orchestrator_coverage.py | Python | 503 | 529394b9 |  |
 | 1090 | P1 | tests/test_ws_auth_query_param.py | Python | 111 | c5806f67 |  |
 | 1091 | P1 | tests/test_ws_broadcaster.py | Python | 128 | b0deb4c0 |  |
 | 1092 | P1 | tests/test_ws_publish_lag_metric.py | Python | 182 | c3cfea00 |  |

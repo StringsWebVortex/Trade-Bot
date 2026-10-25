@@ -12,6 +12,8 @@ agent can act on. What this would catch:
 * a recorded commit that history no longer contains (a rewritten branch);
 * a push or PR that is not at HEAD being accepted as delivered;
 * a required branch audit that never ran, or did not reconcile.
+
+Decides: SEC-1220
 """
 
 from __future__ import annotations
