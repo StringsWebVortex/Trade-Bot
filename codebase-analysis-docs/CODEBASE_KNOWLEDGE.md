@@ -522,7 +522,7 @@ Use these anchors with the matching current hash in codebase-analysis-docs/CHUNK
 - Order state machine: [[F:src/execution/order_fsm.py#149-186#14f635a5]]
 - SQLite initialization/migrations: [[F:src/data/storage.py#805-821#ef516934]]
 - TimescaleDB storage backend: [[F:src/data/timescale_storage.py#398-435#0aecd8bd]]
-- Runtime change validation and policy: [[F:src/runtime/changes.py#292-329#9aa272d8]]
+- Runtime change validation and policy: [[F:src/runtime/changes.py#302-339#310891d5]]
 - Runtime discovery/reconciliation: [[F:src/runtime/production.py#266-303#55696d76]]
 - Browser transport handshake and dispatch: [[F:src/terminal/server.py#218-230#10681519]]
 - Headless runtime ownership: [[F:src/workers/trader.py#53-90#687738d8]]

@@ -159,6 +159,11 @@ class AuditBackend(Protocol):
     ) -> None: ...
 
 
+# Entries queued while storage is down (audit API-021). Beyond this the oldest
+# is dropped and logged as an error, so an outage cannot exhaust memory.
+_PENDING_LIMIT = 10_000
+
+
 class AuditPersister:
     """
     Change-audit entries into the storage backend's existing ``audit_log``
@@ -172,11 +177,23 @@ class AuditPersister:
         self._backend = backend
         self._lock = threading.Lock()
         self._pending: list[dict[str, Any]] = []
+        self.dropped = 0
 
     def enqueue(self, entry: Any) -> None:
         """An audit sink: takes a ``changes.AuditEntry``."""
         with self._lock:
             self._pending.append(entry.to_dict())
+            if len(self._pending) <= _PENDING_LIMIT:
+                return
+            lost = self._pending.pop(0)
+            self.dropped += 1
+            dropped = self.dropped
+        log.error(
+            "runtime.audit_pending_overflow",
+            change_id=lost.get("change_id"),
+            dropped=dropped,
+            limit=_PENDING_LIMIT,
+        )
 
     @property
     def pending(self) -> int:
@@ -200,5 +217,7 @@ class AuditPersister:
                 )
                 return written
             with self._lock:
-                self._pending.pop(0)
+                # An overflow during the write may already have dropped it.
+                if self._pending and self._pending[0] is details:
+                    self._pending.pop(0)
             written += 1
