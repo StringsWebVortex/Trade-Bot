@@ -229,6 +229,11 @@ class TestTheRegistryHasAPlaceForDefects:
             # REG-1604: the CI diagnostics collector held its own report check
             # in_progress, so no prfail report ever finalized.
             "REG-1604",
+            # REG-1605..1608: audits MTH-020, FE-15, SCR-011/OPS-023 and OPS-013.
+            "REG-1605",
+            "REG-1606",
+            "REG-1607",
+            "REG-1608",
         }
         # SEC-0005: `.gitignore` carried a bare `.env`, which matches that one
         # name and nothing else -- so `.env.bak.<timestamp>` from a
@@ -525,7 +530,8 @@ class TestTheMetricsCollector:
         # REG-1604 adds the collector self-wait regression -- test-suite, 34.
         # SEC-0012: filelock's CVE was published against a release torch and
         # huggingface-hub pulled in unbounded -- supply-chain, 2 to 3.
-        assert metric["value"] == {"test-suite": 34, "review": 1, "supply-chain": 3}
+        # REG-1605..1608 add four more audit findings no test exercised -- test-suite, 38.
+        assert metric["value"] == {"test-suite": 38, "review": 1, "supply-chain": 3}
 
     def test_zero_escaped_defects_would_be_stated_explicitly(self, collector, monkeypatch):
         # "We have not measured this" and "this is zero" are different

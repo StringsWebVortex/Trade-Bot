@@ -5661,6 +5661,95 @@
       "notes": "Observed on PRs #502, #506, #508 and #509, whose reports never finalized after #467 removed only the job-level self-wait. No test ran the collector end to end against its own check writes. layer: test-suite"
     },
     {
+      "id": "REG-1605",
+      "kind": "regression",
+      "title": "LLL and the BLS12-381 pairing do not redo work they can update",
+      "statement": "lll_reduce_with_transform updates the Gram-Schmidt coefficients in place after a size reduction, integer_lll_reduce detects a dependent basis from its own integer Gram determinants instead of a Fraction Gram-Schmidt, and the pairing's final exponentiation takes the (p^6-1)(p^2+1) part through the Frobenius map; every output is unchanged.",
+      "criticality": "low",
+      "subsystem": "model",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "The Fraction LLL recomputed the full Gram-Schmidt after every size reduction, the integer LLL ran that same slow Fraction pass up front on 256-bit HNP lattices it exists to make feasible, and the pairing raised the Miller output to a 4300-bit exponent directly.",
+      "owning_modules": [
+        "src/mathcore/lattice/lll.py",
+        "src/mathcore/curves/bls12_381.py"
+      ],
+      "depends_on": [],
+      "verification": [
+        {
+          "test": "tests/test_mth020_lattice_and_pairing_cost.py",
+          "test_type": "regression"
+        }
+      ],
+      "notes": "Audit MTH-020. The tests pin the results to the old algorithm and the direct exponent, so a faster wrong answer fails. layer: test-suite"
+    },
+    {
+      "id": "REG-1606",
+      "kind": "regression",
+      "title": "The terminal token is kept in memory, never in browser storage",
+      "statement": "The dashboard keeps the terminal daemon token in memory only and removes any copy an older build left in sessionStorage; a reload asks for it again.",
+      "criticality": "medium",
+      "subsystem": "terminal",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "The token grants a shell as the logged-in user and sat in sessionStorage, where any script on the origin could read it, so one XSS would yield both the API key and a shell token.",
+      "owning_modules": [
+        "frontend/src/terminal/TerminalContext.jsx"
+      ],
+      "depends_on": [],
+      "verification": [
+        {
+          "test": "frontend/src/components/terminal/terminalUi.test.jsx",
+          "test_type": "regression"
+        }
+      ],
+      "notes": "Audit FE-15. layer: test-suite"
+    },
+    {
+      "id": "REG-1607",
+      "kind": "regression",
+      "title": "Static-invariant checks see relative imports, every router and their own subject",
+      "statement": "check_import_cycles and the layering edges resolve relative imports; the route check scans every module that builds a FastAPI app or APIRouter, flags add_api_route without dependencies, accepts in-body auth only as the first statement and reports a missing route module; the gate-status check reports a missing GateStatus or gate stack; eval, shell=True and yaml.load are also checked in scripts/, and yaml.load with SafeLoader is accepted.",
+      "criticality": "medium",
+      "subsystem": "governance",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "A cycle or upward edge written with a relative import, a route on a separate router or registered with add_api_route, and an auth call made after a side effect all passed unseen; a renamed GateStatus or a missing main.py made their checks pass vacuously.",
+      "owning_modules": [
+        "scripts/check_static_invariants.py"
+      ],
+      "depends_on": [],
+      "verification": [
+        {
+          "test": "tests/test_static_invariants_blind_spots.py",
+          "test_type": "regression"
+        }
+      ],
+      "notes": "Audits SCR-011 and OPS-023. Each blind spot was a check that could not fail on the defect it names, so only a suite test feeding it that defect could catch it. layer: test-suite"
+    },
+    {
+      "id": "REG-1608",
+      "kind": "regression",
+      "title": "Prometheus authenticates its /metrics scrape",
+      "statement": "deploy/prometheus.yml sends X-API-Key on the API scrape through http_headers, read from a mounted file, and no longer recommends a proxy that strips the header check.",
+      "criticality": "low",
+      "subsystem": "security",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "The auth block was commented out and the comments suggested stripping the header check in a proxy, which would serve /metrics, equity values included, unauthenticated.",
+      "owning_modules": [
+        "deploy/prometheus.yml"
+      ],
+      "depends_on": [],
+      "verification": [
+        {
+          "test": "tests/test_prometheus_scrape_auth.py",
+          "test_type": "regression"
+        }
+      ],
+      "notes": "Audit OPS-013. Needs Prometheus 2.55 or later for http_headers. layer: test-suite"
+    },
+    {
       "id": "REG-1600",
       "kind": "regression",
       "title": "The CPU torch pre-pass uses the same version spec as requirements.txt",
