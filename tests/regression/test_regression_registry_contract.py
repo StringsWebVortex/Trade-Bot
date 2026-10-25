@@ -256,6 +256,7 @@ class TestTheRegistryHasAPlaceForDefects:
             "SEC-0008",
             "SEC-0009",
             "SEC-0010",
+            "SEC-0012",
         }
 
     def test_every_filed_defect_names_a_permanent_test(self, registry):
@@ -518,7 +519,9 @@ class TestTheMetricsCollector:
         # REG-0030 adds the risk-gated horizon-order-path regression -- test-suite, 28.
         # REG-0031 adds the horizon drift-suppression regression -- test-suite, 29.
         # REG-1600..1603 add four audit regressions no test exercised -- test-suite, 33.
-        assert metric["value"] == {"test-suite": 33, "review": 1, "supply-chain": 2}
+        # SEC-0012: filelock's CVE was published against a release torch and
+        # huggingface-hub pulled in unbounded -- supply-chain, 2 to 3.
+        assert metric["value"] == {"test-suite": 33, "review": 1, "supply-chain": 3}
 
     def test_zero_escaped_defects_would_be_stated_explicitly(self, collector, monkeypatch):
         # "We have not measured this" and "this is zero" are different
