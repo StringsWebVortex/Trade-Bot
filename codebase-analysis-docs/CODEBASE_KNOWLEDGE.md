@@ -508,9 +508,9 @@ See **codebase-analysis-docs/STATE_BLOCKS.md** for Phase 1–6 checkpoints: inde
 
 Use these anchors with the matching current hash in codebase-analysis-docs/CHUNK_INDEX.md. Regenerate the index after source modifications.
 
-- API lifespan and resource ownership: [[F:src/api/main.py#584-621#a71ca019]]
-- WebSocket authentication/fan-out entry: [[F:src/api/main.py#2007-2044#a71ca019]]
-- API key validation and role selection: [[F:src/api/auth.py#94-133#c9a226cf]]
+- API lifespan and resource ownership: [[F:src/api/main.py#620-657#7ba8db9e]]
+- WebSocket authentication/fan-out entry: [[F:src/api/main.py#2075-2112#7ba8db9e]]
+- API key validation and role selection: [[F:src/api/auth.py#95-137#49ad08ee]]
 - Primary configuration model: [[F:src/config.py#1013-1050#566fc015]]
 - Atomic live risk-control update: [[F:src/config.py#1419-1458#566fc015]]
 - Main orchestrator startup: [[F:src/engine/orchestrator.py#433-470#10c49738]]
@@ -522,8 +522,8 @@ Use these anchors with the matching current hash in codebase-analysis-docs/CHUNK
 - Order state machine: [[F:src/execution/order_fsm.py#149-186#14f635a5]]
 - SQLite initialization/migrations: [[F:src/data/storage.py#745-761#b1db7068]]
 - TimescaleDB storage backend: [[F:src/data/timescale_storage.py#394-431#1aa58429]]
-- Runtime change validation and policy: [[F:src/runtime/changes.py#292-329#9aa272d8]]
-- Runtime discovery/reconciliation: [[F:src/runtime/production.py#266-303#55696d76]]
+- Runtime change validation and policy: [[F:src/runtime/changes.py#292-329#028419a7]]
+- Runtime discovery/reconciliation: [[F:src/runtime/production.py#266-303#3ece1420]]
 - Browser transport handshake and dispatch: [[F:src/terminal/server.py#218-230#10681519]]
 - Headless runtime ownership: [[F:src/workers/trader.py#53-90#687738d8]]
 - Positional E-01…E-18 orchestration: [[F:src/engines/orchestrator.py#308-345#10e2649d]]
