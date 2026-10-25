@@ -3633,6 +3633,132 @@
       "notes": "layer: test-suite"
     },
     {
+      "id": "SEC-1010",
+      "kind": "security_regression",
+      "title": "POST /controls enforces the caller's role",
+      "statement": "POST /controls/{name} requires the CHANGE_EXECUTION_MODE permission and a healthy security-control registry in addition to a valid API key and the operator secret; a read-only key is refused with 403.",
+      "criticality": "high",
+      "subsystem": "api",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "A read-only key that also learns the operator secret changes execution mode, exit controls and settings.",
+      "owning_modules": [
+        "src/api/main.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/api/test_authz_and_secrets.py",
+          "test_type": "security"
+        }
+      ],
+      "notes": "audit finding API-001"
+    },
+    {
+      "id": "SEC-1011",
+      "kind": "security_regression",
+      "title": "/controls/execution_mode has the /execution-mode safeguards",
+      "statement": "Changing the execution mode through /controls/execution_mode goes through the same function as /execution-mode: mode-change rate limit, EXEC-005 persistence and audit event; apply_control refuses the change without that setter.",
+      "criticality": "high",
+      "subsystem": "api",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "The mode silently reverts on restart, is unaudited and bypasses the 3-per-hour limit.",
+      "owning_modules": [
+        "src/api/main.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/api/test_authz_and_secrets.py",
+          "test_type": "security"
+        }
+      ],
+      "notes": "audit finding API-002"
+    },
+    {
+      "id": "SEC-1012",
+      "kind": "security_regression",
+      "title": "POST /controls writes only allow-listed settings and audits every write",
+      "statement": "Settings writes through POST /controls are limited to an explicit allow-list of groups, never to URL/host/path-like leaves, default-deny for new groups, and each control write emits a control_change audit event.",
+      "criticality": "high",
+      "subsystem": "api",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "Any non-credential leaf, including filesystem paths and service URLs, is live-writable with no audit trail.",
+      "owning_modules": [
+        "src/api/control_surface.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/api/test_authz_and_secrets.py",
+          "test_type": "security"
+        }
+      ],
+      "notes": "audit finding API-003"
+    },
+    {
+      "id": "SEC-1013",
+      "kind": "security_regression",
+      "title": "GET /controls never renders secret values",
+      "statement": "Settings leaves whose names carry dsn, password, token, secret, uri or credential markers are listed without a value and as protected; the TimescaleDB DSN is never returned.",
+      "criticality": "high",
+      "subsystem": "api",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "Any key reads the database password from GET /controls and from control_changed broadcasts.",
+      "owning_modules": [
+        "src/api/control_surface.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/api/test_authz_and_secrets.py",
+          "test_type": "security"
+        }
+      ],
+      "notes": "audit finding API-004"
+    },
+    {
+      "id": "SEC-1014",
+      "kind": "security_regression",
+      "title": "The WebSocket API key stays out of URLs and uvicorn logs",
+      "statement": "Browsers authenticate the WebSocket through an apikey.<hex> Sec-WebSocket-Protocol subprotocol; the query-string key is refused, and uvicorn log records have api_key= values redacted.",
+      "criticality": "high",
+      "subsystem": "api",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "The key is written in cleartext to the application log on every WebSocket handshake.",
+      "owning_modules": [
+        "src/api/auth.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/api/test_authz_and_secrets.py",
+          "test_type": "security"
+        }
+      ],
+      "notes": "audit finding API-005"
+    },
+    {
+      "id": "SEC-1015",
+      "kind": "security_regression",
+      "title": "Operator-secret guessing is bounded globally",
+      "statement": "All operator-secret checks share one failure budget that locks every route after repeated failures; /execution-mode applies its endpoint rate limit before comparing the secret; OPERATOR_SECRET must be at least 32 characters at startup.",
+      "criticality": "high",
+      "subsystem": "api",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "The second factor can be brute-forced across endpoints and IPs, and a weak secret is accepted.",
+      "owning_modules": [
+        "src/api/operator_secret.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/api/test_authz_and_secrets.py",
+          "test_type": "security"
+        }
+      ],
+      "notes": "audit finding API-007"
+    },
+    {
       "id": "GOV-022",
       "kind": "requirement",
       "title": "diagnostics stays within its layer",
@@ -5613,6 +5739,119 @@
         }
       ],
       "depends_on": []
+    },
+    {
+      "id": "SEC-1240",
+      "kind": "security_regression",
+      "title": "The admin API key is never built into the dashboard bundle",
+      "statement": "The Vite build refuses VITE_API_KEY; the bundle may carry only VITE_API_READONLY_KEY, the admin key is entered at runtime and held in memory, and Electron injects its key from the main process for API-origin requests only.",
+      "criticality": "high",
+      "subsystem": "security",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "Vite inlined VITE_API_KEY (the admin key) into dist/, readable by anyone with the files or DevTools.",
+      "owning_modules": [
+        "frontend/src/hooks/useApi.js",
+        "frontend/src/buildGuard.js",
+        "frontend/vite.config.js",
+        "frontend/electron/security.cjs",
+        "frontend/electron/main.cjs"
+      ],
+      "verification": [
+        {
+          "test": "frontend/src/security/frontendSecurity.test.jsx",
+          "test_type": "security"
+        }
+      ],
+      "notes": "audit finding FE-01"
+    },
+    {
+      "id": "SEC-1241",
+      "kind": "security_regression",
+      "title": "Electron opens only https externally and trusts only app-origin pages for the shell bridge",
+      "statement": "External URLs open only when https:; in-window navigation away from the app origin is blocked; terminal IPC handlers reject frames whose origin is not the app.",
+      "criticality": "high",
+      "subsystem": "security",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "Any scheme reached the OS and a navigated page inherited the preload shell bridge.",
+      "owning_modules": [
+        "frontend/electron/main.cjs",
+        "frontend/electron/security.cjs",
+        "frontend/electron/terminalBridge.cjs"
+      ],
+      "verification": [
+        {
+          "test": "frontend/src/security/frontendSecurity.test.jsx",
+          "test_type": "security"
+        }
+      ],
+      "notes": "audit finding FE-07"
+    },
+    {
+      "id": "SEC-1242",
+      "kind": "security_regression",
+      "title": "The built dashboard page carries a Content-Security-Policy",
+      "statement": "The production index.html includes a CSP meta with script-src 'self', object-src 'none' and connect-src limited to the app, loopback and the configured API origin.",
+      "criticality": "medium",
+      "subsystem": "security",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "No CSP meant any XSS could read credentials and reach the Electron shell bridge.",
+      "owning_modules": [
+        "frontend/src/buildGuard.js",
+        "frontend/vite.config.js"
+      ],
+      "verification": [
+        {
+          "test": "frontend/src/security/frontendSecurity.test.jsx",
+          "test_type": "security"
+        }
+      ],
+      "notes": "audit finding FE-08"
+    },
+    {
+      "id": "REG-1243",
+      "kind": "regression",
+      "title": "Failed polls are reported as stale data",
+      "statement": "usePolling records failing requests (401, 5xx, unreachable) and the dashboard shows a stale-data banner naming them, clearing on recovery.",
+      "criticality": "medium",
+      "subsystem": "api",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "usePolling swallowed failures and kept old numbers displayed as current.",
+      "owning_modules": [
+        "frontend/src/hooks/useApi.js",
+        "frontend/src/App.jsx"
+      ],
+      "verification": [
+        {
+          "test": "frontend/src/security/frontendSecurity.test.jsx",
+          "test_type": "regression"
+        }
+      ],
+      "notes": "audit finding FE-06"
+    },
+    {
+      "id": "REG-1244",
+      "kind": "regression",
+      "title": "The Configuration panel renders live settings",
+      "statement": "ConfigPanel renders values from GET /controls, not hardcoded literals.",
+      "criticality": "medium",
+      "subsystem": "api",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "About 100 hardcoded literals were shown as the bot's settings and drifted from .env.",
+      "owning_modules": [
+        "frontend/src/components/panels/ConfigPanel.jsx"
+      ],
+      "verification": [
+        {
+          "test": "frontend/src/security/frontendSecurity.test.jsx",
+          "test_type": "regression"
+        }
+      ],
+      "notes": "audit finding FE-09"
     },
     {
       "id": "REG-1040",

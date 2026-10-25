@@ -324,3 +324,14 @@ def _clear_mongo_client_caches():
     yield
     kg.db._client_for.cache_clear()
     rag_mongo.db._client_for.cache_clear()
+
+
+@pytest.fixture(autouse=True)
+def _reset_operator_secret_lockout():
+    """SEC-1015: the lockout budget is process-global; a test that sends a wrong
+    secret on purpose must not lock out the next test's correct one."""
+    from src.api.operator_secret import reset_failures
+
+    reset_failures()
+    yield
+    reset_failures()
