@@ -3,6 +3,8 @@ Real historical OHLCV fetcher — Binance public REST API (no auth required).
 No mocks: hits the live public endpoint and returns real historical candles.
 """
 
+import time
+
 import pandas as pd
 import requests
 
@@ -50,6 +52,10 @@ def fetch_ohlcv(symbol: str = "BTCUSDT", interval: str = "1h", limit: int = 1000
         "ignore",
     ]
     df = pd.DataFrame(raw, columns=cols)
+    # The last kline is still forming while its close_time is in the future;
+    # its close and volume are provisional, so drop it.
+    now_ms = int(time.time() * 1000)
+    df = df[df["close_time"].astype("int64") <= now_ms].copy()
 
     df["timestamp"] = pd.to_datetime(df["open_time"], unit="ms", utc=True)
     for c in ["open", "high", "low", "close", "volume"]:

@@ -392,12 +392,13 @@ def _base_record(
 
 
 def _unquote_command_value(value: str) -> str:
+    # %25 is decoded last: decoding it first turned "%250A" into a newline.
     for marker, replacement in (
-        ("%25", "%"),
         ("%0D", "\r"),
         ("%0A", "\n"),
         ("%3A", ":"),
         ("%2C", ","),
+        ("%25", "%"),
     ):
         value = value.replace(marker, replacement)
     return value

@@ -47,11 +47,11 @@ deletion of the thing it points at.
 
 | Status | Entries |
 |---|---|
-| VERIFIED | 223 |
+| VERIFIED | 228 |
 | PARTIAL | 3 |
 | PLANNED | 0 |
 | ACCEPTED GAP | 0 |
-| **Total** | **226** |
+| **Total** | **231** |
 
 ## Summary by subsystem
 
@@ -62,13 +62,13 @@ deletion of the thing it points at.
 | Portfolio | 1 | 1 |
 | Signal and features | 6 | 6 |
 | Models and leakage | 11 | 11 |
-| Data, money and time | 13 | 12 |
+| Data, money and time | 14 | 13 |
 | API and WebSocket | 21 | 21 |
 | Cryptography and secrets | 30 | 30 |
 | Supply chain and artifacts | 7 | 7 |
 | Resilience and recovery | 24 | 24 |
 | Release and production | 14 | 14 |
-| Governance | 63 | 62 |
+| Governance | 67 | 66 |
 | Terminal and process center | 12 | 12 |
 
 ## Outstanding work by phase
@@ -782,6 +782,17 @@ crypto-predictor indicators replace +/-inf with NaN in ratio features, and RSI i
 
 - **If violated:** Infinite OBV/Bollinger/volume ratios passed dropna and reached the model; no-loss RSI rows were dropped.
 - **Owned by:** `crypto-predictor/indicators.py`
+- **Verification:**
+  - `tests/test_low_findings_regressions.py` (regression)
+
+#### `REG-1531` — Market fetchers drop the still-forming last candle
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+crypto-predictor data_fetch.fetch_ohlcv and data_fetch_kraken.fetch_ohlcv return only candles whose interval has closed.
+
+- **If violated:** The provisional close and volume of the forming candle reached features and labels.
+- **Owned by:** `crypto-predictor/data_fetch.py`, `crypto-predictor/data_fetch_kraken.py`
 - **Verification:**
   - `tests/test_low_findings_regressions.py` (regression)
 
@@ -2736,6 +2747,50 @@ scripts/check_mutation_score.run_subsystem clears mutmut's cache before each sub
 - **Verification:**
   - `tests/test_low_findings_regressions.py` (regression)
 
+#### `REG-1527` — Ruleset drift check compares rule parameters the file sets
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+scripts/apply_repo_ruleset.compare reports a rule parameter that differs from GitHub, and ignores GitHub default echoes.
+
+- **If violated:** A weakened approval count or thread-resolution setting passed --check.
+- **Owned by:** `scripts/apply_repo_ruleset.py`
+- **Verification:**
+  - `tests/test_low_findings_regressions.py` (regression)
+
+#### `REG-1528` — CI diagnostic values decode percent-escapes once, with %25 last
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+scripts/ci_diagnostics._unquote_command_value does not decode an encoded percent into a newline.
+
+- **If violated:** Double decoding turned %250A into a newline in report text.
+- **Owned by:** `scripts/ci_diagnostics.py`
+- **Verification:**
+  - `tests/test_low_findings_regressions.py` (regression)
+
+#### `REG-1529` — Quality id regex accepts registry ids past the old digit caps
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+qe_new_requirement.ID_RE accepts REG and SEC ids with five or more digits.
+
+- **If violated:** next_id produced ids after 9999 that the regex rejected.
+- **Owned by:** `.claude/skills/quality-engineering/scripts/qe_new_requirement.py`
+- **Verification:**
+  - `tests/test_low_findings_regressions.py` (regression)
+
+#### `REG-1530` — Review context refuses option-shaped refs and provenance refuses escaping names
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+review.build_context._diff_text rejects refs beginning with '-', and write_provenance.verify reports names that escape the bundle.
+
+- **If violated:** A ref was parsed as a git option, and a provenance name could digest a file outside the bundle.
+- **Owned by:** `review/build_context.py`, `scripts/write_provenance.py`
+- **Verification:**
+  - `tests/test_low_findings_regressions.py` (regression)
+
 ## Terminal and process center
 
 #### `TERM-001` — Terminal sessions are real PTYs that every client shares
@@ -2915,4 +2970,4 @@ To add or change an entry, edit the registry and regenerate this file. See
 `docs/quality/TEST_STRATEGY.md` for the taxonomy the `test_type` column draws
 on, and `docs/quality/IMPLEMENTATION_PLAN.md` for what each phase delivers.
 
-Registry version: 1.0.0 — 226 entries.
+Registry version: 1.0.0 — 231 entries.

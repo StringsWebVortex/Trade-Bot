@@ -5768,6 +5768,118 @@
         }
       ],
       "depends_on": []
+    },
+    {
+      "id": "REG-1527",
+      "kind": "regression",
+      "title": "Ruleset drift check compares rule parameters the file sets",
+      "statement": "scripts/apply_repo_ruleset.compare reports a rule parameter that differs from GitHub, and ignores GitHub default echoes.",
+      "criticality": "low",
+      "subsystem": "governance",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "",
+      "failure_mode": "A weakened approval count or thread-resolution setting passed --check.",
+      "owning_modules": [
+        "scripts/apply_repo_ruleset.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_low_findings_regressions.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1528",
+      "kind": "regression",
+      "title": "CI diagnostic values decode percent-escapes once, with %25 last",
+      "statement": "scripts/ci_diagnostics._unquote_command_value does not decode an encoded percent into a newline.",
+      "criticality": "low",
+      "subsystem": "governance",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "",
+      "failure_mode": "Double decoding turned %250A into a newline in report text.",
+      "owning_modules": [
+        "scripts/ci_diagnostics.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_low_findings_regressions.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1529",
+      "kind": "regression",
+      "title": "Quality id regex accepts registry ids past the old digit caps",
+      "statement": "qe_new_requirement.ID_RE accepts REG and SEC ids with five or more digits.",
+      "criticality": "low",
+      "subsystem": "governance",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "",
+      "failure_mode": "next_id produced ids after 9999 that the regex rejected.",
+      "owning_modules": [
+        ".claude/skills/quality-engineering/scripts/qe_new_requirement.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_low_findings_regressions.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1530",
+      "kind": "regression",
+      "title": "Review context refuses option-shaped refs and provenance refuses escaping names",
+      "statement": "review.build_context._diff_text rejects refs beginning with '-', and write_provenance.verify reports names that escape the bundle.",
+      "criticality": "low",
+      "subsystem": "governance",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "",
+      "failure_mode": "A ref was parsed as a git option, and a provenance name could digest a file outside the bundle.",
+      "owning_modules": [
+        "review/build_context.py",
+        "scripts/write_provenance.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_low_findings_regressions.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1531",
+      "kind": "regression",
+      "title": "Market fetchers drop the still-forming last candle",
+      "statement": "crypto-predictor data_fetch.fetch_ohlcv and data_fetch_kraken.fetch_ohlcv return only candles whose interval has closed.",
+      "criticality": "low",
+      "subsystem": "data",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "",
+      "failure_mode": "The provisional close and volume of the forming candle reached features and labels.",
+      "owning_modules": [
+        "crypto-predictor/data_fetch.py",
+        "crypto-predictor/data_fetch_kraken.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_low_findings_regressions.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
     }
   ]
 }

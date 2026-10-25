@@ -45,6 +45,9 @@ def _load_validator():
 @pytest.fixture(scope="module")
 def current_fingerprints() -> set[str]:
     if not VALIDATOR.exists():
+        # In CI a missing validator would silently disable the arch gate.
+        if os.environ.get("CI"):
+            pytest.fail("crypto-architect validator missing in CI; the arch gate cannot run")
         pytest.skip("crypto-architect skill not installed")
     validator = _load_validator()
     findings = validator.scan_directory(SCAN_DIR)

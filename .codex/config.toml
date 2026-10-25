@@ -3,7 +3,8 @@
 
 approval_policy = "on-request"
 sandbox_mode = "workspace-write"
-web_search = "live"
+# Cached results only: live search is a prompt-injection surface for agents editing trading code.
+web_search = "cached"
 
 [mcp_servers.openaiDeveloperDocs]
 url = "https://developers.openai.com/mcp"

@@ -142,3 +142,93 @@ def test_tool_decorator_preserves_coroutine_function():
         return 1
 
     assert inspect.iscoroutinefunction(probe)
+
+
+# OPS-022 / SCR-015: ruleset drift check compares rule parameters.
+def test_ruleset_check_flags_weakened_rule_parameter():
+    mod = _load("scripts/apply_repo_ruleset.py", "apply_repo_ruleset_t")
+    payload = {
+        "enforcement": "active",
+        "rules": [{"type": "pull_request", "parameters": {"required_approving_review_count": 1}}],
+    }
+    remote = {
+        "enforcement": "active",
+        "rules": [{"type": "pull_request", "parameters": {"required_approving_review_count": 0}}],
+    }
+    problems = mod.compare(payload, remote)
+    assert any("required_approving_review_count" in p for p in problems)
+
+
+def test_ruleset_check_ignores_github_default_echo():
+    mod = _load("scripts/apply_repo_ruleset.py", "apply_repo_ruleset_t2")
+    payload = {"enforcement": "active", "rules": [{"type": "deletion"}]}
+    remote = {
+        "enforcement": "active",
+        "rules": [{"type": "deletion", "parameters": {"unrelated_default": True}}],
+    }
+    assert mod.compare(payload, remote) == []
+
+
+# SCR-016: %25 is decoded last, so an encoded percent is not decoded into a newline.
+def test_command_value_unquote_does_not_double_decode():
+    mod = _load("scripts/ci_diagnostics.py", "ci_diagnostics_t")
+    assert mod._unquote_command_value("%250A") == "%0A"
+    assert mod._unquote_command_value("a%0Ab") == "a\nb"
+
+
+# DOC-028: qe id regex accepts ids past the old digit caps.
+def test_qe_id_regex_accepts_long_registry_ids():
+    mod = _load(
+        ".claude/skills/quality-engineering/scripts/qe_new_requirement.py", "qe_new_requirement_t"
+    )
+    assert mod.ID_RE.match("REG-10000")
+    assert mod.ID_RE.match("SEC-0001")
+
+
+# DOC-019: refs are verified and option-shaped refs are refused before git runs.
+def test_build_context_refuses_option_shaped_ref():
+    import review.build_context as bc
+
+    with pytest.raises(ValueError):
+        bc._diff_text("--output=/tmp/x", "HEAD")
+
+
+# SCR-018: provenance file names may not escape the bundle.
+def test_provenance_verify_refuses_traversal_name(tmp_path):
+    import json
+
+    mod = _load("scripts/write_provenance.py", "write_provenance_t")
+    record = tmp_path / "provenance.json"
+    record.write_text(json.dumps({"files": [{"name": "../escape", "sha256": "0"}]}))
+    problems = mod.verify(record)
+    assert any("unsafe file name" in p for p in problems)
+
+
+# DOC-031: a still-forming last candle is dropped by both fetchers.
+def test_binance_fetch_drops_forming_candle(monkeypatch):
+    import time
+
+    mod = _load("crypto-predictor/data_fetch.py", "crypto_predictor_binance")
+    now_ms = int(time.time() * 1000)
+    closed = [1, "1", "1", "1", "1", "1", now_ms - 1000] + [0] * 5
+    forming = [now_ms, "1", "1", "1", "1", "1", now_ms + 60_000] + [0] * 5
+    resp = MagicMock()
+    resp.json.return_value = [closed, forming]
+    monkeypatch.setattr(mod.requests, "get", lambda *a, **k: resp)
+    df = mod.fetch_ohlcv("BTCUSDT", "1m")
+    assert len(df) == 1
+
+
+def test_kraken_fetch_drops_forming_candle(monkeypatch):
+    import time
+
+    mod = _load("crypto-predictor/data_fetch_kraken.py", "crypto_predictor_kraken")
+    now = time.time()
+    closed = [now - 600, "1", "1", "1", "1", "1", "1", 1]
+    forming = [now, "1", "1", "1", "1", "1", "1", 1]
+    resp = MagicMock()
+    resp.json.return_value = {"error": [], "result": {"XXBTZUSD": [closed, forming], "last": 0}}
+    resp.raise_for_status.return_value = None
+    monkeypatch.setattr(mod.requests, "get", lambda *a, **k: resp)
+    df = mod.fetch_ohlcv("XBTUSD", "5m")
+    assert len(df) == 1
