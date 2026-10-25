@@ -173,12 +173,14 @@ def test_evaluate_annualises_by_the_holding_period():
 def test_calibration_uses_time_ordered_folds(monkeypatch):
     seen: dict = {}
 
-    class _SpyCalibrated(risk.CalibratedClassifierCV):
-        def __init__(self, *args, **kwargs):
-            seen.update(kwargs)
-            super().__init__(*args, **kwargs)
+    real = risk.CalibratedClassifierCV
 
-    monkeypatch.setattr(risk, "CalibratedClassifierCV", _SpyCalibrated)
+    def _spy(*args, **kwargs):
+        # A factory, not a subclass: sklearn rejects *args in an estimator __init__.
+        seen.update(kwargs)
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(risk, "CalibratedClassifierCV", _spy)
     n = 60
     X = pd.DataFrame({"x": np.arange(n, dtype=float)})
     y = pd.Series(np.arange(n) % 2)

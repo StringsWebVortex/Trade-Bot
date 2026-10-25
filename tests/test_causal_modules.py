@@ -30,12 +30,15 @@ class TestGrangerCausalityDetector:
     def test_update_with_sufficient_data(self) -> None:
         from src.causal.granger import GrangerCausalityDetector
 
-        gcd = GrangerCausalityDetector(window=30, max_lag=2)
-        n = 60
-        btc = pd.Series(np.random.randn(n))
+        # The detector skips any pair with fewer than its 60-observation minimum,
+        # so the window and the series must both reach it.
+        gcd = GrangerCausalityDetector(window=60, max_lag=2)
+        n = 100
+        rng = np.random.default_rng(7)
+        btc = pd.Series(rng.standard_normal(n) * 0.01)
         alt_prices = {
-            "ETH": pd.Series(100 + (btc + np.random.randn(n) * 0.1).cumsum()),
-            "SOL": pd.Series(100 + np.random.randn(n).cumsum()),
+            "ETH": pd.Series(100 * np.exp((btc + rng.standard_normal(n) * 0.001).cumsum())),
+            "SOL": pd.Series(100 * np.exp((rng.standard_normal(n) * 0.01).cumsum())),
         }
         result = gcd.update(btc, alt_prices)
         pytest.importorskip("statsmodels.tsa.stattools")

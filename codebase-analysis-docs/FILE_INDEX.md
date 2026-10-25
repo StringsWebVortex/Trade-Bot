@@ -814,7 +814,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 744 | P1 | tests/test_causal_asset_gnn_pyg.py | Python | 78 | b3e0219f |  |
 | 745 | P1 | tests/test_causal_dowhy_scm.py | Python | 125 | 7eb0139c |  |
 | 746 | P1 | tests/test_causal_inference.py | Python | 243 | 917865bc |  |
-| 747 | P1 | tests/test_causal_modules.py | Python | 217 | ff048e62 |  |
+| 747 | P1 | tests/test_causal_modules.py | Python | 220 | ae5d9554 |  |
 | 748 | P1 | tests/test_changepoint.py | Python | 80 | abb1294c |  |
 | 749 | P1 | tests/test_ci_diagnostics.py | Python | 706 | 2085e619 |  |
 | 750 | P1 | tests/test_ci_diagnostics_log_unavailable.py | Python | 118 | 2251cb89 |  |
@@ -848,7 +848,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 778 | P1 | tests/test_crypto_intel_main.py | Python | 152 | e2870933 |  |
 | 779 | P1 | tests/test_crypto_intel_signal_path.py | Python | 720 | 6f1adb26 |  |
 | 780 | P1 | tests/test_crypto_intel_v6_coverage.py | Python | 819 | 346198a8 |  |
-| 781 | P1 | tests/test_crypto_predictor_regressions.py | Python | 191 | eefb7f3d |  |
+| 781 | P1 | tests/test_crypto_predictor_regressions.py | Python | 193 | 5bc94b4c |  |
 | 782 | P1 | tests/test_cvar_notional_cap.py | Python | 142 | 8fd8fa91 |  |
 | 783 | P1 | tests/test_data_duckdb_feeds.py | Python | 172 | 2d8520e8 |  |
 | 784 | P1 | tests/test_data_feeds.py | Python | 187 | 1920d4fc |  |
@@ -1118,7 +1118,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 1048 | P1 | tests/test_suite_speed_budget.py | Python | 152 | 73c584d2 |  |
 | 1049 | P1 | tests/test_threshold.py | Python | 536 | 20237e4a |  |
 | 1050 | P1 | tests/test_timescale_initialize_migrations.py | Python | 163 | c362dded |  |
-| 1051 | P1 | tests/test_timescale_mock_coverage.py | Python | 884 | 7d18e140 |  |
+| 1051 | P1 | tests/test_timescale_mock_coverage.py | Python | 884 | b1a60c82 |  |
 | 1052 | P1 | tests/test_timescale_storage.py | Python | 974 | f069317c |  |
 | 1053 | P1 | tests/test_timescale_storage_fake_pool.py | Python | 346 | 05fc212a |  |
 | 1054 | P1 | tests/test_timescaledb_script.py | Python | 138 | e966aba4 |  |
