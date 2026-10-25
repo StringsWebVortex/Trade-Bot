@@ -2,6 +2,8 @@
 
 Each test names the finding it decides. They fail against the pre-fix code:
 the failure mode is stated in the docstring so deleting one loses something.
+
+Decides: REG-1320, REG-1321, REG-1322, REG-1323, REG-1324, REG-1325, REG-1326, REG-1327, REG-1328, REG-1329, REG-1330
 """
 
 from __future__ import annotations
@@ -323,7 +325,10 @@ def test_granger_pvalue_is_bonferroni_corrected_dat013() -> None:
     from src.causal import granger as g
 
     def _fake(_df, maxlag):
-        return {lag: ({"ssr_ftest": (2.0, 0.02 if lag == 3 else 0.5, 1, 1)},) for lag in range(1, maxlag + 1)}
+        return {
+            lag: ({"ssr_ftest": (2.0, 0.02 if lag == 3 else 0.5, 1, 1)},)
+            for lag in range(1, maxlag + 1)
+        }
 
     btc, alt = _noise_pair()
     det = g.GrangerCausalityDetector(max_lag=5)

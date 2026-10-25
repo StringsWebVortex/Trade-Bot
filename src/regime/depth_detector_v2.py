@@ -147,6 +147,8 @@ class DepthDetectorV2:
         joblib.dump(self._model, model_dir / f"{stem}_hmm9.pkl")
         joblib.dump(self._scaler, model_dir / f"{stem}_scaler9.pkl")
         joblib.dump(self._state_to_label, model_dir / f"{stem}_labels9.pkl")
+        from src.regime.detector import _write_manifest
+
         for name in ("hmm9", "scaler9", "labels9"):
             _write_manifest(model_dir / f"{stem}_{name}.pkl")
 
@@ -162,6 +164,8 @@ class DepthDetectorV2:
         # Verify every pickle against its sha256 manifest BEFORE unpickling,
         # as the v1 detector does; a missing or mismatched manifest refuses
         # the load (DAT-015).
+        from src.regime.detector import _verify_manifest
+
         try:
             for path in (p_model, p_scaler, p_labels):
                 _verify_manifest(path)

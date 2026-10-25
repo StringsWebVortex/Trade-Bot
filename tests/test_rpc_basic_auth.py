@@ -54,7 +54,6 @@ class _Session:
         return _Resp({"result": {"ok": True}})
 
 
-
 def test_the_header_helper_encodes_credentials():
     assert basic_auth_header("rpcuser", "rpcpass") == {"Authorization": _EXPECTED}
 

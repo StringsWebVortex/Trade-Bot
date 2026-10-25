@@ -117,7 +117,6 @@ class TestOrderbookFlush:
         assert len(parts) == 2  # one part file per flush, no read-modify-write
         assert sum(len(pd.read_parquet(p)) for p in parts) == 5
 
-
     def test_latest_mid_survives_a_flush(self, tmp_path: Path) -> None:
         """DAT-008: a flush must not blank latest_mid() until the next message."""
         stream = _stream(tmp_path)

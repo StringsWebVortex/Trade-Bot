@@ -6016,7 +6016,7 @@
       "subsystem": "data",
       "status": "verified",
       "source": "OPS-2026-10-25",
-      "notes": "layer: test-suite; audit finding DAT-007",
+      "notes": "audit finding DAT-007; layer: test-suite",
       "failure_mode": "Timescale silently dropped V6 fields and unknown keys, and kept the old created_at so latest_model_metrics ordering differed between backends.",
       "owning_modules": [
         "src/data/storage.py",
@@ -6039,7 +6039,7 @@
       "subsystem": "data",
       "status": "verified",
       "source": "OPS-2026-10-25",
-      "notes": "layer: test-suite; audit finding DAT-008",
+      "notes": "audit finding DAT-008; layer: test-suite",
       "failure_mode": "Each flush re-read and rewrote the whole day file on the event loop (O(n^2)) and cleared the snapshot buffer, so latest_mid() returned None after each flush.",
       "owning_modules": [
         "src/data/orderbook_stream.py",
@@ -6063,7 +6063,7 @@
       "subsystem": "data",
       "status": "verified",
       "source": "OPS-2026-10-25",
-      "notes": "layer: test-suite; audit finding DAT-009",
+      "notes": "audit finding DAT-009; layer: test-suite",
       "failure_mode": "An unguarded _persist ended polling permanently and a 429 body was parsed as an empty result.",
       "owning_modules": [
         "src/data/deribit_provider.py"
@@ -6085,7 +6085,7 @@
       "subsystem": "data",
       "status": "verified",
       "source": "OPS-2026-10-25",
-      "notes": "layer: test-suite; audit finding DAT-010",
+      "notes": "audit finding DAT-010; layer: test-suite",
       "failure_mode": "The row date was the fetch date so the staleness budget could never trip.",
       "owning_modules": [
         "src/data/macro_provider.py"
@@ -6107,7 +6107,7 @@
       "subsystem": "data",
       "status": "verified",
       "source": "OPS-2026-10-25",
-      "notes": "layer: test-suite; audit finding DAT-011",
+      "notes": "audit finding DAT-011; layer: test-suite",
       "failure_mode": "The same feed items were re-appended every poll, so vader_avg was the latest batch repeated and history was misdated.",
       "owning_modules": [
         "src/data/sentiment_provider.py"
@@ -6129,7 +6129,7 @@
       "subsystem": "data",
       "status": "verified",
       "source": "OPS-2026-10-25",
-      "notes": "layer: test-suite; audit finding DAT-012",
+      "notes": "audit finding DAT-012; layer: test-suite",
       "failure_mode": "The docstring claimed thread safety but transactions could interleave and same-ms writes overwrote each other.",
       "owning_modules": [
         "src/data/duckdb_store.py"
@@ -6151,7 +6151,7 @@
       "subsystem": "data",
       "status": "verified",
       "source": "OPS-2026-10-25",
-      "notes": "layer: test-suite; audit finding DAT-013",
+      "notes": "audit finding DAT-013; layer: test-suite",
       "failure_mode": "Min p over 5 lags at 0.05 gave about 23% false positives, series were tail-aligned, and failed symbols kept stale results.",
       "owning_modules": [
         "src/causal/granger.py"
@@ -6173,7 +6173,7 @@
       "subsystem": "data",
       "status": "verified",
       "source": "OPS-2026-10-25",
-      "notes": "layer: test-suite; audit finding DAT-014",
+      "notes": "audit finding DAT-014; layer: test-suite",
       "failure_mode": "A fresh untrained Linear and active dropout made embeddings and contagion scores random per call.",
       "owning_modules": [
         "src/causal/asset_gnn.py"
@@ -6195,7 +6195,7 @@
       "subsystem": "data",
       "status": "verified",
       "source": "OPS-2026-10-25",
-      "notes": "layer: test-suite; audit finding DAT-015",
+      "notes": "audit finding DAT-015; layer: test-suite",
       "failure_mode": "Three pickles were loaded without integrity verification, unlike the v1 detector.",
       "owning_modules": [
         "src/regime/depth_detector_v2.py"
@@ -6217,7 +6217,7 @@
       "subsystem": "data",
       "status": "verified",
       "source": "OPS-2026-10-25",
-      "notes": "layer: test-suite; audit finding DAT-016",
+      "notes": "audit finding DAT-016; layer: test-suite",
       "failure_mode": "result.success was ignored so non-converged parameters were used, and the training min_required omitted garch_window.",
       "owning_modules": [
         "src/regime/garch.py",
@@ -6240,7 +6240,7 @@
       "subsystem": "data",
       "status": "verified",
       "source": "OPS-2026-10-25",
-      "notes": "layer: test-suite; audit finding DAT-017",
+      "notes": "audit finding DAT-017; layer: test-suite",
       "failure_mode": "Zeros, 0.0001 feerate and 50/Neutral were indistinguishable from real readings, contradicting the REG-0008 NaN policy.",
       "owning_modules": [
         "src/features/mempool.py",

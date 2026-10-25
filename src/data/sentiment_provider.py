@@ -161,9 +161,7 @@ class SentimentProvider:
                     try:
                         parsed = parsedate_to_datetime(pub_el.text.strip())
                         published = (
-                            parsed.astimezone(UTC)
-                            if parsed.tzinfo
-                            else parsed.replace(tzinfo=UTC)
+                            parsed.astimezone(UTC) if parsed.tzinfo else parsed.replace(tzinfo=UTC)
                         )
                     except (TypeError, ValueError):
                         pass  # unparseable pubDate: fall back to fetch time

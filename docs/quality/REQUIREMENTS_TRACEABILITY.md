@@ -782,7 +782,7 @@ Timescale store_intelligence_features persists and fetch returns all 17 *_v6 col
 - **Verification:**
   - `tests/test_data_layer_dat_fixes.py` (regression)
 
-> layer: test-suite; audit finding DAT-007
+> audit finding DAT-007; layer: test-suite
 
 #### `REG-1321` — Orderbook/trade flush never read-modify-writes and keeps the last snapshot (DAT-008)
 
@@ -795,7 +795,7 @@ Orderbook and trade flushes write a new part file per flush instead of rewriting
 - **Verification:**
   - `tests/test_data_layer_dat_fixes.py` (regression)
 
-> layer: test-suite; audit finding DAT-008
+> audit finding DAT-008; layer: test-suite
 
 #### `REG-1322` — Deribit polling survives disk and cycle errors and checks HTTP status (DAT-009)
 
@@ -808,7 +808,7 @@ A persist error or a failed cycle does not end DeribitProvider.run_loop; non-2xx
 - **Verification:**
   - `tests/test_data_layer_dat_fixes.py` (regression)
 
-> layer: test-suite; audit finding DAT-009
+> audit finding DAT-009; layer: test-suite
 
 #### `REG-1323` — Macro date is the market date and stale cache files are ignored (DAT-010)
 
@@ -821,7 +821,7 @@ MacroProvider rows carry the last market date of the stalest series, one-column 
 - **Verification:**
   - `tests/test_data_layer_dat_fixes.py` (regression)
 
-> layer: test-suite; audit finding DAT-010
+> audit finding DAT-010; layer: test-suite
 
 #### `REG-1324` — RSS headlines are deduplicated and use pubDate (DAT-011)
 
@@ -834,7 +834,7 @@ SentimentProvider keeps each (source, guid) headline once and timestamps it with
 - **Verification:**
   - `tests/test_data_layer_dat_fixes.py` (regression)
 
-> layer: test-suite; audit finding DAT-011
+> audit finding DAT-011; layer: test-suite
 
 #### `REG-1325` — DuckDBStore serialises concurrent writers (DAT-012)
 
@@ -847,7 +847,7 @@ DuckDBStore guards its single connection with a lock, uses strictly increasing m
 - **Verification:**
   - `tests/test_data_layer_dat_fixes.py` (regression)
 
-> layer: test-suite; audit finding DAT-012
+> audit finding DAT-012; layer: test-suite
 
 #### `REG-1326` — Granger test is multiple-testing corrected and time-aligned (DAT-013)
 
@@ -860,7 +860,7 @@ GrangerCausalityDetector applies Bonferroni over tested lags, joins labelled ser
 - **Verification:**
   - `tests/test_data_layer_dat_fixes.py` (regression)
 
-> layer: test-suite; audit finding DAT-013
+> audit finding DAT-013; layer: test-suite
 
 #### `REG-1327` — AssetGNN does not emit random-weight embeddings (DAT-014)
 
@@ -873,7 +873,7 @@ The untrained GAT path is not used by run() until trained weights are loaded, ru
 - **Verification:**
   - `tests/test_data_layer_dat_fixes.py` (regression)
 
-> layer: test-suite; audit finding DAT-014
+> audit finding DAT-014; layer: test-suite
 
 #### `REG-1328` — DepthDetectorV2 verifies a sha256 manifest before unpickling (DAT-015)
 
@@ -886,7 +886,7 @@ DepthDetectorV2.save writes sha256 manifests and load refuses any pickle whose m
 - **Verification:**
   - `tests/test_data_layer_dat_fixes.py` (regression)
 
-> layer: test-suite; audit finding DAT-015
+> audit finding DAT-015; layer: test-suite
 
 #### `REG-1329` — GARCH refit must converge and pipeline guards garch_window (DAT-016)
 
@@ -899,7 +899,7 @@ rolling_garch_forecast discards a non-converged fit, and build_feature_matrix mi
 - **Verification:**
   - `tests/test_data_layer_dat_fixes.py` (regression)
 
-> layer: test-suite; audit finding DAT-016
+> audit finding DAT-016; layer: test-suite
 
 #### `REG-1330` — No fabricated sentiment or mempool values when the source is down (DAT-017)
 
@@ -912,7 +912,7 @@ SentimentProvider has unknown (NaN) Fear and Greed until fetched and does not pu
 - **Verification:**
   - `tests/test_data_layer_dat_fixes.py` (regression)
 
-> layer: test-suite; audit finding DAT-017
+> audit finding DAT-017; layer: test-suite
 
 #### `REG-1702` — kg/ and rag_mongo/ share one MongoClient factory and one URI check
 
