@@ -1064,7 +1064,7 @@ Slider keeps drag state locally and calls onChange once on pointer/key release o
 - **Verification:**
   - `frontend/src/components/Controls.test.jsx` (regression)
 
-> layer: test-suite; audit finding FE-02
+> Audit finding FE-02. layer: test-suite
 
 #### `REG-1141` — NumberInput writes only a valid, changed value
 
@@ -1077,7 +1077,7 @@ NumberInput calls onChange on blur or Enter only when the parsed value is in ran
 - **Verification:**
   - `frontend/src/components/Controls.test.jsx` (regression)
 
-> layer: test-suite; audit finding FE-03
+> Audit finding FE-03. layer: test-suite
 
 #### `REG-1142` — High-impact operator actions confirm and block double submission
 
@@ -1090,7 +1090,7 @@ Switching to automatic mode, approve/reject, self-tuning rollback and strategy r
 - **Verification:**
   - `frontend/src/components/Controls.test.jsx` (regression)
 
-> layer: test-suite; audit finding FE-04
+> Audit finding FE-04. layer: test-suite
 
 #### `REG-1143` — A crashing panel is contained by an error boundary
 
@@ -1103,7 +1103,7 @@ Each workspace panel and the app root render inside an ErrorBoundary that shows 
 - **Verification:**
   - `frontend/src/components/Controls.test.jsx` (regression)
 
-> layer: test-suite; audit finding FE-05
+> Audit finding FE-05. layer: test-suite
 
 #### `REG-1703` — One environment variable never binds two settings fields
 

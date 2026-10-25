@@ -6016,7 +6016,7 @@
       "subsystem": "api",
       "status": "verified",
       "source": "OPS-2026-10-25",
-      "notes": "layer: test-suite; audit finding FE-02",
+      "notes": "Audit finding FE-02. layer: test-suite",
       "failure_mode": "A range input called onChange on every input event, so one drag sent dozens of operator-gated risk-control POSTs, each applying an intermediate risk value live and tripping the rate limit and alert storms.",
       "owning_modules": [
         "frontend/src/components/Controls.jsx"
@@ -6038,7 +6038,7 @@
       "subsystem": "api",
       "status": "verified",
       "source": "OPS-2026-10-25",
-      "notes": "layer: test-suite; audit finding FE-03",
+      "notes": "Audit finding FE-03. layer: test-suite",
       "failure_mode": "Every blur posted an operator action even with no edit, and an out-of-range value left the field stuck in draft mode with no feedback.",
       "owning_modules": [
         "frontend/src/components/Controls.jsx"
@@ -6060,7 +6060,7 @@
       "subsystem": "api",
       "status": "verified",
       "source": "OPS-2026-10-25",
-      "notes": "layer: test-suite; audit finding FE-04",
+      "notes": "Audit finding FE-04. layer: test-suite",
       "failure_mode": "One-click AUTOMATIC mode, trade approval, rollback and re-enable fired immediately and could be double-clicked before the next poll refreshed the UI.",
       "owning_modules": [
         "frontend/src/components/Controls.jsx",
@@ -6085,7 +6085,7 @@
       "subsystem": "api",
       "status": "verified",
       "source": "OPS-2026-10-25",
-      "notes": "layer: test-suite; audit finding FE-05",
+      "notes": "Audit finding FE-05. layer: test-suite",
       "failure_mode": "With no error boundary one unexpected null in a panel unmounted the whole dashboard, including approvals and controls.",
       "owning_modules": [
         "frontend/src/components/ErrorBoundary.jsx",
