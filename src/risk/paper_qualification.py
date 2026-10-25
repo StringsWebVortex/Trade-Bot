@@ -31,7 +31,10 @@ routes around rather than acts on.
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import json
+import os
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -40,6 +43,12 @@ from typing import Any, Final
 QUALIFICATION_PATH: Final[Path] = Path("data/paper_qualification.json")
 
 SCHEMA_VERSION: Final[int] = 1
+
+# EXR-020: the record is HMAC-signed so a hand-edited JSON file cannot unlock
+# live trading, and it expires so an old pass cannot unlock it forever.
+HMAC_KEY_ENV: Final[str] = "PAPER_QUALIFICATION_HMAC_KEY"
+MAX_RECORD_AGE_DAYS: Final[float] = 45.0
+DEFAULT_STRATEGY_ID: Final[str] = "signal_engine_v1"
 
 
 class NotQualifiedError(RuntimeError):
@@ -193,6 +202,21 @@ def evaluate(record: PaperRecord) -> QualificationResult:
     return QualificationResult(record=record, failures=failures)
 
 
+def _hmac_key() -> bytes:
+    key = os.environ.get(HMAC_KEY_ENV, "")
+    if not key:
+        raise NotQualifiedError(
+            f"{HMAC_KEY_ENV} is not set: the qualification record cannot be signed or verified"
+        )
+    return key.encode("utf-8")
+
+
+def _sign(payload: dict[str, Any]) -> str:
+    body = {k: v for k, v in payload.items() if k != "signature"}
+    canonical = json.dumps(body, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hmac.new(_hmac_key(), canonical, hashlib.sha256).hexdigest()
+
+
 def save_qualification(result: QualificationResult, path: Path | None = None) -> None:
     """
     Persist a *passing* result.
@@ -212,6 +236,7 @@ def save_qualification(result: QualificationResult, path: Path | None = None) ->
         "record": result.record.__dict__,
         "criteria": {c.name: c.threshold for c in CRITERIA},
     }
+    payload["signature"] = _sign(payload)
     target.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
@@ -230,7 +255,9 @@ def load_qualification(path: Path | None = None) -> dict[str, Any]:
     return raw
 
 
-def assert_qualified_for_live(path: Path | None = None) -> None:
+def assert_qualified_for_live(
+    path: Path | None = None, expected_strategy_id: str = DEFAULT_STRATEGY_ID
+) -> None:
     """
     Raise unless a stored record shows every criterion passing *at today's
     thresholds*.
@@ -248,6 +275,23 @@ def assert_qualified_for_live(path: Path | None = None) -> None:
             f"{SCHEMA_VERSION}; re-qualify rather than migrating the verdict"
         )
 
+    signature = stored.get("signature")
+    if not isinstance(signature, str) or not hmac.compare_digest(signature, _sign(stored)):
+        raise NotQualifiedError("qualification record signature is missing or invalid")
+
+    try:
+        qualified_at = datetime.fromisoformat(str(stored.get("qualified_at")))
+        if qualified_at.tzinfo is None:
+            qualified_at = qualified_at.replace(tzinfo=UTC)
+    except ValueError as exc:
+        raise NotQualifiedError("qualification record has no valid qualified_at") from exc
+    age_days = (datetime.now(tz=UTC) - qualified_at).total_seconds() / 86400.0
+    if age_days > MAX_RECORD_AGE_DAYS or age_days < -1.0:
+        raise NotQualifiedError(
+            f"qualification record is {age_days:.1f} days old (max {MAX_RECORD_AGE_DAYS:g}); "
+            "re-qualify"
+        )
+
     raw_record = stored.get("record")
     if not isinstance(raw_record, dict):
         raise NotQualifiedError("qualification record contains no measurements")
@@ -256,6 +300,12 @@ def assert_qualified_for_live(path: Path | None = None) -> None:
         record = PaperRecord(**raw_record)
     except TypeError as exc:
         raise NotQualifiedError(f"qualification record is incomplete: {exc}") from exc
+
+    if record.strategy_id != expected_strategy_id or stored.get("strategy_id") != expected_strategy_id:
+        raise NotQualifiedError(
+            f"qualification record is for strategy {record.strategy_id!r}, "
+            f"not {expected_strategy_id!r}"
+        )
 
     result = evaluate(record)
     if not result.qualified:

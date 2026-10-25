@@ -51,6 +51,18 @@ PASSING = PaperRecord(
 )
 
 
+@pytest.fixture(autouse=True)
+def _hmac_key(monkeypatch):
+    monkeypatch.setenv("PAPER_QUALIFICATION_HMAC_KEY", "unit-test-key")
+
+
+def _resign(path, stored):
+    from src.risk import paper_qualification
+
+    stored["signature"] = paper_qualification._sign(stored)
+    path.write_text(json.dumps(stored))
+
+
 def record(**changes) -> PaperRecord:
     return dataclasses.replace(PASSING, **changes)
 
@@ -208,7 +220,7 @@ class TestTheLiveGate:
         save_qualification(evaluate(PASSING), path)
         stored = json.loads(path.read_text())
         stored["record"]["closed_trades"] = 3
-        path.write_text(json.dumps(stored))
+        _resign(path, stored)
         with pytest.raises(NotQualifiedError, match="no longer meets"):
             assert_qualified_for_live(path)
 
@@ -287,3 +299,47 @@ class TestNoConfigurationCanBypassIt:
         source = inspect.getsource(paper_qualification)
         assert "os.environ" not in source
         assert "getenv" not in source
+
+
+class TestRecordIsAuthenticated:
+    """EXR-020 -- the record is signed, fresh, and bound to its strategy."""
+
+    def test_an_unsigned_edit_is_refused(self, tmp_path):
+        path = tmp_path / "qualification.json"
+        save_qualification(evaluate(PASSING), path)
+        stored = json.loads(path.read_text())
+        stored["record"]["sharpe"] = 9.9
+        path.write_text(json.dumps(stored))
+        with pytest.raises(NotQualifiedError, match="signature"):
+            assert_qualified_for_live(path)
+
+    def test_a_record_without_signature_is_refused(self, tmp_path):
+        path = tmp_path / "qualification.json"
+        save_qualification(evaluate(PASSING), path)
+        stored = json.loads(path.read_text())
+        del stored["signature"]
+        path.write_text(json.dumps(stored))
+        with pytest.raises(NotQualifiedError, match="signature"):
+            assert_qualified_for_live(path)
+
+    def test_a_stale_record_is_refused(self, tmp_path):
+        path = tmp_path / "qualification.json"
+        save_qualification(evaluate(PASSING), path)
+        stored = json.loads(path.read_text())
+        stored["qualified_at"] = "2020-01-01T00:00:00+00:00"
+        _resign(path, stored)
+        with pytest.raises(NotQualifiedError, match="days old"):
+            assert_qualified_for_live(path)
+
+    def test_another_strategys_record_is_refused(self, tmp_path):
+        path = tmp_path / "qualification.json"
+        save_qualification(evaluate(record(strategy_id="other")), path)
+        with pytest.raises(NotQualifiedError, match="strategy"):
+            assert_qualified_for_live(path)
+
+    def test_no_key_fails_closed(self, tmp_path, monkeypatch):
+        path = tmp_path / "qualification.json"
+        save_qualification(evaluate(PASSING), path)
+        monkeypatch.delenv("PAPER_QUALIFICATION_HMAC_KEY")
+        with pytest.raises(NotQualifiedError, match="PAPER_QUALIFICATION_HMAC_KEY"):
+            assert_qualified_for_live(path)

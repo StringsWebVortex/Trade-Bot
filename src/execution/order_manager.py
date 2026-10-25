@@ -38,6 +38,8 @@ log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
 _ORDER_CONFIRM_POLLS: Final[int] = 10
 _ORDER_CONFIRM_INTERVAL: Final[float] = 0.5
+# EXR-015: venues often answer OrderNotFound for an order placed moments ago.
+_ORDER_NOT_FOUND_GRACE_POLLS: Final[int] = 3
 _TIMEOUT_SECONDS: Final[float] = 30.0  # Total timeout for order confirmation
 
 
@@ -418,6 +420,21 @@ class OrderManager:
                     attempt=attempt,
                 )
                 continue
+
+            except ccxt.OrderNotFound as exc:
+                # EXR-015: OrderNotFound subclasses InvalidOrder but, right
+                # after placement, is propagation lag rather than a verdict.
+                if attempt <= _ORDER_NOT_FOUND_GRACE_POLLS:
+                    self._log.warning(
+                        "order_confirm_not_found_retry",
+                        order_id=order_id,
+                        attempt=attempt,
+                        error=str(exc),
+                    )
+                    continue
+                fsm.transition(OrderStatus.FAILED, {"error": str(exc)})
+                self._log.error("order_confirm_permanent_error", order_id=order_id, error=str(exc))
+                raise
 
             except (
                 ccxt.BadSymbol,

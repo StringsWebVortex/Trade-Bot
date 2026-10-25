@@ -47,18 +47,18 @@ deletion of the thing it points at.
 
 | Status | Entries |
 |---|---|
-| VERIFIED | 216 |
+| VERIFIED | 224 |
 | PARTIAL | 3 |
 | PLANNED | 0 |
 | ACCEPTED GAP | 0 |
-| **Total** | **219** |
+| **Total** | **227** |
 
 ## Summary by subsystem
 
 | Subsystem | Entries | Verified |
 |---|---|---|
-| Risk | 11 | 11 |
-| Execution | 13 | 12 |
+| Risk | 16 | 16 |
+| Execution | 16 | 15 |
 | Portfolio | 1 | 1 |
 | Signal and features | 6 | 6 |
 | Models and leakage | 10 | 10 |
@@ -228,6 +228,71 @@ When RiskGate.check_drift reports drift for the contributing horizon, CryptoInte
 
 > layer: test-suite
 
+#### `REG-1302` — Tick-size amount precision is quantised correctly
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+A ccxt tick-size amount precision is applied as a step, not truncated to zero decimals, and the engine passes loaded exchange filters to sizing.
+
+- **If violated:** int(1e-05) is 0, flooring quantities to whole units and skipping trades; min_amount/min_cost were never enforced on primary sizing.
+- **Owned by:** `src/risk/kelly.py`, `src/engine/signal_engine.py`, `src/engine/orchestrator.py`
+- **Verification:**
+  - `tests/test_phase5_execution_fixes.py` (regression)
+
+> layer: test-suite; audit finding EXR-016
+
+#### `REG-1303` — Size reductions are requantised with real filters
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+Cognitive WARN and advisory-gate size reductions go through apply_size_scalar with the real exchange filters.
+
+- **If violated:** Reductions used round(...,8) or default filters and could submit orders the venue rejects.
+- **Owned by:** `src/engine/signal_engine.py`
+- **Verification:**
+  - `tests/test_phase5_execution_fixes.py` (regression)
+
+> layer: test-suite; audit finding EXR-017
+
+#### `REG-1305` — Low Hurst exponent warns instead of vetoing every trade
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+A Hurst exponent below the trending minimum yields WARN, not VETO.
+
+- **If violated:** The direction check was always true, so every mean-reverting series vetoed every signal.
+- **Owned by:** `src/risk/cognitive_engine.py`
+- **Verification:**
+  - `tests/test_phase5_execution_fixes.py` (regression)
+
+> layer: test-suite; audit finding EXR-019
+
+#### `REG-1307` — Drift baselines use the live statistic's units
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+Sharpe drift and CUSUM compare against a per-trade Sharpe baseline and win-rate drift against the OOS win rate when provided.
+
+- **If violated:** Per-trade live Sharpe was compared to an annualised baseline and an in-sample win rate.
+- **Owned by:** `src/risk/performance_drift.py`, `src/risk/strategy_kill_switch.py`
+- **Verification:**
+  - `tests/test_phase5_execution_fixes.py` (regression)
+
+> layer: test-suite; audit finding EXR-021
+
+#### `SEC-1306` — Live-qualification record is signed, fresh and strategy-bound
+
+**VERIFIED** · high · security_regression · source: OPS-2026-10-25
+
+assert_qualified_for_live requires a valid HMAC signature, a record younger than the maximum age, and a matching strategy_id.
+
+- **If violated:** Any writable JSON file with passing numbers unlocked live trading.
+- **Owned by:** `src/risk/paper_qualification.py`
+- **Verification:**
+  - `tests/qualification/test_paper_qualification.py` (security)
+
+> layer: test-suite; audit finding EXR-020
+
 ## Execution
 
 #### `INV-003` — Unknown exchange order state cannot become FILLED without reconciliation
@@ -394,6 +459,45 @@ When intelligence is enabled, an order from the existing primary timeframe proce
   - `tests/test_horizon_decision.py` (unit)
 
 > layer: test-suite
+
+#### `REG-1300` — Paper fills carry a spread cost when ADV is unknown
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+Paper entry and exit fills apply at least the default half-spread adverse cost when no ADV is supplied, so paper PnL is never slippage-free.
+
+- **If violated:** submit_signal never passed adv_20d, so paper fills had zero slippage and inflated the qualification record.
+- **Owned by:** `src/execution/paper.py`
+- **Verification:**
+  - `tests/test_phase5_execution_fixes.py` (regression)
+
+> layer: test-suite; audit finding EXR-014
+
+#### `REG-1301` — OrderNotFound right after placement is retried
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+OrderNotFound during fill confirmation is retried for the first polls before being treated as permanent.
+
+- **If violated:** ccxt OrderNotFound subclasses InvalidOrder, so a just-placed order was marked FAILED immediately although it might have filled.
+- **Owned by:** `src/execution/order_manager.py`
+- **Verification:**
+  - `tests/test_phase5_execution_fixes.py` (regression)
+
+> layer: test-suite; audit finding EXR-015
+
+#### `REG-1304` — MANUAL approval wait is bounded
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+MANUAL mode waits for approval no longer than approval_timeout_s in both executors.
+
+- **If violated:** An unbounded wait stalled the tick loop and executed hours-old orders.
+- **Owned by:** `src/execution/paper.py`, `src/execution/live.py`
+- **Verification:**
+  - `tests/test_phase5_execution_fixes.py` (regression)
+
+> layer: test-suite; audit finding EXR-018
 
 ## Portfolio
 
@@ -2838,4 +2942,4 @@ To add or change an entry, edit the registry and regenerate this file. See
 `docs/quality/TEST_STRATEGY.md` for the taxonomy the `test_type` column draws
 on, and `docs/quality/IMPLEMENTATION_PLAN.md` for what each phase delivers.
 
-Registry version: 1.0.0 — 219 entries.
+Registry version: 1.0.0 — 227 entries.

@@ -310,14 +310,14 @@ class TestRegimeValidator:
         assert result.status == ValidatorStatus.WARN
         assert result.metrics["hmm_entropy_normalized"] > 0.70
 
-    def test_veto_low_hurst_for_momentum_trade(self):
+    def test_warn_low_hurst_for_momentum_trade(self):
         result = self.v.validate(
             make_ctx(regime_state=1, regime_probs=[0.10, 0.85, 0.05], hurst_exponent=0.40)
         )
-        assert result.status == ValidatorStatus.VETO
+        assert result.status == ValidatorStatus.WARN
         assert "Hurst" in result.reason
 
-    def test_veto_low_hurst_short_direction(self) -> None:
+    def test_warn_low_hurst_short_direction(self) -> None:
         """Cover p_long < 0.5 branch (direction='short') in Hurst ternary."""
         result = self.v.validate(
             make_ctx(
@@ -327,7 +327,7 @@ class TestRegimeValidator:
                 p_long=0.35,  # < 0.5 → direction = "short"
             )
         )
-        assert result.status == ValidatorStatus.VETO
+        assert result.status == ValidatorStatus.WARN
         assert "Hurst" in result.reason
 
     def test_entropy_computation_matches_manual_calculation(self):

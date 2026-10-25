@@ -5613,6 +5613,186 @@
         }
       ],
       "depends_on": []
+    },
+    {
+      "id": "REG-1300",
+      "kind": "regression",
+      "title": "Paper fills carry a spread cost when ADV is unknown",
+      "statement": "Paper entry and exit fills apply at least the default half-spread adverse cost when no ADV is supplied, so paper PnL is never slippage-free.",
+      "criticality": "medium",
+      "subsystem": "execution",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "submit_signal never passed adv_20d, so paper fills had zero slippage and inflated the qualification record.",
+      "owning_modules": [
+        "src/execution/paper.py"
+      ],
+      "depends_on": [],
+      "verification": [
+        {
+          "test": "tests/test_phase5_execution_fixes.py",
+          "test_type": "regression"
+        }
+      ],
+      "notes": "layer: test-suite; audit finding EXR-014"
+    },
+    {
+      "id": "REG-1301",
+      "kind": "regression",
+      "title": "OrderNotFound right after placement is retried",
+      "statement": "OrderNotFound during fill confirmation is retried for the first polls before being treated as permanent.",
+      "criticality": "medium",
+      "subsystem": "execution",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "ccxt OrderNotFound subclasses InvalidOrder, so a just-placed order was marked FAILED immediately although it might have filled.",
+      "owning_modules": [
+        "src/execution/order_manager.py"
+      ],
+      "depends_on": [],
+      "verification": [
+        {
+          "test": "tests/test_phase5_execution_fixes.py",
+          "test_type": "regression"
+        }
+      ],
+      "notes": "layer: test-suite; audit finding EXR-015"
+    },
+    {
+      "id": "REG-1302",
+      "kind": "regression",
+      "title": "Tick-size amount precision is quantised correctly",
+      "statement": "A ccxt tick-size amount precision is applied as a step, not truncated to zero decimals, and the engine passes loaded exchange filters to sizing.",
+      "criticality": "medium",
+      "subsystem": "risk",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "int(1e-05) is 0, flooring quantities to whole units and skipping trades; min_amount/min_cost were never enforced on primary sizing.",
+      "owning_modules": [
+        "src/risk/kelly.py",
+        "src/engine/signal_engine.py",
+        "src/engine/orchestrator.py"
+      ],
+      "depends_on": [],
+      "verification": [
+        {
+          "test": "tests/test_phase5_execution_fixes.py",
+          "test_type": "regression"
+        }
+      ],
+      "notes": "layer: test-suite; audit finding EXR-016"
+    },
+    {
+      "id": "REG-1303",
+      "kind": "regression",
+      "title": "Size reductions are requantised with real filters",
+      "statement": "Cognitive WARN and advisory-gate size reductions go through apply_size_scalar with the real exchange filters.",
+      "criticality": "medium",
+      "subsystem": "risk",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "Reductions used round(...,8) or default filters and could submit orders the venue rejects.",
+      "owning_modules": [
+        "src/engine/signal_engine.py"
+      ],
+      "depends_on": [],
+      "verification": [
+        {
+          "test": "tests/test_phase5_execution_fixes.py",
+          "test_type": "regression"
+        }
+      ],
+      "notes": "layer: test-suite; audit finding EXR-017"
+    },
+    {
+      "id": "REG-1304",
+      "kind": "regression",
+      "title": "MANUAL approval wait is bounded",
+      "statement": "MANUAL mode waits for approval no longer than approval_timeout_s in both executors.",
+      "criticality": "medium",
+      "subsystem": "execution",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "An unbounded wait stalled the tick loop and executed hours-old orders.",
+      "owning_modules": [
+        "src/execution/paper.py",
+        "src/execution/live.py"
+      ],
+      "depends_on": [],
+      "verification": [
+        {
+          "test": "tests/test_phase5_execution_fixes.py",
+          "test_type": "regression"
+        }
+      ],
+      "notes": "layer: test-suite; audit finding EXR-018"
+    },
+    {
+      "id": "REG-1305",
+      "kind": "regression",
+      "title": "Low Hurst exponent warns instead of vetoing every trade",
+      "statement": "A Hurst exponent below the trending minimum yields WARN, not VETO.",
+      "criticality": "medium",
+      "subsystem": "risk",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "The direction check was always true, so every mean-reverting series vetoed every signal.",
+      "owning_modules": [
+        "src/risk/cognitive_engine.py"
+      ],
+      "depends_on": [],
+      "verification": [
+        {
+          "test": "tests/test_phase5_execution_fixes.py",
+          "test_type": "regression"
+        }
+      ],
+      "notes": "layer: test-suite; audit finding EXR-019"
+    },
+    {
+      "id": "SEC-1306",
+      "kind": "security_regression",
+      "title": "Live-qualification record is signed, fresh and strategy-bound",
+      "statement": "assert_qualified_for_live requires a valid HMAC signature, a record younger than the maximum age, and a matching strategy_id.",
+      "criticality": "high",
+      "subsystem": "risk",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "Any writable JSON file with passing numbers unlocked live trading.",
+      "owning_modules": [
+        "src/risk/paper_qualification.py"
+      ],
+      "depends_on": [],
+      "verification": [
+        {
+          "test": "tests/qualification/test_paper_qualification.py",
+          "test_type": "security"
+        }
+      ],
+      "notes": "layer: test-suite; audit finding EXR-020"
+    },
+    {
+      "id": "REG-1307",
+      "kind": "regression",
+      "title": "Drift baselines use the live statistic's units",
+      "statement": "Sharpe drift and CUSUM compare against a per-trade Sharpe baseline and win-rate drift against the OOS win rate when provided.",
+      "criticality": "medium",
+      "subsystem": "risk",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "Per-trade live Sharpe was compared to an annualised baseline and an in-sample win rate.",
+      "owning_modules": [
+        "src/risk/performance_drift.py",
+        "src/risk/strategy_kill_switch.py"
+      ],
+      "depends_on": [],
+      "verification": [
+        {
+          "test": "tests/test_phase5_execution_fixes.py",
+          "test_type": "regression"
+        }
+      ],
+      "notes": "layer: test-suite; audit finding EXR-021"
     }
   ]
 }
