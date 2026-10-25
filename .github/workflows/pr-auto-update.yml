@@ -190,11 +190,12 @@ jobs:
           # The whole history: a merge needs the merge base, and a shallow
           # checkout does not have it.
           fetch-depth: 0
-          # Same PAT, for the same reason as the job above -- a push made with
-          # GITHUB_TOKEN starts no workflow run, so the pull request would end
-          # up resolved, green-looking against its previous head, and
-          # unmergeable.
-          token: ${{ secrets.PR_AUTOUPDATE_TOKEN }}
+          # OPS-001: this checkout runs with the read-only GITHUB_TOKEN and
+          # keeps no credential in .git/config. The job executes scripts taken
+          # from the pull request branch, so nothing it runs may be able to
+          # read the PAT. The PAT is handed only to the final push step, which
+          # runs no repository code.
+          persist-credentials: false
 
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
@@ -203,7 +204,8 @@ jobs:
       # No `pip install`. Both generators and the gate are stdlib-only, and a
       # job that does not import the project does not install it (GOV-015).
 
-      - name: Merge main, regenerate what is generated, push
+      - name: Merge main, regenerate what is generated
+        id: merge
         env:
           PR: ${{ needs.update-next.outputs.resolve_pr }}
           HEAD_REF: ${{ needs.update-next.outputs.resolve_ref }}
@@ -212,7 +214,8 @@ jobs:
 
           git config user.name 'pr-auto-update[bot]'
           git config user.email 'pr-auto-update[bot]@users.noreply.github.com'
-          git fetch --no-tags origin main
+          # origin/main came with the full-history checkout above; there is no
+          # credential left in the repository to fetch with.
 
           before="$(git rev-parse HEAD)"
 
@@ -301,7 +304,23 @@ jobs:
             exit 1
           fi
 
-          git push origin "HEAD:${HEAD_REF}"
+          echo "push=true" >> "${GITHUB_OUTPUT}"
+
+      # OPS-001: the only step that sees the PAT. It executes no file from the
+      # checked-out branch -- only git itself -- so branch code cannot reach it.
+      - name: Push
+        if: steps.merge.outputs.push == 'true'
+        env:
+          PAT: ${{ secrets.PR_AUTOUPDATE_TOKEN }}
+          PR: ${{ needs.update-next.outputs.resolve_pr }}
+          HEAD_REF: ${{ needs.update-next.outputs.resolve_ref }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          auth="$(printf 'x-access-token:%s' "${PAT}" | base64 -w0)"
+          echo "::add-mask::${auth}"
+          git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic ${auth}" \
+            push "https://github.com/${REPO}.git" "HEAD:${HEAD_REF}"
           echo "::notice::#${PR} brought up to date with main and pushed."
 
 # No `gate` job. The gate law covers workflows that run on `pull_request`,

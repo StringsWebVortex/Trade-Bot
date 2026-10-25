@@ -47,11 +47,11 @@ deletion of the thing it points at.
 
 | Status | Entries |
 |---|---|
-| VERIFIED | 216 |
+| VERIFIED | 220 |
 | PARTIAL | 3 |
 | PLANNED | 0 |
 | ACCEPTED GAP | 0 |
-| **Total** | **219** |
+| **Total** | **223** |
 
 ## Summary by subsystem
 
@@ -64,7 +64,7 @@ deletion of the thing it points at.
 | Models and leakage | 10 | 10 |
 | Data, money and time | 10 | 9 |
 | API and WebSocket | 21 | 21 |
-| Cryptography and secrets | 30 | 30 |
+| Cryptography and secrets | 34 | 34 |
 | Supply chain and artifacts | 7 | 7 |
 | Resilience and recovery | 24 | 24 |
 | Release and production | 14 | 14 |
@@ -1368,6 +1368,58 @@ The integrated terminal adds a command-execution surface; nothing reaches it exc
   - `tests/terminal/test_terminal_server.py` (security)
   - `tests/terminal/test_terminal_host.py` (security)
   - `frontend/src/desktop/terminalBridge.test.js` (security)
+
+> layer: test-suite
+
+#### `SEC-1020` — The auto-resolve job never exposes its PAT to pull-request branch code
+
+**VERIFIED** · high · security_regression · source: OPS-2026-10-10
+
+pr-auto-update's resolve-next job checks out with persist-credentials false and the default token; the PR_AUTOUPDATE_TOKEN is present only in the final push step, which runs no repository file.
+
+- **If violated:** A same-repo branch edits a script the job runs and exfiltrates the repo-scope PAT, bypassing branch protection.
+- **Owned by:** `.github/workflows/pr-auto-update.yml`
+- **Verification:**
+  - `tests/test_pr_auto_update_workflow.py` (security)
+
+> layer: test-suite
+
+#### `SEC-1021` — Deploy dispatch inputs are never interpolated into shell
+
+**VERIFIED** · high · security_regression · source: OPS-2026-10-10
+
+deploy.yml passes inputs.artifact_run_id to run steps only through env and rejects a non-numeric value in preflight.
+
+- **If violated:** A dispatcher injects shell into jobs holding production environment secrets.
+- **Owned by:** `.github/workflows/deploy.yml`
+- **Verification:**
+  - `tests/test_deploy_workflow_inputs.py` (security)
+
+> layer: test-suite
+
+#### `SEC-1022` — The CI patch validator refuses sections without a validated git header
+
+**VERIFIED** · high · security_regression · source: OPS-2026-10-10
+
+apply_ci_patch._validate_patch rejects traditional ---/+++ sections outside a validated diff --git section, before or after one.
+
+- **If violated:** A header-less section rewrites a protected control-plane file that path validation never saw.
+- **Owned by:** `scripts/apply_ci_patch.py`
+- **Verification:**
+  - `tests/test_apply_ci_patch.py` (security)
+
+> layer: test-suite
+
+#### `SEC-1023` — Command output is redacted before it is truncated
+
+**VERIFIED** · high · security_regression · source: OPS-2026-10-10
+
+shell_exec.run masks secrets in the whole raw output before filtering and capping, and an unterminated PEM private key block is masked to the end of the text.
+
+- **If violated:** A PEM key cut by max_lines or max_bytes no longer matches the redaction pattern and reaches model context verbatim.
+- **Owned by:** `common/shell_exec.py`, `common/command_schema.py`
+- **Verification:**
+  - `tests/test_shell_exec.py` (security)
 
 > layer: test-suite
 
@@ -2838,4 +2890,4 @@ To add or change an entry, edit the registry and regenerate this file. See
 `docs/quality/TEST_STRATEGY.md` for the taxonomy the `test_type` column draws
 on, and `docs/quality/IMPLEMENTATION_PLAN.md` for what each phase delivers.
 
-Registry version: 1.0.0 — 219 entries.
+Registry version: 1.0.0 — 223 entries.
