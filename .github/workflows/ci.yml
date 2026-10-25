@@ -140,7 +140,11 @@ jobs:
 
     services:
       timescaledb:
-        image: timescale/timescaledb:2.17.2-pg17
+        # timescale/timescaledb:2.17.2-pg17, pinned to its multi-arch index
+        # digest (OPS-011). Digest only, no tag: podman's reference parser
+        # refuses a tag and a digest together, and scripts/timescaledb.sh must
+        # name this exact string (tests/test_timescaledb_script.py).
+        image: timescale/timescaledb@sha256:3324f81ca7f84cdc2dc4497863b3798ababa8ce130c5b59d73f0b40e3a34148e
         env:
           POSTGRES_USER: tradebot
           POSTGRES_PASSWORD: tradebot-local
@@ -186,7 +190,7 @@ jobs:
         # from cache rather than resolved and downloaded again. This is the
         # single largest cost in the run and it is paid by every shard.
         run: |
-          uv pip install --system --index-url https://download.pytorch.org/whl/cpu "torch>=2.3,<3.0"
+          uv pip install --system --index-url https://download.pytorch.org/whl/cpu "torch>=2.14.0,<3.0"
           uv pip install --system -r requirements.txt -r requirements-dev.txt
 
       - name: Run tests (sharded)
