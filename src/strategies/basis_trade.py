@@ -15,21 +15,31 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from src.risk.execution_cost import ExecutionCost, edge_confidence
 from src.strategies.registry import Signal
 
-_MIN_ANNUALIZED_BASIS_PCT: float = 5.0
-_MAX_ANNUALIZED_BASIS_PCT_FOR_FULL_CONFIDENCE: float = 30.0
+# Opening buys spot and sells the perp (or the reverse); closing unwinds both.
+# Four marketable orders.
+ROUND_TRIP_LEGS: int = 4
 
 
 @dataclass(frozen=True, slots=True)
 class BasisTradeContext:
     spot_price: float
     perp_price: float
-    # Days over which the spot-perp gap is assumed to converge. This is the
-    # denominator of the annualization and therefore sets the entire scale of
-    # the signal — see compute_annualized_basis_pct. It was previously
-    # accepted here and ignored, with the horizon hardcoded to 1 day.
+    # Days over which the spot-perp gap is assumed to converge: the
+    # denominator of compute_annualized_basis_pct, which reports the carry on
+    # an annual scale. The entry decision does not use it (STR-21): what the
+    # trade captures on convergence is the raw gap, whenever it converges.
     days_to_perp_funding_normalization: float = 1.0
+    # Measured per-leg execution cost (src/risk/execution_cost.py). None means
+    # it could not be measured, and the strategy abstains.
+    cost: ExecutionCost | None = None
+
+
+def raw_basis_bps(spot_price: float, perp_price: float) -> float:
+    """Perp-spot gap in bps of spot: what converging captures, before cost."""
+    return compute_annualized_basis_pct(spot_price, perp_price, 365.0) * 100.0
 
 
 def compute_annualized_basis_pct(
@@ -40,14 +50,13 @@ def compute_annualized_basis_pct(
     """
     Annualized basis: (perp - spot) / spot * 100 * (365 / days_to_convergence).
 
-    The horizon is the whole signal. A raw perp-spot gap is a few basis
-    points; what makes it a carry number is the assumption about how often
-    you capture it. At the default 1-day horizon the raw gap is multiplied by
-    365, so a 0.0137% gap already clears the strategy's 5% entry threshold
-    and a 0.082% gap saturates its 30% full-confidence ceiling — both routine
-    for a perp. That is a deliberate carry-strength convention, not fair-value
-    calendar-spread pricing, but it means the thresholds are only meaningful
-    relative to the horizon they were calibrated against.
+    A raw perp-spot gap is a few basis points; what makes it a carry number
+    is the assumption about how often you capture it. At the default 1-day
+    horizon the raw gap is multiplied by 365. That is a carry-strength
+    convention for reporting, not fair-value calendar-spread pricing. The
+    strategy's entry decision uses the raw gap against the measured round
+    trip instead (raw_basis_bps, STR-21), so it does not depend on this
+    convention.
 
     The parameter exists so that horizon is stated rather than buried. It was
     previously hardcoded to 1 while BasisTradeContext carried a field for it
@@ -88,23 +97,19 @@ class BasisTradeStrategy:
     def generate_signal(self, bar: object) -> Signal:
         if not isinstance(bar, BasisTradeContext):
             raise TypeError(f"BasisTradeStrategy requires a BasisTradeContext, got {type(bar)}")
-
-        basis_pct = compute_annualized_basis_pct(
-            bar.spot_price,
-            bar.perp_price,
-            bar.days_to_perp_funding_normalization,
-        )
-        abs_basis = abs(basis_pct)
-
-        if abs_basis < _MIN_ANNUALIZED_BASIS_PCT:
+        gap_bps = raw_basis_bps(bar.spot_price, bar.perp_price)
+        if bar.cost is None:
             return Signal(direction=0, confidence=0.0, regime_fit=0.6)
 
-        confidence = min(
-            1.0,
-            (abs_basis - _MIN_ANNUALIZED_BASIS_PCT)
-            / (_MAX_ANNUALIZED_BASIS_PCT_FOR_FULL_CONFIDENCE - _MIN_ANNUALIZED_BASIS_PCT),
-        )
-        direction = -1 if basis_pct > 0 else 1
+        # STR-21: enter only when the gap beats the measured four-leg round
+        # trip plus its uncertainty margin; confidence is the net edge
+        # relative to that hurdle. This replaced fixed 5%/30% annualised
+        # thresholds that no cost measurement stood behind.
+        confidence = edge_confidence(abs(gap_bps), bar.cost.hurdle_bps(ROUND_TRIP_LEGS))
+        if confidence <= 0.0:
+            return Signal(direction=0, confidence=0.0, regime_fit=0.6)
+
+        direction = -1 if gap_bps > 0 else 1
         return Signal(direction=direction, confidence=confidence, regime_fit=0.6)
 
     def required_capital_fraction(self) -> float:
