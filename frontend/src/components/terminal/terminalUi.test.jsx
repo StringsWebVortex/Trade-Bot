@@ -16,6 +16,7 @@ import {
   HISTORY_LIMIT,
   TerminalProvider,
   initialState,
+  readStoredToken,
   reducer,
   useTerminal,
 } from '../../terminal/TerminalContext.jsx';
@@ -387,7 +388,8 @@ describe('TerminalDock', () => {
     expect(screen.getByRole('button', { name: 'New terminal session' }).disabled).toBe(true);
   });
 
-  it('asks for the token, keeps it for this browser session only, and reconnects', async () => {
+  // REG-1606 (audit FE-15): the token grants a shell, so it stays in memory.
+  it('asks for the token, keeps it in memory only, and reconnects', async () => {
     const client = new FakeClient();
     renderWith(client, <TerminalDock />);
     await emit(client, 'state', 'unauthorized');
@@ -396,7 +398,8 @@ describe('TerminalDock', () => {
     fireEvent.change(input, { target: { value: '  abc123  ' } });
     fireEvent.submit(input.closest('form'));
     expect(client.token).toBe('abc123');
-    expect(sessionStorage.getItem(TOKEN_STORAGE_KEY)).toBe('abc123');
+    expect(readStoredToken()).toBe('abc123');
+    expect(sessionStorage.getItem(TOKEN_STORAGE_KEY)).toBeNull();
     expect(localStorage.getItem(TOKEN_STORAGE_KEY)).toBeNull();
   });
 

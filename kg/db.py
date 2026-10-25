@@ -1,31 +1,21 @@
 """Reuses the RAG component's Mongo connection settings (same Atlas
 cluster/database, separate collections) -- no new infra to provision."""
 
-from functools import lru_cache
-
-import certifi
 from pymongo import MongoClient
 
+# One cached client factory and one URI check for the shared cluster: kg/ and
+# rag_mongo/ used to carry copy-pasted versions of both (DOC-015), which also
+# meant two lru_caches and therefore two MongoClient pools per process.
 from rag_mongo.config import MONGODB_DB, MONGODB_URI
+from rag_mongo.db import _client_for, require_uri
 
 from .config import KG_EDGES_COLLECTION, KG_NODES_COLLECTION
 
 
 def _require_uri() -> str:
-    if not MONGODB_URI:
-        raise RuntimeError(
-            "MONGODB_URI not set. Locally: copy .env.example to .env and fill it in. "
-            "In a Claude Code cloud session: set it in the environment's variables."
-        )
-    return MONGODB_URI
-
-
-@lru_cache(maxsize=1)
-def _client_for(uri: str) -> MongoClient:
-    # Same certifi pinning as rag_mongo.db: Atlas's chain is not verifiable
-    # against a bare CI runner's system trust store, and the failure reads as
-    # an opaque SSL handshake error. Ignored for a non-TLS URI.
-    return MongoClient(uri, tlsCAFile=certifi.where())
+    # Reads this module's MONGODB_URI at call time, so a patch of
+    # kg.db.MONGODB_URI is honoured.
+    return require_uri(MONGODB_URI)
 
 
 def _client() -> MongoClient:
