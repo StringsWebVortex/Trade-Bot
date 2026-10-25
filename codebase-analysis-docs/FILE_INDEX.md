@@ -704,7 +704,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 634 | P1 | tests/regime/test_garch.py | Python | 148 | 8a4195c0 |  |
 | 635 | P1 | tests/regression/__init__.py | Python | 0 | e3b0c442 |  |
 | 636 | P1 | tests/regression/test_metrics_payload.py | Python | 120 | 094976c7 |  |
-| 637 | P1 | tests/regression/test_regression_registry_contract.py | Python | 654 | 9f54fed1 |  |
+| 637 | P1 | tests/regression/test_regression_registry_contract.py | Python | 661 | fcce45ac |  |
 | 638 | P1 | tests/risk/__init__.py | Python | 0 | e3b0c442 |  |
 | 639 | P1 | tests/risk/test_probability_bounds.py | Python | 137 | a3b65a78 |  |
 | 640 | P1 | tests/risk/test_risk_limit_boundaries.py | Python | 300 | 37b9b36e |  |
@@ -815,7 +815,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 745 | P1 | tests/test_causal_dowhy_scm.py | Python | 125 | 7eb0139c |  |
 | 746 | P1 | tests/test_causal_inference.py | Python | 243 | 917865bc |  |
 | 747 | P1 | tests/test_causal_modules.py | Python | 214 | a86122e6 |  |
-| 748 | P1 | tests/test_changepoint.py | Python | 99 | 18a01ec2 |  |
+| 748 | P1 | tests/test_changepoint.py | Python | 103 | fc309107 |  |
 | 749 | P1 | tests/test_ci_diagnostics.py | Python | 706 | 2085e619 |  |
 | 750 | P1 | tests/test_ci_diagnostics_log_unavailable.py | Python | 118 | 2251cb89 |  |
 | 751 | P1 | tests/test_ci_diagnostics_never_self_blocks.py | Python | 171 | 4722488c |  |
@@ -892,7 +892,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 822 | P1 | tests/test_feature_bar_gaps.py | Python | 108 | f161a476 |  |
 | 823 | P1 | tests/test_feature_derivatives_nlp_tft.py | Python | 147 | a355cee7 |  |
 | 824 | P1 | tests/test_feature_microstructure_mempool.py | Python | 181 | 44cc558d |  |
-| 825 | P1 | tests/test_features.py | Python | 663 | 690fc155 |  |
+| 825 | P1 | tests/test_features.py | Python | 664 | 3975b3a6 |  |
 | 826 | P1 | tests/test_features_mempool.py | Python | 75 | 1638304f |  |
 | 827 | P1 | tests/test_features_nlp.py | Python | 154 | 92fb571d |  |
 | 828 | P1 | tests/test_features_onchain.py | Python | 125 | f0b5ac42 |  |
@@ -930,7 +930,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 860 | P1 | tests/test_integration_full_pipeline.py | Python | 291 | f49fa5aa |  |
 | 861 | P1 | tests/test_intelligence_adapter.py | Python | 186 | 7aaa2989 |  |
 | 862 | P1 | tests/test_intelligence_client_coverage.py | Python | 721 | 4a9e428c |  |
-| 863 | P1 | tests/test_intelligence_features_coverage.py | Python | 141 | 934b7ab9 |  |
+| 863 | P1 | tests/test_intelligence_features_coverage.py | Python | 145 | cbdab333 |  |
 | 864 | P1 | tests/test_intelligence_metrics.py | Python | 243 | 40c73454 |  |
 | 865 | P1 | tests/test_intelligence_persistence.py | Python | 140 | 8843cc8d |  |
 | 866 | P1 | tests/test_intelligence_providers.py | Python | 1661 | 51915cb1 |  |
@@ -987,7 +987,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 917 | P1 | tests/test_observation_gate.py | Python | 187 | 19e51665 |  |
 | 918 | P1 | tests/test_onchain_arkham_cryptoquant.py | Python | 222 | 3e33d989 |  |
 | 919 | P1 | tests/test_onchain_base_coverage.py | Python | 359 | 7b57a71f |  |
-| 920 | P1 | tests/test_onchain_no_fabricated_values.py | Python | 124 | a2164934 |  |
+| 920 | P1 | tests/test_onchain_no_fabricated_values.py | Python | 127 | 5e49492c |  |
 | 921 | P1 | tests/test_onchain_providers_coverage.py | Python | 489 | a38f7b2c |  |
 | 922 | P1 | tests/test_onchain_rate_limiter.py | Python | 141 | a3b9dd61 |  |
 | 923 | P1 | tests/test_online_trainer.py | Python | 252 | d350dc56 |  |

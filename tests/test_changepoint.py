@@ -1,4 +1,8 @@
-"""Tests for the v4 Bayesian online changepoint detector."""
+"""Tests for the v4 Bayesian online changepoint detector.
+
+Decides:
+  - REG-1090 — BOCPD changepoint probability responds to a mean shift
+"""
 
 from __future__ import annotations
 

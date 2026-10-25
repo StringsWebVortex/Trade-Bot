@@ -1,4 +1,8 @@
-"""Tests for src/features/intelligence_features.py."""
+"""Tests for src/features/intelligence_features.py.
+
+Decides:
+  - REG-1093 — Lookahead intelligence-feature broadcast helper removed
+"""
 
 from __future__ import annotations
 

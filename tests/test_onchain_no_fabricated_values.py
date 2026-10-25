@@ -15,6 +15,9 @@ requirement.
 
 The value-level cases are pinned below, and so is the structural property, so
 the next constant cannot be reintroduced under a different name.
+
+Decides:
+  - REG-1091 — MVRV is NaN without a chain-wide realised-cap source
 """
 
 from __future__ import annotations

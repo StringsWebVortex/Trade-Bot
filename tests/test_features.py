@@ -2,6 +2,7 @@
 
 Decides:
   - SIG-002 — Feature computation is deterministic and reproducible
+  - REG-1092 — Triple-barrier unresolved tail rows are NaN, not time exits
 """
 
 import numpy as np
