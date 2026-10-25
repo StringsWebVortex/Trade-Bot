@@ -30,7 +30,7 @@ Authority:
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from enum import StrEnum
 from functools import lru_cache
 from typing import Final, Protocol
@@ -159,6 +159,21 @@ class SignalContext:
     # 0.0 = complete disagreement (HMM confident, changepoint screaming shift).
     # Defaults to 1.0 so pre-ensemble callers are treated as fully agreeing.
     regime_agreement_score: float = 1.0
+
+
+def _non_finite_fields(ctx: object) -> list[str]:
+    """Names of numeric SignalContext fields (incl. list members) that are NaN/inf."""
+    bad: list[str] = []
+    for f in fields(ctx):  # type: ignore[arg-type]
+        v = getattr(ctx, f.name)
+        vals = v if isinstance(v, (list, tuple)) else [v]
+        for x in vals:
+            if isinstance(x, bool) or not isinstance(x, (int, float)):
+                continue
+            if not math.isfinite(x):
+                bad.append(f.name)
+                break
+    return bad
 
 
 # ── Validator interface ────────────────────────────────────────────────────────
@@ -698,6 +713,26 @@ class CognitiveEngine:
         First VETO short-circuits — remaining validators still run for logging.
         adjusted_size_fraction is progressively reduced by WARN results.
         """
+        # EXR-011: every comparison against NaN is False, so a NaN field would
+        # pass all five validators. Fail closed on any non-finite numeric input.
+        bad = _non_finite_fields(ctx)
+        if bad:
+            reason = f"[input_validation] non-finite SignalContext field(s): {', '.join(bad)}"
+            self._log.warning("cognitive_engine.non_finite_input", signal_id=ctx.signal_id, fields=bad)
+            return CognitiveDecision(
+                signal_id=ctx.signal_id,
+                passed=False,
+                veto_reason=reason,
+                results=[
+                    ValidatorResult(
+                        "input_validation", ValidatorStatus.VETO, reason, {"fields": bad}
+                    )
+                ],
+                adjusted_size_fraction=0.0,
+                risk_score=1.0,
+                confidence=0.0,
+            )
+
         results: list[ValidatorResult] = []
         veto_reason: str | None = None
         # FIX (structural): size_fraction starts from kelly_result's actual

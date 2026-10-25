@@ -47,26 +47,26 @@ deletion of the thing it points at.
 
 | Status | Entries |
 |---|---|
-| VERIFIED | 216 |
+| VERIFIED | 220 |
 | PARTIAL | 3 |
 | PLANNED | 0 |
 | ACCEPTED GAP | 0 |
-| **Total** | **219** |
+| **Total** | **223** |
 
 ## Summary by subsystem
 
 | Subsystem | Entries | Verified |
 |---|---|---|
-| Risk | 11 | 11 |
+| Risk | 13 | 13 |
 | Execution | 13 | 12 |
 | Portfolio | 1 | 1 |
 | Signal and features | 6 | 6 |
-| Models and leakage | 10 | 10 |
+| Models and leakage | 11 | 11 |
 | Data, money and time | 10 | 9 |
 | API and WebSocket | 21 | 21 |
 | Cryptography and secrets | 30 | 30 |
 | Supply chain and artifacts | 7 | 7 |
-| Resilience and recovery | 24 | 24 |
+| Resilience and recovery | 25 | 25 |
 | Release and production | 14 | 14 |
 | Governance | 60 | 59 |
 | Terminal and process center | 12 | 12 |
@@ -227,6 +227,32 @@ When RiskGate.check_drift reports drift for the contributing horizon, CryptoInte
   - `tests/test_crypto_intel_signal_path.py` (regression)
 
 > layer: test-suite
+
+#### `REG-1060` — Drift accuracy uses the real entry P(long); unknown is skipped
+
+**VERIFIED** · high · regression · source: OPS-2026-10-25
+
+The drift detector and per-strategy kill switch score prediction accuracy from the entry P(long) stored on the position; an unknown probability skips the accuracy sample instead of booking every long as wrong.
+
+- **If violated:** Placeholder 0.5 made every long a wrong prediction and halted a long-biased book.
+- **Owned by:** `src/risk/performance_drift.py`
+- **Verification:**
+  - `tests/regression/test_halts_drift_failclosed.py` (regression)
+
+> Audit EXR-004
+
+#### `REG-1062` — Cognitive engine vetoes non-finite inputs
+
+**VERIFIED** · high · regression · source: OPS-2026-10-25
+
+Any NaN or infinite numeric SignalContext field yields a VETO with zero size before validators run.
+
+- **If violated:** NaN comparisons are False so all validators passed a trade with NaN vol/p_bet/hurst/atr.
+- **Owned by:** `src/risk/cognitive_engine.py`
+- **Verification:**
+  - `tests/regression/test_halts_drift_failclosed.py` (regression)
+
+> Audit EXR-011
 
 ## Execution
 
@@ -609,6 +635,19 @@ Orchestrator._metrics_payload() builds a complete metrics snapshot for every tic
   - `tests/regression/test_metrics_payload.py` (regression)
 
 > Pins payload completeness with and without an executor, the method-vs-property fact the bug turned on, and the original TypeError as a negative case. layer: test-suite
+
+#### `REG-1061` — Drift and kill-switch baseline is built only from measured CPCV metrics
+
+**VERIFIED** · high · regression · source: OPS-2026-10-25
+
+The drift baseline derives from the trained direction model's measured OOS metrics; missing or non-finite metrics register no drift detector and no kill switches.
+
+- **If violated:** Hard-coded default baseline produced fabricated drift and disabled strategies on unmeasured evidence.
+- **Owned by:** `src/engine/orchestrator.py`
+- **Verification:**
+  - `tests/regression/test_halts_drift_failclosed.py` (regression)
+
+> Audit EXR-005
 
 ## Data, money and time
 
@@ -1765,6 +1804,19 @@ When the lifespan raises -- the fetcher reaching no exchange venue, the orchestr
 
 > layer: test-suite
 
+#### `REG-1063` — Halt triggers fire on non-finite readings
+
+**VERIFIED** · high · regression · source: OPS-2026-10-25
+
+A NaN or infinite staleness, position deviation, drawdown or clock skew makes its halt trigger fire; the halt-trigger docstring states it is not wired into the live path.
+
+- **If violated:** NaN passed every halt trigger, and docs claimed enforcement that does not exist (AGT-010).
+- **Owned by:** `src/diagnostics/halt_triggers.py`
+- **Verification:**
+  - `tests/regression/test_halts_drift_failclosed.py` (regression)
+
+> Audit AGT-011/AGT-010
+
 ## Release and production
 
 #### `INV-010` — Live mode cannot bypass qualification gates
@@ -2838,4 +2890,4 @@ To add or change an entry, edit the registry and regenerate this file. See
 `docs/quality/TEST_STRATEGY.md` for the taxonomy the `test_type` column draws
 on, and `docs/quality/IMPLEMENTATION_PLAN.md` for what each phase delivers.
 
-Registry version: 1.0.0 — 219 entries.
+Registry version: 1.0.0 — 223 entries.

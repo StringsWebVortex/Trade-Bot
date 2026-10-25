@@ -786,6 +786,7 @@ class PaperExecutor(AbstractExecutor):
                     else 0.0,
                     "peak_unrealized_pct": round(p.peak_unrealized_pct, 3),
                     "regime_at_entry": p.regime_at_entry,
+                    "raw_signal": p.raw_signal,
                     "strategy_id": p.strategy_id,
                     "entry_ts": p.entry_ts,
                 }
@@ -827,6 +828,7 @@ class PaperExecutor(AbstractExecutor):
                 else 0.0,
                 "peak_unrealized_pct": round(p.peak_unrealized_pct, 3),
                 "regime_at_entry": p.regime_at_entry,
+                "raw_signal": p.raw_signal,
                 "strategy_id": p.strategy_id,
                 "entry_ts": p.entry_ts,
             }
