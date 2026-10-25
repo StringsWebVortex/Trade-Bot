@@ -4,7 +4,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 
 ## Totals
 
-- Tracked paths: 1226
+- Tracked paths: 1228
 - Python files: 1006
 - P0 anchors: 58
 - P1 files: 1033
@@ -24,7 +24,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 9 | P0 | config/command_policy.json | JSON | 264 | 84e63848 | Tool command and CI observation policy |
 | 10 | P0 | config/horizons.yaml | YAML | 53 | 2ede87ec | Auxiliary prediction horizon definitions |
 | 11 | P0 | config/math_registry.json | JSON | 1903 | 8fa18ffc | Mathematical object registry |
-| 12 | P0 | config/quality_registry.json | JSON | 5618 | f4b5c4df | Requirements, regressions and deciding tests |
+| 12 | P0 | config/quality_registry.json | JSON | 5711 | a0a9c3ce | Requirements, regressions and deciding tests |
 | 13 | P0 | config/risk.yaml | YAML | 26 | dd4766f8 | Horizon/intelligence risk, distinct from core Settings |
 | 14 | P0 | docker-compose.yml | YAML | 82 | 80ec3eca | API/Timescale/optional-worker composition |
 | 15 | P0 | docs/quality/CI_GATE_ARCHITECTURE.md | Markdown | 255 | 02726345 | CI gates |
@@ -32,9 +32,9 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 17 | P0 | docs/security/THREAT_MODEL.md | Markdown | 341 | ab52c113 | Threat model |
 | 18 | P0 | docs/terminal/ARCHITECTURE.md | Markdown | 217 | ac1b11e0 | Terminal/workspace architecture; historical baseline clearly labeled |
 | 19 | P0 | frontend/package.json | JSON | 77 | f1ae54c1 | Node toolchain and frontend scripts |
-| 20 | P0 | frontend/src/App.jsx | React JSX | 470 | babdff7e | Dashboard composition |
+| 20 | P0 | frontend/src/App.jsx | React JSX | 471 | 14ed8fbf | Dashboard composition |
 | 21 | P0 | frontend/src/hooks/useApi.js | JavaScript | 463 | 79cc9d3c | HTTP and WebSocket client |
-| 22 | P0 | frontend/src/main.jsx | React JSX | 10 | b57d0e84 | React entrypoint |
+| 22 | P0 | frontend/src/main.jsx | React JSX | 13 | 2a4613fa | React entrypoint |
 | 23 | P0 | pyproject.toml | TOML | 94 | 78e2122b | Python version, pytest/coverage and Ruff configuration |
 | 24 | P0 | requirements-dev.txt | Text | 22 | 2a136c55 | Development/test dependencies |
 | 25 | P0 | requirements-optional.txt | Text | 43 | 57f632fc | Optional/lazy dependencies |
@@ -78,7 +78,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 8 | P0 | config/command_policy.json | JSON | 264 | 84e63848 | Tool command and CI observation policy |
 | 9 | P0 | config/horizons.yaml | YAML | 53 | 2ede87ec | Auxiliary prediction horizon definitions |
 | 10 | P0 | config/math_registry.json | JSON | 1903 | 8fa18ffc | Mathematical object registry |
-| 11 | P0 | config/quality_registry.json | JSON | 5618 | f4b5c4df | Requirements, regressions and deciding tests |
+| 11 | P0 | config/quality_registry.json | JSON | 5711 | a0a9c3ce | Requirements, regressions and deciding tests |
 | 12 | P0 | config/risk.yaml | YAML | 26 | dd4766f8 | Horizon/intelligence risk, distinct from core Settings |
 | 13 | P0 | docker-compose.yml | YAML | 82 | 80ec3eca | API/Timescale/optional-worker composition |
 | 14 | P0 | docs/quality/CI_GATE_ARCHITECTURE.md | Markdown | 255 | 02726345 | CI gates |
@@ -86,9 +86,9 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 16 | P0 | docs/security/THREAT_MODEL.md | Markdown | 341 | ab52c113 | Threat model |
 | 17 | P0 | docs/terminal/ARCHITECTURE.md | Markdown | 217 | ac1b11e0 | Terminal/workspace architecture; historical baseline clearly labeled |
 | 18 | P0 | frontend/package.json | JSON | 77 | f1ae54c1 | Node toolchain and frontend scripts |
-| 19 | P0 | frontend/src/App.jsx | React JSX | 470 | babdff7e | Dashboard composition |
+| 19 | P0 | frontend/src/App.jsx | React JSX | 471 | 14ed8fbf | Dashboard composition |
 | 20 | P0 | frontend/src/hooks/useApi.js | JavaScript | 463 | 79cc9d3c | HTTP and WebSocket client |
-| 21 | P0 | frontend/src/main.jsx | React JSX | 10 | b57d0e84 | React entrypoint |
+| 21 | P0 | frontend/src/main.jsx | React JSX | 13 | 2a4613fa | React entrypoint |
 | 22 | P0 | pyproject.toml | TOML | 94 | 78e2122b | Python version, pytest/coverage and Ruff configuration |
 | 23 | P0 | requirements-dev.txt | Text | 22 | 2a136c55 | Development/test dependencies |
 | 24 | P0 | requirements-optional.txt | Text | 43 | 57f632fc | Optional/lazy dependencies |
@@ -183,7 +183,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 113 | P1 | docs/quality/QUALITY_BASELINE.md | Markdown | 125 | bbc75e22 |  |
 | 114 | P1 | docs/quality/QUALITY_METRICS.md | Markdown | 122 | 386b71a5 |  |
 | 115 | P1 | docs/quality/QUALITY_POLICY.md | Markdown | 232 | 8c4629b8 |  |
-| 116 | P1 | docs/quality/REQUIREMENTS_TRACEABILITY.md | Markdown | 2841 | 1a38d32a |  |
+| 116 | P1 | docs/quality/REQUIREMENTS_TRACEABILITY.md | Markdown | 2893 | 11e04710 |  |
 | 117 | P1 | docs/quality/ROOT_CAUSE_TEMPLATE.md | Markdown | 84 | a55b20e9 |  |
 | 118 | P1 | docs/quality/TEST_STRATEGY.md | Markdown | 252 | efbde1ba |  |
 | 119 | P1 | docs/runtime/IMPLEMENTATION_MATRIX.md | Markdown | 79 | 7e5cd563 |  |
@@ -194,11 +194,11 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 124 | P1 | docs/security/SECURITY_POLICY.md | Markdown | 361 | 4d750b78 |  |
 | 125 | P1 | docs/security/claude-cloud-github-only.md | Markdown | 41 | de2c0e75 |  |
 | 126 | P1 | docs/terminal/OPERATIONS.md | Markdown | 203 | f1a63bad |  |
-| 127 | P1 | frontend/src/components/Controls.jsx | React JSX | 136 | 7ae46cc6 |  |
+| 127 | P1 | frontend/src/components/Controls.jsx | React JSX | 183 | 315bb378 |  |
 | 128 | P1 | frontend/src/components/Panel.jsx | React JSX | 111 | 2477557c |  |
 | 129 | P1 | frontend/src/components/StartupBanner.jsx | React JSX | 58 | 60b03901 |  |
 | 130 | P1 | frontend/src/components/StartupBanner.test.jsx | React JSX | 66 | ecd6354a |  |
-| 131 | P1 | frontend/src/components/panels/ApprovalsPanel.jsx | React JSX | 53 | 4df758a1 |  |
+| 131 | P1 | frontend/src/components/panels/ApprovalsPanel.jsx | React JSX | 54 | 48c2aa54 |  |
 | 132 | P1 | frontend/src/components/panels/ConfigPanel.jsx | React JSX | 297 | aa5c6aff |  |
 | 133 | P1 | frontend/src/components/panels/ControlHubPanel.jsx | React JSX | 281 | b3441f4e |  |
 | 134 | P1 | frontend/src/components/panels/EquityChart.jsx | React JSX | 102 | a31e7cea |  |
@@ -208,8 +208,8 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 138 | P1 | frontend/src/components/panels/PositionsPanel.jsx | React JSX | 47 | 202c0d59 |  |
 | 139 | P1 | frontend/src/components/panels/RiskControlsPanel.jsx | React JSX | 83 | 8b163cc9 |  |
 | 140 | P1 | frontend/src/components/panels/RuntimePanel.jsx | React JSX | 263 | cb6c2ead |  |
-| 141 | P1 | frontend/src/components/panels/SelfTuningPanel.jsx | React JSX | 94 | 50ecc2a2 |  |
-| 142 | P1 | frontend/src/components/panels/StrategiesPanel.jsx | React JSX | 151 | e1511071 |  |
+| 141 | P1 | frontend/src/components/panels/SelfTuningPanel.jsx | React JSX | 95 | 557e223c |  |
+| 142 | P1 | frontend/src/components/panels/StrategiesPanel.jsx | React JSX | 153 | 7e2040f5 |  |
 | 143 | P1 | frontend/src/components/panels/TradesPanel.jsx | React JSX | 99 | 5004c345 |  |
 | 144 | P1 | frontend/src/components/panels/VenuesPanel.jsx | React JSX | 149 | 1bf23f04 |  |
 | 145 | P1 | frontend/src/components/panels/VenuesPanel.test.jsx | React JSX | 178 | c9b499e7 |  |
@@ -1244,53 +1244,55 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 1174 | P2 | frontend/public/icon.svg | Vector asset | 15 | 9a6da623 |  |
 | 1175 | P2 | frontend/scripts/build-icons.mjs | ES module | 36 | 4489c079 |  |
 | 1176 | P2 | frontend/scripts/install-desktop-shortcut.sh | Shell | 83 | 2cf78edf |  |
-| 1177 | P2 | frontend/tailwind.config.js | JavaScript | 43 | a8d2f444 |  |
-| 1178 | P2 | frontend/vite.config.js | JavaScript | 40 | 8d61c39d |  |
-| 1179 | P2 | frontend/vitest.browser.config.js | JavaScript | 19 | 968832f5 |  |
-| 1180 | P2 | frontend/vitest.config.js | JavaScript | 14 | d37c0445 |  |
-| 1181 | P2 | kg/__init__.py | Python | 0 | e3b0c442 |  |
-| 1182 | P2 | kg/assemble.py | Python | 44 | 2ce44ebb |  |
-| 1183 | P2 | kg/config.py | Python | 12 | 02f60bb4 |  |
-| 1184 | P2 | kg/db.py | Python | 49 | de493b46 |  |
-| 1185 | P2 | kg/extract.py | Python | 21 | c97eece2 |  |
-| 1186 | P2 | kg/ingest.py | Python | 9 | 394c1542 |  |
-| 1187 | P2 | kg/query.py | Python | 55 | 5ad9efb1 |  |
-| 1188 | P2 | kg/resolve.py | Python | 30 | 2277a38a |  |
-| 1189 | P2 | kg/schema.py | Python | 42 | 86f3afdb |  |
-| 1190 | P2 | kg_cli.py | Python | 30 | e83e37da |  |
-| 1191 | P2 | orchestrator/__init__.py | Python | 0 | e3b0c442 |  |
-| 1192 | P2 | orchestrator/config.py | Python | 11 | f435c05e |  |
-| 1193 | P2 | orchestrator/planner.py | Python | 29 | 6aa66058 |  |
-| 1194 | P2 | orchestrator/run.py | Python | 58 | 4e09c347 |  |
-| 1195 | P2 | orchestrator/synthesizer.py | Python | 18 | 3f5f44bf |  |
-| 1196 | P2 | orchestrator/worker.py | Python | 27 | a4668aae |  |
-| 1197 | P2 | orchestrator_cli.py | Python | 16 | 1817eda3 |  |
-| 1198 | P2 | plugins/trade-bot-engineering/.codex-plugin/plugin.json | JSON | 42 | 5ee4341f |  |
-| 1199 | P2 | plugins/trade-bot-engineering/.mcp.json | JSON | 8 | d14a03a4 |  |
-| 1200 | P2 | plugins/trade-bot-engineering/mcp.json | JSON | 9 | 4f524e82 |  |
-| 1201 | P2 | plugins/trade-bot-engineering/plugin.json | JSON | 40 | 9507e9e0 |  |
-| 1202 | P2 | plugins/trade-bot-engineering/skills/trade-bot-code-review-pr/SKILL.md | Markdown | 23 | f7724554 |  |
-| 1203 | P2 | plugins/trade-bot-engineering/skills/trade-bot-cookbook-engineering/SKILL.md | Markdown | 22 | 1db44afc |  |
-| 1204 | P2 | plugins/trade-bot-engineering/skills/trade-bot-delivery/SKILL.md | Markdown | 18 | 10984afa |  |
-| 1205 | P2 | plugins/trade-bot-engineering/skills/trade-bot-evaluation-optimization/SKILL.md | Markdown | 18 | 6a9dcbb5 |  |
-| 1206 | P2 | plugins/trade-bot-engineering/skills/trade-bot-evidence-first/SKILL.md | Markdown | 20 | 7478d0d0 |  |
-| 1207 | P2 | plugins/trade-bot-engineering/skills/trade-bot-openai-sdk-integration/SKILL.md | Markdown | 20 | 03900dfe |  |
-| 1208 | P2 | plugins/trade-bot-engineering/skills/trade-bot-parallel-development/SKILL.md | Markdown | 42 | eb29101f |  |
-| 1209 | P2 | plugins/trade-bot-engineering/skills/trade-bot-root-cause-debugging/SKILL.md | Markdown | 24 | 3918f734 |  |
-| 1210 | P2 | rag_cli.py | Python | 39 | 47b9e6bf |  |
-| 1211 | P2 | rag_mongo/__init__.py | Python | 0 | e3b0c442 |  |
-| 1212 | P2 | rag_mongo/config.py | Python | 14 | da9922ab |  |
-| 1213 | P2 | rag_mongo/db.py | Python | 67 | 5ff6ab0e |  |
-| 1214 | P2 | rag_mongo/embeddings.py | Python | 21 | 9635c55e |  |
-| 1215 | P2 | rag_mongo/generate.py | Python | 19 | 2eaea14b |  |
-| 1216 | P2 | rag_mongo/ingest.py | Python | 21 | b3d1dff7 |  |
-| 1217 | P2 | rag_mongo/pipeline.py | Python | 7 | b445a01a |  |
-| 1218 | P2 | rag_mongo/retrieve.py | Python | 20 | 553da338 |  |
-| 1219 | P2 | requirements-topology-optional.txt | Text | 9 | 69f74fd0 |  |
-| 1220 | P2 | review/__init__.py | Python | 0 | e3b0c442 |  |
-| 1221 | P2 | review/build_context.py | Python | 75 | 3de69e47 |  |
-| 1222 | P2 | review/config.py | Python | 8 | b6dbb57a |  |
-| 1223 | P2 | review/retrieval.py | Python | 60 | 9c4e1629 |  |
-| 1224 | P2 | tools/__init__.py | Python | 0 | e3b0c442 |  |
-| 1225 | P2 | tools/example_tools.py | Python | 50 | bf4d6a53 |  |
-| 1226 | P2 | tools/registry.py | Python | 114 | c3a96723 |  |
+| 1177 | P2 | frontend/src/components/Controls.test.jsx | React JSX | 106 | cf6f9c5a |  |
+| 1178 | P2 | frontend/src/components/ErrorBoundary.jsx | React JSX | 33 | 4ffb65c6 |  |
+| 1179 | P2 | frontend/tailwind.config.js | JavaScript | 43 | a8d2f444 |  |
+| 1180 | P2 | frontend/vite.config.js | JavaScript | 40 | 8d61c39d |  |
+| 1181 | P2 | frontend/vitest.browser.config.js | JavaScript | 19 | 968832f5 |  |
+| 1182 | P2 | frontend/vitest.config.js | JavaScript | 14 | d37c0445 |  |
+| 1183 | P2 | kg/__init__.py | Python | 0 | e3b0c442 |  |
+| 1184 | P2 | kg/assemble.py | Python | 44 | 2ce44ebb |  |
+| 1185 | P2 | kg/config.py | Python | 12 | 02f60bb4 |  |
+| 1186 | P2 | kg/db.py | Python | 49 | de493b46 |  |
+| 1187 | P2 | kg/extract.py | Python | 21 | c97eece2 |  |
+| 1188 | P2 | kg/ingest.py | Python | 9 | 394c1542 |  |
+| 1189 | P2 | kg/query.py | Python | 55 | 5ad9efb1 |  |
+| 1190 | P2 | kg/resolve.py | Python | 30 | 2277a38a |  |
+| 1191 | P2 | kg/schema.py | Python | 42 | 86f3afdb |  |
+| 1192 | P2 | kg_cli.py | Python | 30 | e83e37da |  |
+| 1193 | P2 | orchestrator/__init__.py | Python | 0 | e3b0c442 |  |
+| 1194 | P2 | orchestrator/config.py | Python | 11 | f435c05e |  |
+| 1195 | P2 | orchestrator/planner.py | Python | 29 | 6aa66058 |  |
+| 1196 | P2 | orchestrator/run.py | Python | 58 | 4e09c347 |  |
+| 1197 | P2 | orchestrator/synthesizer.py | Python | 18 | 3f5f44bf |  |
+| 1198 | P2 | orchestrator/worker.py | Python | 27 | a4668aae |  |
+| 1199 | P2 | orchestrator_cli.py | Python | 16 | 1817eda3 |  |
+| 1200 | P2 | plugins/trade-bot-engineering/.codex-plugin/plugin.json | JSON | 42 | 5ee4341f |  |
+| 1201 | P2 | plugins/trade-bot-engineering/.mcp.json | JSON | 8 | d14a03a4 |  |
+| 1202 | P2 | plugins/trade-bot-engineering/mcp.json | JSON | 9 | 4f524e82 |  |
+| 1203 | P2 | plugins/trade-bot-engineering/plugin.json | JSON | 40 | 9507e9e0 |  |
+| 1204 | P2 | plugins/trade-bot-engineering/skills/trade-bot-code-review-pr/SKILL.md | Markdown | 23 | f7724554 |  |
+| 1205 | P2 | plugins/trade-bot-engineering/skills/trade-bot-cookbook-engineering/SKILL.md | Markdown | 22 | 1db44afc |  |
+| 1206 | P2 | plugins/trade-bot-engineering/skills/trade-bot-delivery/SKILL.md | Markdown | 18 | 10984afa |  |
+| 1207 | P2 | plugins/trade-bot-engineering/skills/trade-bot-evaluation-optimization/SKILL.md | Markdown | 18 | 6a9dcbb5 |  |
+| 1208 | P2 | plugins/trade-bot-engineering/skills/trade-bot-evidence-first/SKILL.md | Markdown | 20 | 7478d0d0 |  |
+| 1209 | P2 | plugins/trade-bot-engineering/skills/trade-bot-openai-sdk-integration/SKILL.md | Markdown | 20 | 03900dfe |  |
+| 1210 | P2 | plugins/trade-bot-engineering/skills/trade-bot-parallel-development/SKILL.md | Markdown | 42 | eb29101f |  |
+| 1211 | P2 | plugins/trade-bot-engineering/skills/trade-bot-root-cause-debugging/SKILL.md | Markdown | 24 | 3918f734 |  |
+| 1212 | P2 | rag_cli.py | Python | 39 | 47b9e6bf |  |
+| 1213 | P2 | rag_mongo/__init__.py | Python | 0 | e3b0c442 |  |
+| 1214 | P2 | rag_mongo/config.py | Python | 14 | da9922ab |  |
+| 1215 | P2 | rag_mongo/db.py | Python | 67 | 5ff6ab0e |  |
+| 1216 | P2 | rag_mongo/embeddings.py | Python | 21 | 9635c55e |  |
+| 1217 | P2 | rag_mongo/generate.py | Python | 19 | 2eaea14b |  |
+| 1218 | P2 | rag_mongo/ingest.py | Python | 21 | b3d1dff7 |  |
+| 1219 | P2 | rag_mongo/pipeline.py | Python | 7 | b445a01a |  |
+| 1220 | P2 | rag_mongo/retrieve.py | Python | 20 | 553da338 |  |
+| 1221 | P2 | requirements-topology-optional.txt | Text | 9 | 69f74fd0 |  |
+| 1222 | P2 | review/__init__.py | Python | 0 | e3b0c442 |  |
+| 1223 | P2 | review/build_context.py | Python | 75 | 3de69e47 |  |
+| 1224 | P2 | review/config.py | Python | 8 | b6dbb57a |  |
+| 1225 | P2 | review/retrieval.py | Python | 60 | 9c4e1629 |  |
+| 1226 | P2 | tools/__init__.py | Python | 0 | e3b0c442 |  |
+| 1227 | P2 | tools/example_tools.py | Python | 50 | bf4d6a53 |  |
+| 1228 | P2 | tools/registry.py | Python | 114 | c3a96723 |  |
