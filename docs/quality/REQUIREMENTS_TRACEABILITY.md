@@ -47,18 +47,18 @@ deletion of the thing it points at.
 
 | Status | Entries |
 |---|---|
-| VERIFIED | 216 |
+| VERIFIED | 220 |
 | PARTIAL | 3 |
 | PLANNED | 0 |
 | ACCEPTED GAP | 0 |
-| **Total** | **219** |
+| **Total** | **223** |
 
 ## Summary by subsystem
 
 | Subsystem | Entries | Verified |
 |---|---|---|
 | Risk | 11 | 11 |
-| Execution | 13 | 12 |
+| Execution | 17 | 16 |
 | Portfolio | 1 | 1 |
 | Signal and features | 6 | 6 |
 | Models and leakage | 10 | 10 |
@@ -394,6 +394,58 @@ When intelligence is enabled, an order from the existing primary timeframe proce
   - `tests/test_horizon_decision.py` (unit)
 
 > layer: test-suite
+
+#### `REG-1040` — Crypto-box Kelly reduction reaches the order size
+
+**VERIFIED** · high · regression · source: OPS-2026-10-25
+
+A crypto-box scale below 1 reduces the order quantity and notional, and skips the trade when the reduced size is below exchange minimums.
+
+- **If violated:** Only adjusted_fraction was halved; quantity and notional were untouched so the order went out at full size.
+- **Owned by:** `src/engine/orchestrator.py`
+- **Verification:**
+  - `tests/test_exec_accounting_fixes.py` (regression)
+
+> layer: test-suite; audit finding EXR-006
+
+#### `REG-1041` — Partial live close settles only the filled share
+
+**VERIFIED** · high · regression · source: OPS-2026-10-25
+
+A partially filled live close credits cash only for the filled share of the notional and keeps the residual position open and tracked.
+
+- **If violated:** The whole position was removed and the full entry notional credited on a partial fill.
+- **Owned by:** `src/execution/live.py`
+- **Verification:**
+  - `tests/test_exec_accounting_fixes.py` (regression)
+
+> layer: test-suite; audit finding EXR-007
+
+#### `REG-1042` — Spot live executor refuses short entries
+
+**VERIFIED** · high · regression · source: OPS-2026-10-25
+
+LiveExecutor._place_and_record refuses any non-long direction on the spot account without placing an order or touching cash.
+
+- **If violated:** Shorts were sent as spot sells and booked as opened shorts, diverging from the exchange.
+- **Owned by:** `src/execution/live.py`
+- **Verification:**
+  - `tests/test_exec_accounting_fixes.py` (regression)
+
+> layer: test-suite; audit finding EXR-008
+
+#### `REG-1043` — Base-asset entry fees reduce tracked position quantity
+
+**VERIFIED** · high · regression · source: OPS-2026-10-25
+
+A buy fill whose fee is charged in the base asset records the net quantity and the fee in USD at the fill price.
+
+- **If violated:** Base-currency fees were ignored so the position quantity exceeded holdings and the close oversold.
+- **Owned by:** `src/execution/live.py`
+- **Verification:**
+  - `tests/test_exec_accounting_fixes.py` (regression)
+
+> layer: test-suite; audit finding EXR-012
 
 ## Portfolio
 
@@ -2838,4 +2890,4 @@ To add or change an entry, edit the registry and regenerate this file. See
 `docs/quality/TEST_STRATEGY.md` for the taxonomy the `test_type` column draws
 on, and `docs/quality/IMPLEMENTATION_PLAN.md` for what each phase delivers.
 
-Registry version: 1.0.0 — 219 entries.
+Registry version: 1.0.0 — 223 entries.
