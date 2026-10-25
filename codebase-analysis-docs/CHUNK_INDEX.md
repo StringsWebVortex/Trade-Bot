@@ -2051,19 +2051,19 @@ SHA8 397d38f6; total lines 77.
 
 ### .github/workflows/ci.yml
 
-SHA8 896cb0b1; total lines 404.
+SHA8 1afd1d2e; total lines 408.
 
-- CHUNK_ID = .github/workflows/ci.yml#1-38#896cb0b1 — [[F:.github/workflows/ci.yml#1-38#896cb0b1]].
-- CHUNK_ID = .github/workflows/ci.yml#39-76#896cb0b1 — [[F:.github/workflows/ci.yml#39-76#896cb0b1]].
-- CHUNK_ID = .github/workflows/ci.yml#77-114#896cb0b1 — [[F:.github/workflows/ci.yml#77-114#896cb0b1]].
-- CHUNK_ID = .github/workflows/ci.yml#115-152#896cb0b1 — [[F:.github/workflows/ci.yml#115-152#896cb0b1]].
-- CHUNK_ID = .github/workflows/ci.yml#153-190#896cb0b1 — [[F:.github/workflows/ci.yml#153-190#896cb0b1]].
-- CHUNK_ID = .github/workflows/ci.yml#191-228#896cb0b1 — [[F:.github/workflows/ci.yml#191-228#896cb0b1]].
-- CHUNK_ID = .github/workflows/ci.yml#229-266#896cb0b1 — [[F:.github/workflows/ci.yml#229-266#896cb0b1]].
-- CHUNK_ID = .github/workflows/ci.yml#267-304#896cb0b1 — [[F:.github/workflows/ci.yml#267-304#896cb0b1]].
-- CHUNK_ID = .github/workflows/ci.yml#305-342#896cb0b1 — [[F:.github/workflows/ci.yml#305-342#896cb0b1]].
-- CHUNK_ID = .github/workflows/ci.yml#343-380#896cb0b1 — [[F:.github/workflows/ci.yml#343-380#896cb0b1]].
-- CHUNK_ID = .github/workflows/ci.yml#381-404#896cb0b1 — [[F:.github/workflows/ci.yml#381-404#896cb0b1]].
+- CHUNK_ID = .github/workflows/ci.yml#1-38#1afd1d2e — [[F:.github/workflows/ci.yml#1-38#1afd1d2e]].
+- CHUNK_ID = .github/workflows/ci.yml#39-76#1afd1d2e — [[F:.github/workflows/ci.yml#39-76#1afd1d2e]].
+- CHUNK_ID = .github/workflows/ci.yml#77-114#1afd1d2e — [[F:.github/workflows/ci.yml#77-114#1afd1d2e]].
+- CHUNK_ID = .github/workflows/ci.yml#115-152#1afd1d2e — [[F:.github/workflows/ci.yml#115-152#1afd1d2e]].
+- CHUNK_ID = .github/workflows/ci.yml#153-190#1afd1d2e — [[F:.github/workflows/ci.yml#153-190#1afd1d2e]].
+- CHUNK_ID = .github/workflows/ci.yml#191-228#1afd1d2e — [[F:.github/workflows/ci.yml#191-228#1afd1d2e]].
+- CHUNK_ID = .github/workflows/ci.yml#229-266#1afd1d2e — [[F:.github/workflows/ci.yml#229-266#1afd1d2e]].
+- CHUNK_ID = .github/workflows/ci.yml#267-304#1afd1d2e — [[F:.github/workflows/ci.yml#267-304#1afd1d2e]].
+- CHUNK_ID = .github/workflows/ci.yml#305-342#1afd1d2e — [[F:.github/workflows/ci.yml#305-342#1afd1d2e]].
+- CHUNK_ID = .github/workflows/ci.yml#343-380#1afd1d2e — [[F:.github/workflows/ci.yml#343-380#1afd1d2e]].
+- CHUNK_ID = .github/workflows/ci.yml#381-408#1afd1d2e — [[F:.github/workflows/ci.yml#381-408#1afd1d2e]].
 ### docs/terminal/ARCHITECTURE.md
 
 SHA8 ac1b11e0; total lines 217.

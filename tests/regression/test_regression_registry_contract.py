@@ -236,6 +236,12 @@ class TestTheRegistryHasAPlaceForDefects:
             "REG-1608",
             # REG-1609: one failed job-log download failed the whole report.
             "REG-1609",
+            # REG-1700..1703: audit OPS-011 (digest pins, rag-ingest torch
+            # floor), DOC-015 and API-031 -- block C of the phase 7 findings.
+            "REG-1700",
+            "REG-1701",
+            "REG-1702",
+            "REG-1703",
         }
         # SEC-0005: `.gitignore` carried a bare `.env`, which matches that one
         # name and nothing else -- so `.env.bak.<timestamp>` from a
@@ -534,7 +540,9 @@ class TestTheMetricsCollector:
         # huggingface-hub pulled in unbounded -- supply-chain, 2 to 3.
         # REG-1609 adds the collector's one-log-fails-all regression -- test-suite, 35.
         # REG-1605..1608 add four more audit findings no test exercised -- test-suite, 39.
-        assert metric["value"] == {"test-suite": 39, "review": 1, "supply-chain": 3}
+        # REG-1700..1703 add four block C audit regressions no test exercised --
+        # test-suite, 43.
+        assert metric["value"] == {"test-suite": 43, "review": 1, "supply-chain": 3}
 
     def test_zero_escaped_defects_would_be_stated_explicitly(self, collector, monkeypatch):
         # "We have not measured this" and "this is zero" are different

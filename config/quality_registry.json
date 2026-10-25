@@ -5870,6 +5870,100 @@
         }
       ],
       "notes": "Audit OPS-013. Needs Prometheus 2.55 or later for http_headers. layer: test-suite"
+    },
+    {
+      "id": "REG-1700",
+      "kind": "regression",
+      "title": "The CI TimescaleDB service and scripts/timescaledb.sh pin the image by digest",
+      "statement": "The timescaledb service image in ci.yml is a digest-only reference (timescale/timescaledb@sha256:<64 hex>), and scripts/timescaledb.sh names the identical string, so every run of a commit provisions the same database engine.",
+      "criticality": "low",
+      "subsystem": "governance",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "A re-pushed or moved tag silently changes the TimescaleDB build the timescale storage tests run against, between two runs of the same commit or between CI and the local script.",
+      "owning_modules": [
+        ".github/workflows/ci.yml",
+        "scripts/timescaledb.sh"
+      ],
+      "depends_on": [
+        "REG-0013"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_timescaledb_script.py",
+          "test_type": "regression"
+        }
+      ],
+      "notes": "Audit OPS-011 (digest pins). The digest is Docker Hub's index digest for 2.17.2-pg17. Digest only, no tag, because podman refuses tag+digest references. The compose pg16 image is not changed here: moving it to pg17 needs a data-volume migration (owner decision) and docker-compose.yml is in open PR #507. layer: test-suite"
+    },
+    {
+      "id": "REG-1701",
+      "kind": "regression",
+      "title": "rag-ingest.yml's CPU torch pre-pass uses requirements.txt's torch spec",
+      "statement": "The CPU-index torch pre-pass in rag-ingest.yml carries exactly the torch spec requirements.txt declares, as ci.yml and the Dockerfile do under REG-1600.",
+      "criticality": "low",
+      "subsystem": "governance",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "The ingest job pre-installs a CPU torch older than requirements.txt accepts; pip then pulls the CUDA-bundling PyPI wheel and the runner's disk fills, which is the failure the pre-pass exists to prevent.",
+      "owning_modules": [
+        ".github/workflows/rag-ingest.yml"
+      ],
+      "depends_on": [
+        "REG-1600"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_phase7_ops_findings.py",
+          "test_type": "regression"
+        }
+      ],
+      "notes": "Audit OPS-011 leftover after #509: rag-ingest.yml kept torch>=2.3. nightly-quality.yml has the same drift but is in open PR #507 and is fixed after it merges. layer: test-suite"
+    },
+    {
+      "id": "REG-1702",
+      "kind": "regression",
+      "title": "kg/ and rag_mongo/ share one MongoClient factory and one URI check",
+      "statement": "kg.db builds its MongoClient through rag_mongo.db._client_for and checks MONGODB_URI through rag_mongo.db.require_uri, so a process that uses both packages holds one cached client for the shared cluster and both raise the same missing-URI error.",
+      "criticality": "low",
+      "subsystem": "data",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "Copy-pasted client factories with separate lru_caches build a second MongoClient pool (its own connections and monitor threads) for the same cluster in review/retrieval.py and rag_smoke.py, and the two copies of the URI check drift apart.",
+      "owning_modules": [
+        "kg/db.py",
+        "rag_mongo/db.py"
+      ],
+      "depends_on": [],
+      "verification": [
+        {
+          "test": "tests/test_mongo_client_reuse.py",
+          "test_type": "regression"
+        }
+      ],
+      "notes": "Audit DOC-015. Skill/MCP duplicates were removed by #511. The kg/query._subgraph vs review/retrieval.graph duplication waits for open PR #502. layer: test-suite"
+    },
+    {
+      "id": "REG-1703",
+      "kind": "regression",
+      "title": "One environment variable never binds two settings fields",
+      "statement": "Across Settings and every sub-settings class it composes, each prefix+field env name (or validation alias) resolves to exactly one field; in particular StrategyPortfolioSettings and StrategySettings, which share env_prefix STRATEGY_, declare no common field name.",
+      "criticality": "low",
+      "subsystem": "api",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "A field added to one STRATEGY_ class under a name the other already uses is fed by the same env var, so an operator tuning one strategy layer silently retunes the other with no error.",
+      "owning_modules": [
+        "src/config.py"
+      ],
+      "depends_on": [],
+      "verification": [
+        {
+          "test": "tests/test_settings_env_namespace.py",
+          "test_type": "regression"
+        }
+      ],
+      "notes": "Audit API-031 (prefix half). A guard rather than a prefix rename: no collision exists today and a rename would change the env var names operators set. layer: test-suite"
     }
   ]
 }
