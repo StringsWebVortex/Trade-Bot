@@ -31,7 +31,7 @@ from __future__ import annotations
 import os
 import re
 import shlex
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
@@ -73,6 +73,8 @@ _FALLBACK = re.compile(
     r"\b(checkout|switch|restore|reset|rebase|merge|pull|cherry-pick|stash|clean)\b"
     r"|\bgit\b[^\n;&|]*?\bpush\b[^\n;&|]*?(--force|\s-[a-zA-Z]*f|\s\+)"
 )
+_BACKTICKS = re.compile(r"`([^`]*)`")
+_FIND_EXEC = frozenset({"-exec", "-execdir", "-ok", "-okdir"})
 _MAX_DEPTH = 3
 
 
@@ -171,29 +173,116 @@ def _segments(tokens: list[str]) -> list[list[str]]:
     return [segment for segment in segments if segment]
 
 
-def _invocations(command: str, depth: int) -> list[GitInvocation]:
+def _backtick_bodies(command: str) -> tuple[str, list[str]]:
+    """Split out `` `...` `` substitutions (live outside single quotes) as nested commands."""
+    bodies: list[str] = []
+    out: list[str] = []
+    last = 0
+    for match in _BACKTICKS.finditer(command):
+        if _in_single_quotes(command, match.start()):
+            continue
+        bodies.append(match.group(1))
+        out.append(command[last : match.start()] + " ")
+        last = match.end()
+    out.append(command[last:])
+    return "".join(out), bodies
+
+
+def _in_single_quotes(line: str, index: int) -> bool:
+    quote = ""
+    escaped = False
+    for char in line[:index]:
+        if escaped:
+            escaped = False
+        elif char == "\\" and quote != "'":
+            escaped = True
+        elif quote:
+            if char == quote:
+                quote = ""
+        elif char in ("'", '"'):
+            quote = char
+    return quote == "'"
+
+
+def _first_command_index(words: list[str]) -> int | None:
+    for index, word in enumerate(words):
+        base = os.path.basename(word)
+        if base == "git" or base in _SHELLS or base in ("eval", "find"):
+            return index
+    return None
+
+
+def _expand_alias(
+    invocation: GitInvocation, aliases: Mapping[str, str], depth: int
+) -> list[GitInvocation]:
+    """Resolve a git alias to the command(s) it runs; builtins are never shadowed."""
+    sub = invocation.subcommand
+    if sub in GUARDED_SUBCOMMANDS or sub == "push" or sub not in aliases or depth >= _MAX_DEPTH:
+        return [invocation]
+    expansion = aliases[sub].strip()
+    if expansion.startswith("!"):
+        script = f"{expansion[1:]} {' '.join(shlex.quote(a) for a in invocation.args)}"
+        return _invocations(script, depth + 1, aliases)
+    try:
+        parts = shlex.split(expansion)
+    except ValueError:
+        parts = expansion.split()
+    if not parts:
+        return [invocation]
+    resolved = GitInvocation(parts[0], tuple(parts[1:]) + invocation.args)
+    return _expand_alias(resolved, aliases, depth + 1)
+
+
+def _words_invocations(
+    words: list[str], depth: int, aliases: Mapping[str, str]
+) -> list[GitInvocation]:
+    while words and _ASSIGNMENT.match(words[0]):
+        words = words[1:]
+    if not words:
+        return []
+    head = os.path.basename(words[0])
+    if head in _SHELLS or head == "eval":
+        if depth < _MAX_DEPTH:
+            return _invocations(_nested_script(head, words), depth + 1, aliases)
+        return []
+    if head == "find":
+        found: list[GitInvocation] = []
+        for index, word in enumerate(words):
+            if word in _FIND_EXEC and depth < _MAX_DEPTH:
+                tail = words[index + 1 :]
+                end = next((i for i, w in enumerate(tail) if w == "+"), len(tail))
+                found.extend(_words_invocations(tail[:end], depth + 1, aliases))
+        return found
+    if head == "xargs":
+        start = _first_command_index(words)
+        if start is None or depth >= _MAX_DEPTH:
+            return []
+        return _words_invocations(words[start:], depth + 1, aliases)
+    if head in _WRAPPERS:
+        words = next((words[i:] for i, w in enumerate(words) if os.path.basename(w) == "git"), [])
+    if not words or os.path.basename(words[0]) != "git":
+        return []
+    inline = dict(aliases)
+    index = 1
+    while index < len(words) and words[index].startswith("-"):
+        if words[index] == "-c" and index + 1 < len(words):
+            name, _, value = words[index + 1].partition("=")
+            if name.lower().startswith("alias.") and value:
+                inline[name[len("alias.") :]] = value
+        index += 2 if words[index] in _GLOBAL_OPTIONS_WITH_VALUE else 1
+    if index >= len(words):
+        return []
+    return _expand_alias(GitInvocation(words[index], tuple(words[index + 1 :])), inline, depth)
+
+
+def _invocations(command: str, depth: int, aliases: Mapping[str, str]) -> list[GitInvocation]:
     found: list[GitInvocation] = []
-    for words in _segments(_tokens(_join_lines(strip_heredocs(command)))):
-        while words and _ASSIGNMENT.match(words[0]):
-            words = words[1:]
-        if not words:
-            continue
-        head = os.path.basename(words[0])
-        if head in _SHELLS or head == "eval":
-            if depth < _MAX_DEPTH:
-                found.extend(_invocations(_nested_script(head, words), depth + 1))
-            continue
-        if head in _WRAPPERS:
-            words = next(
-                (words[i:] for i, w in enumerate(words) if os.path.basename(w) == "git"), []
-            )
-        if not words or os.path.basename(words[0]) != "git":
-            continue
-        index = 1
-        while index < len(words) and words[index].startswith("-"):
-            index += 2 if words[index] in _GLOBAL_OPTIONS_WITH_VALUE else 1
-        if index < len(words):
-            found.append(GitInvocation(words[index], tuple(words[index + 1 :])))
+    outer, bodies = _backtick_bodies(command)
+    if depth < _MAX_DEPTH:
+        for body in bodies:
+            found.extend(_invocations(body, depth + 1, aliases))
+    for words in _segments(_tokens(_join_lines(strip_heredocs(outer)))):
+        found.extend(_words_invocations(words, depth, aliases))
     return found
 
 
@@ -206,9 +295,18 @@ def _nested_script(head: str, words: list[str]) -> str:
     return ""
 
 
-def git_invocations(command: str) -> list[GitInvocation]:
-    """Every ``git`` command a shell would run for ``command``."""
-    return _invocations(command, 0)
+def git_invocations(
+    command: str, aliases: Mapping[str, str] | None = None
+) -> list[GitInvocation]:
+    """
+    Every ``git`` command a shell would run for ``command``.
+
+    ``aliases`` maps configured alias names to their expansion
+    (``git config --get-regexp ^alias\\.``); ``-c alias.x=...`` is read from the
+    command itself. Backtick substitutions, ``xargs`` and ``find -exec`` count
+    as nested commands.
+    """
+    return _invocations(command, 0, aliases or {})
 
 
 def _is_force_push(args: Iterable[str]) -> bool:
@@ -236,15 +334,15 @@ def operation_of(invocation: GitInvocation) -> str | None:
     return sub
 
 
-def guarded_operations(command: str) -> list[str]:
-    """Guarded operations ``command`` would perform, in order, without repeats."""
+def guarded_operations(command: str, aliases: Mapping[str, str] | None = None) -> list[str]:
+    """Guarded operations ``command`` would perform, in order, one entry per occurrence."""
     try:
-        operations = [operation_of(inv) for inv in git_invocations(command)]
+        operations = [operation_of(inv) for inv in git_invocations(command, aliases)]
     except ValueError:
         operations = []
         for match in _FALLBACK.finditer(command):
             operations.append(match.group(1) or FORCE_PUSH)
-    return list(dict.fromkeys(op for op in operations if op))
+    return [op for op in operations if op]
 
 
 def _parse(stamp: str) -> datetime:
@@ -280,10 +378,14 @@ def authorize(
     return grant
 
 
-def _available(task: TaskRun, operation: str, now: datetime) -> Authorization | None:
+def _available(
+    task: TaskRun, operation: str, now: datetime, taken: Iterable[Authorization] = ()
+) -> Authorization | None:
+    reserved = {id(grant) for grant in taken}
     for grant in task.authorizations:
         if (
-            grant.operation == operation
+            id(grant) not in reserved
+            and grant.operation == operation
             and grant.consumed_at is None
             and _parse(grant.expires_at) > now
         ):
@@ -293,14 +395,15 @@ def _available(task: TaskRun, operation: str, now: datetime) -> Authorization | 
 
 def consume(task: TaskRun, operations: Iterable[str], command: str, *, now: datetime) -> list[str]:
     """
-    Spend one authorization per operation. All or nothing: if any operation
+    Spend one authorization per occurrence of each operation (two checkouts
+    need two grants). All or nothing: if any operation
     lacks a live authorization nothing is consumed and the missing ones are
     returned.
     """
     granted: list[Authorization] = []
     missing: list[str] = []
-    for operation in dict.fromkeys(operations):
-        grant = _available(task, operation, now)
+    for operation in operations:
+        grant = _available(task, operation, now, granted)
         if grant is None:
             missing.append(operation)
         else:

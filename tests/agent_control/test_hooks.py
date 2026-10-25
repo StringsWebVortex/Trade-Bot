@@ -166,6 +166,22 @@ class TestGitGuard:
         assert hooks.git_guard(_event(repo, tool_input={"command": 7})) is None
 
 
+class TestGuardGaps:
+    def test_configured_alias_cannot_hide_a_guarded_operation(self, repo, make_task) -> None:
+        repo.git.run("config", "alias.co", "checkout")
+        task = make_task()
+        message = hooks.git_guard(_event(repo, tool_input={"command": "git co main"}))
+        assert message is not None and f"git authorize {task.task_id} --operation checkout" in message
+
+    def test_repeated_operation_needs_a_grant_each(self, repo, make_task) -> None:
+        make_task()
+        command = {"command": "git checkout a && git checkout b"}
+        repo.workspace().authorize(None, "checkout", "r")
+        assert hooks.git_guard(_event(repo, tool_input=command)) is not None
+        repo.workspace().authorize(None, "checkout", "r2")
+        assert hooks.git_guard(_event(repo, tool_input=command)) is None
+
+
 class TestRunHook:
     def _run(self, name: str, payload: str) -> tuple[int, str, str]:
         out, err = io.StringIO(), io.StringIO()

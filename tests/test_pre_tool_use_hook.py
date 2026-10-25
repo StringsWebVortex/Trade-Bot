@@ -496,3 +496,12 @@ class TestSettingsWiring:
             "mcp__github__pull_request_read",
         ):
             assert tool in allowed
+
+
+def test_hook_fails_closed_when_command_schema_cannot_be_imported(tmp_path: Path) -> None:
+    """DOC-002: the stubbed fallback patterns never matched; an import failure now denies."""
+    decision = run_hook(
+        json.dumps({"tool_name": "Bash", "tool_input": {"command": "ruff check ."}}),
+        {"CLAUDE_PROJECT_DIR": str(tmp_path)},
+    )
+    assert decision["permissionDecision"] == "deny"
