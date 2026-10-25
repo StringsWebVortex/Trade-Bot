@@ -524,8 +524,8 @@ Use these anchors with the matching current hash in codebase-analysis-docs/CHUNK
 - TimescaleDB storage backend: [[F:src/data/timescale_storage.py#394-431#1aa58429]]
 - Runtime change validation and policy: [[F:src/runtime/changes.py#302-339#310891d5]]
 - Runtime discovery/reconciliation: [[F:src/runtime/production.py#266-303#55696d76]]
-- Browser transport handshake and dispatch: [[F:src/terminal/server.py#218-230#10681519]]
-- Headless runtime ownership: [[F:src/workers/trader.py#53-90#687738d8]]
+- Browser transport handshake and dispatch: [[F:src/terminal/server.py#218-230#f5f60210]]
+- Headless runtime ownership: [[F:src/workers/trader.py#53-90#b63ee6b6]]
 - Positional E-01…E-18 orchestration: [[F:src/engines/orchestrator.py#308-345#10e2649d]]
 
 **Decisions / findings:** these anchors point into inspected source files by relative path, inclusive line range and full-file hash prefix.  
