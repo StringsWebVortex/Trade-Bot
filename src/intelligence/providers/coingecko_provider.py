@@ -96,7 +96,10 @@ class CoinGeckoIntelligenceProvider(ExchangeIntelligenceProvider):
                 # BTC dominance z-score
                 btc_dom_pct = float(mkt_cap_pct.get("btc", 0.0))
                 now_m = time.monotonic()
-                if self._btc_dom_hist_ts is None or now_m - self._btc_dom_hist_ts >= self._cache_ttl:
+                if (
+                    self._btc_dom_hist_ts is None
+                    or now_m - self._btc_dom_hist_ts >= self._cache_ttl
+                ):
                     self._btc_dom_history.append(btc_dom_pct)
                     self._btc_dom_hist_ts = now_m
                 if len(self._btc_dom_history) > _BTC_DOM_WINDOW:

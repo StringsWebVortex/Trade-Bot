@@ -24,7 +24,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 9 | P0 | config/command_policy.json | JSON | 264 | 84e63848 | Tool command and CI observation policy |
 | 10 | P0 | config/horizons.yaml | YAML | 53 | 2ede87ec | Auxiliary prediction horizon definitions |
 | 11 | P0 | config/math_registry.json | JSON | 1903 | 8fa18ffc | Mathematical object registry |
-| 12 | P0 | config/quality_registry.json | JSON | 6356 | d30753de | Requirements, regressions and deciding tests |
+| 12 | P0 | config/quality_registry.json | JSON | 6356 | 8ae2179e | Requirements, regressions and deciding tests |
 | 13 | P0 | config/risk.yaml | YAML | 26 | dd4766f8 | Horizon/intelligence risk, distinct from core Settings |
 | 14 | P0 | docker-compose.yml | YAML | 82 | 80ec3eca | API/Timescale/optional-worker composition |
 | 15 | P0 | docs/quality/CI_GATE_ARCHITECTURE.md | Markdown | 255 | 02726345 | CI gates |
@@ -48,7 +48,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 33 | P0 | src/data/fetcher.py | Python | 1282 | 26cf972e | CCXT data, retries, orderbook, reconnect |
 | 34 | P0 | src/data/storage.py | Python | 2183 | b1db7068 | SQLite backend, schema and migrations |
 | 35 | P0 | src/data/timescale_storage.py | Python | 1594 | 1aa58429 | Timescale backend |
-| 36 | P0 | src/engine/orchestrator.py | Python | 3565 | 44b52f2c | Main trading loop, tick, portfolio, retrain and position monitor |
+| 36 | P0 | src/engine/orchestrator.py | Python | 3565 | 2906e2b2 | Main trading loop, tick, portfolio, retrain and position monitor |
 | 37 | P0 | src/engine/signal_engine.py | Python | 1898 | c4c078db | Per-timeframe signal computation |
 | 38 | P0 | src/execution/live.py | Python | 1504 | 7db21651 | Live executor boundary |
 | 39 | P0 | src/execution/order_fsm.py | Python | 375 | 14f635a5 | Order state machine and fill aggregation |
@@ -78,7 +78,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 8 | P0 | config/command_policy.json | JSON | 264 | 84e63848 | Tool command and CI observation policy |
 | 9 | P0 | config/horizons.yaml | YAML | 53 | 2ede87ec | Auxiliary prediction horizon definitions |
 | 10 | P0 | config/math_registry.json | JSON | 1903 | 8fa18ffc | Mathematical object registry |
-| 11 | P0 | config/quality_registry.json | JSON | 6356 | d30753de | Requirements, regressions and deciding tests |
+| 11 | P0 | config/quality_registry.json | JSON | 6356 | 8ae2179e | Requirements, regressions and deciding tests |
 | 12 | P0 | config/risk.yaml | YAML | 26 | dd4766f8 | Horizon/intelligence risk, distinct from core Settings |
 | 13 | P0 | docker-compose.yml | YAML | 82 | 80ec3eca | API/Timescale/optional-worker composition |
 | 14 | P0 | docs/quality/CI_GATE_ARCHITECTURE.md | Markdown | 255 | 02726345 | CI gates |
@@ -102,7 +102,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 32 | P0 | src/data/fetcher.py | Python | 1282 | 26cf972e | CCXT data, retries, orderbook, reconnect |
 | 33 | P0 | src/data/storage.py | Python | 2183 | b1db7068 | SQLite backend, schema and migrations |
 | 34 | P0 | src/data/timescale_storage.py | Python | 1594 | 1aa58429 | Timescale backend |
-| 35 | P0 | src/engine/orchestrator.py | Python | 3565 | 44b52f2c | Main trading loop, tick, portfolio, retrain and position monitor |
+| 35 | P0 | src/engine/orchestrator.py | Python | 3565 | 2906e2b2 | Main trading loop, tick, portfolio, retrain and position monitor |
 | 36 | P0 | src/engine/signal_engine.py | Python | 1898 | c4c078db | Per-timeframe signal computation |
 | 37 | P0 | src/execution/live.py | Python | 1504 | 7db21651 | Live executor boundary |
 | 38 | P0 | src/execution/order_fsm.py | Python | 375 | 14f635a5 | Order state machine and fill aggregation |
@@ -183,7 +183,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 113 | P1 | docs/quality/QUALITY_BASELINE.md | Markdown | 125 | bbc75e22 |  |
 | 114 | P1 | docs/quality/QUALITY_METRICS.md | Markdown | 122 | 386b71a5 |  |
 | 115 | P1 | docs/quality/QUALITY_POLICY.md | Markdown | 232 | 8c4629b8 |  |
-| 116 | P1 | docs/quality/REQUIREMENTS_TRACEABILITY.md | Markdown | 3255 | 5f853dba |  |
+| 116 | P1 | docs/quality/REQUIREMENTS_TRACEABILITY.md | Markdown | 3255 | b91ed638 |  |
 | 117 | P1 | docs/quality/ROOT_CAUSE_TEMPLATE.md | Markdown | 84 | a55b20e9 |  |
 | 118 | P1 | docs/quality/TEST_STRATEGY.md | Markdown | 252 | efbde1ba |  |
 | 119 | P1 | docs/runtime/IMPLEMENTATION_MATRIX.md | Markdown | 79 | 7e5cd563 |  |
@@ -392,7 +392,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 322 | P1 | src/intelligence/macro_regime.py | Python | 79 | 24c6581b |  |
 | 323 | P1 | src/intelligence/metrics.py | Python | 297 | ffafa44c |  |
 | 324 | P1 | src/intelligence/onchain/__init__.py | Python | 52 | b9e4092b |  |
-| 325 | P1 | src/intelligence/onchain/arkham_provider.py | Python | 214 | 65446c64 |  |
+| 325 | P1 | src/intelligence/onchain/arkham_provider.py | Python | 211 | e7fa5500 |  |
 | 326 | P1 | src/intelligence/onchain/base.py | Python | 341 | deace299 |  |
 | 327 | P1 | src/intelligence/onchain/coinglass_provider.py | Python | 267 | b76a1d30 |  |
 | 328 | P1 | src/intelligence/onchain/cryptoquant_provider.py | Python | 244 | 8a070cb2 |  |
@@ -402,13 +402,13 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 332 | P1 | src/intelligence/probabilistic.py | Python | 468 | 42c5cbf0 |  |
 | 333 | P1 | src/intelligence/probabilistic_adapter.py | Python | 205 | 6421f22d |  |
 | 334 | P1 | src/intelligence/providers/__init__.py | Python | 10 | 65777730 |  |
-| 335 | P1 | src/intelligence/providers/aggregator.py | Python | 515 | d281fa7f |  |
+| 335 | P1 | src/intelligence/providers/aggregator.py | Python | 518 | 58683ea7 |  |
 | 336 | P1 | src/intelligence/providers/base.py | Python | 128 | 58a79ab0 |  |
 | 337 | P1 | src/intelligence/providers/binance_provider.py | Python | 545 | dfb98a2c |  |
 | 338 | P1 | src/intelligence/providers/blockchain_provider.py | Python | 198 | e5fab90a |  |
 | 339 | P1 | src/intelligence/providers/bybit_provider.py | Python | 408 | 195a7186 |  |
-| 340 | P1 | src/intelligence/providers/coingecko_provider.py | Python | 193 | b1c7bffa |  |
-| 341 | P1 | src/intelligence/providers/okx_provider.py | Python | 404 | cb207309 |  |
+| 340 | P1 | src/intelligence/providers/coingecko_provider.py | Python | 196 | e8b37e13 |  |
+| 341 | P1 | src/intelligence/providers/okx_provider.py | Python | 406 | f78ac5ca |  |
 | 342 | P1 | src/intelligence/risk_quantification.py | Python | 421 | b59a7736 |  |
 | 343 | P1 | src/logging_setup.py | Python | 130 | e1149184 |  |
 | 344 | P1 | src/mathcore/__init__.py | Python | 39 | abd0b843 |  |
@@ -704,7 +704,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 634 | P1 | tests/regime/test_garch.py | Python | 148 | 8a4195c0 |  |
 | 635 | P1 | tests/regression/__init__.py | Python | 0 | e3b0c442 |  |
 | 636 | P1 | tests/regression/test_metrics_payload.py | Python | 120 | 094976c7 |  |
-| 637 | P1 | tests/regression/test_regression_registry_contract.py | Python | 654 | 9f54fed1 |  |
+| 637 | P1 | tests/regression/test_regression_registry_contract.py | Python | 669 | fb047fce |  |
 | 638 | P1 | tests/risk/__init__.py | Python | 0 | e3b0c442 |  |
 | 639 | P1 | tests/risk/test_probability_bounds.py | Python | 137 | a3b65a78 |  |
 | 640 | P1 | tests/risk/test_risk_limit_boundaries.py | Python | 300 | 37b9b36e |  |
@@ -929,7 +929,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 859 | P1 | tests/test_instrumentation.py | Python | 195 | 534dc2ce |  |
 | 860 | P1 | tests/test_integration_full_pipeline.py | Python | 291 | f49fa5aa |  |
 | 861 | P1 | tests/test_intelligence_adapter.py | Python | 186 | 7aaa2989 |  |
-| 862 | P1 | tests/test_intelligence_audit_fixes.py | Python | 465 | f1e6dfb6 |  |
+| 862 | P1 | tests/test_intelligence_audit_fixes.py | Python | 467 | 87b494eb |  |
 | 863 | P1 | tests/test_intelligence_client_coverage.py | Python | 718 | 2641724d |  |
 | 864 | P1 | tests/test_intelligence_features_coverage.py | Python | 194 | df9a79b9 |  |
 | 865 | P1 | tests/test_intelligence_metrics.py | Python | 243 | 40c73454 |  |
@@ -974,7 +974,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 904 | P1 | tests/test_model_architectures.py | Python | 96 | 9784974a |  |
 | 905 | P1 | tests/test_model_feature_columns_by_name.py | Python | 188 | 0c6d2c0f |  |
 | 906 | P1 | tests/test_model_registry.py | Python | 111 | 863dd36f |  |
-| 907 | P1 | tests/test_model_trainer_coverage.py | Python | 1217 | 4fb0962e |  |
+| 907 | P1 | tests/test_model_trainer_coverage.py | Python | 1219 | 26dbf7e7 |  |
 | 908 | P1 | tests/test_models_gnn_head.py | Python | 41 | ff4a7fe2 |  |
 | 909 | P1 | tests/test_models_gnn_head_pyg.py | Python | 46 | 5aeb6ee0 |  |
 | 910 | P1 | tests/test_mongo_client_reuse.py | Python | 91 | 190bba2b |  |

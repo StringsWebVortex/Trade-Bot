@@ -348,7 +348,9 @@ class OKXIntelligenceProvider(ExchangeIntelligenceProvider):
         # wired for OKX; raise so fetch_metrics() applies its failure branch
         # (penalty + neutral, which the aggregator skips) instead of caching a
         # fabricated neutral 1.0 as a reading.
-        raise RuntimeError("okx taker-flow ratio unavailable (long/short account ratio is positioning)")
+        raise RuntimeError(
+            "okx taker-flow ratio unavailable (long/short account ratio is positioning)"
+        )
 
     @staticmethod
     def _compute_stress_score(

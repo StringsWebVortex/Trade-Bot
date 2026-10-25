@@ -1,4 +1,6 @@
-"""Regression tests for the Phase 5 intelligence audit fixes (INT-008, INT-012..INT-026)."""
+"""Regression tests for the Phase 5 intelligence audit fixes (INT-008, INT-012..INT-026).
+
+Decides: REG-1340, REG-1341, REG-1342, REG-1343, REG-1344, REG-1345, REG-1346, REG-1347, REG-1348, REG-1349, REG-1350, REG-1351, REG-1352, REG-1353, REG-1354"""
 
 from __future__ import annotations
 

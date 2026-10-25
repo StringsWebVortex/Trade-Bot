@@ -2540,7 +2540,7 @@ class Orchestrator:
             )
             tail = losses[: max(1, math.ceil(0.05 * len(losses)))]
             cvar = float(sum(tail) / len(tail))
-            equity, starting, daily_pnl = await executor.get_risk_snapshot()
+            _equity, starting, daily_pnl = await executor.get_risk_snapshot()
             if starting <= 0:
                 return None
             drawdown = max(0.0, -float(tracker.drawdown_from_peak_pct) / 100.0)

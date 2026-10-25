@@ -495,7 +495,7 @@ The orchestrator builds a risk context (atr, cvar, drawdown, daily_loss, odds, a
 - **Verification:**
   - `tests/test_intelligence_audit_fixes.py` (regression)
 
-> layer: test-suite; audit finding INT-008
+> audit finding INT-008; layer: test-suite
 
 #### `REG-1344` — Exchange stress model is declared uncalibrated
 
@@ -508,7 +508,7 @@ BayesianExchangeStressModel states it is an uncalibrated heuristic (CALIBRATED F
 - **Verification:**
   - `tests/test_intelligence_audit_fixes.py` (regression)
 
-> layer: test-suite; audit finding INT-015
+> audit finding INT-015; layer: test-suite
 
 #### `REG-1345` — Worker result collection does not block the event loop
 
@@ -521,7 +521,7 @@ CryptoIntelligence.on_bar collects worker results with asyncio.to_thread.
 - **Verification:**
   - `tests/test_intelligence_audit_fixes.py` (regression)
 
-> layer: test-suite; audit finding INT-016
+> audit finding INT-016; layer: test-suite
 
 #### `REG-1704` — Carry and arbitrage entries clear a measured-cost hurdle, never a fixed threshold
 
@@ -677,7 +677,7 @@ Rows rejected or failed in train_pending get a terminal trained=-1 state and are
 - **Verification:**
   - `tests/test_intelligence_audit_fixes.py` (regression)
 
-> layer: test-suite; audit finding INT-023
+> audit finding INT-023; layer: test-suite
 
 #### `REG-1353` — Final XGBoost models are refit on all rows
 
@@ -690,7 +690,7 @@ The final model uses the best iteration from a purged early-stopping slice and i
 - **Verification:**
   - `tests/test_intelligence_audit_fixes.py` (regression)
 
-> layer: test-suite; audit finding INT-025
+> audit finding INT-025; layer: test-suite
 
 #### `REG-1354` — Sample weights keep min_child_weight meaningful
 
@@ -704,7 +704,7 @@ compute_sample_weights normalises to mean 1, not sum 1.
   - `tests/test_intelligence_audit_fixes.py` (regression)
   - `tests/test_model_trainer_coverage.py` (regression)
 
-> layer: test-suite; audit finding INT-026
+> audit finding INT-026; layer: test-suite
 
 #### `REG-1605` — LLL and the BLS12-381 pairing do not redo work they can update
 
@@ -861,7 +861,7 @@ Status polling bypasses the HTTP cache so a pending response is not replayed unt
 - **Verification:**
   - `tests/test_intelligence_audit_fixes.py` (regression)
 
-> layer: test-suite; audit finding INT-012
+> audit finding INT-012; layer: test-suite
 
 #### `REG-1342` — Configured on-chain cache TTL reaches the HTTP cache
 
@@ -874,7 +874,7 @@ OnChainProvider builds its cache with the configured cache_ttl_s.
 - **Verification:**
   - `tests/test_intelligence_audit_fixes.py` (regression)
 
-> layer: test-suite; audit finding INT-013
+> audit finding INT-013; layer: test-suite
 
 #### `REG-1343` — MVRV stress contribution survives validation and is bounded
 
@@ -887,7 +887,7 @@ validate_provider_result carries the internal MVRV contribution to merge, and a 
 - **Verification:**
   - `tests/test_intelligence_audit_fixes.py` (regression)
 
-> layer: test-suite; audit finding INT-014
+> audit finding INT-014; layer: test-suite
 
 #### `REG-1347` — Glassnode history features are causal and match the live definitions
 
@@ -900,7 +900,7 @@ History z-scores use trailing windows only and the whale ratio uses the live rec
 - **Verification:**
   - `tests/test_intelligence_audit_fixes.py` (regression)
 
-> layer: test-suite; audit finding INT-018
+> audit finding INT-018; layer: test-suite
 
 #### `REG-1348` — Intelligence fallbacks are missing values, not zeros
 
@@ -913,7 +913,7 @@ With no cache, failed netflow, whale and funding fetches return None, and the Gl
 - **Verification:**
   - `tests/test_intelligence_audit_fixes.py` (regression)
 
-> layer: test-suite; audit finding INT-019
+> audit finding INT-019; layer: test-suite
 
 #### `REG-1349` — Positioning ratios are not mixed into whale_buy_sell_ratio
 
@@ -926,7 +926,7 @@ OKX and Coinglass no longer report long/short account ratios as taker flow, and 
 - **Verification:**
   - `tests/test_intelligence_audit_fixes.py` (regression)
 
-> layer: test-suite; audit finding INT-020
+> audit finding INT-020; layer: test-suite
 
 #### `REG-1350` — Provider singletons refuse a different symbol
 
@@ -939,7 +939,7 @@ The exchange provider and aggregator singleton factories raise when asked for a 
 - **Verification:**
   - `tests/test_intelligence_audit_fixes.py` (regression)
 
-> layer: test-suite; audit finding INT-021
+> audit finding INT-021; layer: test-suite
 
 #### `REG-1351` — Rolling z-score histories grow once per cache window
 
@@ -952,7 +952,7 @@ Macro provider histories append once per cache TTL, not per call, and the Arkham
 - **Verification:**
   - `tests/test_intelligence_audit_fixes.py` (regression)
 
-> layer: test-suite; audit finding INT-022
+> audit finding INT-022; layer: test-suite
 
 #### `REG-1702` — kg/ and rag_mongo/ share one MongoClient factory and one URI check
 
@@ -1540,7 +1540,7 @@ Bitcoin RPC credentials come only from config or environment; without them on-ch
 - **Verification:**
   - `tests/test_intelligence_audit_fixes.py` (regression)
 
-> layer: test-suite; audit finding INT-017
+> audit finding INT-017; layer: test-suite
 
 #### `REG-1608` — Prometheus authenticates its /metrics scrape
 

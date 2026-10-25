@@ -123,10 +123,7 @@ class ArkhamProvider(OnChainProvider):
             outflow = _sum_usd_direction(flow_data, "out")
             netflow = inflow - outflow
             now_m = time.monotonic()
-            if (
-                self._netflow_hist_ts is None
-                or now_m - self._netflow_hist_ts >= self._CACHE_TTL_S
-            ):
+            if self._netflow_hist_ts is None or now_m - self._netflow_hist_ts >= self._CACHE_TTL_S:
                 self._netflow_history.append(netflow)
                 self._netflow_hist_ts = now_m
             if len(self._netflow_history) > 30:

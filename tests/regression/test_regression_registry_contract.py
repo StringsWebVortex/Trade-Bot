@@ -220,6 +220,21 @@ class TestTheRegistryHasAPlaceForDefects:
             "REG-0029",
             "REG-0030",
             "REG-0031",
+            "REG-1340",
+            "REG-1341",
+            "REG-1342",
+            "REG-1343",
+            "REG-1344",
+            "REG-1345",
+            "REG-1346",
+            "REG-1347",
+            "REG-1348",
+            "REG-1349",
+            "REG-1350",
+            "REG-1351",
+            "REG-1352",
+            "REG-1353",
+            "REG-1354",
             # REG-1600..1603: audit OPS-011, OPS-012, API-021 and OPS-009 --
             # each a defect no test exercised, filed with its deciding test.
             "REG-1600",
@@ -547,7 +562,7 @@ class TestTheMetricsCollector:
         # test-suite, 43.
         # REG-1704 adds the fixed-threshold carry/arbitrage regression (STR-21):
         # no test asked what the thresholds cost to clear -- test-suite, 44.
-        assert metric["value"] == {"test-suite": 44, "review": 1, "supply-chain": 3}
+        assert metric["value"] == {"test-suite": 59, "review": 1, "supply-chain": 3}
 
     def test_zero_escaped_defects_would_be_stated_explicitly(self, collector, monkeypatch):
         # "We have not measured this" and "this is zero" are different

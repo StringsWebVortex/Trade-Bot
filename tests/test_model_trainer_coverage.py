@@ -3,6 +3,8 @@ Coverage for src/models/trainer.py — Debt-005.
 
 Targets predict_direction, predict_meta, TrainingResult, and
 compute_win_loss_stats without running expensive training loops.
+
+Decides: REG-1354
 """
 
 from __future__ import annotations

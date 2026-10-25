@@ -6016,7 +6016,7 @@
       "subsystem": "signal",
       "status": "verified",
       "source": "OPS-2026-10-25",
-      "notes": "layer: test-suite; audit finding INT-008",
+      "notes": "audit finding INT-008; layer: test-suite",
       "failure_mode": "on_bar returned None on every bar because no risk_context was ever supplied, so nothing was sized or persisted.",
       "owning_modules": [
         "src/engine/orchestrator.py",
@@ -6039,7 +6039,7 @@
       "subsystem": "data",
       "status": "verified",
       "source": "OPS-2026-10-25",
-      "notes": "layer: test-suite; audit finding INT-012",
+      "notes": "audit finding INT-012; layer: test-suite",
       "failure_mode": "A cached pending status made every poll time out while each attempt spent a daily execution.",
       "owning_modules": [
         "src/intelligence/onchain/base.py",
@@ -6062,7 +6062,7 @@
       "subsystem": "data",
       "status": "verified",
       "source": "OPS-2026-10-25",
-      "notes": "layer: test-suite; audit finding INT-013",
+      "notes": "audit finding INT-013; layer: test-suite",
       "failure_mode": "The cache captured the class default before the subclass assigned the configured TTL.",
       "owning_modules": [
         "src/intelligence/onchain/base.py"
@@ -6084,7 +6084,7 @@
       "subsystem": "data",
       "status": "verified",
       "source": "OPS-2026-10-25",
-      "notes": "layer: test-suite; audit finding INT-014",
+      "notes": "audit finding INT-014; layer: test-suite",
       "failure_mode": "The contribution was dropped by validation and would pin at its cap if realized_cap was missing.",
       "owning_modules": [
         "src/intelligence/onchain/schema.py",
@@ -6107,7 +6107,7 @@
       "subsystem": "signal",
       "status": "verified",
       "source": "OPS-2026-10-25",
-      "notes": "layer: test-suite; audit finding INT-015",
+      "notes": "audit finding INT-015; layer: test-suite",
       "failure_mode": "Docstrings claimed Bayesian training on historical crises for hardcoded literals that gate live trading.",
       "owning_modules": [
         "src/intelligence/probabilistic.py",
@@ -6130,7 +6130,7 @@
       "subsystem": "signal",
       "status": "verified",
       "source": "OPS-2026-10-25",
-      "notes": "layer: test-suite; audit finding INT-016",
+      "notes": "audit finding INT-016; layer: test-suite",
       "failure_mode": "A synchronous queue read stalled the event loop up to the inference timeout per bar.",
       "owning_modules": [
         "src/intel.py"
@@ -6152,7 +6152,7 @@
       "subsystem": "security",
       "status": "verified",
       "source": "OPS-2026-10-25",
-      "notes": "layer: test-suite; audit finding INT-017",
+      "notes": "audit finding INT-017; layer: test-suite",
       "failure_mode": "A hardcoded crypto/crypto default was used silently over plain HTTP.",
       "owning_modules": [
         "src/intel.py",
@@ -6175,7 +6175,7 @@
       "subsystem": "data",
       "status": "verified",
       "source": "OPS-2026-10-25",
-      "notes": "layer: test-suite; audit finding INT-018",
+      "notes": "audit finding INT-018; layer: test-suite",
       "failure_mode": "Full-sample statistics leaked the future and the ratio definition and indexing differed from live.",
       "owning_modules": [
         "src/intelligence/client.py"
@@ -6197,7 +6197,7 @@
       "subsystem": "data",
       "status": "verified",
       "source": "OPS-2026-10-25",
-      "notes": "layer: test-suite; audit finding INT-019",
+      "notes": "audit finding INT-019; layer: test-suite",
       "failure_mode": "Failures returned fabricated zero or neutral readings and throttling stopped after errors.",
       "owning_modules": [
         "src/intelligence/client.py"
@@ -6219,7 +6219,7 @@
       "subsystem": "data",
       "status": "verified",
       "source": "OPS-2026-10-25",
-      "notes": "layer: test-suite; audit finding INT-020",
+      "notes": "audit finding INT-020; layer: test-suite",
       "failure_mode": "Positioning and taker-flow ratios were averaged into one gate input.",
       "owning_modules": [
         "src/intelligence/providers/okx_provider.py",
@@ -6242,7 +6242,7 @@
       "subsystem": "data",
       "status": "verified",
       "source": "OPS-2026-10-25",
-      "notes": "layer: test-suite; audit finding INT-021",
+      "notes": "audit finding INT-021; layer: test-suite",
       "failure_mode": "A second symbol silently received the first symbol's market data.",
       "owning_modules": [
         "src/intelligence/providers/binance_provider.py",
@@ -6267,7 +6267,7 @@
       "subsystem": "data",
       "status": "verified",
       "source": "OPS-2026-10-25",
-      "notes": "layer: test-suite; audit finding INT-022",
+      "notes": "audit finding INT-022; layer: test-suite",
       "failure_mode": "Cache hits were appended repeatedly, collapsing z-scores toward zero.",
       "owning_modules": [
         "src/intelligence/providers/coingecko_provider.py",
@@ -6291,7 +6291,7 @@
       "subsystem": "model",
       "status": "verified",
       "source": "OPS-2026-10-25",
-      "notes": "layer: test-suite; audit finding INT-023",
+      "notes": "audit finding INT-023; layer: test-suite",
       "failure_mode": "Rejected rows stayed at the head of the oldest-first batch and starved later samples.",
       "owning_modules": [
         "src/models/horizon_learning.py"
@@ -6313,7 +6313,7 @@
       "subsystem": "model",
       "status": "verified",
       "source": "OPS-2026-10-25",
-      "notes": "layer: test-suite; audit finding INT-025",
+      "notes": "audit finding INT-025; layer: test-suite",
       "failure_mode": "The newest 15 percent of bars never trained the shipped model, contrary to the docstring.",
       "owning_modules": [
         "src/models/trainer.py"
@@ -6335,7 +6335,7 @@
       "subsystem": "model",
       "status": "verified",
       "source": "OPS-2026-10-25",
-      "notes": "layer: test-suite; audit finding INT-026",
+      "notes": "audit finding INT-026; layer: test-suite",
       "failure_mode": "Weights summing to 1 left node hessian sums far below min_child_weight and suppressed splits.",
       "owning_modules": [
         "src/models/trainer.py"
