@@ -47,11 +47,11 @@ deletion of the thing it points at.
 
 | Status | Entries |
 |---|---|
-| VERIFIED | 216 |
+| VERIFIED | 222 |
 | PARTIAL | 3 |
 | PLANNED | 0 |
 | ACCEPTED GAP | 0 |
-| **Total** | **219** |
+| **Total** | **225** |
 
 ## Summary by subsystem
 
@@ -63,7 +63,7 @@ deletion of the thing it points at.
 | Signal and features | 6 | 6 |
 | Models and leakage | 10 | 10 |
 | Data, money and time | 10 | 9 |
-| API and WebSocket | 21 | 21 |
+| API and WebSocket | 27 | 27 |
 | Cryptography and secrets | 30 | 30 |
 | Supply chain and artifacts | 7 | 7 |
 | Resilience and recovery | 24 | 24 |
@@ -1009,6 +1009,84 @@ The default API_CORS_ORIGINS allows both loopback spellings of the dashboard dev
   - `tests/test_startup_readiness.py` (regression)
 
 > layer: test-suite
+
+#### `SEC-1010` — POST /controls enforces the caller's role
+
+**VERIFIED** · high · security_regression · source: OPS-2026-10-25
+
+POST /controls/{name} requires the CHANGE_EXECUTION_MODE permission and a healthy security-control registry in addition to a valid API key and the operator secret; a read-only key is refused with 403.
+
+- **If violated:** A read-only key that also learns the operator secret changes execution mode, exit controls and settings.
+- **Owned by:** `src/api/main.py`
+- **Verification:**
+  - `tests/api/test_authz_and_secrets.py` (security)
+
+> audit finding API-001
+
+#### `SEC-1011` — /controls/execution_mode has the /execution-mode safeguards
+
+**VERIFIED** · high · security_regression · source: OPS-2026-10-25
+
+Changing the execution mode through /controls/execution_mode goes through the same function as /execution-mode: mode-change rate limit, EXEC-005 persistence and audit event; apply_control refuses the change without that setter.
+
+- **If violated:** The mode silently reverts on restart, is unaudited and bypasses the 3-per-hour limit.
+- **Owned by:** `src/api/main.py`
+- **Verification:**
+  - `tests/api/test_authz_and_secrets.py` (security)
+
+> audit finding API-002
+
+#### `SEC-1012` — POST /controls writes only allow-listed settings and audits every write
+
+**VERIFIED** · high · security_regression · source: OPS-2026-10-25
+
+Settings writes through POST /controls are limited to an explicit allow-list of groups, never to URL/host/path-like leaves, default-deny for new groups, and each control write emits a control_change audit event.
+
+- **If violated:** Any non-credential leaf, including filesystem paths and service URLs, is live-writable with no audit trail.
+- **Owned by:** `src/api/control_surface.py`
+- **Verification:**
+  - `tests/api/test_authz_and_secrets.py` (security)
+
+> audit finding API-003
+
+#### `SEC-1013` — GET /controls never renders secret values
+
+**VERIFIED** · high · security_regression · source: OPS-2026-10-25
+
+Settings leaves whose names carry dsn, password, token, secret, uri or credential markers are listed without a value and as protected; the TimescaleDB DSN is never returned.
+
+- **If violated:** Any key reads the database password from GET /controls and from control_changed broadcasts.
+- **Owned by:** `src/api/control_surface.py`
+- **Verification:**
+  - `tests/api/test_authz_and_secrets.py` (security)
+
+> audit finding API-004
+
+#### `SEC-1014` — The WebSocket API key stays out of URLs and uvicorn logs
+
+**VERIFIED** · high · security_regression · source: OPS-2026-10-25
+
+Browsers authenticate the WebSocket through an apikey.<hex> Sec-WebSocket-Protocol subprotocol; the query-string key is refused, and uvicorn log records have api_key= values redacted.
+
+- **If violated:** The key is written in cleartext to the application log on every WebSocket handshake.
+- **Owned by:** `src/api/auth.py`
+- **Verification:**
+  - `tests/api/test_authz_and_secrets.py` (security)
+
+> audit finding API-005
+
+#### `SEC-1015` — Operator-secret guessing is bounded globally
+
+**VERIFIED** · high · security_regression · source: OPS-2026-10-25
+
+All operator-secret checks share one failure budget that locks every route after repeated failures; /execution-mode applies its endpoint rate limit before comparing the secret; OPERATOR_SECRET must be at least 32 characters at startup.
+
+- **If violated:** The second factor can be brute-forced across endpoints and IPs, and a weak secret is accepted.
+- **Owned by:** `src/api/operator_secret.py`
+- **Verification:**
+  - `tests/api/test_authz_and_secrets.py` (security)
+
+> audit finding API-007
 
 ## Cryptography and secrets
 
@@ -2838,4 +2916,4 @@ To add or change an entry, edit the registry and regenerate this file. See
 `docs/quality/TEST_STRATEGY.md` for the taxonomy the `test_type` column draws
 on, and `docs/quality/IMPLEMENTATION_PLAN.md` for what each phase delivers.
 
-Registry version: 1.0.0 — 219 entries.
+Registry version: 1.0.0 — 225 entries.
