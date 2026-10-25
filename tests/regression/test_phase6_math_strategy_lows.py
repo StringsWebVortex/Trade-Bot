@@ -1,4 +1,19 @@
-"""Regression tests for phase-6 Low findings (MTH-003/007/008/021/023, STR-17)."""
+"""Regression tests for phase-6 Low findings (MTH-003/007/008/021/023, STR-17).
+
+Decides:
+  - REG-1460 — Dead ECDSA r-registry prune helper removed
+  - REG-1461 — Failed model artifact log returns no run id
+  - REG-1462 — DVC git tag name is validated
+  - REG-1463 — Negative DH public values rejected
+  - REG-1464 — Non-finite Mosca inputs rejected
+  - REG-1465 — Fourier engine detrends and derives direction after adjustments
+  - REG-1466 — Pohlig-Hellman trial division is bounded
+  - REG-1467 — Committee size uses a closed form
+  - REG-1468 — Birthday minimum draws is exact for huge spaces
+  - REG-1469 — Constants module does not mutate the global decimal context
+  - REG-1470 — GBM Monte Carlo default RNG is seeded
+  - REG-1471 — Filters reject invalid direction values
+"""
 
 from __future__ import annotations
 
@@ -83,11 +98,13 @@ def test_str17_direction_agrees_with_final_price_and_no_overlay_without_height()
     df = pd.DataFrame({"close": close})
     out = asyncio.run(E04Fourier().run("BTC/USDT", {"ohlcv": df, "spot": float(close[-1])}))
     spot = float(close[-1])
-    expected = 1 if out.predicted_price > spot * 1.002 else (-1 if out.predicted_price < spot * 0.998 else 0)
-    assert out.direction == expected
-    out0 = asyncio.run(
-        E04Fourier().run("BTC/USDT", {"ohlcv": df, "spot": spot, "block_height": 0})
+    expected = (
+        1
+        if out.predicted_price > spot * 1.002
+        else (-1 if out.predicted_price < spot * 0.998 else 0)
     )
+    assert out.direction == expected
+    out0 = asyncio.run(E04Fourier().run("BTC/USDT", {"ohlcv": df, "spot": spot, "block_height": 0}))
     outx = asyncio.run(E04Fourier().run("ETH/USDT", {"ohlcv": df, "spot": spot}))
     assert out0.predicted_price == pytest.approx(outx.predicted_price)
 
@@ -114,7 +131,9 @@ def test_mth017_birthday_exact_for_huge_space() -> None:
     from src.mathcore.probability import birthday
 
     fn = next(
-        f for _, f in inspect.getmembers(birthday, inspect.isfunction) if "threshold" in inspect.signature(f).parameters
+        f
+        for _, f in inspect.getmembers(birthday, inspect.isfunction)
+        if "threshold" in inspect.signature(f).parameters
     )
     k = fn(1 << 80, 0.5)
     p = birthday.birthday_collision_probability

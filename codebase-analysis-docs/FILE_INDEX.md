@@ -452,7 +452,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 382 | P1 | src/mathcore/numbertheory/safe_primes.py | Python | 272 | f1a5ddc4 |  |
 | 383 | P1 | src/mathcore/probability/__init__.py | Python | 43 | 3fd3ff8b |  |
 | 384 | P1 | src/mathcore/probability/birthday.py | Python | 114 | f1a4ce90 |  |
-| 385 | P1 | src/mathcore/probability/committee.py | Python | 143 | ecc41150 |  |
+| 385 | P1 | src/mathcore/probability/committee.py | Python | 147 | 8dad34ad |  |
 | 386 | P1 | src/mathcore/probability/confirmations.py | Python | 149 | 66daa523 |  |
 | 387 | P1 | src/mathcore/probability/entropy.py | Python | 117 | ef87ac22 |  |
 | 388 | P1 | src/mathcore/probability/reorg.py | Python | 105 | b911aed0 |  |
@@ -704,8 +704,8 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 634 | P1 | tests/regime/test_garch.py | Python | 148 | 8a4195c0 |  |
 | 635 | P1 | tests/regression/__init__.py | Python | 0 | e3b0c442 |  |
 | 636 | P1 | tests/regression/test_metrics_payload.py | Python | 120 | 094976c7 |  |
-| 637 | P1 | tests/regression/test_phase6_math_strategy_lows.py | Python | 144 | a544dc58 |  |
-| 638 | P1 | tests/regression/test_regression_registry_contract.py | Python | 654 | 9f54fed1 |  |
+| 637 | P1 | tests/regression/test_phase6_math_strategy_lows.py | Python | 163 | b2ced63e |  |
+| 638 | P1 | tests/regression/test_regression_registry_contract.py | Python | 668 | 22279da4 |  |
 | 639 | P1 | tests/risk/__init__.py | Python | 0 | e3b0c442 |  |
 | 640 | P1 | tests/risk/test_probability_bounds.py | Python | 137 | a3b65a78 |  |
 | 641 | P1 | tests/risk/test_risk_limit_boundaries.py | Python | 300 | 37b9b36e |  |
@@ -868,7 +868,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 798 | P1 | tests/test_ecc_schnorr_taproot.py | Python | 128 | 16eae3a6 |  |
 | 799 | P1 | tests/test_ecc_secp256k1_cluster.py | Python | 173 | f9b10a30 |  |
 | 800 | P1 | tests/test_ecc_worker_pipeline.py | Python | 270 | 7754331d |  |
-| 801 | P1 | tests/test_ecdsa_scan_coverage.py | Python | 129 | f37fa14b |  |
+| 801 | P1 | tests/test_ecdsa_scan_coverage.py | Python | 128 | 997c9ce3 |  |
 | 802 | P1 | tests/test_ecdsa_scanner_bounded.py | Python | 86 | 79208487 |  |
 | 803 | P1 | tests/test_ed25519.py | Python | 378 | 9a3cca13 |  |
 | 804 | P1 | tests/test_engines_e01_statistical.py | Python | 126 | 11b40a3e |  |

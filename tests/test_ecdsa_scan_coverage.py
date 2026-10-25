@@ -126,4 +126,3 @@ class TestScanner:
     def test_a_transaction_with_no_signatures_is_a_no_op(self) -> None:
         scanner = ECDSAScanner()
         assert scanner.scan_transaction((b"\x00" * 64).hex()) == []
-

@@ -136,7 +136,11 @@ def min_committee_size(
         raise ValueError("fractions give a degenerate Chernoff bound")
     # Closed form from the per-member exponent, then walk +-1 to the exact crossing.
     size = max(1, math.ceil(math.log(target_failure) / math.log(one)))
-    while size > 1 and chernoff_committee_bound(adversary_fraction, size - 1, threshold_fraction) <= target_failure:
+    while (
+        size > 1
+        and chernoff_committee_bound(adversary_fraction, size - 1, threshold_fraction)
+        <= target_failure
+    ):
         size -= 1
     while chernoff_committee_bound(adversary_fraction, size, threshold_fraction) > target_failure:
         size += 1
