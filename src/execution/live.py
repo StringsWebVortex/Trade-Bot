@@ -52,7 +52,7 @@ from src.execution.idempotency import (
     IdempotencyRegistry,
     derive_idempotency_key,
 )
-from src.execution.order_manager import OrderManager
+from src.execution.order_manager import AmbiguousOrderError, OrderManager
 from src.execution.order_throttler import OrderThrottler
 from src.risk.gates import DrawdownTracker
 from src.risk.kelly import KellyResult
@@ -594,6 +594,8 @@ class LiveExecutor(AbstractExecutor):
                     strategy_id=pos.strategy_id,
                 )
             except (ccxt.NetworkError, ccxt.ExchangeError) as exc:
+                if isinstance(exc, ccxt.NetworkError):
+                    self._block_entries_unreconciled(pos.symbol, "close_network_error")
                 self._log.error(
                     "live.close_order_failed",
                     trade_id=trade_id,
@@ -962,6 +964,9 @@ class LiveExecutor(AbstractExecutor):
                     strategy_id=strategy_id,
                 )
             except (ccxt.NetworkError, ccxt.ExchangeError) as exc:
+                if isinstance(exc, ccxt.NetworkError):
+                    # The order may have reached the venue; outcome unknown.
+                    self._block_entries_unreconciled(symbol, "entry_network_error")
                 # Restore reserved cash on order failure
                 async with self._lock:
                     self._cash += notional_estimate + fee_estimate
@@ -1206,6 +1211,26 @@ class LiveExecutor(AbstractExecutor):
                 f"waiting {result.wait_s:.3f}s — order refused."
             )
 
+    def _block_entries_unreconciled(self, symbol: str, reason: str) -> None:
+        """
+        Fail safe on an order whose venue outcome is unknown (EXR-002).
+
+        The order may be live while the book shows nothing, so new entries stop
+        (``submit_signal`` refuses while discrepancies exist) until an operator
+        calls :meth:`acknowledge_recovery`. Exits stay available.
+        """
+        self._recovery_discrepancies.append(
+            Discrepancy(
+                symbol=symbol,
+                discrepancy_type=DiscrepancyType.MISSING_LOCALLY,
+                local_quantity=0.0,
+                reference_quantity=0.0,
+            )
+        )
+        self._log.critical(
+            "live.ambiguous_execution", symbol=symbol, reason=reason, entries_blocked=True
+        )
+
     async def _place_market_order(
         self,
         symbol: str,
@@ -1295,6 +1320,7 @@ class LiveExecutor(AbstractExecutor):
                 f"{idempotency_key} already submitted as order {exc.record.order_id!r}."
             ) from exc
         except TimeoutError as exc:
+            self._block_entries_unreconciled(symbol, "order_confirmation_unresolved")
             self._log.error(
                 "live.order_confirmation_timeout",
                 symbol=symbol,
@@ -1304,9 +1330,9 @@ class LiveExecutor(AbstractExecutor):
                 action="manual_reconciliation_required",
                 exc_info=True,
             )
-            raise ccxt.ExchangeError(
-                f"Order for {symbol} did not confirm as filled within timeout — "
-                f"check exchange manually. See logs for order_id."
+            raise AmbiguousOrderError(
+                f"Order for {symbol} did not confirm as filled within timeout and could "
+                f"not be reconciled -- check exchange manually. See logs for order_id."
             ) from exc
         except ccxt.ExchangeError:
             # Already logged by OrderManager

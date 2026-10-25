@@ -47,18 +47,18 @@ deletion of the thing it points at.
 
 | Status | Entries |
 |---|---|
-| VERIFIED | 216 |
+| VERIFIED | 218 |
 | PARTIAL | 3 |
 | PLANNED | 0 |
 | ACCEPTED GAP | 0 |
-| **Total** | **219** |
+| **Total** | **221** |
 
 ## Summary by subsystem
 
 | Subsystem | Entries | Verified |
 |---|---|---|
 | Risk | 11 | 11 |
-| Execution | 13 | 12 |
+| Execution | 15 | 14 |
 | Portfolio | 1 | 1 |
 | Signal and features | 6 | 6 |
 | Models and leakage | 10 | 10 |
@@ -392,6 +392,32 @@ When intelligence is enabled, an order from the existing primary timeframe proce
 - **Verification:**
   - `tests/test_horizon_order_gate.py` (regression)
   - `tests/test_horizon_decision.py` (unit)
+
+> layer: test-suite
+
+#### `REG-1030` — A venue-confirmed no-fill releases the order idempotency key so exit retries place an order
+
+**VERIFIED** · critical · regression · source: OPS-2026-10-25
+
+When an order ends cancelled, expired or rejected with no fill, or its confirmation times out and the cancel/read-back proves no fill, OrderManager releases the idempotency key and the retried order is sent with a fresh client order id; a stop-loss close is never refused as a duplicate for the key TTL.
+
+- **If violated:** The key was marked COMPLETED when the order was created, so a cancelled close was refused as a duplicate on every 5s retry for up to 3600s and the position could not be exited.
+- **Owned by:** `src/execution/order_manager.py`, `src/execution/idempotency.py`, `src/execution/live.py`
+- **Verification:**
+  - `tests/test_exec_idempotency_fills.py` (regression)
+
+> layer: test-suite
+
+#### `REG-1031` — Entry timeout and partial cancel are reconciled, booked, or block new entries
+
+**VERIFIED** · critical · regression · source: OPS-2026-10-25
+
+On confirmation timeout the order is cancelled and read back and any fill is returned for booking; a terminal cancelled/expired order with a partial fill is returned, not discarded; a placement network error is reconciled by client order id; if the outcome cannot be established the key stays claimed and LiveExecutor blocks new entries until acknowledge_recovery.
+
+- **If violated:** A confirmation timeout or partial-fill cancel was treated as a failed order, cash was restored and the live fill was never tracked or protected by a stop-loss.
+- **Owned by:** `src/execution/order_manager.py`, `src/execution/idempotency.py`, `src/execution/live.py`
+- **Verification:**
+  - `tests/test_exec_idempotency_fills.py` (regression)
 
 > layer: test-suite
 
@@ -2838,4 +2864,4 @@ To add or change an entry, edit the registry and regenerate this file. See
 `docs/quality/TEST_STRATEGY.md` for the taxonomy the `test_type` column draws
 on, and `docs/quality/IMPLEMENTATION_PLAN.md` for what each phase delivers.
 
-Registry version: 1.0.0 — 219 entries.
+Registry version: 1.0.0 — 221 entries.
