@@ -386,11 +386,11 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 316 | P1 | src/intelligence/calibration.py | Python | 135 | 001de498 |  |
 | 317 | P1 | src/intelligence/causal_inference.py | Python | 455 | 3e488b43 |  |
 | 318 | P1 | src/intelligence/ensemble_predictor.py | Python | 956 | 3e0e86c9 |  |
-| 319 | P1 | src/intelligence/intelligence_adapter.py | Python | 133 | 60141fe2 |  |
+| 319 | P1 | src/intelligence/intelligence_adapter.py | Python | 134 | ccea929a |  |
 | 320 | P1 | src/intelligence/lstm_runtime.py | Python | 16 | 39702e4d |  |
 | 321 | P1 | src/intelligence/macro_indicators.py | Python | 147 | a2289d90 |  |
 | 322 | P1 | src/intelligence/macro_regime.py | Python | 79 | 24c6581b |  |
-| 323 | P1 | src/intelligence/metrics.py | Python | 297 | 9a6c9a1c |  |
+| 323 | P1 | src/intelligence/metrics.py | Python | 299 | fde9d2d5 |  |
 | 324 | P1 | src/intelligence/onchain/__init__.py | Python | 52 | b9e4092b |  |
 | 325 | P1 | src/intelligence/onchain/arkham_provider.py | Python | 206 | 393c3ba2 |  |
 | 326 | P1 | src/intelligence/onchain/base.py | Python | 335 | 5255c1ea |  |
@@ -851,7 +851,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 781 | P1 | tests/test_cvar_notional_cap.py | Python | 142 | 8fd8fa91 |  |
 | 782 | P1 | tests/test_data_duckdb_feeds.py | Python | 172 | 2d8520e8 |  |
 | 783 | P1 | tests/test_data_feeds.py | Python | 187 | 1920d4fc |  |
-| 784 | P1 | tests/test_data_intel_low_findings.py | Python | 207 | 0a7f099d |  |
+| 784 | P1 | tests/test_data_intel_low_findings.py | Python | 205 | 2f322ab2 |  |
 | 785 | P1 | tests/test_decision_log_wiring.py | Python | 170 | a348027d |  |
 | 786 | P1 | tests/test_decision_log_writer.py | Python | 67 | 1ef2fb2c |  |
 | 787 | P1 | tests/test_depth_detector_v2_edges.py | Python | 135 | 0bdbfaa9 |  |

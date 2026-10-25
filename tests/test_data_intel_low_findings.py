@@ -91,9 +91,7 @@ def test_value_at_risk_rejects_empty_or_nan_returns(bad) -> None:
     """INT-036: empty or NaN returns raise rather than propagate NaN into CVaR caps."""
     with pytest.raises(ValueError):
         RiskQuantifier().value_at_risk(np.array(bad), method="historical")
-    assert math.isfinite(
-        RiskQuantifier().value_at_risk(np.linspace(-0.05, 0.05, 200))["var"]
-    )
+    assert math.isfinite(RiskQuantifier().value_at_risk(np.linspace(-0.05, 0.05, 200))["var"])
 
 
 # ---------------------------------------------------------------------------

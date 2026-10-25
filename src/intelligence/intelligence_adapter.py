@@ -21,6 +21,7 @@ if TYPE_CHECKING:
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
+
 class IntelligenceAdapter:
     """
     Wraps CryptoIntelligence and writes its signals to TradeBot's storage.
