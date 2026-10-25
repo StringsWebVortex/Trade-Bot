@@ -1375,10 +1375,10 @@ The integrated terminal adds a command-execution surface; nothing reaches it exc
 
 **VERIFIED** · high · security_regression · source: OPS-2026-10-25
 
-requirements.txt declares filelock>=4.2.1, so pip cannot resolve filelock 3.32.3 (CVE-2026-112940) into the runtime or the container image.
+requirements.txt declares filelock>=4.2.1, and every Dockerfile install into the build prefix after the CPU torch pre-pass runs with that prefix on PYTHONPATH, so neither the runtime nor the container image carries filelock 3.32.3 (CVE-2026-112940).
 
-- **If violated:** filelock was only a transitive dependency of torch and huggingface-hub, both unbounded, so pip kept filelock 3.32.3; the container scan reported CVE-2026-112940 and every PR's Security gate went red.
-- **Owned by:** `requirements.txt`
+- **If violated:** filelock was only a transitive dependency of torch and huggingface-hub, both unbounded, so pip kept filelock 3.32.3; the container scan reported CVE-2026-112940 and every PR's Security gate went red. The floor alone did not clear the image: pip does not see packages inside --prefix, so the requirements pass installed filelock 4.x beside the pre-pass's 3.32.3 and the stale dist-info stayed in the image.
+- **Owned by:** `requirements.txt`, `Dockerfile`
 - **Verification:**
   - `tests/security/test_filelock_cve_floor.py` (security)
 
