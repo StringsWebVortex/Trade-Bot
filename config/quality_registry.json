@@ -5613,6 +5613,55 @@
         }
       ],
       "depends_on": []
+    },
+    {
+      "id": "REG-1600",
+      "kind": "regression",
+      "title": "The CPU torch pre-pass uses the same version spec as requirements.txt",
+      "statement": "Every CPU-index torch pre-pass in ci.yml and the Dockerfile must carry exactly the torch spec requirements.txt declares, so requirements.txt always finds torch already satisfied.",
+      "criticality": "low",
+      "subsystem": "governance",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "The pre-pass resolves a torch older than requirements.txt accepts, pip then fetches torch again from PyPI, and the CUDA-bundling wheel that GOV-015/REG-0012 keep out lands in CI and the image.",
+      "owning_modules": [
+        ".github/workflows/ci.yml",
+        "Dockerfile"
+      ],
+      "depends_on": [
+        "REG-0012"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_phase7_ops_findings.py",
+          "test_type": "regression"
+        }
+      ],
+      "notes": "Audit OPS-011 (torch floor >=2.3 vs >=2.14.0). The other OPS-011 items (hashed lock file, timescale image drift between compose pg16 and CI pg17, digest pins) are not fixed here: the compose major-version change needs a data-volume migration decision."
+    },
+    {
+      "id": "REG-1601",
+      "kind": "regression",
+      "title": "A scheduled npm audit that could not reach the registry fails",
+      "statement": "When npm audit cannot reach the registry after its retries, the Security workflow fails on schedule and workflow_dispatch runs; only pull-request, push and merge-queue runs downgrade the outage to a warning.",
+      "criticality": "low",
+      "subsystem": "governance",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "Repeated registry outages leave the frontend CVE scan green on every run, including the weekly schedule, without a scan ever having run.",
+      "owning_modules": [
+        ".github/workflows/security.yml"
+      ],
+      "depends_on": [
+        "GOV-014"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_phase7_ops_findings.py",
+          "test_type": "regression"
+        }
+      ],
+      "notes": "Audit OPS-012. The fixAvailable:false downgrade is unchanged (documented decision in security.yml; npm_audit_verdict.py is edited by an open PR)."
     }
   ]
 }

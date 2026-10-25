@@ -47,7 +47,7 @@ COPY requirements.txt ./
 # stays the single source of truth for the version.
 RUN python -m pip install --no-cache-dir --upgrade pip \
     && python -m pip install --no-cache-dir --prefix=/install \
-         --index-url https://download.pytorch.org/whl/cpu "torch>=2.3,<3.0" \
+         --index-url https://download.pytorch.org/whl/cpu "torch>=2.14.0,<3.0" \
     && python -m pip install --no-cache-dir --prefix=/install -r requirements.txt
 
 COPY src ./src

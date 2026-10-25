@@ -47,11 +47,11 @@ deletion of the thing it points at.
 
 | Status | Entries |
 |---|---|
-| VERIFIED | 216 |
+| VERIFIED | 218 |
 | PARTIAL | 3 |
 | PLANNED | 0 |
 | ACCEPTED GAP | 0 |
-| **Total** | **219** |
+| **Total** | **221** |
 
 ## Summary by subsystem
 
@@ -68,7 +68,7 @@ deletion of the thing it points at.
 | Supply chain and artifacts | 7 | 7 |
 | Resilience and recovery | 24 | 24 |
 | Release and production | 14 | 14 |
-| Governance | 60 | 59 |
+| Governance | 62 | 61 |
 | Terminal and process center | 12 | 12 |
 
 ## Outstanding work by phase
@@ -2659,6 +2659,34 @@ Every scripts/ path named in the README, in src/ comments or in a test's skip me
 
 > scripts/timescaledb.sh was referenced from six call sites -- README.md three times, src/config.py, src/data/storage.py and the skip message in tests/test_timescale_storage.py -- and did not exist; removed by the config purge (#144) without the references going with it. The test guards the general form (a named scripts/ path that is absent) as well as this one file, and pins the script to ci.yml's service block so the local and CI databases cannot drift apart silently. layer: test-suite
 
+#### `REG-1600` — The CPU torch pre-pass uses the same version spec as requirements.txt
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+Every CPU-index torch pre-pass in ci.yml and the Dockerfile must carry exactly the torch spec requirements.txt declares, so requirements.txt always finds torch already satisfied.
+
+- **If violated:** The pre-pass resolves a torch older than requirements.txt accepts, pip then fetches torch again from PyPI, and the CUDA-bundling wheel that GOV-015/REG-0012 keep out lands in CI and the image.
+- **Owned by:** `.github/workflows/ci.yml`, `Dockerfile`
+- **Depends on:** `REG-0012`
+- **Verification:**
+  - `tests/test_phase7_ops_findings.py` (regression)
+
+> Audit OPS-011 (torch floor >=2.3 vs >=2.14.0). The other OPS-011 items (hashed lock file, timescale image drift between compose pg16 and CI pg17, digest pins) are not fixed here: the compose major-version change needs a data-volume migration decision.
+
+#### `REG-1601` — A scheduled npm audit that could not reach the registry fails
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+When npm audit cannot reach the registry after its retries, the Security workflow fails on schedule and workflow_dispatch runs; only pull-request, push and merge-queue runs downgrade the outage to a warning.
+
+- **If violated:** Repeated registry outages leave the frontend CVE scan green on every run, including the weekly schedule, without a scan ever having run.
+- **Owned by:** `.github/workflows/security.yml`
+- **Depends on:** `GOV-014`
+- **Verification:**
+  - `tests/test_phase7_ops_findings.py` (regression)
+
+> Audit OPS-012. The fixAvailable:false downgrade is unchanged (documented decision in security.yml; npm_audit_verdict.py is edited by an open PR).
+
 ## Terminal and process center
 
 #### `TERM-001` — Terminal sessions are real PTYs that every client shares
@@ -2838,4 +2866,4 @@ To add or change an entry, edit the registry and regenerate this file. See
 `docs/quality/TEST_STRATEGY.md` for the taxonomy the `test_type` column draws
 on, and `docs/quality/IMPLEMENTATION_PLAN.md` for what each phase delivers.
 
-Registry version: 1.0.0 — 219 entries.
+Registry version: 1.0.0 — 221 entries.
