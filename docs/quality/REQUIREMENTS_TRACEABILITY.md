@@ -47,11 +47,11 @@ deletion of the thing it points at.
 
 | Status | Entries |
 |---|---|
-| VERIFIED | 216 |
+| VERIFIED | 226 |
 | PARTIAL | 3 |
 | PLANNED | 0 |
 | ACCEPTED GAP | 0 |
-| **Total** | **219** |
+| **Total** | **229** |
 
 ## Summary by subsystem
 
@@ -63,10 +63,10 @@ deletion of the thing it points at.
 | Signal and features | 6 | 6 |
 | Models and leakage | 10 | 10 |
 | Data, money and time | 10 | 9 |
-| API and WebSocket | 21 | 21 |
-| Cryptography and secrets | 30 | 30 |
+| API and WebSocket | 26 | 26 |
+| Cryptography and secrets | 34 | 34 |
 | Supply chain and artifacts | 7 | 7 |
-| Resilience and recovery | 24 | 24 |
+| Resilience and recovery | 25 | 25 |
 | Release and production | 14 | 14 |
 | Governance | 60 | 59 |
 | Terminal and process center | 12 | 12 |
@@ -1010,6 +1010,71 @@ The default API_CORS_ORIGINS allows both loopback spellings of the dashboard dev
 
 > layer: test-suite
 
+#### `REG-1203` — API-010: a stalled WebSocket peer cannot block the broadcast
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+broadcast sends concurrently with a per-send timeout and drops peers that exceed it.
+
+- **If violated:** One stalled peer blocked fan-out for every dashboard on the shared event loop.
+- **Owned by:** `src/api/main.py`
+- **Verification:**
+  - `tests/api/test_api_runtime_hardening.py` (regression)
+
+> layer: test-suite
+
+#### `REG-1204` — API-011: runtime control work runs off the event loop
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+/runtime handlers and RuntimeLoop.step execute on dedicated single-worker executors.
+
+- **If violated:** Pointer reads and model loads stalled ticks and websockets.
+- **Owned by:** `src/api/main.py`, `src/runtime/production.py`
+- **Verification:**
+  - `tests/api/test_api_runtime_hardening.py` (regression)
+
+> layer: test-suite
+
+#### `REG-1209` — API-030: construction-time settings are not reported live
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+Settings read once at construction (shadow_mode, order_throttle, glassnode_base_url, testnet flags) are startup-only in /controls.
+
+- **If violated:** A write succeeded and changed nothing the consumer used.
+- **Owned by:** `src/api/control_surface.py`
+- **Verification:**
+  - `tests/api/test_api_runtime_hardening.py` (regression)
+
+> layer: test-suite
+
+#### `SEC-1200` — API-006: a read-only key never receives the pending-approval queue
+
+**VERIFIED** · medium · security_regression · source: OPS-2026-10-25
+
+The heartbeat tick, the cold-start snapshot, GET /status and GET /approvals withhold pending_approvals from a key that lacks APPROVE_TRADE.
+
+- **If violated:** A read-only key sees the queue of trades awaiting an operator decision.
+- **Owned by:** `src/api/main.py`
+- **Verification:**
+  - `tests/api/test_api_runtime_hardening.py` (security)
+
+> layer: test-suite
+
+#### `SEC-1202` — API-009: readiness and probe endpoints do not return raw exception text
+
+**VERIFIED** · medium · security_regression · source: OPS-2026-10-25
+
+/readyz sanitizes orchestrator error text and probe endpoints return a fixed message instead of str(exc).
+
+- **If violated:** DSNs, paths and hostnames reached unauthenticated callers in 200 bodies.
+- **Owned by:** `src/api/readiness.py`, `src/api/main.py`
+- **Verification:**
+  - `tests/api/test_api_runtime_hardening.py` (security)
+
+> layer: test-suite
+
 ## Cryptography and secrets
 
 #### `GOV-051` — no eval or exec in src
@@ -1368,6 +1433,58 @@ The integrated terminal adds a command-execution surface; nothing reaches it exc
   - `tests/terminal/test_terminal_server.py` (security)
   - `tests/terminal/test_terminal_host.py` (security)
   - `frontend/src/desktop/terminalBridge.test.js` (security)
+
+> layer: test-suite
+
+#### `SEC-1201` — API-008: security-control degradation closes every trade-affecting POST
+
+**VERIFIED** · medium · security_regression · source: OPS-2026-10-25
+
+An audit-write failure or unusable key configuration marks the control degraded, and every trade-affecting POST depends on require_healthy_security_controls.
+
+- **If violated:** The fail-closed registry could never close, so trading endpoints stayed open with audit or authentication down.
+- **Owned by:** `src/api/main.py`, `src/api/auth.py`
+- **Verification:**
+  - `tests/api/test_api_runtime_hardening.py` (security)
+
+> layer: test-suite
+
+#### `SEC-1205` — API-012: operator names are validated on runtime and control bodies
+
+**VERIFIED** · medium · security_regression · source: OPS-2026-10-25
+
+OperatorFactor and SetControlRequest accept only the alphanumeric/underscore/hyphen operator names used elsewhere.
+
+- **If violated:** Arbitrary characters reached logs and the audit trail. Per-operator identity and requester/approver separation remain open.
+- **Owned by:** `src/api/runtime_control.py`, `src/api/main.py`
+- **Verification:**
+  - `tests/api/test_api_runtime_hardening.py` (security)
+
+> layer: test-suite
+
+#### `SEC-1207` — API-014: log redaction matches key substrings and nested values
+
+**VERIFIED** · medium · security_regression · source: OPS-2026-10-25
+
+redact_event redacts keys that contain secret-like fragments and recursively walks mappings and sequences.
+
+- **If violated:** Names like binance_api_secret and nested details dicts bypassed redaction.
+- **Owned by:** `src/logging_setup.py`
+- **Verification:**
+  - `tests/api/test_api_runtime_hardening.py` (security)
+
+> layer: test-suite
+
+#### `SEC-1208` — API-015: the self-test is single-flight, low-rate and off the shared executor
+
+**VERIFIED** · medium · security_regression · source: OPS-2026-10-25
+
+/debug/selftest uses a dedicated one-worker executor, one in-flight run and a low per-minute limit.
+
+- **If violated:** Any valid key could occupy the default executor the trading path uses.
+- **Owned by:** `src/api/main.py`
+- **Verification:**
+  - `tests/api/test_api_runtime_hardening.py` (security)
 
 > layer: test-suite
 
@@ -1762,6 +1879,19 @@ When the lifespan raises -- the fetcher reaching no exchange venue, the orchestr
 - **Owned by:** `src/api/main.py`
 - **Verification:**
   - `tests/test_startup_readiness.py` (regression)
+
+> layer: test-suite
+
+#### `REG-1206` — API-013: a failed shadow check does not strand an approved change
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+decide_lifecycle(approve) holds the manager lock across approve, shadow check, stage and execute, and moves the change to FAILED when the shadow check raises.
+
+- **If violated:** The change stayed APPROVED and non-terminal, blocking every later request on the component.
+- **Owned by:** `src/runtime/changes.py`
+- **Verification:**
+  - `tests/runtime/test_decide_lifecycle_atomic.py` (regression)
 
 > layer: test-suite
 
@@ -2838,4 +2968,4 @@ To add or change an entry, edit the registry and regenerate this file. See
 `docs/quality/TEST_STRATEGY.md` for the taxonomy the `test_type` column draws
 on, and `docs/quality/IMPLEMENTATION_PLAN.md` for what each phase delivers.
 
-Registry version: 1.0.0 — 219 entries.
+Registry version: 1.0.0 — 229 entries.

@@ -70,7 +70,9 @@ class RuntimeControlError(Exception):
 
 
 class OperatorFactor(BaseModel):
-    operator: str = Field(min_length=1, max_length=64)
+    # API-012: same character set as every other body (main._OPERATOR_RE), so
+    # arbitrary characters never reach logs and the audit trail.
+    operator: str = Field(min_length=1, max_length=64, pattern=r"^[a-zA-Z0-9_\-]+$")
     operator_secret: str
     actor_kind: Literal["human", "ai"] = "human"
 
