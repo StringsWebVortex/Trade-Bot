@@ -262,11 +262,3 @@ class ECDSAScanner:
         if not self._weaknesses:
             return 0.0
         return float(max(w.risk_score for w in self._weaknesses))
-
-    def clear_old_entries(self, max_registry_size: int = 100_000) -> None:
-        """Prune r-registry to prevent unbounded memory growth."""
-        if len(self._r_registry) > max_registry_size:
-            # Remove oldest 10% of entries
-            keys = list(self._r_registry.keys())
-            for k in keys[: len(keys) // 10]:
-                del self._r_registry[k]

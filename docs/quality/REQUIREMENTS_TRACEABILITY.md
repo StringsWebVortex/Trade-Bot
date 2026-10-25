@@ -47,24 +47,24 @@ deletion of the thing it points at.
 
 | Status | Entries |
 |---|---|
-| VERIFIED | 232 |
+| VERIFIED | 238 |
 | PARTIAL | 3 |
 | PLANNED | 0 |
 | ACCEPTED GAP | 0 |
-| **Total** | **235** |
+| **Total** | **241** |
 
 ## Summary by subsystem
 
 | Subsystem | Entries | Verified |
 |---|---|---|
-| Risk | 11 | 11 |
+| Risk | 15 | 15 |
 | Execution | 13 | 12 |
 | Portfolio | 1 | 1 |
 | Signal and features | 7 | 7 |
 | Models and leakage | 11 | 11 |
 | Data, money and time | 11 | 10 |
 | API and WebSocket | 22 | 22 |
-| Cryptography and secrets | 32 | 32 |
+| Cryptography and secrets | 34 | 34 |
 | Supply chain and artifacts | 7 | 7 |
 | Resilience and recovery | 26 | 26 |
 | Release and production | 14 | 14 |
@@ -227,6 +227,58 @@ When RiskGate.check_drift reports drift for the contributing horizon, CryptoInte
   - `tests/test_crypto_intel_signal_path.py` (regression)
 
 > layer: test-suite
+
+#### `REG-1460` — Dead ECDSA r-registry prune helper removed
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+ECDSAScanner exposes no unused clear_old_entries; the LRU bound in scan_transaction is the only prune.
+
+- **If violated:** Dead redundant code invited divergence from the LRU bound.
+- **Owned by:** `src/ecc/ecdsa_scan.py`
+- **Verification:**
+  - `tests/regression/test_phase6_math_strategy_lows.py` (regression)
+
+> audit finding MTH-003; layer: test-suite
+
+#### `REG-1461` — Failed model artifact log returns no run id
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+ModelRegistry.log_model returns None when the artifact upload fails.
+
+- **If violated:** A run id for a missing artifact let register_model register a model that does not exist.
+- **Owned by:** `src/upgrade/registry.py`
+- **Verification:**
+  - `tests/regression/test_phase6_math_strategy_lows.py` (regression)
+
+> audit finding MTH-007; layer: test-suite
+
+#### `REG-1464` — Non-finite Mosca inputs rejected
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+migration_verdict raises QuantumAssessmentError for NaN or infinite years.
+
+- **If violated:** A NaN overshoot gave a silent safe verdict.
+- **Owned by:** `src/mathcore/quantum/shor.py`
+- **Verification:**
+  - `tests/regression/test_phase6_math_strategy_lows.py` (regression)
+
+> audit finding MTH-023; layer: test-suite
+
+#### `REG-1465` — Fourier engine detrends and derives direction after adjustments
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+E04 detrends before the FFT, skips the halving overlay when block_height <= 0 and computes direction from the final price.
+
+- **If violated:** Direction and price could disagree and a default block height gave a constant bullish overlay.
+- **Owned by:** `src/engines/e04_fourier.py`
+- **Verification:**
+  - `tests/regression/test_phase6_math_strategy_lows.py` (regression)
+
+> audit finding STR-17; layer: test-suite
 
 ## Execution
 
@@ -1345,6 +1397,32 @@ The LAW12 cipher-suite pattern matches static DH/ECDH, RSA key transport and exp
   - `tests/test_law12_cipher_suite_pattern.py` (regression)
 
 > The rule shipped with no test of its own, so nothing could tell a true positive from a false one until a PR tripped it. The test added with this entry is that missing check. layer: test-suite
+
+#### `REG-1462` — DVC git tag name is validated
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+ModelRegistry.tag_dvc rejects tag names outside [A-Za-z0-9._/-]+ or with a leading dash and runs git/dvc in the repo root.
+
+- **If violated:** A tag name beginning with - was parsed by git as an option.
+- **Owned by:** `src/upgrade/registry.py`
+- **Verification:**
+  - `tests/regression/test_phase6_math_strategy_lows.py` (regression)
+
+> audit finding MTH-008; layer: test-suite
+
+#### `REG-1463` — Negative DH public values rejected
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+is_valid_public_value requires 2 <= y <= p-2.
+
+- **If violated:** A negative y was reduced by pow and accepted.
+- **Owned by:** `src/mathcore/numbertheory/safe_primes.py`
+- **Verification:**
+  - `tests/regression/test_phase6_math_strategy_lows.py` (regression)
+
+> audit finding MTH-021; layer: test-suite
 
 #### `REG-1608` — Prometheus authenticates its /metrics scrape
 
@@ -3056,4 +3134,4 @@ To add or change an entry, edit the registry and regenerate this file. See
 `docs/quality/TEST_STRATEGY.md` for the taxonomy the `test_type` column draws
 on, and `docs/quality/IMPLEMENTATION_PLAN.md` for what each phase delivers.
 
-Registry version: 1.0.0 — 235 entries.
+Registry version: 1.0.0 — 241 entries.
