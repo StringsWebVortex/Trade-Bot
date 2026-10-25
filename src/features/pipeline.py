@@ -1044,14 +1044,17 @@ def build_inference_features(
         )
         if len(fm) < 1:
             return None
-        if feature_matrix.features_all is not None and len(history) > 0:
-            if fm.index[-1] != history.index[-1]:
-                log.warning(
-                    "pipeline.inference_stale_row_skip",
-                    row_ts=str(fm.index[-1]),
-                    last_bar_ts=str(history.index[-1]),
-                )
-                return None
+        if (
+            feature_matrix.features_all is not None
+            and len(history) > 0
+            and fm.index[-1] != history.index[-1]
+        ):
+            log.warning(
+                "pipeline.inference_stale_row_skip",
+                row_ts=str(fm.index[-1]),
+                last_bar_ts=str(history.index[-1]),
+            )
+            return None
         vec = fm.iloc[-1][list(FEATURE_COLUMNS)].astype(np.float64)
         if live_ofi is not None:
             vec = vec.copy()

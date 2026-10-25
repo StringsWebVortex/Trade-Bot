@@ -494,7 +494,7 @@ Live inference scores the feature row of the newest closed bar (label-independen
 - **Verification:**
   - `tests/features/test_closed_bar_inference.py` (regression)
 
-> Audit DAT-001, EXR-003
+> Audit DAT-001, EXR-003. layer: test-suite
 
 #### `REG-1704` — Carry and arbitrage entries clear a measured-cost hurdle, never a fixed threshold
 
@@ -793,7 +793,7 @@ The fetcher drops rows whose ts + timeframe exceeds now, so an unfinished candle
 - **Verification:**
   - `tests/features/test_closed_bar_inference.py` (regression)
 
-> Audit DAT-002, EXR-003
+> Audit DAT-002, EXR-003. layer: test-suite
 
 #### `REG-1702` — kg/ and rag_mongo/ share one MongoClient factory and one URI check
 

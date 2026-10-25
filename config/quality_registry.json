@@ -6023,7 +6023,7 @@
           "test_type": "regression"
         }
       ],
-      "notes": "Audit DAT-001, EXR-003"
+      "notes": "Audit DAT-001, EXR-003. layer: test-suite"
     },
     {
       "id": "REG-1071",
@@ -6041,7 +6041,7 @@
           "test_type": "regression"
         }
       ],
-      "notes": "Audit DAT-002, EXR-003"
+      "notes": "Audit DAT-002, EXR-003. layer: test-suite"
     }
   ]
 }
