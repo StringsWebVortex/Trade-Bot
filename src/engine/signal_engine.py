@@ -83,6 +83,7 @@ from src.risk.macro_exposure_budget import (
     apply_macro_budget_to_kelly_fraction,
 )
 from src.risk.slippage import SlippageModel
+from src.risk.state_persistence import state_file
 from src.strategies.filters import apply_all_strategy_filters, ewm_trend_signal, mtf_trend_aligned
 from src.strategies.position_sizing import (
     CARVER_FORECAST_SCALAR,
@@ -324,7 +325,8 @@ class SignalEngine:
         # recovery. One instance per engine, driven by this engine's own
         # capital_usd stream each tick — see tick() gate 0.
         self._capital_floor = CapitalPreservationFloor(
-            max_drawdown_pct=self._cfg.risk.capital_preservation_max_drawdown_pct
+            max_drawdown_pct=self._cfg.risk.capital_preservation_max_drawdown_pct,
+            state_path=state_file(f"capital_floor_{symbol}_{timeframe.value}"),
         )
         # v4 shadow-mode promotion. One registry per engine, i.e. per
         # (symbol, timeframe) — deliberately not model_registry's process-wide

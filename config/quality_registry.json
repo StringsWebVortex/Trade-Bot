@@ -5613,6 +5613,77 @@
         }
       ],
       "depends_on": []
+    },
+    {
+      "id": "REG-1050",
+      "kind": "regression",
+      "title": "Open positions are rebuilt from storage on restart",
+      "statement": "On initialize(), both executors rebuild their open positions from stored trades with exit_ts NULL, so they are marked, stopped out and closed after a restart.",
+      "criticality": "high",
+      "subsystem": "execution",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "After a restart positions were empty while cash had open notional removed, so trades stayed open forever and equity was understated (EXR-009).",
+      "owning_modules": [
+        "src/execution/paper.py",
+        "src/execution/live.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_restart_persistence.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1051",
+      "kind": "regression",
+      "title": "Daily drawdown baseline and peak survive a restart",
+      "statement": "After initialize() the drawdown tracker's daily start is today's first stored equity (or the latest) and its peak is the stored peak, not the configured starting capital.",
+      "criticality": "high",
+      "subsystem": "execution",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "The daily baseline reset to starting capital, so the daily drawdown halt could not fire on a profitable account until UTC midnight (EXR-010).",
+      "owning_modules": [
+        "src/execution/paper.py",
+        "src/execution/live.py",
+        "src/risk/gates.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_restart_persistence.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1052",
+      "kind": "regression",
+      "title": "Capital-floor halt and kill switches survive a restart",
+      "statement": "A tripped capital-preservation floor (halted, peak, reauthorization) and disabled strategy kill switches are persisted atomically and restored at startup; an unreadable state file fails closed.",
+      "criticality": "high",
+      "subsystem": "risk",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "A process restart silently cleared the whole-book halt and re-enabled disabled strategies (EXR-013).",
+      "owning_modules": [
+        "src/risk/capital_preservation_floor.py",
+        "src/risk/strategy_kill_switch.py",
+        "src/risk/state_persistence.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_restart_persistence.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
     }
   ]
 }

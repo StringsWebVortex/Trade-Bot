@@ -243,8 +243,21 @@ class PaperExecutor(AbstractExecutor):
         if latest is not None:
             self._cash = latest.cash_usd
             self._peak_equity = latest.peak_equity_usd
-            self._drawdown_tracker = DrawdownTracker(self._starting_capital)
-            self._drawdown_tracker.update(latest.equity_usd)
+            # EXR-010: seed today's opening equity and the stored peak, not the
+            # configured starting capital, so the daily halt still works.
+            day_open_ms = int(
+                datetime.now(tz=UTC).replace(hour=0, minute=0, second=0, microsecond=0).timestamp()
+                * 1000
+            )
+            todays = await self._storage.fetch_equity_curve(
+                TradingMode.PAPER.value, since_ts=day_open_ms, limit=1
+            )
+            self._drawdown_tracker = DrawdownTracker.restored(
+                self._starting_capital,
+                peak=latest.peak_equity_usd,
+                daily_start=todays[0].equity_usd if todays else latest.equity_usd,
+                current=latest.equity_usd,
+            )
             self._log.info(
                 "paper.initialized_from_storage",
                 equity_usd=latest.equity_usd,
@@ -255,6 +268,32 @@ class PaperExecutor(AbstractExecutor):
                 "paper.initialized_fresh",
                 starting_capital=self._starting_capital,
             )
+        # EXR-009: cash in the equity row already excludes open notional, so the
+        # open positions must be rebuilt or equity is understated and they are
+        # never marked, stopped out or closed.
+        for t in await self._storage.fetch_trades(
+            trading_mode=TradingMode.PAPER.value, open_only=True, limit=10_000
+        ):
+            self._positions[t.id] = PaperPosition(
+                trade_id=t.id,
+                symbol=t.symbol,
+                timeframe=t.timeframe,
+                direction=t.direction,
+                entry_price=t.entry_price,
+                quantity=t.quantity,
+                notional_usd=t.notional_usd,
+                entry_ts=t.entry_ts,
+                kelly_fraction=t.kelly_fraction,
+                regime_at_entry=t.regime_at_entry,
+                meta_label_prob=t.meta_label_prob,
+                raw_signal=t.raw_signal if t.raw_signal is not None else 0.0,
+                approved_by=t.approved_by or "restored",
+                execution_mode=t.execution_mode,
+                fee_usd=t.fee_usd,
+                current_price=t.entry_price,
+            )
+        if self._positions:
+            self._log.warning("paper.positions_restored", count=len(self._positions))
         self._initialized = True
 
     async def shutdown(self) -> None:
