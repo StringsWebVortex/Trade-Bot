@@ -47,11 +47,11 @@ deletion of the thing it points at.
 
 | Status | Entries |
 |---|---|
-| VERIFIED | 216 |
+| VERIFIED | 222 |
 | PARTIAL | 3 |
 | PLANNED | 0 |
 | ACCEPTED GAP | 0 |
-| **Total** | **219** |
+| **Total** | **225** |
 
 ## Summary by subsystem
 
@@ -64,11 +64,11 @@ deletion of the thing it points at.
 | Models and leakage | 10 | 10 |
 | Data, money and time | 10 | 9 |
 | API and WebSocket | 21 | 21 |
-| Cryptography and secrets | 30 | 30 |
+| Cryptography and secrets | 31 | 31 |
 | Supply chain and artifacts | 7 | 7 |
-| Resilience and recovery | 24 | 24 |
+| Resilience and recovery | 26 | 26 |
 | Release and production | 14 | 14 |
-| Governance | 60 | 59 |
+| Governance | 63 | 62 |
 | Terminal and process center | 12 | 12 |
 
 ## Outstanding work by phase
@@ -1371,6 +1371,19 @@ The integrated terminal adds a command-execution surface; nothing reaches it exc
 
 > layer: test-suite
 
+#### `SEC-0012` — The runtime manifest never resolves a vulnerable filelock
+
+**VERIFIED** · high · security_regression · source: OPS-2026-10-25
+
+requirements.txt declares filelock>=4.2.1, and every Dockerfile install into the build prefix after the CPU torch pre-pass runs with that prefix on PYTHONPATH, so neither the runtime nor the container image carries filelock 3.32.3 (CVE-2026-112940).
+
+- **If violated:** filelock was only a transitive dependency of torch and huggingface-hub, both unbounded, so pip kept filelock 3.32.3; the container scan reported CVE-2026-112940 and every PR's Security gate went red. The floor alone did not clear the image: pip does not see packages inside --prefix, so the requirements pass installed filelock 4.x beside the pre-pass's 3.32.3 and the stale dist-info stayed in the image.
+- **Owned by:** `requirements.txt`, `Dockerfile`
+- **Verification:**
+  - `tests/security/test_filelock_cve_floor.py` (security)
+
+> The advisory was published against a release nobody here chose, so no commit or review could have seen it arrive. layer: supply-chain
+
 ## Supply chain and artifacts
 
 #### `SUP-001` — Every workflow declares least-privilege permissions
@@ -1764,6 +1777,32 @@ When the lifespan raises -- the fetcher reaching no exchange venue, the orchestr
   - `tests/test_startup_readiness.py` (regression)
 
 > layer: test-suite
+
+#### `REG-1602` — The runtime control plane's in-memory state is bounded
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+ChangeManager forgets the oldest rejected or cancelled changes beyond a bound and keeps a bounded in-memory audit; AuditPersister keeps a bounded queue while storage is down, dropping and counting the oldest; RuntimeRegistry forgets old version strings except the current, previous and desired ones. An executed change is never forgotten.
+
+- **If violated:** An authenticated caller at the route's rate limit, a reconciler retrying a stuck mismatch, a long storage outage or a component whose version changes on every value change grows process memory for the life of the API.
+- **Owned by:** `src/runtime/changes.py`, `src/runtime/persistence.py`, `src/runtime/registry.py`
+- **Verification:**
+  - `tests/runtime/test_bounded_control_plane.py` (regression)
+
+> Audit API-021. The persisted audit_log remains the full history. No test drove the control plane past a bound, so only a suite check could catch it. layer: test-suite
+
+#### `REG-1603` — A failed RAG or KG rebuild keeps the previous index
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+scripts/ingest_repo.py and scripts/ingest_kg_repo.py write the new content tagged with the run id first and delete what the run did not write only after the run finishes; a failed RAG run removes its own partial insert.
+
+- **If violated:** A rebuild that fails partway (embedding crash, Atlas or claude -p outage) leaves the RAG collection or the knowledge graph empty or partial until a full rerun succeeds.
+- **Owned by:** `scripts/ingest_repo.py`, `scripts/ingest_kg_repo.py`, `kg/assemble.py`, `kg/ingest.py`
+- **Verification:**
+  - `tests/test_ingest_keeps_previous_index.py` (regression)
+
+> Audit OPS-009. No test ran an ingest script against a failure mid-run, so only a suite check could catch it. layer: test-suite
 
 ## Release and production
 
@@ -2659,6 +2698,48 @@ Every scripts/ path named in the README, in src/ comments or in a test's skip me
 
 > scripts/timescaledb.sh was referenced from six call sites -- README.md three times, src/config.py, src/data/storage.py and the skip message in tests/test_timescale_storage.py -- and did not exist; removed by the config purge (#144) without the references going with it. The test guards the general form (a named scripts/ path that is absent) as well as this one file, and pins the script to ci.yml's service block so the local and CI databases cannot drift apart silently. layer: test-suite
 
+#### `REG-1600` — The CPU torch pre-pass uses the same version spec as requirements.txt
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+Every CPU-index torch pre-pass in ci.yml and the Dockerfile must carry exactly the torch spec requirements.txt declares, so requirements.txt always finds torch already satisfied.
+
+- **If violated:** The pre-pass resolves a torch older than requirements.txt accepts, pip then fetches torch again from PyPI, and the CUDA-bundling wheel that GOV-015/REG-0012 keep out lands in CI and the image.
+- **Owned by:** `.github/workflows/ci.yml`, `Dockerfile`
+- **Depends on:** `REG-0012`
+- **Verification:**
+  - `tests/test_phase7_ops_findings.py` (regression)
+
+> Audit OPS-011 (torch floor >=2.3 vs >=2.14.0). The other OPS-011 items (hashed lock file, timescale image drift between compose pg16 and CI pg17, digest pins) are not fixed here: the compose major-version change needs a data-volume migration decision. No test compared the pre-pass torch spec with requirements.txt, so only a suite check could catch it. layer: test-suite
+
+#### `REG-1601` — A scheduled npm audit that could not reach the registry fails
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+When npm audit cannot reach the registry after its retries, the Security workflow fails on schedule and workflow_dispatch runs; only pull-request, push and merge-queue runs downgrade the outage to a warning.
+
+- **If violated:** Repeated registry outages leave the frontend CVE scan green on every run, including the weekly schedule, without a scan ever having run.
+- **Owned by:** `.github/workflows/security.yml`
+- **Depends on:** `GOV-014`
+- **Verification:**
+  - `tests/test_phase7_ops_findings.py` (regression)
+
+> Audit OPS-012. The fixAvailable:false downgrade is unchanged (documented decision in security.yml; npm_audit_verdict.py is edited by an open PR). No test read what the audit step does after its retries on a scheduled run, so only a suite check could catch it. layer: test-suite
+
+#### `REG-1604` — The CI diagnostics collector never leaves its own report check in progress
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+scripts/ci_diagnostics.py writes the report master only as a completed check run: it settles a master an older collector left in_progress before waiting, publishes the finalized master once every source workflow is terminal, and on failure records the reason in a completed neutral master that ./scripts/prfail reports.
+
+- **If violated:** The in_progress master joins a source workflow run's check suite and holds it open, the collector waits on it until its deadline, and every ./scripts/prfail call answers 'Diagnostics report is not finalized', so the only permitted CI diagnostic route returns nothing for any pull request.
+- **Owned by:** `scripts/ci_diagnostics.py`
+- **Depends on:** `GOV-013`
+- **Verification:**
+  - `tests/test_ci_diagnostics_never_self_blocks.py` (regression)
+
+> Observed on PRs #502, #506, #508 and #509, whose reports never finalized after #467 removed only the job-level self-wait. No test ran the collector end to end against its own check writes. layer: test-suite
+
 ## Terminal and process center
 
 #### `TERM-001` — Terminal sessions are real PTYs that every client shares
@@ -2838,4 +2919,4 @@ To add or change an entry, edit the registry and regenerate this file. See
 `docs/quality/TEST_STRATEGY.md` for the taxonomy the `test_type` column draws
 on, and `docs/quality/IMPLEMENTATION_PLAN.md` for what each phase delivers.
 
-Registry version: 1.0.0 — 219 entries.
+Registry version: 1.0.0 — 225 entries.

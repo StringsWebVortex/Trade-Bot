@@ -3633,6 +3633,28 @@
       "notes": "layer: test-suite"
     },
     {
+      "id": "SEC-0012",
+      "kind": "security_regression",
+      "title": "The runtime manifest never resolves a vulnerable filelock",
+      "statement": "requirements.txt declares filelock>=4.2.1, and every Dockerfile install into the build prefix after the CPU torch pre-pass runs with that prefix on PYTHONPATH, so neither the runtime nor the container image carries filelock 3.32.3 (CVE-2026-112940).",
+      "criticality": "high",
+      "subsystem": "security",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "filelock was only a transitive dependency of torch and huggingface-hub, both unbounded, so pip kept filelock 3.32.3; the container scan reported CVE-2026-112940 and every PR's Security gate went red. The floor alone did not clear the image: pip does not see packages inside --prefix, so the requirements pass installed filelock 4.x beside the pre-pass's 3.32.3 and the stale dist-info stayed in the image.",
+      "owning_modules": [
+        "requirements.txt",
+        "Dockerfile"
+      ],
+      "verification": [
+        {
+          "test": "tests/security/test_filelock_cve_floor.py",
+          "test_type": "security"
+        }
+      ],
+      "notes": "The advisory was published against a release nobody here chose, so no commit or review could have seen it arrive. layer: supply-chain"
+    },
+    {
       "id": "GOV-022",
       "kind": "requirement",
       "title": "diagnostics stays within its layer",
@@ -5613,6 +5635,128 @@
         }
       ],
       "depends_on": []
+    },
+    {
+      "id": "REG-1604",
+      "kind": "regression",
+      "title": "The CI diagnostics collector never leaves its own report check in progress",
+      "statement": "scripts/ci_diagnostics.py writes the report master only as a completed check run: it settles a master an older collector left in_progress before waiting, publishes the finalized master once every source workflow is terminal, and on failure records the reason in a completed neutral master that ./scripts/prfail reports.",
+      "criticality": "medium",
+      "subsystem": "governance",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "The in_progress master joins a source workflow run's check suite and holds it open, the collector waits on it until its deadline, and every ./scripts/prfail call answers 'Diagnostics report is not finalized', so the only permitted CI diagnostic route returns nothing for any pull request.",
+      "owning_modules": [
+        "scripts/ci_diagnostics.py"
+      ],
+      "depends_on": [
+        "GOV-013"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_ci_diagnostics_never_self_blocks.py",
+          "test_type": "regression"
+        }
+      ],
+      "notes": "Observed on PRs #502, #506, #508 and #509, whose reports never finalized after #467 removed only the job-level self-wait. No test ran the collector end to end against its own check writes. layer: test-suite"
+    },
+    {
+      "id": "REG-1600",
+      "kind": "regression",
+      "title": "The CPU torch pre-pass uses the same version spec as requirements.txt",
+      "statement": "Every CPU-index torch pre-pass in ci.yml and the Dockerfile must carry exactly the torch spec requirements.txt declares, so requirements.txt always finds torch already satisfied.",
+      "criticality": "low",
+      "subsystem": "governance",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "The pre-pass resolves a torch older than requirements.txt accepts, pip then fetches torch again from PyPI, and the CUDA-bundling wheel that GOV-015/REG-0012 keep out lands in CI and the image.",
+      "owning_modules": [
+        ".github/workflows/ci.yml",
+        "Dockerfile"
+      ],
+      "depends_on": [
+        "REG-0012"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_phase7_ops_findings.py",
+          "test_type": "regression"
+        }
+      ],
+      "notes": "Audit OPS-011 (torch floor >=2.3 vs >=2.14.0). The other OPS-011 items (hashed lock file, timescale image drift between compose pg16 and CI pg17, digest pins) are not fixed here: the compose major-version change needs a data-volume migration decision. No test compared the pre-pass torch spec with requirements.txt, so only a suite check could catch it. layer: test-suite"
+    },
+    {
+      "id": "REG-1601",
+      "kind": "regression",
+      "title": "A scheduled npm audit that could not reach the registry fails",
+      "statement": "When npm audit cannot reach the registry after its retries, the Security workflow fails on schedule and workflow_dispatch runs; only pull-request, push and merge-queue runs downgrade the outage to a warning.",
+      "criticality": "low",
+      "subsystem": "governance",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "Repeated registry outages leave the frontend CVE scan green on every run, including the weekly schedule, without a scan ever having run.",
+      "owning_modules": [
+        ".github/workflows/security.yml"
+      ],
+      "depends_on": [
+        "GOV-014"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_phase7_ops_findings.py",
+          "test_type": "regression"
+        }
+      ],
+      "notes": "Audit OPS-012. The fixAvailable:false downgrade is unchanged (documented decision in security.yml; npm_audit_verdict.py is edited by an open PR). No test read what the audit step does after its retries on a scheduled run, so only a suite check could catch it. layer: test-suite"
+    },
+    {
+      "id": "REG-1602",
+      "kind": "regression",
+      "title": "The runtime control plane's in-memory state is bounded",
+      "statement": "ChangeManager forgets the oldest rejected or cancelled changes beyond a bound and keeps a bounded in-memory audit; AuditPersister keeps a bounded queue while storage is down, dropping and counting the oldest; RuntimeRegistry forgets old version strings except the current, previous and desired ones. An executed change is never forgotten.",
+      "criticality": "low",
+      "subsystem": "resilience",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "An authenticated caller at the route's rate limit, a reconciler retrying a stuck mismatch, a long storage outage or a component whose version changes on every value change grows process memory for the life of the API.",
+      "owning_modules": [
+        "src/runtime/changes.py",
+        "src/runtime/persistence.py",
+        "src/runtime/registry.py"
+      ],
+      "depends_on": [],
+      "verification": [
+        {
+          "test": "tests/runtime/test_bounded_control_plane.py",
+          "test_type": "regression"
+        }
+      ],
+      "notes": "Audit API-021. The persisted audit_log remains the full history. No test drove the control plane past a bound, so only a suite check could catch it. layer: test-suite"
+    },
+    {
+      "id": "REG-1603",
+      "kind": "regression",
+      "title": "A failed RAG or KG rebuild keeps the previous index",
+      "statement": "scripts/ingest_repo.py and scripts/ingest_kg_repo.py write the new content tagged with the run id first and delete what the run did not write only after the run finishes; a failed RAG run removes its own partial insert.",
+      "criticality": "low",
+      "subsystem": "resilience",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "A rebuild that fails partway (embedding crash, Atlas or claude -p outage) leaves the RAG collection or the knowledge graph empty or partial until a full rerun succeeds.",
+      "owning_modules": [
+        "scripts/ingest_repo.py",
+        "scripts/ingest_kg_repo.py",
+        "kg/assemble.py",
+        "kg/ingest.py"
+      ],
+      "depends_on": [],
+      "verification": [
+        {
+          "test": "tests/test_ingest_keeps_previous_index.py",
+          "test_type": "regression"
+        }
+      ],
+      "notes": "Audit OPS-009. No test ran an ingest script against a failure mid-run, so only a suite check could catch it. layer: test-suite"
     }
   ]
 }

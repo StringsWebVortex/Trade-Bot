@@ -186,7 +186,7 @@ jobs:
         # from cache rather than resolved and downloaded again. This is the
         # single largest cost in the run and it is paid by every shard.
         run: |
-          uv pip install --system --index-url https://download.pytorch.org/whl/cpu "torch>=2.3,<3.0"
+          uv pip install --system --index-url https://download.pytorch.org/whl/cpu "torch>=2.14.0,<3.0"
           uv pip install --system -r requirements.txt -r requirements-dev.txt
 
       - name: Run tests (sharded)

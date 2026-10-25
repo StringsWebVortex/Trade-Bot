@@ -45,10 +45,17 @@ COPY requirements.txt ./
 # died on "No space left on device" before it reached the scan. The range pin
 # below is already satisfied when pip reaches requirements.txt, so that file
 # stays the single source of truth for the version.
+#
+# pip does not look inside --prefix for what is already installed, so the
+# second pass needs /install on PYTHONPATH. Without it the pre-pass's torch
+# is not seen as satisfied, and a dependency the pre-pass installed (filelock
+# 3.32.3, CVE-2026-112940) is not upgraded but installed again beside itself:
+# its old dist-info stays in the image and the scan reads it (SEC-0012).
 RUN python -m pip install --no-cache-dir --upgrade pip \
     && python -m pip install --no-cache-dir --prefix=/install \
-         --index-url https://download.pytorch.org/whl/cpu "torch>=2.3,<3.0" \
-    && python -m pip install --no-cache-dir --prefix=/install -r requirements.txt
+         --index-url https://download.pytorch.org/whl/cpu "torch>=2.14.0,<3.0" \
+    && PYTHONPATH=/install/lib/python3.11/site-packages \
+         python -m pip install --no-cache-dir --prefix=/install -r requirements.txt
 
 COPY src ./src
 COPY common ./common
@@ -79,11 +86,7 @@ RUN apt-get update \
 # their METADATA, and the base image's copy lags the fixed release. Upgrading
 # it here is cheaper than carrying an ignore file that somebody has to
 # remember to prune.
-# The base image also carries an old filelock dist-info record. The build
-# stage installs the patched library under /install, which does not uninstall
-# packages preinstalled in this runtime base. Upgrade it here first so the
-# subsequent COPY cannot leave vulnerable stale metadata beside the fixed copy.
-RUN python -m pip install --no-cache-dir --upgrade pip setuptools "filelock>=4.2.1,<5.0"
+RUN python -m pip install --no-cache-dir --upgrade pip setuptools
 
 # A fixed uid/gid rather than whatever the base assigns: a volume mounted from
 # the host has to match something, and "whatever useradd picked" is not a

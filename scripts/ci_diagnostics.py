@@ -7,6 +7,7 @@ filtered Check Run report and has no Actions API fallback.
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import io
 import json
@@ -716,8 +717,8 @@ def _is_report_check(job: dict[str, Any]) -> bool:
 def _jobs_for_run(slug: str, run_id: int) -> list[dict[str, Any]]:
     # Check runs this collector publishes with GITHUB_TOKEN are attached to the
     # GitHub Actions check suite, so the jobs API lists them under the source
-    # workflow run. The master stays in_progress until finalization; counting it
-    # would make the collector wait on its own report until the deadline.
+    # workflow run. A master an older collector left in_progress would otherwise
+    # make the collector wait on its own report until the deadline.
     jobs = _pages(f"repos/{slug}/actions/runs/{run_id}/jobs?filter=latest", "jobs")
     return [job for job in jobs if not _is_report_check(job)]
 
@@ -1084,6 +1085,7 @@ def _upsert_check_run(
     status: str,
     output: dict[str, str],
     details_url: str,
+    conclusion: str = "success",
 ) -> dict[str, Any]:
     body: dict[str, Any] = {
         "name": name,
@@ -1094,7 +1096,7 @@ def _upsert_check_run(
         "output": output,
     }
     if status == "completed":
-        body["conclusion"] = "success"
+        body["conclusion"] = conclusion
     if existing and isinstance(existing.get("id"), int):
         result = _json(f"repos/{slug}/check-runs/{int(existing['id'])}", method="PATCH", body=body)
     else:
@@ -1134,26 +1136,54 @@ def _report_runs(
     return (masters[-1] if masters else None), pages
 
 
-def _begin_master(slug: str, pr_number: int, sha: str, run_id: int, attempt: int) -> dict[str, Any]:
+def _settle_stale_master(slug: str, pr_number: int, sha: str, run_id: int, attempt: int) -> None:
+    """
+    Complete a master an earlier collector left ``in_progress`` on this SHA.
+
+    A check run created with GITHUB_TOKEN joins a source workflow run's check
+    suite, so an ``in_progress`` master holds that workflow run open: its
+    status stops reading ``completed`` and the wait below can never end. The
+    collector therefore never writes ``in_progress`` itself, and settles one
+    an older collector left behind before it starts waiting.
+    """
     master, _ = _report_runs(slug, sha, pr_number)
+    if master is None or master.get("status") == "completed":
+        return
+    _publish_failure(
+        slug, pr_number, sha, run_id, attempt, master, "superseded by a newer collector run"
+    )
+
+
+def _publish_failure(
+    slug: str,
+    pr_number: int,
+    sha: str,
+    run_id: int,
+    attempt: int,
+    master: dict[str, Any] | None,
+    reason: str,
+) -> None:
+    """Record why collection did not finalize, as a completed neutral master."""
     summary = _canonical_json(
         {
             "schema_version": 1,
-            "status": "collecting",
+            "status": "failed",
+            "reason": reason,
             "pr": pr_number,
             "head_sha": sha,
             "collector_run_id": run_id,
             "collector_run_attempt": attempt,
         }
     )
-    return _upsert_check_run(
+    _upsert_check_run(
         slug,
         sha,
         MASTER_NAME,
         _external_id(pr_number, sha),
         master,
-        status="in_progress",
-        output={"title": "CI diagnostics collection", "summary": summary},
+        status="completed",
+        conclusion="neutral",
+        output={"title": "CI diagnostics collection did not finalize", "summary": summary},
         details_url=f"https://github.com/{slug}/actions/runs/{run_id}",
     )
 
@@ -1335,7 +1365,34 @@ def _collect() -> int:
     except (KeyError, ValueError) as exc:
         raise DiagnosticError("Collector run identity is unavailable") from exc
 
-    master = _begin_master(slug, pr_number, sha, collector_run_id, collector_attempt)
+    _settle_stale_master(slug, pr_number, sha, collector_run_id, collector_attempt)
+    try:
+        _collect_and_publish(slug, pull, pr_number, sha, collector_run_id, collector_attempt)
+    except DiagnosticError as exc:
+        # The original error is the one worth reporting, so a failure to record
+        # it is suppressed; a report another collector run finalized stands.
+        with contextlib.suppress(DiagnosticError, OSError, ValueError, TypeError, KeyError):
+            master, _ = _report_runs(slug, sha, pr_number)
+            if not (
+                master
+                and master.get("status") == "completed"
+                and master.get("conclusion") == "success"
+            ):
+                _publish_failure(
+                    slug, pr_number, sha, collector_run_id, collector_attempt, master, str(exc)
+                )
+        raise
+    return 0
+
+
+def _collect_and_publish(
+    slug: str,
+    pull: dict[str, Any],
+    pr_number: int,
+    sha: str,
+    collector_run_id: int,
+    collector_attempt: int,
+) -> None:
     workflow_ids = _workflow_ids(slug)
     deadline = time.monotonic() + COLLECT_DEADLINE_SECONDS
     terminal_runs: dict[str, tuple[dict[str, Any], list[dict[str, Any]]]] = {}
@@ -1404,8 +1461,8 @@ def _collect() -> int:
         ),
     )
     _ensure_head_unchanged(slug, pr_number, sha)
+    master, _ = _report_runs(slug, sha, pr_number)
     _publish_report(slug, pr_number, sha, collector_run_id, collector_attempt, master, records)
-    return 0
 
 
 def _report_error(message: str, code: int = 2) -> int:
@@ -1551,7 +1608,18 @@ def _retrieve(pr_number: int) -> int:
             raise DiagnosticError(
                 "No finalized diagnostics report exists for the current PR head SHA"
             )
-        if master.get("status") != "completed" or master.get("conclusion") != "success":
+        if master.get("status") != "completed":
+            raise DiagnosticError("Diagnostics report is not finalized")
+        if master.get("conclusion") != "success":
+            failure = master.get("output") if isinstance(master.get("output"), dict) else {}
+            try:
+                failed = json.loads(str(failure.get("summary") or ""))
+            except json.JSONDecodeError:
+                failed = {}
+            if isinstance(failed, dict) and failed.get("status") == "failed":
+                raise DiagnosticError(
+                    f"Diagnostics collection failed: {failed.get('reason') or 'no reason given'}"
+                )
             raise DiagnosticError("Diagnostics report is not finalized")
         output = master.get("output") if isinstance(master.get("output"), dict) else {}
         try:
