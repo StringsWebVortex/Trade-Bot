@@ -47,11 +47,11 @@ deletion of the thing it points at.
 
 | Status | Entries |
 |---|---|
-| VERIFIED | 216 |
+| VERIFIED | 217 |
 | PARTIAL | 3 |
 | PLANNED | 0 |
 | ACCEPTED GAP | 0 |
-| **Total** | **219** |
+| **Total** | **220** |
 
 ## Summary by subsystem
 
@@ -64,7 +64,7 @@ deletion of the thing it points at.
 | Models and leakage | 10 | 10 |
 | Data, money and time | 10 | 9 |
 | API and WebSocket | 21 | 21 |
-| Cryptography and secrets | 30 | 30 |
+| Cryptography and secrets | 31 | 31 |
 | Supply chain and artifacts | 7 | 7 |
 | Resilience and recovery | 24 | 24 |
 | Release and production | 14 | 14 |
@@ -1370,6 +1370,19 @@ The integrated terminal adds a command-execution surface; nothing reaches it exc
   - `frontend/src/desktop/terminalBridge.test.js` (security)
 
 > layer: test-suite
+
+#### `SEC-0012` — The runtime manifest never resolves a vulnerable filelock
+
+**VERIFIED** · high · security_regression · source: OPS-2026-10-25
+
+requirements.txt declares filelock>=4.2.1, and every Dockerfile install into the build prefix after the CPU torch pre-pass runs with that prefix on PYTHONPATH, so neither the runtime nor the container image carries filelock 3.32.3 (CVE-2026-112940).
+
+- **If violated:** filelock was only a transitive dependency of torch and huggingface-hub, both unbounded, so pip kept filelock 3.32.3; the container scan reported CVE-2026-112940 and every PR's Security gate went red. The floor alone did not clear the image: pip does not see packages inside --prefix, so the requirements pass installed filelock 4.x beside the pre-pass's 3.32.3 and the stale dist-info stayed in the image.
+- **Owned by:** `requirements.txt`, `Dockerfile`
+- **Verification:**
+  - `tests/security/test_filelock_cve_floor.py` (security)
+
+> The advisory was published against a release nobody here chose, so no commit or review could have seen it arrive. layer: supply-chain
 
 ## Supply chain and artifacts
 
@@ -2838,4 +2851,4 @@ To add or change an entry, edit the registry and regenerate this file. See
 `docs/quality/TEST_STRATEGY.md` for the taxonomy the `test_type` column draws
 on, and `docs/quality/IMPLEMENTATION_PLAN.md` for what each phase delivers.
 
-Registry version: 1.0.0 — 219 entries.
+Registry version: 1.0.0 — 220 entries.
