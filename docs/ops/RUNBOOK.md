@@ -33,13 +33,10 @@ each behavior. Update this file when they move.
 ## Metrics
 
 `/metrics` (Prometheus) is behind the `X-API-Key` header check
-([src/api/main.py](../../src/api/main.py) line ~646). Prometheus itself
-cannot inject that header, so either:
-
-- Front the API with a reverse proxy that injects the key on the
-  `/metrics` path (recommended), or
-- Run a metrics-only sidecar that hits `/metrics` with the key and
-  re-exposes on an internal port.
+([src/api/main.py](../../src/api/main.py)). Prometheus 2.55 and later sends
+the header itself through `http_headers`: put a read-only key
+(`API_READONLY_KEY`) in a file mounted at `/etc/prometheus/tradebot.key`.
+Never strip the check in a proxy instead; the scrape carries equity values.
 
 Scrape config: [deploy/prometheus.yml](../prometheus.yml).
 Alert rules: [deploy/alerts.yml](../alerts.yml).

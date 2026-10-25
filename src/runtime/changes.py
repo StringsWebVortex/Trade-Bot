@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import threading
 import uuid
+from collections import deque
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
@@ -241,6 +242,15 @@ def _utc_now() -> datetime:
     return datetime.now(UTC)
 
 
+# In-memory bounds (audit API-021). The persisted audit_log is the full
+# history; these keep the process from growing with every request. Only
+# changes that never executed (rejected, cancelled) are forgotten: an executed
+# change stays, so its change id can never be replayed as a new request.
+_AUDIT_LIMIT = 10_000
+_UNEXECUTED_LIMIT = 1_000
+_UNEXECUTED: frozenset[ChangeStatus] = frozenset({ChangeStatus.REJECTED, ChangeStatus.CANCELLED})
+
+
 class ChangeManager:
     def __init__(
         self,
@@ -258,7 +268,7 @@ class ChangeManager:
         self._horizon_models = horizon_models
         self._lock = threading.RLock()
         self._changes: dict[str, ChangeRecord] = {}
-        self._audit: list[AuditEntry] = []
+        self._audit: deque[AuditEntry] = deque(maxlen=_AUDIT_LIMIT)
         # Desired state before each executed change, restored on rollback.
         self._previous_desired: dict[str, DesiredState | None] = {}
 
@@ -727,6 +737,7 @@ class ChangeManager:
         self._audit_entry(
             change, f"submitted:{status.value}", request.actor.name, "; ".join(reasons)
         )
+        self._forget_unexecuted()
         return change
 
     def _move(
@@ -736,7 +747,15 @@ class ChangeManager:
         self._changes[change.change_id] = updated
         detail = str(changes.get("result") or changes.get("rollback") or status.value)
         self._audit_entry(updated, event, actor, detail)
+        self._forget_unexecuted()
         return updated
+
+    def _forget_unexecuted(self) -> None:
+        """Drop the oldest rejected/cancelled changes beyond the in-memory bound."""
+        unexecuted = [cid for cid, c in self._changes.items() if c.status in _UNEXECUTED]
+        for change_id in unexecuted[: max(0, len(unexecuted) - _UNEXECUTED_LIMIT)]:
+            del self._changes[change_id]
+            self._previous_desired.pop(change_id, None)
 
     def _audit_entry(self, change: ChangeRecord, event: str, actor: str, detail: str) -> None:
         self._append_audit(change.change_id, change.request.component_id, event, actor, detail)
