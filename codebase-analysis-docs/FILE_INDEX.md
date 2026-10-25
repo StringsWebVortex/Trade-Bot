@@ -24,7 +24,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 9 | P0 | config/command_policy.json | JSON | 264 | 84e63848 | Tool command and CI observation policy |
 | 10 | P0 | config/horizons.yaml | YAML | 53 | 2ede87ec | Auxiliary prediction horizon definitions |
 | 11 | P0 | config/math_registry.json | JSON | 1903 | 8fa18ffc | Mathematical object registry |
-| 12 | P0 | config/quality_registry.json | JSON | 6250 | a93b23f1 | Requirements, regressions and deciding tests |
+| 12 | P0 | config/quality_registry.json | JSON | 6250 | eb8ae74b | Requirements, regressions and deciding tests |
 | 13 | P0 | config/risk.yaml | YAML | 26 | dd4766f8 | Horizon/intelligence risk, distinct from core Settings |
 | 14 | P0 | docker-compose.yml | YAML | 82 | 80ec3eca | API/Timescale/optional-worker composition |
 | 15 | P0 | docs/quality/CI_GATE_ARCHITECTURE.md | Markdown | 255 | 02726345 | CI gates |
@@ -78,7 +78,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 8 | P0 | config/command_policy.json | JSON | 264 | 84e63848 | Tool command and CI observation policy |
 | 9 | P0 | config/horizons.yaml | YAML | 53 | 2ede87ec | Auxiliary prediction horizon definitions |
 | 10 | P0 | config/math_registry.json | JSON | 1903 | 8fa18ffc | Mathematical object registry |
-| 11 | P0 | config/quality_registry.json | JSON | 6250 | a93b23f1 | Requirements, regressions and deciding tests |
+| 11 | P0 | config/quality_registry.json | JSON | 6250 | eb8ae74b | Requirements, regressions and deciding tests |
 | 12 | P0 | config/risk.yaml | YAML | 26 | dd4766f8 | Horizon/intelligence risk, distinct from core Settings |
 | 13 | P0 | docker-compose.yml | YAML | 82 | 80ec3eca | API/Timescale/optional-worker composition |
 | 14 | P0 | docs/quality/CI_GATE_ARCHITECTURE.md | Markdown | 255 | 02726345 | CI gates |
@@ -183,7 +183,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 113 | P1 | docs/quality/QUALITY_BASELINE.md | Markdown | 125 | bbc75e22 |  |
 | 114 | P1 | docs/quality/QUALITY_METRICS.md | Markdown | 122 | 386b71a5 |  |
 | 115 | P1 | docs/quality/QUALITY_POLICY.md | Markdown | 232 | 8c4629b8 |  |
-| 116 | P1 | docs/quality/REQUIREMENTS_TRACEABILITY.md | Markdown | 3202 | 36dd0d4f |  |
+| 116 | P1 | docs/quality/REQUIREMENTS_TRACEABILITY.md | Markdown | 3202 | d04fdc38 |  |
 | 117 | P1 | docs/quality/ROOT_CAUSE_TEMPLATE.md | Markdown | 84 | a55b20e9 |  |
 | 118 | P1 | docs/quality/TEST_STRATEGY.md | Markdown | 252 | efbde1ba |  |
 | 119 | P1 | docs/runtime/IMPLEMENTATION_MATRIX.md | Markdown | 79 | 7e5cd563 |  |
@@ -277,12 +277,12 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 207 | P1 | src/agent_control/store.py | Python | 152 | 4fac49db |  |
 | 208 | P1 | src/agent_control/workspace.py | Python | 716 | 4e0e96e2 |  |
 | 209 | P1 | src/api/__init__.py | Python | 1 | 01ba4719 |  |
-| 210 | P1 | src/api/control_surface.py | Python | 580 | b1d33acc |  |
+| 210 | P1 | src/api/control_surface.py | Python | 581 | d36f67e4 |  |
 | 211 | P1 | src/api/error_hygiene.py | Python | 191 | e525a93b |  |
 | 212 | P1 | src/api/fail_closed.py | Python | 144 | 8c661a47 |  |
 | 213 | P1 | src/api/middleware.py | Python | 53 | 46c6392c |  |
 | 214 | P1 | src/api/object_refs.py | Python | 118 | fd35ed74 |  |
-| 215 | P1 | src/api/operator_secret.py | Python | 60 | cadc0f9a |  |
+| 215 | P1 | src/api/operator_secret.py | Python | 58 | 8a2c0862 |  |
 | 216 | P1 | src/api/readiness.py | Python | 137 | bc260008 |  |
 | 217 | P1 | src/api/runtime_control.py | Python | 325 | 15f8de40 |  |
 | 218 | P1 | src/api/security_headers.py | Python | 119 | d65ab5d5 |  |
@@ -598,7 +598,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 528 | P1 | tests/agent_control/test_store.py | Python | 148 | 3d540971 |  |
 | 529 | P1 | tests/agent_control/test_workspace.py | Python | 354 | 57897d20 |  |
 | 530 | P1 | tests/api/__init__.py | Python | 0 | e3b0c442 |  |
-| 531 | P1 | tests/api/test_authz_and_secrets.py | Python | 259 | a5b1230a |  |
+| 531 | P1 | tests/api/test_authz_and_secrets.py | Python | 272 | 39c0ac26 |  |
 | 532 | P1 | tests/api/test_error_hygiene.py | Python | 288 | 749686a5 |  |
 | 533 | P1 | tests/api/test_fail_closed_controls.py | Python | 181 | f3a5af5f |  |
 | 534 | P1 | tests/api/test_injection_and_rate_limiting.py | Python | 283 | 7dc17358 |  |
@@ -706,7 +706,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 636 | P1 | tests/regime/test_garch.py | Python | 148 | 8a4195c0 |  |
 | 637 | P1 | tests/regression/__init__.py | Python | 0 | e3b0c442 |  |
 | 638 | P1 | tests/regression/test_metrics_payload.py | Python | 120 | 094976c7 |  |
-| 639 | P1 | tests/regression/test_regression_registry_contract.py | Python | 654 | 9f54fed1 |  |
+| 639 | P1 | tests/regression/test_regression_registry_contract.py | Python | 673 | 087c430f |  |
 | 640 | P1 | tests/risk/__init__.py | Python | 0 | e3b0c442 |  |
 | 641 | P1 | tests/risk/test_probability_bounds.py | Python | 137 | a3b65a78 |  |
 | 642 | P1 | tests/risk/test_risk_limit_boundaries.py | Python | 300 | 37b9b36e |  |
@@ -1159,7 +1159,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 1089 | P1 | tests/test_worker_trader.py | Python | 247 | b0481a7e |  |
 | 1090 | P1 | tests/test_workers_orchestrator.py | Python | 164 | 5f14b63f |  |
 | 1091 | P1 | tests/test_workers_orchestrator_coverage.py | Python | 424 | 503bd71e |  |
-| 1092 | P1 | tests/test_ws_auth_query_param.py | Python | 137 | 0564e4c3 |  |
+| 1092 | P1 | tests/test_ws_auth_query_param.py | Python | 135 | f2cf255b |  |
 | 1093 | P1 | tests/test_ws_broadcaster.py | Python | 128 | b0deb4c0 |  |
 | 1094 | P1 | tests/test_ws_publish_lag_metric.py | Python | 182 | c3cfea00 |  |
 | 1095 | P1 | tests/test_ws_subscriptions.py | Python | 358 | 92ca6bd4 |  |

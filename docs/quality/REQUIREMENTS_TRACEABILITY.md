@@ -1064,7 +1064,7 @@ usePolling records failing requests (401, 5xx, unreachable) and the dashboard sh
 - **Verification:**
   - `frontend/src/security/frontendSecurity.test.jsx` (regression)
 
-> audit finding FE-06
+> audit finding FE-06. layer: test-suite
 
 #### `REG-1244` — The Configuration panel renders live settings
 
@@ -1077,7 +1077,7 @@ ConfigPanel renders values from GET /controls, not hardcoded literals.
 - **Verification:**
   - `frontend/src/security/frontendSecurity.test.jsx` (regression)
 
-> audit finding FE-09
+> audit finding FE-09. layer: test-suite
 
 #### `REG-1703` — One environment variable never binds two settings fields
 
@@ -1103,7 +1103,7 @@ POST /controls/{name} requires the CHANGE_EXECUTION_MODE permission and a health
 - **Verification:**
   - `tests/api/test_authz_and_secrets.py` (security)
 
-> audit finding API-001
+> audit finding API-001. layer: test-suite
 
 #### `SEC-1011` — /controls/execution_mode has the /execution-mode safeguards
 
@@ -1116,7 +1116,7 @@ Changing the execution mode through /controls/execution_mode goes through the sa
 - **Verification:**
   - `tests/api/test_authz_and_secrets.py` (security)
 
-> audit finding API-002
+> audit finding API-002. layer: test-suite
 
 #### `SEC-1012` — POST /controls writes only allow-listed settings and audits every write
 
@@ -1129,7 +1129,7 @@ Settings writes through POST /controls are limited to an explicit allow-list of 
 - **Verification:**
   - `tests/api/test_authz_and_secrets.py` (security)
 
-> audit finding API-003
+> audit finding API-003. layer: test-suite
 
 #### `SEC-1013` — GET /controls never renders secret values
 
@@ -1142,7 +1142,7 @@ Settings leaves whose names carry dsn, password, token, secret, uri or credentia
 - **Verification:**
   - `tests/api/test_authz_and_secrets.py` (security)
 
-> audit finding API-004
+> audit finding API-004. layer: test-suite
 
 #### `SEC-1014` — The WebSocket API key stays out of URLs and uvicorn logs
 
@@ -1155,7 +1155,7 @@ Browsers authenticate the WebSocket through an apikey.<hex> Sec-WebSocket-Protoc
 - **Verification:**
   - `tests/api/test_authz_and_secrets.py` (security)
 
-> audit finding API-005
+> audit finding API-005. layer: test-suite
 
 #### `SEC-1015` — Operator-secret guessing is bounded globally
 
@@ -1168,7 +1168,7 @@ All operator-secret checks share one failure budget that locks every route after
 - **Verification:**
   - `tests/api/test_authz_and_secrets.py` (security)
 
-> audit finding API-007
+> audit finding API-007. layer: test-suite
 
 ## Cryptography and secrets
 
@@ -1568,7 +1568,7 @@ The Vite build refuses VITE_API_KEY; the bundle may carry only VITE_API_READONLY
 - **Verification:**
   - `frontend/src/security/frontendSecurity.test.jsx` (security)
 
-> audit finding FE-01
+> audit finding FE-01. layer: test-suite
 
 #### `SEC-1241` — Electron opens only https externally and trusts only app-origin pages for the shell bridge
 
@@ -1581,7 +1581,7 @@ External URLs open only when https:; in-window navigation away from the app orig
 - **Verification:**
   - `frontend/src/security/frontendSecurity.test.jsx` (security)
 
-> audit finding FE-07
+> audit finding FE-07. layer: test-suite
 
 #### `SEC-1242` — The built dashboard page carries a Content-Security-Policy
 
@@ -1594,7 +1594,7 @@ The production index.html includes a CSP meta with script-src 'self', object-src
 - **Verification:**
   - `frontend/src/security/frontendSecurity.test.jsx` (security)
 
-> audit finding FE-08
+> audit finding FE-08. layer: test-suite
 
 ## Supply chain and artifacts
 
