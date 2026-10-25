@@ -283,6 +283,7 @@ class AutoTuningScheduler:
                             challenger_threshold=proposal.challenger_value,
                             challenger_floor=champion_floor,
                             features_cfg=self._settings.features,
+                            oos_start_ms=oos_start_ms,
                         )
                     return run_entropy_threshold_backtest(
                         samples,
@@ -406,6 +407,9 @@ class AutoTuningScheduler:
             if direction_model is None:
                 log.info("tuning.scheduler_no_direction_model")
             else:
+                # Bars the model was trained on are in-sample (STR-06); the
+                # artifact's mtime is the latest the training data can end.
+                oos_start_ms = self._direction_model_trained_at_ms()
                 for field_name in FEATURE_WINDOW_FIELDS:
                     param_name = f"features.{field_name}"
 
@@ -552,6 +556,12 @@ class AutoTuningScheduler:
             )
         except FileNotFoundError:
             return None
+
+    def _direction_model_trained_at_ms(self) -> int:
+        path = ModelTrainer.direction_model_path(
+            self._settings.storage.model_dir, self._symbol, self._timeframe
+        )
+        return int(path.stat().st_mtime * 1000)
 
     async def _build_feature_bars_df(self) -> pd.DataFrame | None:
         latest_ts = await self._storage.latest_bar_ts(self._symbol, self._timeframe)

@@ -19,6 +19,7 @@ Registry: MODL-006 (config/quality_registry.json).
 
 from __future__ import annotations
 
+import re
 import time
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -26,11 +27,18 @@ from typing import Any
 
 import numpy as np
 import structlog
+from scipy import stats as scipy_stats
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
 _SHADOW_HOURS = float(__import__("os").environ.get("SHADOW_HOURS", "24"))
-_SHARPE_EPSILON = 0.05  # challenger must exceed incumbent by 5% Sharpe
+_SHARPE_EPSILON = 0.05  # challenger must exceed incumbent by 0.05 absolute (annualised) Sharpe
+# Promotion also needs this many paired samples and a significant paired
+# difference (MTH-010): an absolute Sharpe margin alone is noise on ~24 samples.
+_MIN_PAIRED_SAMPLES = 30
+_SIGNIFICANCE_ALPHA = 0.05
+# Hourly crypto bars (365 x 24); the equity-daily 252 misstated magnitudes.
+_DEFAULT_PERIODS_PER_YEAR = 365.0 * 24.0
 
 
 @dataclass
@@ -45,6 +53,7 @@ class ModelRecord:
     # Monotonic, not epoch: this is only ever read as an elapsed duration by
     # age_hours(), never serialised or reported as a wall-clock time.
     start_ts: float = field(default_factory=time.monotonic)
+    periods_per_year: float = 252.0
 
     def sharpe(self) -> float:
         arr = np.array(self.returns)
@@ -53,7 +62,7 @@ class ModelRecord:
         std = float(np.std(arr))
         if std < 1e-9:
             return 0.0
-        return float(np.mean(arr) / std * np.sqrt(252))
+        return float(np.mean(arr) / std * np.sqrt(self.periods_per_year))
 
     def age_hours(self) -> float:
         """
@@ -102,13 +111,22 @@ class ShadowDeployer:
         shadow_hours: float = _SHADOW_HOURS,
         sharpe_epsilon: float = _SHARPE_EPSILON,
         mlflow_tracking_uri: str | None = None,
+        min_samples: int = _MIN_PAIRED_SAMPLES,
+        alpha: float = _SIGNIFICANCE_ALPHA,
+        periods_per_year: float = _DEFAULT_PERIODS_PER_YEAR,
     ) -> None:
+        self._min_samples = min_samples
+        self._alpha = alpha
         self._shadow_hours = shadow_hours
         self._sharpe_epsilon = sharpe_epsilon
         self._mlflow_uri = mlflow_tracking_uri
 
-        self._incumbent = ModelRecord(name=incumbent_name, model=incumbent)
-        self._challenger = ModelRecord(name=challenger_name, model=challenger)
+        self._incumbent = ModelRecord(
+            name=incumbent_name, model=incumbent, periods_per_year=periods_per_year
+        )
+        self._challenger = ModelRecord(
+            name=challenger_name, model=challenger, periods_per_year=periods_per_year
+        )
         self._active = False
         self._result: ABResult | None = None
 
@@ -138,7 +156,7 @@ class ShadowDeployer:
         return 0.0
 
     def record_return(
-        self, actual_return: float, incumbent_pred: float = 0.0, challenger_pred: float = 0.0
+        self, actual_return: float, incumbent_pred: float, challenger_pred: float
     ) -> None:
         """
         Record realized return and compute per-model P&L attribution.
@@ -146,8 +164,10 @@ class ShadowDeployer:
         The sign of the prediction determines direction;
         the realized_return is the market return over the horizon.
         """
-        inc_dir = np.sign(incumbent_pred) if incumbent_pred else 0.0
-        cha_dir = np.sign(challenger_pred) if challenger_pred else 0.0
+        # Required and coerced: a defaulted 0.0 silently recorded zero returns
+        # for both arms, and `if pred` raised on an array-valued prediction.
+        inc_dir = float(np.sign(float(incumbent_pred)))
+        cha_dir = float(np.sign(float(challenger_pred)))
 
         self._incumbent.returns.append(float(inc_dir * actual_return))
         self._challenger.returns.append(float(cha_dir * actual_return))
@@ -176,13 +196,27 @@ class ShadowDeployer:
 
         inc_sharpe = self._incumbent.sharpe()
         cha_sharpe = self._challenger.sharpe()
-        promote = cha_sharpe > inc_sharpe + self._sharpe_epsilon
+        margin_ok = cha_sharpe > inc_sharpe + self._sharpe_epsilon
+        n = len(self._challenger.returns)
+        p_value = self._paired_p_value()
+        enough = n >= self._min_samples
+        significant = enough and p_value < self._alpha
+        promote = margin_ok and significant
 
-        reason = (
-            f"challenger {cha_sharpe:.3f} > incumbent {inc_sharpe:.3f} + eps {self._sharpe_epsilon}"
-            if promote
-            else f"challenger {cha_sharpe:.3f} <= incumbent {inc_sharpe:.3f} + eps {self._sharpe_epsilon}"
-        )
+        if promote:
+            reason = (
+                f"challenger {cha_sharpe:.3f} > incumbent {inc_sharpe:.3f} + eps "
+                f"{self._sharpe_epsilon}; paired p={p_value:.4f} < {self._alpha} (n={n})"
+            )
+        elif margin_ok and not enough:
+            reason = f"insufficient paired samples: {n} < {self._min_samples}"
+        elif margin_ok:
+            reason = f"Sharpe margin not significant: paired p={p_value:.4f} >= {self._alpha}"
+        else:
+            reason = (
+                f"challenger {cha_sharpe:.3f} <= incumbent {inc_sharpe:.3f} "
+                f"+ eps {self._sharpe_epsilon}"
+            )
 
         self._result = ABResult(
             promoted=promote,
@@ -199,6 +233,22 @@ class ShadowDeployer:
 
         return self._result
 
+    def _paired_p_value(self) -> float:
+        """One-sided paired t-test p-value that challenger returns exceed incumbent's.
+
+        1.0 (never significant) when the sample is too small or the paired
+        difference has no variance.
+        """
+        inc = np.asarray(self._incumbent.returns, dtype=float)
+        cha = np.asarray(self._challenger.returns, dtype=float)
+        if len(inc) != len(cha) or len(inc) < 2:
+            return 1.0
+        diff = cha - inc
+        if float(np.std(diff)) < 1e-12:
+            return 1.0
+        p = float(scipy_stats.ttest_rel(cha, inc, alternative="greater").pvalue)
+        return 1.0 if np.isnan(p) else p
+
     def _generate_evidently_report(self) -> None:
         """Generate Evidently data drift report comparing incumbent vs challenger predictions."""
         try:
@@ -210,9 +260,9 @@ class ShadowDeployer:
             cur = pd.DataFrame({"prediction": self._challenger.returns})
             report = Report(metrics=[DataDriftPreset()])
             report.run(reference_data=ref, current_data=cur)
-            report.save_html(
-                f"./models/shadow_report_{self._incumbent.name}_vs_{self._challenger.name}.html"
-            )
+            inc_name = re.sub(r"[^A-Za-z0-9_.-]", "_", self._incumbent.name)
+            cha_name = re.sub(r"[^A-Za-z0-9_.-]", "_", self._challenger.name)
+            report.save_html(f"./models/shadow_report_{inc_name}_vs_{cha_name}.html")
             log.info("evidently_report_saved")
         except ImportError:
             log.debug("evidently_not_installed_skipping_report")

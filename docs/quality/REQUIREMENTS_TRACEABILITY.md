@@ -47,21 +47,21 @@ deletion of the thing it points at.
 
 | Status | Entries |
 |---|---|
-| VERIFIED | 216 |
+| VERIFIED | 222 |
 | PARTIAL | 3 |
 | PLANNED | 0 |
 | ACCEPTED GAP | 0 |
-| **Total** | **219** |
+| **Total** | **225** |
 
 ## Summary by subsystem
 
 | Subsystem | Entries | Verified |
 |---|---|---|
-| Risk | 11 | 11 |
+| Risk | 12 | 12 |
 | Execution | 13 | 12 |
 | Portfolio | 1 | 1 |
 | Signal and features | 6 | 6 |
-| Models and leakage | 10 | 10 |
+| Models and leakage | 15 | 15 |
 | Data, money and time | 10 | 9 |
 | API and WebSocket | 21 | 21 |
 | Cryptography and secrets | 30 | 30 |
@@ -227,6 +227,19 @@ When RiskGate.check_drift reports drift for the contributing horizon, CryptoInte
   - `tests/test_crypto_intel_signal_path.py` (regression)
 
 > layer: test-suite
+
+#### `REG-1110` — Watchdog rollback restores the live registry and the runner starts probation
+
+**VERIFIED** · high · regression · source: OPS-2026-10-25
+
+After a live promotion the runner starts post-promotion probation; a watchdog rollback restores the rolled-back value in the parameter registry that live_overrides reads, and the runner refuses new attempts on a watchdog-locked parameter.
+
+- **If violated:** start_probation was never called, and a rollback only appended to the version store, so the bad promoted value kept driving live trading until restart.
+- **Owned by:** `src/tuning/watchdog.py`, `src/tuning/runner.py`
+- **Verification:**
+  - `tests/test_tuning_promotion_rollback_wiring.py` (regression)
+
+> audit finding STR-04
 
 ## Execution
 
@@ -609,6 +622,71 @@ Orchestrator._metrics_payload() builds a complete metrics snapshot for every tic
   - `tests/regression/test_metrics_payload.py` (regression)
 
 > Pins payload completeness with and without an executor, the method-vs-property fact the bug turned on, and the original TypeError as a negative case. layer: test-suite
+
+#### `REG-1111` — Promotion gate deflates for the number of prior attempts
+
+**VERIFIED** · high · regression · source: OPS-2026-10-25
+
+The promotion gate rejects a primary-metric improvement that fails the deflated Sharpe ratio (or the Bonferroni-adjusted p-value when no samples exist) for the count of PROPOSED attempts on the parameter.
+
+- **If violated:** Hourly attempts each tested at nominal alpha 0.05 against the same data, so a false promotion became near certain over time.
+- **Owned by:** `src/tuning/gate.py`, `src/tuning/runner.py`
+- **Verification:**
+  - `tests/test_tuning_gate_multiple_testing.py` (regression)
+
+> audit finding STR-05
+
+#### `REG-1112` — Feature-window backtest excludes training bars
+
+**VERIFIED** · high · regression · source: OPS-2026-10-25
+
+run_feature_window_backtest scores only bars after oos_start_ms (the frozen model's training end) and the scheduler passes the model artifact's training time, so the reported oos_sharpe is out-of-sample.
+
+- **If violated:** The deployed model was scored on bars it was trained on, so the OOS Sharpe was in-sample and biased toward the champion window.
+- **Owned by:** `src/tuning/backtest_harness.py`, `src/tuning/scheduler.py`
+- **Verification:**
+  - `tests/test_tuning_feature_window_oos.py` (regression)
+
+> audit finding STR-06
+
+#### `REG-1113` — Optuna walk-forward is embargoed and prunes failed folds
+
+**VERIFIED** · high · regression · source: OPS-2026-10-25
+
+WalkForwardStudy leaves an embargo gap between train and test, keeps remainder rows, annualises with a configurable periods_per_year, rejects too-short data and prunes the trial when a fold fails instead of scoring -999.
+
+- **If violated:** Labels leaked across the train/test boundary, sqrt(252) misstated crypto Sharpe, and one transient fold error injected -999 into the TPE objective.
+- **Owned by:** `src/upgrade/optuna_wf.py`
+- **Verification:**
+  - `tests/test_upgrade_optuna_wf_leakage.py` (regression)
+
+> audit finding MTH-009
+
+#### `REG-1114` — Shadow deployment promotes only on a significant paired improvement
+
+**VERIFIED** · high · regression · source: OPS-2026-10-25
+
+ShadowDeployer promotes only with at least min_samples paired returns, a Sharpe margin and a one-sided paired t-test below alpha; record_return requires both predictions.
+
+- **If violated:** An absolute 0.05 Sharpe margin on about 5 samples promoted noise, and defaulted predictions recorded zero returns for both arms.
+- **Owned by:** `src/upgrade/shadow_deploy.py`
+- **Verification:**
+  - `tests/test_upgrade_shadow_deploy_significance.py` (regression)
+
+> audit finding MTH-010
+
+#### `REG-1115` — ModelRegistry promotion needs paired windows and a minimum improvement
+
+**VERIFIED** · high · regression · source: OPS-2026-10-25
+
+ModelRegistry.evaluate_shadow requires equal-length shadow and live windows and an accuracy gain of at least min_improvement, and promote_shadow re-runs the evaluation and refuses otherwise.
+
+- **If violated:** Any accuracy difference, including against an empty live window scored 0.0, made a shadow ready, and promote_shadow did not re-check.
+- **Owned by:** `src/models/model_registry.py`
+- **Verification:**
+  - `tests/test_model_registry_promotion_gate.py` (regression)
+
+> audit finding INT-024
 
 ## Data, money and time
 
@@ -2838,4 +2916,4 @@ To add or change an entry, edit the registry and regenerate this file. See
 `docs/quality/TEST_STRATEGY.md` for the taxonomy the `test_type` column draws
 on, and `docs/quality/IMPLEMENTATION_PLAN.md` for what each phase delivers.
 
-Registry version: 1.0.0 — 219 entries.
+Registry version: 1.0.0 — 225 entries.

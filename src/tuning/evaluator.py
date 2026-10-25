@@ -51,6 +51,10 @@ class MetricComparison:
     p_value: float
     significant_improvement: bool
     significant_regression: bool
+    # Challenger per-fold/per-trade samples, kept so the promotion gate can
+    # deflate for the number of prior attempts (STR-05). Empty when the
+    # comparison came from a proportion test.
+    challenger_samples: tuple[float, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -62,6 +66,12 @@ class EvaluationResult:
     @property
     def any_significant_regression(self) -> bool:
         return any(c.significant_regression for c in self.comparisons)
+
+    def comparison(self, metric_name: str) -> MetricComparison:
+        for c in self.comparisons:
+            if c.metric_name == metric_name:
+                return c
+        raise KeyError(f"metric {metric_name!r} not in evaluation result")
 
     def improved(self, metric_name: str) -> bool:
         for c in self.comparisons:
@@ -186,6 +196,7 @@ class ChallengerEvaluator:
             p_value=p_value_one_tailed,
             significant_improvement=significant_improvement,
             significant_regression=significant_regression,
+            challenger_samples=tuple(float(x) for x in challenger_samples),
         )
 
     def compare_proportion(
