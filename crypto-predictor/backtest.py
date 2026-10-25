@@ -3,6 +3,8 @@ Walk-forward backtest engine.
 
 Design rules enforced here (see ARCHITECTURE.md section 2.5):
   1. Never train on future data relative to the test window (walk-forward only).
+     A training row's label looks `horizon` candles ahead, so the last `horizon`
+     training rows are purged before each test window.
   2. Label = FUTURE return, but the label column is never in the feature set
      used for that same row's prediction (checked explicitly below).
   3. Fees + slippage are always subtracted — an edge that vanishes after
@@ -14,7 +16,7 @@ Design rules enforced here (see ARCHITECTURE.md section 2.5):
 import numpy as np
 import pandas as pd
 from data_fetch_kraken import fetch_ohlcv
-from indicators import build_feature_matrix
+from indicators import build_feature_matrix, forward_direction_label
 from xgboost import XGBClassifier
 
 from risk import calibrate_probabilities, kelly_fraction
@@ -31,12 +33,12 @@ def build_dataset(df: pd.DataFrame, horizon: int = 4):
     """
     feats = build_feature_matrix(df)
     future_return = df["close"].shift(-horizon) / df["close"] - 1
-    label = (future_return > 0).astype(int)
 
     data = feats.copy()
-    data["label"] = label
+    data["label"] = forward_direction_label(df["close"], horizon)
     data["future_return"] = future_return  # used only for P&L simulation, not as a feature
-    data = data.dropna()
+    data = data.dropna()  # drops the warm-up rows and the last `horizon` rows (no future close)
+    data["label"] = data["label"].astype(int)
     return data
 
 
@@ -53,8 +55,12 @@ def walk_forward_backtest(
 
     start = 0
     while start + train_window + test_window <= len(data):
-        train = data.iloc[start : start + train_window]
-        test = data.iloc[start + train_window : start + train_window + test_window]
+        # Purge: row i's label uses the close at i + horizon. Rows at or after
+        # (test start - horizon) would therefore be labelled with prices that
+        # fall inside the test window, so they are removed from training.
+        test_start = start + train_window
+        train = data.iloc[start : test_start - horizon]
+        test = data.iloc[test_start : test_start + test_window]
 
         model = XGBClassifier(
             n_estimators=100,
@@ -101,29 +107,42 @@ def walk_forward_backtest(
     return pd.concat(results) if results else pd.DataFrame()
 
 
-def evaluate(results: pd.DataFrame):
+def evaluate(results: pd.DataFrame, horizon: int = 4) -> dict | None:
+    """
+    Print and return the cost-adjusted metrics for a walk-forward run.
+
+    Each row's forward return spans `horizon` candles, and consecutive rows
+    overlap. Compounding every row would count the same price move up to
+    `horizon` times, so P&L is simulated on every `horizon`-th row only, which
+    gives non-overlapping holding periods. Accuracy is per-row and uses all rows.
+    """
     if results.empty:
         print("Not enough data for a full walk-forward pass — need more history.")
-        return
+        return None
 
     accuracy = (results["pred"] == results["label"]).mean()
 
+    # Non-overlapping holding periods: one trade per `horizon` candles.
+    sim = results.iloc[::horizon]
+
     # Simulate P&L: position sized by quarter-Kelly fraction (risk.py), not
     # flat full-notional per signal. Costs apply only to capital actually deployed.
-    pos = results["position_size"].to_numpy()
-    strat_return = pos * (results["future_return"].to_numpy() - FEE_RATE - SLIPPAGE_RATE)
-    avg_position_size = results.loc[results["pred"] == 1, "position_size"].mean()
-    cum_return = (1 + pd.Series(strat_return, index=results.index)).cumprod()
+    pos = sim["position_size"].to_numpy()
+    strat_return = pos * (sim["future_return"].to_numpy() - FEE_RATE - SLIPPAGE_RATE)
+    avg_position_size = sim.loc[sim["pred"] == 1, "position_size"].mean()
+    cum_return = (1 + pd.Series(strat_return, index=sim.index)).cumprod()
 
-    n_trades = int((results["pred"] == 1).sum())
+    n_trades = int((sim["pred"] == 1).sum())
     total_return_pct = (cum_return.iloc[-1] - 1) * 100 if len(cum_return) else 0.0
 
     running_max = cum_return.cummax()
     drawdown = (cum_return - running_max) / running_max
     max_dd_pct = drawdown.min() * 100 if len(drawdown) else 0.0
 
-    ann_factor = np.sqrt(252 * 24)  # approx for 1h candles
-    ret_series = pd.Series(strat_return, index=results.index)
+    # Each simulated return covers `horizon` hours, so periods per year is
+    # 365 * 24 / horizon. Crypto trades 24/7, so there is no 252-day calendar.
+    ann_factor = np.sqrt(365 * 24 / horizon)
+    ret_series = pd.Series(strat_return, index=sim.index)
     sharpe = (
         ret_series.mean() / ret_series.std() * ann_factor if ret_series.std() > 0 else float("nan")
     )
@@ -147,6 +166,16 @@ def evaluate(results: pd.DataFrame):
     print("literature. A number far above this on a short sample is far more")
     print("likely overfitting/small-sample luck than genuine edge.")
 
+    return {
+        "accuracy": float(accuracy),
+        "n_test_rows": len(results),
+        "n_trades": n_trades,
+        "avg_position_size": float(avg_position_size) if n_trades else 0.0,
+        "total_return_pct": float(total_return_pct),
+        "max_drawdown_pct": float(max_dd_pct),
+        "sharpe": float(sharpe),
+    }
+
 
 if __name__ == "__main__":
     print("Fetching real BTC/USD 1h candles from Kraken...")
@@ -157,4 +186,4 @@ if __name__ == "__main__":
     print(f"Usable rows after feature warm-up: {len(dataset)}\n")
 
     results = walk_forward_backtest(dataset, train_window=300, test_window=50, horizon=4)
-    evaluate(results)
+    evaluate(results, horizon=4)

@@ -5613,6 +5613,108 @@
         }
       ],
       "depends_on": []
+    },
+    {
+      "id": "REG-1280",
+      "kind": "regression",
+      "title": "Standalone predictor drops the still-forming candle",
+      "statement": "crypto-predictor data fetchers never return the still-open candle: Binance rows whose close_time is in the future are removed, and the final uncommitted Kraken OHLC entry is removed.",
+      "criticality": "medium",
+      "subsystem": "data",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "A repainting bar entered features and labels, so backtest results looked better than the data available at the time.",
+      "owning_modules": [
+        "crypto-predictor/data_fetch.py",
+        "crypto-predictor/data_fetch_kraken.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_crypto_predictor_regressions.py",
+          "test_type": "regression"
+        }
+      ]
+    },
+    {
+      "id": "REG-1281",
+      "kind": "regression",
+      "title": "Predictor labels never fabricate a down move for unlabelable tail rows",
+      "statement": "forward_direction_label returns NaN for the last horizon rows, so they are dropped rather than labelled 0.",
+      "criticality": "medium",
+      "subsystem": "model",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "The last horizon rows entered training and test folds as down labels, biasing accuracy and PBO proxies.",
+      "owning_modules": [
+        "crypto-predictor/indicators.py",
+        "crypto-predictor/validation.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_crypto_predictor_regressions.py",
+          "test_type": "regression"
+        }
+      ]
+    },
+    {
+      "id": "REG-1282",
+      "kind": "regression",
+      "title": "Walk-forward training purges labels that overlap the test window",
+      "statement": "walk_forward_backtest excludes the last horizon training rows before each test block, because their labels use closes inside that block.",
+      "criticality": "medium",
+      "subsystem": "model",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "Training labels used prices from the test window, inflating out-of-sample accuracy.",
+      "owning_modules": [
+        "crypto-predictor/backtest.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_crypto_predictor_regressions.py",
+          "test_type": "regression"
+        }
+      ]
+    },
+    {
+      "id": "REG-1283",
+      "kind": "regression",
+      "title": "Backtest P&L uses non-overlapping holds and horizon-correct annualisation",
+      "statement": "evaluate compounds returns only on every horizon-th row and annualises with sqrt(365*24/horizon).",
+      "criticality": "medium",
+      "subsystem": "model",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "Overlapping forward returns were compounded and Sharpe used a 252-day factor, so total return and Sharpe were overstated.",
+      "owning_modules": [
+        "crypto-predictor/backtest.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_crypto_predictor_regressions.py",
+          "test_type": "regression"
+        }
+      ]
+    },
+    {
+      "id": "REG-1284",
+      "kind": "regression",
+      "title": "Probability calibration folds are time-ordered",
+      "statement": "calibrate_probabilities uses TimeSeriesSplit so the calibrator never trains on rows later than those it scores.",
+      "criticality": "medium",
+      "subsystem": "model",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "An unshuffled KFold calibrated on future rows and scored earlier ones, leaking information into the probabilities that drive Kelly sizing.",
+      "owning_modules": [
+        "crypto-predictor/risk.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_crypto_predictor_regressions.py",
+          "test_type": "regression"
+        }
+      ]
     }
   ]
 }

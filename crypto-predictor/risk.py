@@ -24,6 +24,7 @@ Risk/sizing module — actual professional formulas, not placeholders.
 
 import numpy as np
 from sklearn.calibration import CalibratedClassifierCV
+from sklearn.model_selection import TimeSeriesSplit
 
 
 def calibrate_probabilities(model, X_train, y_train, X_test, method: str = "isotonic"):
@@ -31,7 +32,9 @@ def calibrate_probabilities(model, X_train, y_train, X_test, method: str = "isot
     Wraps a fitted model with probability calibration.
     method: 'isotonic' (non-parametric, needs more data) or 'sigmoid' (Platt scaling).
     """
-    calibrated = CalibratedClassifierCV(model, method=method, cv=3)
+    # Time-ordered folds: a plain cv=3 is an unshuffled KFold, which would fit
+    # the calibrator on later rows and score it on earlier ones.
+    calibrated = CalibratedClassifierCV(model, method=method, cv=TimeSeriesSplit(n_splits=3))
     calibrated.fit(X_train, y_train)
     calibrated_probs = calibrated.predict_proba(X_test)[:, 1]
     return calibrated_probs, calibrated

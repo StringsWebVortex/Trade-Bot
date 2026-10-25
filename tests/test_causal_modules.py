@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+import pytest
 
 # ─── Granger ──────────────────────────────────────────────────────────────────
 
@@ -37,7 +38,9 @@ class TestGrangerCausalityDetector:
             "SOL": pd.Series(100 + np.random.randn(n).cumsum()),
         }
         result = gcd.update(btc, alt_prices)
-        assert isinstance(result, dict)
+        pytest.importorskip("statsmodels.tsa.stattools")
+        # Each alt symbol with a full window must get a result entry.
+        assert set(result) == {"ETH", "SOL"}
 
     def test_feature_vector_returns_floats(self) -> None:
         from src.causal.granger import GrangerCausalityDetector
