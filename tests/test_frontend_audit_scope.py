@@ -153,3 +153,35 @@ def test_concurrently_is_not_downgraded_to_dodge_the_advisory(manifest: dict) ->
     """
     spec = manifest["devDependencies"]["concurrently"]
     assert _version(spec)[0] >= 10, f"concurrently is pinned to {spec}"
+
+
+# SEC-0011: floors that clear the high advisories npm audit reported on main.
+# electron GHSA-jr5w-w6x2-84p9 (44.0.0-alpha.1 - 44.9.0), follow-redirects
+# GHSA-q3jh-wrc6-jgq8 / GHSA-8r9p-f939-6h3c (1.16.0), undici
+# GHSA-4qv8-2p9j-2685 / GHSA-f72v-6w45-q472 (7.0.0 - 7.30.0, 8.0.0 - 8.12.1).
+PATCHED_FLOORS = {
+    "electron": (44, 9, 1),
+    "follow-redirects": (1, 16, 1),
+    "undici": (7, 30, 1),
+}
+
+
+def test_electron_manifest_floor_excludes_the_advisory_range(manifest: dict) -> None:
+    spec = manifest["devDependencies"]["electron"]
+    assert _version(spec) >= PATCHED_FLOORS["electron"], spec
+
+
+@pytest.mark.parametrize("name", sorted(PATCHED_FLOORS))
+def test_lockfile_resolves_no_vulnerable_copy(lockfile: dict, name: str) -> None:
+    found = {
+        path: meta["version"]
+        for path, meta in lockfile["packages"].items()
+        if path.rsplit("node_modules/", 1)[-1] == name
+    }
+    assert found, f"{name} not in lockfile"
+    for path, version in found.items():
+        v = _version(version)
+        if name == "undici" and v[0] >= 8:
+            assert v >= (8, 12, 2), (path, version)
+        else:
+            assert v >= PATCHED_FLOORS[name], (path, version)
