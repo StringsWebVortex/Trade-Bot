@@ -1232,32 +1232,32 @@ SHA8 91ea9f0b; total lines 156.
 
 ## src/models/online_trainer.py
 
-SHA8 6c961c51; total lines 366.
+SHA8 e55987c8; total lines 377.
 
-- OnlinePrediction (class, lines 75-82): CHUNK_ID = src/models/online_trainer.py#75-82#6c961c51 — [[F:src/models/online_trainer.py#75-82#6c961c51]].
-- _OnlineModel (class, lines 86-111): CHUNK_ID = src/models/online_trainer.py#86-111#6c961c51 — [[F:src/models/online_trainer.py#86-111#6c961c51]].
-- _OnlineModel.partial_fit (method, lines 94-97): CHUNK_ID = src/models/online_trainer.py#94-97#6c961c51 — [[F:src/models/online_trainer.py#94-97#6c961c51]].
-- _OnlineModel.predict_proba (method, lines 99-102): CHUNK_ID = src/models/online_trainer.py#99-102#6c961c51 — [[F:src/models/online_trainer.py#99-102#6c961c51]].
-- _OnlineModel.record_outcome (method, lines 104-105): CHUNK_ID = src/models/online_trainer.py#104-105#6c961c51 — [[F:src/models/online_trainer.py#104-105#6c961c51]].
-- _OnlineModel.rolling_accuracy (method, lines 108-111): CHUNK_ID = src/models/online_trainer.py#108-111#6c961c51 — [[F:src/models/online_trainer.py#108-111#6c961c51]].
-- OnlineTrainer (class, lines 119-156, slice 1): CHUNK_ID = src/models/online_trainer.py#119-156#6c961c51 — [[F:src/models/online_trainer.py#119-156#6c961c51]].
-- OnlineTrainer (class, lines 157-194, slice 2): CHUNK_ID = src/models/online_trainer.py#157-194#6c961c51 — [[F:src/models/online_trainer.py#157-194#6c961c51]].
-- OnlineTrainer (class, lines 195-232, slice 3): CHUNK_ID = src/models/online_trainer.py#195-232#6c961c51 — [[F:src/models/online_trainer.py#195-232#6c961c51]].
-- OnlineTrainer (class, lines 233-270, slice 4): CHUNK_ID = src/models/online_trainer.py#233-270#6c961c51 — [[F:src/models/online_trainer.py#233-270#6c961c51]].
-- OnlineTrainer (class, lines 271-308, slice 5): CHUNK_ID = src/models/online_trainer.py#271-308#6c961c51 — [[F:src/models/online_trainer.py#271-308#6c961c51]].
-- OnlineTrainer (class, lines 309-346, slice 6): CHUNK_ID = src/models/online_trainer.py#309-346#6c961c51 — [[F:src/models/online_trainer.py#309-346#6c961c51]].
-- OnlineTrainer (class, lines 347-366, slice 7): CHUNK_ID = src/models/online_trainer.py#347-366#6c961c51 — [[F:src/models/online_trainer.py#347-366#6c961c51]].
-- OnlineTrainer.__init__ (method, lines 142-149): CHUNK_ID = src/models/online_trainer.py#142-149#6c961c51 — [[F:src/models/online_trainer.py#142-149#6c961c51]].
-- OnlineTrainer._make_dir_model (method, lines 156-165): CHUNK_ID = src/models/online_trainer.py#156-165#6c961c51 — [[F:src/models/online_trainer.py#156-165#6c961c51]].
-- OnlineTrainer._make_meta_model (method, lines 168-177): CHUNK_ID = src/models/online_trainer.py#168-177#6c961c51 — [[F:src/models/online_trainer.py#168-177#6c961c51]].
-- OnlineTrainer.learn_direction (method, lines 183-205): CHUNK_ID = src/models/online_trainer.py#183-205#6c961c51 — [[F:src/models/online_trainer.py#183-205#6c961c51]].
-- OnlineTrainer.learn_meta (method, lines 207-232): CHUNK_ID = src/models/online_trainer.py#207-232#6c961c51 — [[F:src/models/online_trainer.py#207-232#6c961c51]].
-- OnlineTrainer.blend (method, lines 238-275, slice 1): CHUNK_ID = src/models/online_trainer.py#238-275#6c961c51 — [[F:src/models/online_trainer.py#238-275#6c961c51]].
-- OnlineTrainer.blend (method, lines 276-288, slice 2): CHUNK_ID = src/models/online_trainer.py#276-288#6c961c51 — [[F:src/models/online_trainer.py#276-288#6c961c51]].
-- OnlineTrainer.accuracy_report (method, lines 294-301): CHUNK_ID = src/models/online_trainer.py#294-301#6c961c51 — [[F:src/models/online_trainer.py#294-301#6c961c51]].
-- OnlineTrainer.save (method, lines 307-323): CHUNK_ID = src/models/online_trainer.py#307-323#6c961c51 — [[F:src/models/online_trainer.py#307-323#6c961c51]].
-- OnlineTrainer._try_load (method, lines 325-346): CHUNK_ID = src/models/online_trainer.py#325-346#6c961c51 — [[F:src/models/online_trainer.py#325-346#6c961c51]].
-- OnlineTrainer.reset (method, lines 352-366): CHUNK_ID = src/models/online_trainer.py#352-366#6c961c51 — [[F:src/models/online_trainer.py#352-366#6c961c51]].
+- OnlinePrediction (class, lines 78-85): CHUNK_ID = src/models/online_trainer.py#78-85#e55987c8 — [[F:src/models/online_trainer.py#78-85#e55987c8]].
+- _OnlineModel (class, lines 89-114): CHUNK_ID = src/models/online_trainer.py#89-114#e55987c8 — [[F:src/models/online_trainer.py#89-114#e55987c8]].
+- _OnlineModel.partial_fit (method, lines 97-100): CHUNK_ID = src/models/online_trainer.py#97-100#e55987c8 — [[F:src/models/online_trainer.py#97-100#e55987c8]].
+- _OnlineModel.predict_proba (method, lines 102-105): CHUNK_ID = src/models/online_trainer.py#102-105#e55987c8 — [[F:src/models/online_trainer.py#102-105#e55987c8]].
+- _OnlineModel.record_outcome (method, lines 107-108): CHUNK_ID = src/models/online_trainer.py#107-108#e55987c8 — [[F:src/models/online_trainer.py#107-108#e55987c8]].
+- _OnlineModel.rolling_accuracy (method, lines 111-114): CHUNK_ID = src/models/online_trainer.py#111-114#e55987c8 — [[F:src/models/online_trainer.py#111-114#e55987c8]].
+- OnlineTrainer (class, lines 122-159, slice 1): CHUNK_ID = src/models/online_trainer.py#122-159#e55987c8 — [[F:src/models/online_trainer.py#122-159#e55987c8]].
+- OnlineTrainer (class, lines 160-197, slice 2): CHUNK_ID = src/models/online_trainer.py#160-197#e55987c8 — [[F:src/models/online_trainer.py#160-197#e55987c8]].
+- OnlineTrainer (class, lines 198-235, slice 3): CHUNK_ID = src/models/online_trainer.py#198-235#e55987c8 — [[F:src/models/online_trainer.py#198-235#e55987c8]].
+- OnlineTrainer (class, lines 236-273, slice 4): CHUNK_ID = src/models/online_trainer.py#236-273#e55987c8 — [[F:src/models/online_trainer.py#236-273#e55987c8]].
+- OnlineTrainer (class, lines 274-311, slice 5): CHUNK_ID = src/models/online_trainer.py#274-311#e55987c8 — [[F:src/models/online_trainer.py#274-311#e55987c8]].
+- OnlineTrainer (class, lines 312-349, slice 6): CHUNK_ID = src/models/online_trainer.py#312-349#e55987c8 — [[F:src/models/online_trainer.py#312-349#e55987c8]].
+- OnlineTrainer (class, lines 350-377, slice 7): CHUNK_ID = src/models/online_trainer.py#350-377#e55987c8 — [[F:src/models/online_trainer.py#350-377#e55987c8]].
+- OnlineTrainer.__init__ (method, lines 145-152): CHUNK_ID = src/models/online_trainer.py#145-152#e55987c8 — [[F:src/models/online_trainer.py#145-152#e55987c8]].
+- OnlineTrainer._make_dir_model (method, lines 159-168): CHUNK_ID = src/models/online_trainer.py#159-168#e55987c8 — [[F:src/models/online_trainer.py#159-168#e55987c8]].
+- OnlineTrainer._make_meta_model (method, lines 171-180): CHUNK_ID = src/models/online_trainer.py#171-180#e55987c8 — [[F:src/models/online_trainer.py#171-180#e55987c8]].
+- OnlineTrainer.learn_direction (method, lines 186-208): CHUNK_ID = src/models/online_trainer.py#186-208#e55987c8 — [[F:src/models/online_trainer.py#186-208#e55987c8]].
+- OnlineTrainer.learn_meta (method, lines 210-235): CHUNK_ID = src/models/online_trainer.py#210-235#e55987c8 — [[F:src/models/online_trainer.py#210-235#e55987c8]].
+- OnlineTrainer.blend (method, lines 241-278, slice 1): CHUNK_ID = src/models/online_trainer.py#241-278#e55987c8 — [[F:src/models/online_trainer.py#241-278#e55987c8]].
+- OnlineTrainer.blend (method, lines 279-291, slice 2): CHUNK_ID = src/models/online_trainer.py#279-291#e55987c8 — [[F:src/models/online_trainer.py#279-291#e55987c8]].
+- OnlineTrainer.accuracy_report (method, lines 297-304): CHUNK_ID = src/models/online_trainer.py#297-304#e55987c8 — [[F:src/models/online_trainer.py#297-304#e55987c8]].
+- OnlineTrainer.save (method, lines 310-334): CHUNK_ID = src/models/online_trainer.py#310-334#e55987c8 — [[F:src/models/online_trainer.py#310-334#e55987c8]].
+- OnlineTrainer._try_load (method, lines 336-357): CHUNK_ID = src/models/online_trainer.py#336-357#e55987c8 — [[F:src/models/online_trainer.py#336-357#e55987c8]].
+- OnlineTrainer.reset (method, lines 363-377): CHUNK_ID = src/models/online_trainer.py#363-377#e55987c8 — [[F:src/models/online_trainer.py#363-377#e55987c8]].
 
 ## src/strategies/bootstrap.py
 
@@ -1649,6 +1649,7 @@ SHA8 a2efe8f2; total lines 805.
 
 - WorkerTask (class, lines 42-54): CHUNK_ID = src/workers/orchestrator.py#42-54#a2efe8f2 — [[F:src/workers/orchestrator.py#42-54#a2efe8f2]].
 - WorkerResult (class, lines 58-88): CHUNK_ID = src/workers/orchestrator.py#58-88#a2efe8f2 — [[F:src/workers/orchestrator.py#58-88#a2efe8f2]].
+- _handle_worker_sigterm (function, lines 91-93): CHUNK_ID = src/workers/orchestrator.py#91-93#a2efe8f2 — [[F:src/workers/orchestrator.py#91-93#a2efe8f2]].
 - _model_worker (function, lines 96-135): CHUNK_ID = src/workers/orchestrator.py#96-135#a2efe8f2 — [[F:src/workers/orchestrator.py#96-135#a2efe8f2]].
 - _run_horizon_inference (function, lines 138-175, slice 1): CHUNK_ID = src/workers/orchestrator.py#138-175#a2efe8f2 — [[F:src/workers/orchestrator.py#138-175#a2efe8f2]].
 - _run_horizon_inference (function, lines 176-213, slice 2): CHUNK_ID = src/workers/orchestrator.py#176-213#a2efe8f2 — [[F:src/workers/orchestrator.py#176-213#a2efe8f2]].
@@ -1761,6 +1762,7 @@ SHA8 1de280b9; total lines 616.
 
 - is_local_check_execution (function, lines 169-175): CHUNK_ID = common/command_schema.py#169-175#1de280b9 — [[F:common/command_schema.py#169-175#1de280b9]].
 - classify (function, lines 489-505): CHUNK_ID = common/command_schema.py#489-505#1de280b9 — [[F:common/command_schema.py#489-505#1de280b9]].
+- is_exact_patch_apply_command (function, lines 508-521): CHUNK_ID = common/command_schema.py#508-521#1de280b9 — [[F:common/command_schema.py#508-521#1de280b9]].
 - is_ci_log_access (function, lines 535-548): CHUNK_ID = common/command_schema.py#535-548#1de280b9 — [[F:common/command_schema.py#535-548#1de280b9]].
 - rank (function, lines 551-556): CHUNK_ID = common/command_schema.py#551-556#1de280b9 — [[F:common/command_schema.py#551-556#1de280b9]].
 - redact (function, lines 559-589): CHUNK_ID = common/command_schema.py#559-589#1de280b9 — [[F:common/command_schema.py#559-589#1de280b9]].
