@@ -31,14 +31,14 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 16 | P0 | docs/runtime/RUNTIME_PLATFORM.md | Markdown | 296 | 37fde0ad | Runtime control plane architecture |
 | 17 | P0 | docs/security/THREAT_MODEL.md | Markdown | 341 | ab52c113 | Threat model |
 | 18 | P0 | docs/terminal/ARCHITECTURE.md | Markdown | 217 | ac1b11e0 | Terminal/workspace architecture; historical baseline clearly labeled |
-| 19 | P0 | frontend/package.json | JSON | 77 | 922dfdc2 | Node toolchain and frontend scripts |
+| 19 | P0 | frontend/package.json | JSON | 77 | 09f2d1ce | Node toolchain and frontend scripts |
 | 20 | P0 | frontend/src/App.jsx | React JSX | 470 | babdff7e | Dashboard composition |
 | 21 | P0 | frontend/src/hooks/useApi.js | JavaScript | 463 | 79cc9d3c | HTTP and WebSocket client |
 | 22 | P0 | frontend/src/main.jsx | React JSX | 10 | b57d0e84 | React entrypoint |
 | 23 | P0 | pyproject.toml | TOML | 94 | 78e2122b | Python version, pytest/coverage and Ruff configuration |
 | 24 | P0 | requirements-dev.txt | Text | 22 | 2a136c55 | Development/test dependencies |
 | 25 | P0 | requirements-optional.txt | Text | 43 | 57f632fc | Optional/lazy dependencies |
-| 26 | P0 | requirements.txt | Text | 91 | abe46abc | Runtime Python dependency source |
+| 26 | P0 | requirements.txt | Text | 95 | f7be1fe5 | Runtime Python dependency source |
 | 27 | P0 | src/api/__main__.py | Python | 42 | f07796d2 | API entrypoint |
 | 28 | P0 | src/api/access_control.py | Python | 84 | 263fe5ed | Permission/role definitions |
 | 29 | P0 | src/api/auth.py | Python | 179 | c9a226cf | API key and role authentication |
@@ -85,14 +85,14 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 15 | P0 | docs/runtime/RUNTIME_PLATFORM.md | Markdown | 296 | 37fde0ad | Runtime control plane architecture |
 | 16 | P0 | docs/security/THREAT_MODEL.md | Markdown | 341 | ab52c113 | Threat model |
 | 17 | P0 | docs/terminal/ARCHITECTURE.md | Markdown | 217 | ac1b11e0 | Terminal/workspace architecture; historical baseline clearly labeled |
-| 18 | P0 | frontend/package.json | JSON | 77 | 922dfdc2 | Node toolchain and frontend scripts |
+| 18 | P0 | frontend/package.json | JSON | 77 | 09f2d1ce | Node toolchain and frontend scripts |
 | 19 | P0 | frontend/src/App.jsx | React JSX | 470 | babdff7e | Dashboard composition |
 | 20 | P0 | frontend/src/hooks/useApi.js | JavaScript | 463 | 79cc9d3c | HTTP and WebSocket client |
 | 21 | P0 | frontend/src/main.jsx | React JSX | 10 | b57d0e84 | React entrypoint |
 | 22 | P0 | pyproject.toml | TOML | 94 | 78e2122b | Python version, pytest/coverage and Ruff configuration |
 | 23 | P0 | requirements-dev.txt | Text | 22 | 2a136c55 | Development/test dependencies |
 | 24 | P0 | requirements-optional.txt | Text | 43 | 57f632fc | Optional/lazy dependencies |
-| 25 | P0 | requirements.txt | Text | 91 | abe46abc | Runtime Python dependency source |
+| 25 | P0 | requirements.txt | Text | 95 | f7be1fe5 | Runtime Python dependency source |
 | 26 | P0 | src/api/__main__.py | Python | 42 | f07796d2 | API entrypoint |
 | 27 | P0 | src/api/access_control.py | Python | 84 | 263fe5ed | Permission/role definitions |
 | 28 | P0 | src/api/auth.py | Python | 179 | c9a226cf | API key and role authentication |
@@ -1239,7 +1239,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 1169 | P2 | frontend/electron/terminalBridge.cjs | CommonJS | 221 | df9b68c6 |  |
 | 1170 | P2 | frontend/index.html | HTML | 14 | 937890f7 |  |
 | 1171 | P2 | frontend/linux/tradebot-dashboard.desktop | Desktop-entry config | 9 | d8c53c4f |  |
-| 1172 | P2 | frontend/package-lock.json | JSON | 4826 | 99be6529 |  |
+| 1172 | P2 | frontend/package-lock.json | JSON | 4822 | 52253d8a |  |
 | 1173 | P2 | frontend/postcss.config.js | JavaScript | 7 | ad943233 |  |
 | 1174 | P2 | frontend/public/icon.svg | Vector asset | 15 | 9a6da623 |  |
 | 1175 | P2 | frontend/scripts/build-icons.mjs | ES module | 36 | 4489c079 |  |
