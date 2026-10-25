@@ -186,6 +186,7 @@ class TestCacheAndLoops:
     @pytest.mark.asyncio
     async def test_fetch_once_reports_the_current_fear_and_greed(self, tmp_path: Path) -> None:
         p = SentimentProvider(data_root=tmp_path)
+        p._fg_score, p._fg_label = 50.0, "Neutral"
         with (
             patch.object(p, "_fetch_fg", AsyncMock()),
             patch.object(p, "_fetch_rss", AsyncMock()),

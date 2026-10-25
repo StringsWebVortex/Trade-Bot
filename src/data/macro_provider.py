@@ -124,8 +124,6 @@ class MacroProvider:
             try:
                 if date.fromisoformat(f.stem) < cutoff:
                     continue  # too old to serve as "latest"
-            except ValueError:
-                continue
                 df = pd.read_parquet(f)
                 if not df.empty:
                     return df.iloc[-1].to_dict()
