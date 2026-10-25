@@ -218,7 +218,9 @@ class OrderManager:
         fsm.state.idempotency_key = idempotency_key
 
         client_order_id = attempt_client_order_id(idempotency_key, reserved.attempts)
-        order_params = client_order_id_params(getattr(exchange, "id", None), client_order_id, params)
+        order_params = client_order_id_params(
+            getattr(exchange, "id", None), client_order_id, params
+        )
 
         # Place the order
         try:

@@ -51,7 +51,7 @@ async def test_cancelled_close_then_retry_places_new_order():
     )
     with pytest.raises(OrderNotFilledError):
         await mgr.place_order_with_fsm(ex, SYM, "sell", 1.0, key)
-    fsm, order = await mgr.place_order_with_fsm(ex, SYM, "sell", 1.0, key)
+    _fsm, order = await mgr.place_order_with_fsm(ex, SYM, "sell", 1.0, key)
     assert order["id"] == "2"
     assert ex.create_market_order.await_count == 2
     ids = [c.kwargs["params"]["newClientOrderId"] for c in ex.create_market_order.await_args_list]
