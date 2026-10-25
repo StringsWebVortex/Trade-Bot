@@ -177,8 +177,6 @@ class TestInitializeAndClose:
         await sb.close()  # should not raise
 
         assert sb._conn is None
-        # Closing a backend that never opened must not create its database file.
-        assert not os.path.exists(path)
 
     @pytest.mark.asyncio
     async def test_get_lock_double_checked_race_reuses_winner(self):

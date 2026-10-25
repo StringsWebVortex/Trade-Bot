@@ -612,6 +612,9 @@ class TestTickUpdateMetricsFailure:
     async def test_update_metrics_exception_is_swallowed(self):
         orch = _make_orch()
         executor = _make_executor()
+        # open_positions() is sync; an AsyncMock child would hand the payload a
+        # coroutine, which failed before update_metrics was ever reached.
+        executor.open_positions = MagicMock(return_value=[])
         orch._executor = executor
         orch._storage = _make_storage()
         orch._tick_counts = {Timeframe.INTRADAY.value: 0}

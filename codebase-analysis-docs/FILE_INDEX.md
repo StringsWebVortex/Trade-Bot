@@ -999,7 +999,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 929 | P1 | tests/test_orchestrator_allocation_rebalance.py | Python | 202 | b8991616 |  |
 | 930 | P1 | tests/test_orchestrator_coverage.py | Python | 1578 | 30877624 |  |
 | 931 | P1 | tests/test_orchestrator_crypto_box_paths.py | Python | 416 | d50c119c |  |
-| 932 | P1 | tests/test_orchestrator_extra_coverage.py | Python | 1573 | 909e43df |  |
+| 932 | P1 | tests/test_orchestrator_extra_coverage.py | Python | 1576 | 96552bc7 |  |
 | 933 | P1 | tests/test_orchestrator_pkg_planner.py | Python | 43 | 343b15f8 |  |
 | 934 | P1 | tests/test_orchestrator_pkg_run.py | Python | 39 | 89e9e65b |  |
 | 935 | P1 | tests/test_orchestrator_pkg_synthesizer.py | Python | 24 | 886ce774 |  |
@@ -1104,7 +1104,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 1034 | P1 | tests/test_startup_readiness.py | Python | 844 | 4829f182 |  |
 | 1035 | P1 | tests/test_static_invariants.py | Python | 1589 | 193b3bc9 |  |
 | 1036 | P1 | tests/test_static_invariants_blind_spots.py | Python | 140 | 44ec7d50 |  |
-| 1037 | P1 | tests/test_storage.py | Python | 1081 | 6a03d831 |  |
+| 1037 | P1 | tests/test_storage.py | Python | 1079 | 66ffccc5 |  |
 | 1038 | P1 | tests/test_storage_write_rollback.py | Python | 102 | e5d9d7f3 |  |
 | 1039 | P1 | tests/test_strategies_filters.py | Python | 628 | 1a6e0663 |  |
 | 1040 | P1 | tests/test_strategy_bootstrap.py | Python | 232 | 1189a934 |  |
