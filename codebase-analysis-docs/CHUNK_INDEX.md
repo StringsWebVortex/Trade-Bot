@@ -1787,35 +1787,35 @@ SHA8 cc45e7b8; total lines 464.
 
 ## src/engines/orchestrator.py
 
-SHA8 10e2649d; total lines 457.
+SHA8 2151f2f5; total lines 483.
 
-- _describe_failure (function, lines 103-108): CHUNK_ID = src/engines/orchestrator.py#103-108#10e2649d — [[F:src/engines/orchestrator.py#103-108#10e2649d]].
-- _engine_row (function, lines 111-123): CHUNK_ID = src/engines/orchestrator.py#111-123#10e2649d — [[F:src/engines/orchestrator.py#111-123#10e2649d]].
-- _publish_cycle (function, lines 126-169): CHUNK_ID = src/engines/orchestrator.py#126-169#10e2649d — [[F:src/engines/orchestrator.py#126-169#10e2649d]].
-- EngineRunStats (class, lines 173-209): CHUNK_ID = src/engines/orchestrator.py#173-209#10e2649d — [[F:src/engines/orchestrator.py#173-209#10e2649d]].
-- EngineRunStats.record (method, lines 188-198): CHUNK_ID = src/engines/orchestrator.py#188-198#10e2649d — [[F:src/engines/orchestrator.py#188-198#10e2649d]].
-- EngineRunStats.snapshot (method, lines 200-209): CHUNK_ID = src/engines/orchestrator.py#200-209#10e2649d — [[F:src/engines/orchestrator.py#200-209#10e2649d]].
-- OrchestratorResult (class, lines 213-220): CHUNK_ID = src/engines/orchestrator.py#213-220#10e2649d — [[F:src/engines/orchestrator.py#213-220#10e2649d]].
-- EngineOrchestrator (class, lines 223-260, slice 1): CHUNK_ID = src/engines/orchestrator.py#223-260#10e2649d — [[F:src/engines/orchestrator.py#223-260#10e2649d]].
-- EngineOrchestrator (class, lines 261-298, slice 2): CHUNK_ID = src/engines/orchestrator.py#261-298#10e2649d — [[F:src/engines/orchestrator.py#261-298#10e2649d]].
-- EngineOrchestrator (class, lines 299-336, slice 3): CHUNK_ID = src/engines/orchestrator.py#299-336#10e2649d — [[F:src/engines/orchestrator.py#299-336#10e2649d]].
-- EngineOrchestrator (class, lines 337-374, slice 4): CHUNK_ID = src/engines/orchestrator.py#337-374#10e2649d — [[F:src/engines/orchestrator.py#337-374#10e2649d]].
-- EngineOrchestrator (class, lines 375-412, slice 5): CHUNK_ID = src/engines/orchestrator.py#375-412#10e2649d — [[F:src/engines/orchestrator.py#375-412#10e2649d]].
-- EngineOrchestrator (class, lines 413-450, slice 6): CHUNK_ID = src/engines/orchestrator.py#413-450#10e2649d — [[F:src/engines/orchestrator.py#413-450#10e2649d]].
-- EngineOrchestrator (class, lines 451-457, slice 7): CHUNK_ID = src/engines/orchestrator.py#451-457#10e2649d — [[F:src/engines/orchestrator.py#451-457#10e2649d]].
-- EngineOrchestrator.__init__ (method, lines 224-250): CHUNK_ID = src/engines/orchestrator.py#224-250#10e2649d — [[F:src/engines/orchestrator.py#224-250#10e2649d]].
-- EngineOrchestrator.engine_roster (method, lines 252-257): CHUNK_ID = src/engines/orchestrator.py#252-257#10e2649d — [[F:src/engines/orchestrator.py#252-257#10e2649d]].
-- EngineOrchestrator.stage_roster (method, lines 259-269): CHUNK_ID = src/engines/orchestrator.py#259-269#10e2649d — [[F:src/engines/orchestrator.py#259-269#10e2649d]].
-- EngineOrchestrator.cache_inputs (method, lines 272-274): CHUNK_ID = src/engines/orchestrator.py#272-274#10e2649d — [[F:src/engines/orchestrator.py#272-274#10e2649d]].
-- EngineOrchestrator.stage_inputs (method, lines 277-279): CHUNK_ID = src/engines/orchestrator.py#277-279#10e2649d — [[F:src/engines/orchestrator.py#277-279#10e2649d]].
-- EngineOrchestrator.engine_health (method, lines 281-283): CHUNK_ID = src/engines/orchestrator.py#281-283#10e2649d — [[F:src/engines/orchestrator.py#281-283#10e2649d]].
-- EngineOrchestrator._timed (method, lines 286-293): CHUNK_ID = src/engines/orchestrator.py#286-293#10e2649d — [[F:src/engines/orchestrator.py#286-293#10e2649d]].
-- EngineOrchestrator._stage (method, lines 295-306): CHUNK_ID = src/engines/orchestrator.py#295-306#10e2649d — [[F:src/engines/orchestrator.py#295-306#10e2649d]].
-- EngineOrchestrator.run (method, lines 308-345, slice 1): CHUNK_ID = src/engines/orchestrator.py#308-345#10e2649d — [[F:src/engines/orchestrator.py#308-345#10e2649d]].
-- EngineOrchestrator.run (method, lines 346-383, slice 2): CHUNK_ID = src/engines/orchestrator.py#346-383#10e2649d — [[F:src/engines/orchestrator.py#346-383#10e2649d]].
-- EngineOrchestrator.run (method, lines 384-421, slice 3): CHUNK_ID = src/engines/orchestrator.py#384-421#10e2649d — [[F:src/engines/orchestrator.py#384-421#10e2649d]].
-- EngineOrchestrator.run (method, lines 422-428, slice 4): CHUNK_ID = src/engines/orchestrator.py#422-428#10e2649d — [[F:src/engines/orchestrator.py#422-428#10e2649d]].
-- EngineOrchestrator._log_engine_outputs (method, lines 430-457): CHUNK_ID = src/engines/orchestrator.py#430-457#10e2649d — [[F:src/engines/orchestrator.py#430-457#10e2649d]].
+- _describe_failure (function, lines 103-108): CHUNK_ID = src/engines/orchestrator.py#103-108#2151f2f5 — [[F:src/engines/orchestrator.py#103-108#2151f2f5]].
+- _engine_row (function, lines 111-123): CHUNK_ID = src/engines/orchestrator.py#111-123#2151f2f5 — [[F:src/engines/orchestrator.py#111-123#2151f2f5]].
+- _publish_cycle (function, lines 126-169): CHUNK_ID = src/engines/orchestrator.py#126-169#2151f2f5 — [[F:src/engines/orchestrator.py#126-169#2151f2f5]].
+- EngineRunStats (class, lines 176-212): CHUNK_ID = src/engines/orchestrator.py#176-212#2151f2f5 — [[F:src/engines/orchestrator.py#176-212#2151f2f5]].
+- EngineRunStats.record (method, lines 191-201): CHUNK_ID = src/engines/orchestrator.py#191-201#2151f2f5 — [[F:src/engines/orchestrator.py#191-201#2151f2f5]].
+- EngineRunStats.snapshot (method, lines 203-212): CHUNK_ID = src/engines/orchestrator.py#203-212#2151f2f5 — [[F:src/engines/orchestrator.py#203-212#2151f2f5]].
+- OrchestratorResult (class, lines 216-223): CHUNK_ID = src/engines/orchestrator.py#216-223#2151f2f5 — [[F:src/engines/orchestrator.py#216-223#2151f2f5]].
+- EngineOrchestrator (class, lines 226-263, slice 1): CHUNK_ID = src/engines/orchestrator.py#226-263#2151f2f5 — [[F:src/engines/orchestrator.py#226-263#2151f2f5]].
+- EngineOrchestrator (class, lines 264-301, slice 2): CHUNK_ID = src/engines/orchestrator.py#264-301#2151f2f5 — [[F:src/engines/orchestrator.py#264-301#2151f2f5]].
+- EngineOrchestrator (class, lines 302-339, slice 3): CHUNK_ID = src/engines/orchestrator.py#302-339#2151f2f5 — [[F:src/engines/orchestrator.py#302-339#2151f2f5]].
+- EngineOrchestrator (class, lines 340-377, slice 4): CHUNK_ID = src/engines/orchestrator.py#340-377#2151f2f5 — [[F:src/engines/orchestrator.py#340-377#2151f2f5]].
+- EngineOrchestrator (class, lines 378-415, slice 5): CHUNK_ID = src/engines/orchestrator.py#378-415#2151f2f5 — [[F:src/engines/orchestrator.py#378-415#2151f2f5]].
+- EngineOrchestrator (class, lines 416-453, slice 6): CHUNK_ID = src/engines/orchestrator.py#416-453#2151f2f5 — [[F:src/engines/orchestrator.py#416-453#2151f2f5]].
+- EngineOrchestrator (class, lines 454-483, slice 7): CHUNK_ID = src/engines/orchestrator.py#454-483#2151f2f5 — [[F:src/engines/orchestrator.py#454-483#2151f2f5]].
+- EngineOrchestrator.__init__ (method, lines 227-253): CHUNK_ID = src/engines/orchestrator.py#227-253#2151f2f5 — [[F:src/engines/orchestrator.py#227-253#2151f2f5]].
+- EngineOrchestrator.engine_roster (method, lines 255-260): CHUNK_ID = src/engines/orchestrator.py#255-260#2151f2f5 — [[F:src/engines/orchestrator.py#255-260#2151f2f5]].
+- EngineOrchestrator.stage_roster (method, lines 262-272): CHUNK_ID = src/engines/orchestrator.py#262-272#2151f2f5 — [[F:src/engines/orchestrator.py#262-272#2151f2f5]].
+- EngineOrchestrator.cache_inputs (method, lines 275-277): CHUNK_ID = src/engines/orchestrator.py#275-277#2151f2f5 — [[F:src/engines/orchestrator.py#275-277#2151f2f5]].
+- EngineOrchestrator.stage_inputs (method, lines 280-282): CHUNK_ID = src/engines/orchestrator.py#280-282#2151f2f5 — [[F:src/engines/orchestrator.py#280-282#2151f2f5]].
+- EngineOrchestrator.engine_health (method, lines 284-286): CHUNK_ID = src/engines/orchestrator.py#284-286#2151f2f5 — [[F:src/engines/orchestrator.py#284-286#2151f2f5]].
+- EngineOrchestrator._timed (method, lines 289-296): CHUNK_ID = src/engines/orchestrator.py#289-296#2151f2f5 — [[F:src/engines/orchestrator.py#289-296#2151f2f5]].
+- EngineOrchestrator._stage (method, lines 298-309): CHUNK_ID = src/engines/orchestrator.py#298-309#2151f2f5 — [[F:src/engines/orchestrator.py#298-309#2151f2f5]].
+- EngineOrchestrator.run (method, lines 311-348, slice 1): CHUNK_ID = src/engines/orchestrator.py#311-348#2151f2f5 — [[F:src/engines/orchestrator.py#311-348#2151f2f5]].
+- EngineOrchestrator.run (method, lines 349-386, slice 2): CHUNK_ID = src/engines/orchestrator.py#349-386#2151f2f5 — [[F:src/engines/orchestrator.py#349-386#2151f2f5]].
+- EngineOrchestrator.run (method, lines 387-424, slice 3): CHUNK_ID = src/engines/orchestrator.py#387-424#2151f2f5 — [[F:src/engines/orchestrator.py#387-424#2151f2f5]].
+- EngineOrchestrator.run (method, lines 425-454, slice 4): CHUNK_ID = src/engines/orchestrator.py#425-454#2151f2f5 — [[F:src/engines/orchestrator.py#425-454#2151f2f5]].
+- EngineOrchestrator._log_engine_outputs (method, lines 456-483): CHUNK_ID = src/engines/orchestrator.py#456-483#2151f2f5 — [[F:src/engines/orchestrator.py#456-483#2151f2f5]].
 
 ## frontend/src/App.jsx
 
