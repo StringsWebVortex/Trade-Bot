@@ -47,11 +47,11 @@ deletion of the thing it points at.
 
 | Status | Entries |
 |---|---|
-| VERIFIED | 216 |
+| VERIFIED | 220 |
 | PARTIAL | 3 |
 | PLANNED | 0 |
 | ACCEPTED GAP | 0 |
-| **Total** | **219** |
+| **Total** | **223** |
 
 ## Summary by subsystem
 
@@ -61,7 +61,7 @@ deletion of the thing it points at.
 | Execution | 13 | 12 |
 | Portfolio | 1 | 1 |
 | Signal and features | 6 | 6 |
-| Models and leakage | 10 | 10 |
+| Models and leakage | 14 | 14 |
 | Data, money and time | 10 | 9 |
 | API and WebSocket | 21 | 21 |
 | Cryptography and secrets | 30 | 30 |
@@ -609,6 +609,58 @@ Orchestrator._metrics_payload() builds a complete metrics snapshot for every tic
   - `tests/regression/test_metrics_payload.py` (regression)
 
 > Pins payload completeness with and without an executor, the method-vs-property fact the bug turned on, and the original TypeError as a negative case. layer: test-suite
+
+#### `SEC-1120` — MLflow registry never promotes and never unpickles without a pinned manifest
+
+**VERIFIED** · high · security_regression · source: OPS-2026-10-25
+
+ModelRegistry.register_model requires an artifact SHA-256, stores it as a version tag and never transitions a stage; load_model refuses without a pinned hash and loads only a downloaded artifact whose hash matches (INT/MTH-006).
+
+- **If violated:** Anyone able to write the MLflow server or artifact store got code execution via pickle, and every registered model silently became Production.
+- **Owned by:** `src/upgrade/registry.py`
+- **Verification:**
+  - `tests/test_upgrade_registry.py` (security)
+
+> layer: test-suite
+
+#### `SEC-1121` — OnlineTrainer persists and loads models only through an atomic, manifest-verified path
+
+**VERIFIED** · high · security_regression · source: OPS-2026-10-25
+
+OnlineTrainer.save writes each model atomically with a SHA-256 manifest and _try_load deserializes only the verified bytes; a missing or mismatched manifest yields fresh models, never an unpickled file (INT-009).
+
+- **If violated:** joblib.load on an unverified pickle in the model directory gave code execution; torn writes were silently accepted.
+- **Owned by:** `src/models/online_trainer.py`
+- **Verification:**
+  - `tests/test_model_loading_integrity.py` (security)
+
+> layer: test-suite
+
+#### `SEC-1122` — HorizonMLPExpert deserializes exactly the bytes it hashed
+
+**VERIFIED** · high · security_regression · source: OPS-2026-10-25
+
+HorizonMLPExpert.load passes the hashed payload to joblib via BytesIO, and activate_candidate copies bytes re-verified against the evaluated version (INT-010).
+
+- **If violated:** A file swap between the hash read and the joblib read bypassed the integrity check.
+- **Owned by:** `src/models/horizon_mlp.py`, `src/models/horizon_learning.py`
+- **Verification:**
+  - `tests/test_model_loading_integrity.py` (security)
+
+> layer: test-suite
+
+#### `SEC-1123` — EnsemblePredictor save is atomic and load deserializes only verified bytes
+
+**VERIFIED** · high · security_regression · source: OPS-2026-10-25
+
+EnsemblePredictor.save writes artifact and manifest via temp-file plus os.replace, and load unpickles the single buffer returned by manifest verification (INT-011).
+
+- **If violated:** Hash-then-reread TOCTOU and non-atomic writes let a swapped or torn file be loaded.
+- **Owned by:** `src/intelligence/ensemble_predictor.py`
+- **Verification:**
+  - `tests/test_model_loading_integrity.py` (security)
+
+> layer: test-suite
 
 ## Data, money and time
 
@@ -2838,4 +2890,4 @@ To add or change an entry, edit the registry and regenerate this file. See
 `docs/quality/TEST_STRATEGY.md` for the taxonomy the `test_type` column draws
 on, and `docs/quality/IMPLEMENTATION_PLAN.md` for what each phase delivers.
 
-Registry version: 1.0.0 — 219 entries.
+Registry version: 1.0.0 — 223 entries.

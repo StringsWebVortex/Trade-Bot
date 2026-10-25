@@ -105,26 +105,27 @@ def test_log_model_pytorch_log_failure_is_caught_and_run_id_still_returned():
 def test_register_model_returns_none_without_client():
     with patch.dict(sys.modules, {"mlflow": None}):
         reg = ModelRegistry()
-    assert reg.register_model(run_id="r", model_name="m", artifact_path="p") is None
+    assert reg.register_model(run_id="r", model_name="m", artifact_path="p", artifact_sha256="x") is None
 
 
-def test_register_model_happy_path():
+def test_register_model_happy_path_never_promotes():
     reg, fake = _registry_with_client()
     mv = MagicMock(version="3")
     fake.register_model.return_value = mv
 
-    version = reg.register_model(run_id="r1", model_name="m1", artifact_path="h1/m1")
+    version = reg.register_model(
+        run_id="r1", model_name="m1", artifact_path="h1/m1", artifact_sha256="ab" * 32
+    )
 
     assert version == "3"
-    reg._client.transition_model_version_stage.assert_called_once_with(
-        name="m1", version="3", stage="Production", archive_existing_versions=True
-    )
+    reg._client.transition_model_version_stage.assert_not_called()
+    reg._client.set_model_version_tag.assert_called_once()
 
 
 def test_register_model_exception_returns_none():
     reg, fake = _registry_with_client()
     fake.register_model.side_effect = RuntimeError("registry down")
-    assert reg.register_model(run_id="r", model_name="m", artifact_path="p") is None
+    assert reg.register_model(run_id="r", model_name="m", artifact_path="p", artifact_sha256="x") is None
 
 
 def test_load_model_returns_none_when_mlflow_unavailable():
@@ -133,17 +134,20 @@ def test_load_model_returns_none_when_mlflow_unavailable():
     assert reg.load_model("m") is None
 
 
-def test_load_model_happy_path():
+def test_load_model_happy_path(tmp_path):
     reg, fake = _registry_with_client()
+    (tmp_path / "model.bin").write_bytes(b"weights")
+    fake.artifacts.download_artifacts.return_value = str(tmp_path)
     fake.pytorch.load_model.return_value = "the-model"
-    assert reg.load_model("m1", stage="Staging") == "the-model"
-    fake.pytorch.load_model.assert_called_once_with("models:/m1/Staging")
+    digest = ModelRegistry._hash_artifact_dir(tmp_path)
+    assert reg.load_model("m1", stage="Staging", expected_sha256=digest) == "the-model"
+    fake.pytorch.load_model.assert_called_once_with(str(tmp_path))
 
 
 def test_load_model_exception_returns_none():
     reg, fake = _registry_with_client()
-    fake.pytorch.load_model.side_effect = RuntimeError("not found")
-    assert reg.load_model("missing") is None
+    fake.artifacts.download_artifacts.side_effect = RuntimeError("not found")
+    assert reg.load_model("missing", expected_sha256="ab" * 32) is None
 
 
 def test_tag_dvc_success_without_artifact_dir():
@@ -209,3 +213,24 @@ def test_list_registered_exception_returns_empty():
     reg, _ = _registry_with_client()
     reg._client.search_registered_models.side_effect = RuntimeError("down")
     assert reg.list_registered() == []
+
+
+def test_sec_register_refused_without_manifest_and_never_promotes():
+    """SEC-1120 / MTH-006: no manifest, no registration; no auto-promotion."""
+    reg, fake = _registry_with_client()
+    assert reg.register_model(run_id="r", model_name="m", artifact_path="p") is None
+    fake.register_model.assert_not_called()
+
+
+def test_sec_load_refused_without_pinned_hash():
+    reg, fake = _registry_with_client()
+    assert reg.load_model("m1") is None
+    fake.pytorch.load_model.assert_not_called()
+
+
+def test_sec_load_refused_on_hash_mismatch(tmp_path):
+    reg, fake = _registry_with_client()
+    (tmp_path / "model.bin").write_bytes(b"tampered")
+    fake.artifacts.download_artifacts.return_value = str(tmp_path)
+    assert reg.load_model("m1", expected_sha256="00" * 32) is None
+    fake.pytorch.load_model.assert_not_called()
