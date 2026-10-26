@@ -45,6 +45,8 @@ Prefer targeted searches and narrow file ranges. Never run live CI watchers or r
 
 These guidelines govern automated pull-request review (Codex code review and any other reviewer reading this file). Flag only issues the diff introduces or makes reachable, each tied to a file, line, and concrete failure. Treat a P0/P1 finding as one that can lose money, leak a secret, place or mis-size an order, hide a failure, or let a broken change through the merge gates. Skip style nits that `ruff check .` and `ruff format --check .` already enforce in CI.
 
+For security findings, also apply the checklist in `SECURITY.md` ("Security review of pull requests").
+
 Always flag (P0/P1):
 
 - **Trading safety.** Any path where untrusted or unvalidated input reaches order placement, position sizing, or exchange calls; any change that bypasses, weakens, or defaults-open a risk gate, kill switch, halt, drift check, operator approval, or readiness check; live-mode behavior reachable from tests or defaults; non-idempotent order submission or lost/double-counted fills on retry or restart.
