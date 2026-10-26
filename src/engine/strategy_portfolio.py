@@ -61,6 +61,7 @@ import pandas as pd
 import structlog
 
 from src.risk.conflict_resolver import ConflictResolution, HorizonConflictResolver
+from src.risk.execution_cost import ExecutionCost
 from src.strategies.basis_trade import BasisTradeContext
 from src.strategies.breakout import BreakoutContext
 from src.strategies.cross_exchange_arb import CrossExchangeContext
@@ -219,7 +220,7 @@ class PortfolioInputs:
     spot_price_ts: float | None = None
     perp_price_ts: float | None = None
     # Convergence horizon for the basis annualization; see
-    # compute_annualized_basis_pct. Sets the scale of that family's signal.
+    # compute_annualized_basis_pct. Reported only; entry uses the raw gap (STR-21).
     basis_days_to_convergence: float = 1.0
     # Trailing return per symbol across the traded universe. The target
     # symbol must appear in it for the cross-sectional family to rank itself.
@@ -238,6 +239,11 @@ class PortfolioInputs:
     # computed across two quotes taken seconds apart is a latency artifact,
     # not an arbitrage — see _MAX_VENUE_QUOTE_SKEW_S.
     venue_price_ts: Mapping[str, float] = field(default_factory=dict)
+    # Measured per-leg execution cost for this symbol (STR-21): fee from the
+    # account's fills, live half-spread, calibrated impact. The basis,
+    # funding-carry and cross-exchange families size their entry hurdle from
+    # it and abstain while it is None.
+    execution_cost: ExecutionCost | None = None
     extra: Mapping[str, Any] = field(default_factory=dict)
 
 
@@ -302,7 +308,38 @@ def build_funding_context(inputs: PortfolioInputs) -> object | None:
     # out of pure rounding noise.
     if sigma <= 1e-12 * max(abs(mu), 1.0):
         return None
-    return FundingContext(funding_rate_pct=rate, funding_zscore=(rate - mu) / sigma)
+    return FundingContext(
+        funding_rate_pct=rate,
+        funding_zscore=(rate - mu) / sigma,
+        expected_periods=mean_same_sign_run(history, rate),
+        cost=inputs.execution_cost,
+    )
+
+
+def mean_same_sign_run(history: Sequence[float], rate: float) -> float | None:
+    """
+    Mean length, in funding periods, of the runs in ``history`` whose sign
+    matches ``rate``: how long funding of this sign has persisted here.
+
+    Under a geometric run-length model the periods still to come in a run
+    are expected to equal this mean whatever its age, so it is the measured
+    holding horizon for a carry position entered now. None when the rate is
+    zero or the history holds no run of its sign.
+    """
+    sign = np.sign(rate)
+    if sign == 0:
+        return None
+    runs: list[int] = []
+    current = 0
+    for value in history:
+        if np.sign(value) == sign:
+            current += 1
+        elif current:
+            runs.append(current)
+            current = 0
+    if current:
+        runs.append(current)
+    return float(np.mean(runs)) if runs else None
 
 
 def build_basis_trade_context(inputs: PortfolioInputs) -> object | None:
@@ -326,6 +363,7 @@ def build_basis_trade_context(inputs: PortfolioInputs) -> object | None:
         spot_price=inputs.spot_price,
         perp_price=inputs.perp_price,
         days_to_perp_funding_normalization=inputs.basis_days_to_convergence,
+        cost=inputs.execution_cost,
     )
 
 
@@ -338,7 +376,7 @@ def build_cross_exchange_context(inputs: PortfolioInputs) -> object | None:
     * **Fewer than two venues.** One price is not a basis.
     * **Quote skew.** The two legs are separate network round-trips, so a
       price that moved between them shows up as a spread that was never
-      tradeable. At a 15 bps entry threshold on a 100k asset that is a 150
+      tradeable. At a 15 bps entry hurdle on a 100k asset that is a 150
       unit move — well inside what crypto does in a couple of seconds — so a
       stale pair manufactures exactly the signal this family looks for. The
       skew check is therefore load-bearing, not hygiene.
@@ -360,6 +398,7 @@ def build_cross_exchange_context(inputs: PortfolioInputs) -> object | None:
         price_a=prices[venues[0]],
         venue_b=venues[1],
         price_b=prices[venues[1]],
+        cost=inputs.execution_cost,
     )
 
 
