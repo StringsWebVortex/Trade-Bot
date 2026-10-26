@@ -28,8 +28,11 @@
 # enforce them; what it can do is be usable with them, which the health check
 # below exercises.
 
-# python:3.11-slim -- matches .python-version, which is what CI installs
-FROM python@sha256:bab1b7ef4b450c81002278d035eff85ebe394ae94df904f7a3ba14f7e16e487b AS build
+# python:3.11-slim -- matches .python-version, which is what CI installs.
+# The tag stays beside the digest so a Dependabot update has to name the tag
+# it moves to: with a bare digest it proposed a python 3.15.1 image as a plain
+# digest refresh (#516), and the dependency install failed on it.
+FROM python:3.11-slim@sha256:b7a9e5f6a93d6d4a31f129bbd4bdee69efccb6ded0fb230d78aafaf37af98377 AS build
 
 WORKDIR /build
 
@@ -45,10 +48,17 @@ COPY requirements.txt ./
 # died on "No space left on device" before it reached the scan. The range pin
 # below is already satisfied when pip reaches requirements.txt, so that file
 # stays the single source of truth for the version.
+#
+# pip does not look inside --prefix for what is already installed, so the
+# second pass needs /install on PYTHONPATH. Without it the pre-pass's torch
+# is not seen as satisfied, and a dependency the pre-pass installed (filelock
+# 3.32.3, CVE-2026-112940) is not upgraded but installed again beside itself:
+# its old dist-info stays in the image and the scan reads it (SEC-0012).
 RUN python -m pip install --no-cache-dir --upgrade pip \
     && python -m pip install --no-cache-dir --prefix=/install \
-         --index-url https://download.pytorch.org/whl/cpu "torch>=2.3,<3.0" \
-    && python -m pip install --no-cache-dir --prefix=/install -r requirements.txt
+         --index-url https://download.pytorch.org/whl/cpu "torch>=2.14.0,<3.0" \
+    && PYTHONPATH=/install/lib/python3.11/site-packages \
+         python -m pip install --no-cache-dir --prefix=/install -r requirements.txt
 
 COPY src ./src
 COPY common ./common
@@ -57,7 +67,7 @@ COPY scripts ./scripts
 
 # ---------------------------------------------------------------------------
 
-FROM python@sha256:bab1b7ef4b450c81002278d035eff85ebe394ae94df904f7a3ba14f7e16e487b AS runtime
+FROM python:3.11-slim@sha256:b7a9e5f6a93d6d4a31f129bbd4bdee69efccb6ded0fb230d78aafaf37af98377 AS runtime
 
 # Pin the base, then patch it.
 #
