@@ -402,6 +402,28 @@ must fail without modifying anything.
 
 ---
 
+# 10. Pull Request Handoff to ChatGPT Codex — GOV-067
+
+Claude and the owner lead development. Claude implements, pushes, opens the PR,
+and posts its link. **After that Claude does not touch the PR** (no pushes,
+comments, reviews, CI diagnostics, or branch updates) until the owner says so in
+the session.
+
+From PR creation to merge, the PR belongs to ChatGPT Codex:
+
+* Codex code review (configured in ChatGPT Codex settings) reviews each push
+  against `AGENTS.md` ("Code Review Rules") and `SECURITY.md`.
+* `.github/workflows/codex-pr-handoff.yml` comments `@codex fix ...` when a
+  watched workflow fails on the current head or a Codex review leaves inline
+  findings: once per head, at most five per PR, then it stops. It posts with
+  `secrets.CODEX_HANDOFF_TOKEN` (the owner's token); missing token fails
+  without posting.
+* The owner arms auto-merge; the merge queue lands the PR.
+
+No part of this handoff runs Claude (GOV-036).
+
+---
+
 # 11. CI Cost — GOV-015
 
 `tests/test_ci_workflow_cost.py` enforces CI efficiency.

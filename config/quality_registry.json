@@ -4618,6 +4618,31 @@
       "planned_in": "PR-013"
     },
     {
+      "id": "GOV-067",
+      "kind": "requirement",
+      "title": "A pull request Claude opened is handed to ChatGPT Codex, once per head, with a hard cap",
+      "statement": "After Claude opens a pull request it stops touching it, and ChatGPT Codex carries it to merge. The handoff workflow runs the default branch's script with the owner's token and comments `@codex fix` only for a failed same-repository pull-request run of CI, CodeQL, Security or Workflow lint, or a Codex review with inline findings, on the pull request's current open head; it asks once per kind and head, at most five times per pull request, then posts one notice and stops. It never merges, arms auto-merge, or runs Claude, and a missing token fails without posting.",
+      "criticality": "medium",
+      "subsystem": "governance",
+      "status": "verified",
+      "source": "OPS-2026-10-26",
+      "failure_mode": "Without the cap and per-head dedupe, each Codex push re-triggers a failing check or review and the handoff loops on the owner's plan; without the default-branch checkout, a pull request could rewrite the script that holds the owner's token.",
+      "owning_modules": [
+        "scripts/codex_pr_handoff.py",
+        ".github/workflows/codex-pr-handoff.yml"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_codex_pr_handoff.py",
+          "test_type": "contract"
+        }
+      ],
+      "depends_on": [
+        "GOV-036",
+        "GOV-037"
+      ]
+    },
+    {
       "id": "RES-009",
       "kind": "requirement",
       "title": "Runtime components have explicit identity, immutable versions and declared capabilities",

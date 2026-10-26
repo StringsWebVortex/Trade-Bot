@@ -20,11 +20,13 @@ orders. Treat the following as security-relevant, not merely bugs:
   bypasses the risk gates and kill switches.
 - Anything that silently degrades a safety signal instead of failing loudly.
 
-## Security review of pull requests
+## Security review guidelines
 
-Automated reviewers (Codex code review, CodeQL) and human reviewers should
-treat the following as security findings on any pull request. `AGENTS.md`
-("Review guidelines") lists the wider review rules.
+Automated reviewers (ChatGPT Codex code and security review, GitHub Copilot
+code review, CodeQL) and human reviewers should treat the following as
+security findings on any pull request. `AGENTS.md` ("Code Review Rules")
+lists the wider review rules, and `docs/security/THREAT_MODEL.md` is the
+threat model.
 
 - Secrets: credentials, exchange keys, JWTs, database passwords, or
   authorization headers written to source, logs, exceptions, API responses,

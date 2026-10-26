@@ -47,11 +47,11 @@ deletion of the thing it points at.
 
 | Status | Entries |
 |---|---|
-| VERIFIED | 237 |
+| VERIFIED | 238 |
 | PARTIAL | 3 |
 | PLANNED | 0 |
 | ACCEPTED GAP | 0 |
-| **Total** | **240** |
+| **Total** | **241** |
 
 ## Summary by subsystem
 
@@ -68,7 +68,7 @@ deletion of the thing it points at.
 | Supply chain and artifacts | 7 | 7 |
 | Resilience and recovery | 26 | 26 |
 | Release and production | 14 | 14 |
-| Governance | 67 | 66 |
+| Governance | 68 | 67 |
 | Terminal and process center | 13 | 13 |
 
 ## Outstanding work by phase
@@ -2749,6 +2749,18 @@ The knowledge-index utility checks complete tracked-file coverage and current FI
 - **Verification:**
   - `tests/test_codebase_knowledge_index.py` (unit)
 
+#### `GOV-067` — A pull request Claude opened is handed to ChatGPT Codex, once per head, with a hard cap
+
+**VERIFIED** · medium · requirement · source: OPS-2026-10-26
+
+After Claude opens a pull request it stops touching it, and ChatGPT Codex carries it to merge. The handoff workflow runs the default branch's script with the owner's token and comments `@codex fix` only for a failed same-repository pull-request run of CI, CodeQL, Security or Workflow lint, or a Codex review with inline findings, on the pull request's current open head; it asks once per kind and head, at most five times per pull request, then posts one notice and stops. It never merges, arms auto-merge, or runs Claude, and a missing token fails without posting.
+
+- **If violated:** Without the cap and per-head dedupe, each Codex push re-triggers a failing check or review and the handoff loops on the owner's plan; without the default-branch checkout, a pull request could rewrite the script that holds the owner's token.
+- **Owned by:** `scripts/codex_pr_handoff.py`, `.github/workflows/codex-pr-handoff.yml`
+- **Depends on:** `GOV-036`, `GOV-037`
+- **Verification:**
+  - `tests/test_codex_pr_handoff.py` (contract)
+
 #### `REG-0005` — A test's result never depends on which tests ran before it
 
 **VERIFIED** · high · regression · source: QE-91
@@ -3121,4 +3133,4 @@ To add or change an entry, edit the registry and regenerate this file. See
 `docs/quality/TEST_STRATEGY.md` for the taxonomy the `test_type` column draws
 on, and `docs/quality/IMPLEMENTATION_PLAN.md` for what each phase delivers.
 
-Registry version: 1.0.0 — 240 entries.
+Registry version: 1.0.0 — 241 entries.
