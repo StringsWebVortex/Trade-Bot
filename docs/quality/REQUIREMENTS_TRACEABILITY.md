@@ -2142,10 +2142,10 @@ The sharded pytest matrix in ci.yml runs with fail-fast disabled, so every shard
 
 **VERIFIED** · medium · regression · source: OPS-2026-10-26
 
-pytest treats PytestUnraisableExceptionWarning as an error, so an exception raised where no caller can catch it (a transport or client finalised after its event loop closed) fails the test that leaked it and names it.
+pytest treats PytestUnraisableExceptionWarning as an error, so an exception raised where no caller can catch it (a transport or client finalised after its event loop closed) fails the test that leaked it and names it; a session-scoped guard collects what outlives the last test and fails the worker, naming the finalizer.
 
 - **If violated:** 'RuntimeError: Event loop is closed' recurred on PR 423 and again on PRs 501, 505, 507, 508, 519 and 521, including fully green runs. REG-0023 locked the diagnostic reporter so it could name the crash; nothing locked the leak, and an unraisable exception was only a warning, so the leaking test passed every time.
-- **Owned by:** `pyproject.toml`
+- **Owned by:** `pyproject.toml`, `tests/regression/unraisable.py`
 - **Depends on:** `REG-0023`
 - **Verification:**
   - `tests/regression/test_ci_failure_locks.py` (regression)

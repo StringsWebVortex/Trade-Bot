@@ -8,10 +8,13 @@ Decides:
 
 from __future__ import annotations
 
+import gc
 import tomllib
 from pathlib import Path
 
 import yaml
+
+from tests.regression.unraisable import collect_unraisable
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 CI_YML = PROJECT_ROOT / ".github" / "workflows" / "ci.yml"
@@ -41,3 +44,25 @@ def test_an_unraisable_exception_fails_the_test_that_raised_it() -> None:
 
 def test_the_existing_deprecation_filter_is_kept() -> None:
     assert "error::DeprecationWarning:src.*" in PYTEST_INI["filterwarnings"]
+
+
+class _RaisesOnFinalize:
+    def __del__(self) -> None:
+        raise RuntimeError("Event loop is closed")
+
+
+def test_session_end_guard_names_a_finalizer_that_raises() -> None:
+    """REG-1707: a leak that outlives every test is still caught and named."""
+    gc.disable()  # an automatic collection would run the finalizer under pytest's own hook
+    try:
+        leaked = _RaisesOnFinalize()
+        leaked.cycle = leaked  # only the collector can free it
+        del leaked
+        caught = collect_unraisable()
+    finally:
+        gc.enable()
+
+    assert len(caught) == 1
+    assert isinstance(caught[0].exc_value, RuntimeError)
+    assert "_RaisesOnFinalize" in repr(caught[0].object)
+
