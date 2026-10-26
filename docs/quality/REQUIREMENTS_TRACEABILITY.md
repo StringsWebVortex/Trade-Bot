@@ -47,11 +47,11 @@ deletion of the thing it points at.
 
 | Status | Entries |
 |---|---|
-| VERIFIED | 238 |
+| VERIFIED | 241 |
 | PARTIAL | 3 |
 | PLANNED | 0 |
 | ACCEPTED GAP | 0 |
-| **Total** | **241** |
+| **Total** | **244** |
 
 ## Summary by subsystem
 
@@ -67,7 +67,7 @@ deletion of the thing it points at.
 | Cryptography and secrets | 33 | 33 |
 | Supply chain and artifacts | 7 | 7 |
 | Resilience and recovery | 26 | 26 |
-| Release and production | 14 | 14 |
+| Release and production | 17 | 17 |
 | Governance | 68 | 67 |
 | Terminal and process center | 13 | 13 |
 
@@ -2112,6 +2112,46 @@ GitHub Actions is the sole execution path for tests, builds, lint, security scan
 
 > The old prepare/comment-notice subscription is retired. Only the finalized ./scripts/prfail --pr <PR_NUMBER> report route is allowed; the report-bound patch applier revalidates PR/head/report identity and leaves edits uncommitted. The run subcommand remains disabled. Tests, builds, lint, security scans, and quality gates are validated only by GitHub Actions. layer: test-suite
 
+#### `REG-1705` — A merge elsewhere never breaks the knowledge-index gate on an open pull request
+
+**VERIFIED** · high · regression · source: OPS-2026-10-26
+
+The pull-request gate (`codebase_knowledge_index.py --check`) validates structure only: every FILE_INDEX path is tracked, every CHUNK_INDEX/CODEBASE_KNOWLEDGE anchor names an existing file and a range inside it, and every API_REFERENCE route matches by method, path and handler. SHA8s, line counts, row numbers and route line numbers are checked by `--check --strict`, which no pull request is gated on.
+
+- **If violated:** The gate demanded a byte-identical regeneration of FILE_INDEX (a SHA8 and line count for ~1,229 files) and whole-file hashes behind every anchor on ~50 hot files. Any merge, even a dependency bump, made every other open pull request fail 'Codebase knowledge indexes are current' (PRs 500, 502, 504, 505, 508), and all 29 open pull requests carried conflicting edits to the same index. Fixing it in one pull request fixed nothing for the next.
+- **Owned by:** `scripts/codebase_knowledge_index.py`
+- **Verification:**
+  - `tests/test_codebase_knowledge_index.py` (regression)
+
+> layer: ci-gate-design
+
+#### `REG-1706` — One failing test shard never hides the failures of the others
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-26
+
+The sharded pytest matrix in ci.yml runs with fail-fast disabled, so every shard runs to completion and a single CI run reports every failing test.
+
+- **If violated:** With fail-fast: true the first failing shard cancelled the other five ('The strategy configuration was canceled because python-tests._4_6 failed' on PRs 500-508). Each run showed one shard's failures; the rest surfaced one push later and read as new failures every time.
+- **Owned by:** `.github/workflows/ci.yml`
+- **Verification:**
+  - `tests/regression/test_ci_failure_locks.py` (regression)
+
+> layer: ci-gate-design
+
+#### `REG-1707` — A test that leaks an async resource fails instead of passing with 'Event loop is closed'
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-26
+
+pytest treats PytestUnraisableExceptionWarning as an error, so an exception raised where no caller can catch it (a transport or client finalised after its event loop closed) fails the test that leaked it and names it.
+
+- **If violated:** 'RuntimeError: Event loop is closed' recurred on PR 423 and again on PRs 501, 505, 507, 508, 519 and 521, including fully green runs. REG-0023 locked the diagnostic reporter so it could name the crash; nothing locked the leak, and an unraisable exception was only a warning, so the leaking test passed every time.
+- **Owned by:** `pyproject.toml`
+- **Depends on:** `REG-0023`
+- **Verification:**
+  - `tests/regression/test_ci_failure_locks.py` (regression)
+
+> layer: test-suite
+
 ## Governance
 
 #### `GOV-001` — Every production defect yields a permanent regression test
@@ -2741,7 +2781,7 @@ scripts/agent_control.py exits 0 only when a check passes, 1 when a check ran an
 
 **PARTIAL → PR-013** · medium · requirement · source: OPS-2026-10-13
 
-The knowledge-index utility checks complete tracked-file coverage and current FILE_INDEX metadata, validates CHUNK_INDEX and CODEBASE_KNOWLEDGE source hashes and line ranges, verifies API_REFERENCE method/path/handler/line rows against AST-derived routes, and offers a safe refresh operation that preserves existing notes/priorities without rewriting semantic anchor ranges.
+The knowledge-index utility gates pull requests on structure (every FILE_INDEX path is tracked, every CHUNK_INDEX and CODEBASE_KNOWLEDGE anchor names an existing file and an in-range span, every API_REFERENCE route matches by method, path and handler) and, with --strict, verifies full FILE_INDEX metadata, anchor source hashes and route line numbers; it offers a safe refresh operation that preserves existing notes/priorities without rewriting semantic anchor ranges.
 
 - **If violated:** A stale index sends an agent to wrong code or makes old line ranges look authoritative, and no reproducible check identifies the drift before the index is trusted.
 - **Owned by:** `scripts/codebase_knowledge_index.py`
@@ -3133,4 +3173,4 @@ To add or change an entry, edit the registry and regenerate this file. See
 `docs/quality/TEST_STRATEGY.md` for the taxonomy the `test_type` column draws
 on, and `docs/quality/IMPLEMENTATION_PLAN.md` for what each phase delivers.
 
-Registry version: 1.0.0 — 241 entries.
+Registry version: 1.0.0 — 244 entries.

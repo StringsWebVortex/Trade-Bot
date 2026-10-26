@@ -612,6 +612,9 @@ Rules:
   update registry, then run `python3 scripts/generate_quality_docs.py`;
   CI runs `--check`.
 * Every production defect gets a permanent `REG-####` entry and test.
+* Every CI failure whose cause is not the PR's own intended change, and every
+  failure seen twice, gets a permanent `REG-####` entry and a test that fails
+  without the fix, in the PR that fixes it (section 21).
 * Every security finding gets a permanent `SEC-####` entry and test.
 * Such tests are never removed merely because the defect/finding was fixed.
 
@@ -678,3 +681,52 @@ Every response and every artifact must carry the fewest possible errors.
 * Correct a wrong statement as soon as it is found, explicitly.
 * Report only what changed, what was verified, and what remains unverified --
   no padding, no unverifiable promises.
+
+---
+
+# 21. Engineering Standard
+
+Every change, decision, workflow and operation in this repository is held to
+this standard. Each line names the control that enforces it; a line with no
+control is a gap to close, not a slogan.
+
+**Defensive correctness.** Trading, risk and execution paths fail closed and
+never degrade silently (GOV-004). Every behaviour change is tested on its edge
+cases: empty, NaN, stale, boundary, duplicate, out-of-order, and the failure of
+each dependency.
+
+**Readability and consistency.** `ruff check` and `ruff format` decide style;
+new code matches the surrounding code. Intent is visible from names and
+structure, not from comments explaining a workaround.
+
+**Containment.** Layering (GOV-018) and seam contracts (SIG-004) are never
+loosened to make a change fit; the change is reshaped instead.
+
+**Zero-tolerance gates.** `main` is reachable only through the merge queue and
+its required gates (section 9). `.pre-commit-config.yaml` is installed in every
+working copy, and `--no-verify` is never used. A gate is never weakened, skipped
+or quarantined to get green (section 14).
+
+**Gate design.** A gate fails only for a cause inside the change under test. A
+gate that an unrelated merge can break is a defect in the gate (REG-1705), and
+one that hides failures behind others is too (REG-1706).
+
+**Peer audit.** Every PR is reviewed against `AGENTS.md` "Code Review Rules"
+and `SECURITY.md` by ChatGPT Codex (section 10) and by the owner. A P0/P1
+finding blocks the merge until it is fixed or answered with evidence.
+
+**Destructive tests.** CI runs the whole suite on every commit; one failing test
+fails the build, every shard runs to the end (REG-1706), and an exception no
+test can catch fails the test that leaked it (REG-1707). A flaky test is a bug
+in that test.
+
+**Regression locks.** A failure is closed only when its root cause is fixed
+and a test that fails without the fix is in place. Lock the cause, not the
+symptom: REG-0023 locked the reporter of "Event loop is closed" and the leak
+kept recurring until REG-1707. For each failure, answer "which control should
+have caught this, and does it now?" in the `REG-` entry's `failure_mode`.
+
+**Continuous refactoring.** A PR that touches a module removes the dead code,
+duplication and slow paths it finds in that module, under the same tests.
+Debt found outside the touched scope is filed, not fixed in passing (section 1).
+

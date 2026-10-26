@@ -245,6 +245,15 @@ class TestTheRegistryHasAPlaceForDefects:
             # REG-1704: audit STR-21 -- carry and arbitrage entries gated on
             # fixed thresholds no cost measurement produced.
             "REG-1704",
+            # REG-1705: the knowledge-index gate demanded fresh hashes for every
+            # file, so any merge broke every other open PR -- ci-gate-design.
+            # REG-1706: fail-fast cancelled five shards when one failed, hiding
+            # their failures until the next push -- ci-gate-design.
+            # REG-1707: a leaked async resource printed "Event loop is closed"
+            # under a passing run; REG-0023 had locked only the reporter -- test-suite.
+            "REG-1705",
+            "REG-1706",
+            "REG-1707",
             "REG-1140",
             "REG-1141",
             "REG-1142",
@@ -554,7 +563,16 @@ class TestTheMetricsCollector:
         # no test asked what the thresholds cost to clear -- test-suite, 44.
         # SEC-0011: the lockfile drifted into three high advisories on main with
         # no test of the resolved tree -- supply-chain, 3 to 4.
-        assert metric["value"] == {"test-suite": 48, "review": 1, "supply-chain": 4}
+        # REG-1705, REG-1706: the CI gates themselves made failures recur (a
+        # knowledge gate any merge invalidates, fail-fast hiding shards) --
+        # ci-gate-design, 2.
+        # REG-1707: a leaked async resource never failed its test -- test-suite, 49.
+        assert metric["value"] == {
+            "test-suite": 49,
+            "review": 1,
+            "supply-chain": 4,
+            "ci-gate-design": 2,
+        }
 
     def test_zero_escaped_defects_would_be_stated_explicitly(self, collector, monkeypatch):
         # "We have not measured this" and "this is zero" are different

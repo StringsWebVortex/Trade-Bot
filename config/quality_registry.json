@@ -4597,7 +4597,7 @@
       "id": "GOV-066",
       "kind": "requirement",
       "title": "Codebase knowledge indexes have a deterministic integrity checker",
-      "statement": "The knowledge-index utility checks complete tracked-file coverage and current FILE_INDEX metadata, validates CHUNK_INDEX and CODEBASE_KNOWLEDGE source hashes and line ranges, verifies API_REFERENCE method/path/handler/line rows against AST-derived routes, and offers a safe refresh operation that preserves existing notes/priorities without rewriting semantic anchor ranges.",
+      "statement": "The knowledge-index utility gates pull requests on structure (every FILE_INDEX path is tracked, every CHUNK_INDEX and CODEBASE_KNOWLEDGE anchor names an existing file and an in-range span, every API_REFERENCE route matches by method, path and handler) and, with --strict, verifies full FILE_INDEX metadata, anchor source hashes and route line numbers; it offers a safe refresh operation that preserves existing notes/priorities without rewriting semantic anchor ranges.",
       "criticality": "medium",
       "subsystem": "governance",
       "status": "partial",
@@ -4641,6 +4641,74 @@
         "GOV-036",
         "GOV-037"
       ]
+    },
+    {
+      "id": "REG-1705",
+      "kind": "regression",
+      "title": "A merge elsewhere never breaks the knowledge-index gate on an open pull request",
+      "statement": "The pull-request gate (`codebase_knowledge_index.py --check`) validates structure only: every FILE_INDEX path is tracked, every CHUNK_INDEX/CODEBASE_KNOWLEDGE anchor names an existing file and a range inside it, and every API_REFERENCE route matches by method, path and handler. SHA8s, line counts, row numbers and route line numbers are checked by `--check --strict`, which no pull request is gated on.",
+      "criticality": "high",
+      "subsystem": "release",
+      "status": "verified",
+      "source": "OPS-2026-10-26",
+      "failure_mode": "The gate demanded a byte-identical regeneration of FILE_INDEX (a SHA8 and line count for ~1,229 files) and whole-file hashes behind every anchor on ~50 hot files. Any merge, even a dependency bump, made every other open pull request fail 'Codebase knowledge indexes are current' (PRs 500, 502, 504, 505, 508), and all 29 open pull requests carried conflicting edits to the same index. Fixing it in one pull request fixed nothing for the next.",
+      "owning_modules": [
+        "scripts/codebase_knowledge_index.py"
+      ],
+      "depends_on": [],
+      "verification": [
+        {
+          "test": "tests/test_codebase_knowledge_index.py",
+          "test_type": "regression"
+        }
+      ],
+      "notes": "layer: ci-gate-design"
+    },
+    {
+      "id": "REG-1706",
+      "kind": "regression",
+      "title": "One failing test shard never hides the failures of the others",
+      "statement": "The sharded pytest matrix in ci.yml runs with fail-fast disabled, so every shard runs to completion and a single CI run reports every failing test.",
+      "criticality": "medium",
+      "subsystem": "release",
+      "status": "verified",
+      "source": "OPS-2026-10-26",
+      "failure_mode": "With fail-fast: true the first failing shard cancelled the other five ('The strategy configuration was canceled because python-tests._4_6 failed' on PRs 500-508). Each run showed one shard's failures; the rest surfaced one push later and read as new failures every time.",
+      "owning_modules": [
+        ".github/workflows/ci.yml"
+      ],
+      "depends_on": [],
+      "verification": [
+        {
+          "test": "tests/regression/test_ci_failure_locks.py",
+          "test_type": "regression"
+        }
+      ],
+      "notes": "layer: ci-gate-design"
+    },
+    {
+      "id": "REG-1707",
+      "kind": "regression",
+      "title": "A test that leaks an async resource fails instead of passing with 'Event loop is closed'",
+      "statement": "pytest treats PytestUnraisableExceptionWarning as an error, so an exception raised where no caller can catch it (a transport or client finalised after its event loop closed) fails the test that leaked it and names it.",
+      "criticality": "medium",
+      "subsystem": "release",
+      "status": "verified",
+      "source": "OPS-2026-10-26",
+      "failure_mode": "'RuntimeError: Event loop is closed' recurred on PR 423 and again on PRs 501, 505, 507, 508, 519 and 521, including fully green runs. REG-0023 locked the diagnostic reporter so it could name the crash; nothing locked the leak, and an unraisable exception was only a warning, so the leaking test passed every time.",
+      "owning_modules": [
+        "pyproject.toml"
+      ],
+      "depends_on": [
+        "REG-0023"
+      ],
+      "verification": [
+        {
+          "test": "tests/regression/test_ci_failure_locks.py",
+          "test_type": "regression"
+        }
+      ],
+      "notes": "layer: test-suite"
     },
     {
       "id": "RES-009",

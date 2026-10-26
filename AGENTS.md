@@ -41,6 +41,10 @@ Use the relevant repository-local skill in `.agents/skills/` for implementation,
 
 Prefer targeted searches and narrow file ranges. Never run live CI watchers or retrieve workflow logs, job records, artifacts, annotations, or check results directly. Use only ./scripts/prfail --pr <PR_NUMBER> for the finalized filtered report.
 
+## Engineering standard
+
+`CLAUDE.md` section 21 is the engineering standard for every change, by any agent or person: defensive correctness, consistent style, layered containment, zero-tolerance gates, peer audit, destructive tests, regression locks on root causes (never on symptoms), and continuous refactoring of the touched scope. A review finding that breaks it is at least P1.
+
 ## Code Review Rules
 
 These rules govern automated pull-request review: ChatGPT Codex code review, GitHub Copilot code review, and any other reviewer that reads this file. Flag only issues the diff introduces or makes reachable, each tied to a file, line, and concrete failure. Treat a P0/P1 finding as one that can lose money, leak a secret, place or mis-size an order, hide a failure, or let a broken change through the merge gates. Skip style nits that `ruff check .` and `ruff format --check .` already enforce in CI.
@@ -81,7 +85,7 @@ When you are Codex working one of these requests:
 
 - Work only on that pull request's branch, and only on what the request names: the failing check or the P0/P1 findings. Keep the fix inside the pull request's existing scope; anything larger goes in a comment for the owner.
 - You may run `ruff check .`, `ruff format --check .`, and targeted `pytest` (with `--no-cov` for a single file) inside the Codex cloud sandbox to reproduce the failure and verify the fix. Never use real exchange credentials, live orders, or production services. GitHub Actions stays the source of truth.
-- Follow the same rules as any other change: the "Code Review Rules" above, `config/quality_registry.json` entries and deciding tests, regenerated docs (`scripts/generate_math_docs.py`, `scripts/generate_quality_docs.py`, `scripts/codebase_knowledge_index.py --refresh-file-index`), and the test policy in `CLAUDE.md`.
+- Follow the same rules as any other change: the "Code Review Rules" above, `config/quality_registry.json` entries and deciding tests, regenerated docs (`scripts/generate_math_docs.py`, `scripts/generate_quality_docs.py`; the knowledge index needs an edit only when a pull request removes or renames an indexed path or moves an anchored range out of bounds), and the test policy in `CLAUDE.md`.
 - Push ordinary commits to the pull request branch. Never force-push, rebase, merge, close, re-open, or convert the pull request to draft. Never enable or disable auto-merge: the owner arms it.
 - Never edit the agent control plane (`.claude/`, `config/command_policy.json`, `config/observation_boundary.json`, `common/command_schema.py`, `src/agent_control/`), `CLAUDE.md`, the handoff workflow or its script, or this file as part of a fix.
 - Never skip, xfail, delete, or weaken a test or gate to get green. If a fix is not possible inside these limits, say what is failing and why in a pull request comment and stop.
