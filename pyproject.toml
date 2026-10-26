@@ -33,7 +33,13 @@ asyncio_mode = "auto"
 # holding a loop a later test has already closed.
 asyncio_default_fixture_loop_scope = "function"
 addopts = "-ra --strict-markers --strict-config --cov --cov-branch --cov-report=term-missing --cov-fail-under=99"
-filterwarnings = ["error::DeprecationWarning:src.*"]
+# REG-1707: an exception raised where nobody can catch it (a transport's
+# __del__ after its event loop closed, say) fails the test that leaked it,
+# instead of printing "Event loop is closed" under a passing run.
+filterwarnings = [
+    "error::DeprecationWarning:src.*",
+    "error::pytest.PytestUnraisableExceptionWarning",
+]
 
 [tool.coverage.run]
 branch = true
