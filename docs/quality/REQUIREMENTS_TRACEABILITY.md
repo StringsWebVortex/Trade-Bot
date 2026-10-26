@@ -47,11 +47,11 @@ deletion of the thing it points at.
 
 | Status | Entries |
 |---|---|
-| VERIFIED | 237 |
+| VERIFIED | 242 |
 | PARTIAL | 3 |
 | PLANNED | 0 |
 | ACCEPTED GAP | 0 |
-| **Total** | **240** |
+| **Total** | **245** |
 
 ## Summary by subsystem
 
@@ -67,8 +67,8 @@ deletion of the thing it points at.
 | Cryptography and secrets | 33 | 33 |
 | Supply chain and artifacts | 7 | 7 |
 | Resilience and recovery | 26 | 26 |
-| Release and production | 14 | 14 |
-| Governance | 67 | 66 |
+| Release and production | 17 | 17 |
+| Governance | 69 | 68 |
 | Terminal and process center | 13 | 13 |
 
 ## Outstanding work by phase
@@ -2047,7 +2047,7 @@ The production workflow can return to the previous trusted artifact, and a drill
 
 **VERIFIED** · medium · regression · source: OPS-2026-09-30
 
-The autonomous collector waits for every applicable watched workflow, job, and step to terminate on the same PR head SHA. Failure, cancellation, timeout, neutral, action_required, stale, and skipped outcomes are retained. The collector does not cancel source runs or publish PR comments; incomplete collection never becomes a finalized report.
+The autonomous collector waits for every pull-request workflow run and job to terminate on the same PR head SHA before it publishes. Runs still going leave the report waiting, never finalized with partial results. The collector does not cancel source runs or publish PR comments.
 
 - **If violated:** The previous notice consolidated multiple failed jobs and cancellation fallout into a large comment. Agents had to sift through irrelevant failures, and cancellation from a superseded commit could overwrite the current PR state. The fail-fast notice surfaces one actionable check, cancels sibling runs, and refuses to overwrite a newer head's comment.
 - **Owned by:** `.github/workflows/ci-diagnostics.yml`, `scripts/ci_diagnostics.py`
@@ -2056,16 +2056,17 @@ The autonomous collector waits for every applicable watched workflow, job, and s
 
 > One mutable comment is the subscription surface. Its hidden SHA marker binds the notice to the current PR head; failure comments name one actionable check, success is reported only after all watched workflows finish green, and merge updates the same comment. layer: test-suite
 
-#### `REG-0020` — The collector extracts diagnostics server-side and discards ordinary success noise
+#### `REG-0020` — The collector extracts failure lines server-side and discards everything else
 
 **VERIFIED** · medium · regression · source: OPS-2026-09-30
 
-The collector scans completed job logs on its GitHub-hosted runner and retains recognized error/warning formats, source-attributed diagnostics, and structured non-success outcomes. It discards ordinary successful output, redacts common credentials, and does not send raw workflow logs to the agent.
+The collector reads job logs on its GitHub-hosted runner, only for jobs that are not green, and keeps only lines containing error, failed, failure, skipped, cancelled or canceled. It discards every other line, redacts common credentials, and does not send raw workflow logs to the agent.
 
 - **If violated:** pip-audit's vulnerability table matched none of the patterns, so the notice on #385 named the failing step and no error, and the failing lines had to be pasted by hand.
 - **Owned by:** `scripts/ci_diagnostics.py`
 - **Verification:**
   - `tests/test_ci_diagnostics.py` (unit)
+  - `tests/test_prfail_exact_lines.py` (regression)
 
 > Escaped because the notice's extraction was only ever tested against pytest-shaped output. layer: test-suite
 
@@ -2082,16 +2083,17 @@ A diagnostic report is published only after the triggering workflow is correlate
 
 > A silent notice is the one failure this channel cannot have: CLAUDE.md section 9 makes it the sole CI failure interface, so when it posts nothing every pull request looks stuck for no visible reason. layer: test-suite
 
-#### `REG-0023` — A source diagnostic retains its exact file, line, and column when provided
+#### `REG-0023` — A failure line is copied exactly, so the location it names is kept
 
 **VERIFIED** · medium · regression · source: OPS-2026-10-07
 
-GitHub annotations and recognized compiler, pytest, and Python traceback formats retain their source path and reported line/column. The collector never invents a location; workflow, infrastructure, and cancellation failures remain actionable structured records even when no source location exists.
+Each failure line is copied as logged, with only GitHub's per-line timestamp removed, so a file, line and column the tool printed stay exactly as printed. The collector never adds or invents a location.
 
 - **If violated:** A dying worker takes the short summary with it: the run ends with no FAILED line, so every SIGNAL pattern missed and the REG-0020 fallback published the step's last stdout instead. On PR 423 that made the whole notice the words 'Event loop is closed', with no node id, no file and no test. Section 8 of the directives makes the notice the only failure channel a session may read, so a failure this channel cannot name is a failure nobody can diagnose: the branch is blocked and the only remaining move is to guess.
 - **Owned by:** `scripts/ci_diagnostics.py`
 - **Verification:**
   - `tests/test_ci_diagnostics.py` (unit)
+  - `tests/test_prfail_exact_lines.py` (regression)
 
 > The crash lines rank above the summary line deliberately. When a run produces both, the crash is the one that explains the rest, and the summary is still reachable from the run itself. layer: test-suite
 
@@ -2111,6 +2113,46 @@ GitHub Actions is the sole execution path for tests, builds, lint, security scan
   - `tests/test_apply_ci_patch.py` (contract)
 
 > The old prepare/comment-notice subscription is retired. Only the finalized ./scripts/prfail --pr <PR_NUMBER> report route is allowed; the report-bound patch applier revalidates PR/head/report identity and leaves edits uncommitted. The run subcommand remains disabled. Tests, builds, lint, security scans, and quality gates are validated only by GitHub Actions. layer: test-suite
+
+#### `REG-1705` — A merge elsewhere never breaks the knowledge-index gate on an open pull request
+
+**VERIFIED** · high · regression · source: OPS-2026-10-26
+
+The pull-request gate (`codebase_knowledge_index.py --check`) validates structure only: every FILE_INDEX path is tracked, every CHUNK_INDEX/CODEBASE_KNOWLEDGE anchor names an existing file and a range inside it, and every API_REFERENCE route matches by method, path and handler. SHA8s, line counts, row numbers and route line numbers are checked by `--check --strict`, which no pull request is gated on.
+
+- **If violated:** The gate demanded a byte-identical regeneration of FILE_INDEX (a SHA8 and line count for ~1,229 files) and whole-file hashes behind every anchor on ~50 hot files. Any merge, even a dependency bump, made every other open pull request fail 'Codebase knowledge indexes are current' (PRs 500, 502, 504, 505, 508), and all 29 open pull requests carried conflicting edits to the same index. Fixing it in one pull request fixed nothing for the next.
+- **Owned by:** `scripts/codebase_knowledge_index.py`
+- **Verification:**
+  - `tests/test_codebase_knowledge_index.py` (regression)
+
+> layer: ci-gate-design
+
+#### `REG-1706` — One failing test shard never hides the failures of the others
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-26
+
+The sharded pytest matrix in ci.yml runs with fail-fast disabled, so every shard runs to completion and a single CI run reports every failing test.
+
+- **If violated:** With fail-fast: true the first failing shard cancelled the other five ('The strategy configuration was canceled because python-tests._4_6 failed' on PRs 500-508). Each run showed one shard's failures; the rest surfaced one push later and read as new failures every time.
+- **Owned by:** `.github/workflows/ci.yml`
+- **Verification:**
+  - `tests/regression/test_ci_failure_locks.py` (regression)
+
+> layer: ci-gate-design
+
+#### `REG-1707` — A test that leaks an async resource fails instead of passing with 'Event loop is closed'
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-26
+
+pytest treats PytestUnraisableExceptionWarning as an error, so an exception raised where no caller can catch it (a transport or client finalised after its event loop closed) fails the test that leaked it and names it; a session-scoped guard collects what outlives the last test and fails the worker, naming the finalizer.
+
+- **If violated:** 'RuntimeError: Event loop is closed' recurred on PR 423 and again on PRs 501, 505, 507, 508, 519 and 521, including fully green runs. REG-0023 locked the diagnostic reporter so it could name the crash; nothing locked the leak, and an unraisable exception was only a warning, so the leaking test passed every time.
+- **Owned by:** `pyproject.toml`, `tests/regression/unraisable.py`
+- **Depends on:** `REG-0023`
+- **Verification:**
+  - `tests/regression/test_ci_failure_locks.py` (regression)
+
+> layer: test-suite
 
 ## Governance
 
@@ -2254,7 +2296,7 @@ Following a CI run -- gh run watch, --watch, tail -f, docker or kubectl logs -f,
 
 **VERIFIED** · medium · requirement · source: OPS-2026-09-20
 
-When a watched pull-request workflow completes, an autonomous GitHub Actions collector waits until every applicable workflow, job, and step reaches a terminal state for the exact PR head SHA, then publishes a filtered, SHA-bound Check Run report. The collector never cancels sibling workflows, and agents retrieve diagnostics only through ./scripts/prfail --pr <PR_NUMBER>.
+When any workflow completes for a pull request, an autonomous GitHub Actions collector finds every workflow run GitHub started for the exact PR head SHA (no fixed workflow list), waits until every run and job is terminal, then publishes one SHA-bound Check Run report. The collector never cancels sibling workflows, and agents never poll workflow logs: they read the report through ./scripts/prfail.
 
 - **If violated:** Without a push notice the only way to learn a pull request failed is to poll or to read logs, which is exactly what GOV-011 and GOV-012 forbid.
 - **Owned by:** `.github/workflows/ci-diagnostics.yml`, `scripts/ci_diagnostics.py`, `scripts/prfail`
@@ -2336,11 +2378,11 @@ No CI log, job record, step annotation, artifact, cache entry or check result ca
   - `tests/test_ci_log_access.py` (contract)
   - `tests/test_pre_tool_use_hook.py` (contract)
 
-#### `GOV-020` — One SHA-bound report carries filtered diagnostics and exact source locations
+#### `GOV-020` — One SHA-bound report carries the exact failure lines of every non-green run
 
 **VERIFIED** · high · requirement · source: OPS-2026-09-22
 
-After all applicable watched workflows terminate for a PR head, one finalized Check Run manifest and its integrity-verified pages contain structured non-success outcomes and filtered diagnostics. Records include workflow/job/step identity and exact path, line, and column when supplied by the source evidence. Ordinary successful output is discarded, and the report is retrieved only by the canonical PR-number command.
+After every pull-request run for a PR head has terminated, one finalized Check Run manifest and its integrity-verified pages carry, for each non-green job of each non-green run, the exact log lines that name an error, failure, skip or cancellation, bound to their workflow run, job and line number. Green runs and green jobs contribute nothing.
 
 - **If violated:** A contributor or agent with no route to the cause of a red pull request. Since GOV-019 makes CI logs permanently unreadable, this comment is the only channel, so each of its failure modes is total: one comment per workflow means five to read and four chances to read a stale one; posting before every workflow finishes announces green on a commit that failed; and reporting 'Process completed with exit code 1' -- which is what the notice actually said on a failing shard of PR 313 -- names no test, no file and no assertion, leaving nothing to act on at all.
 - **Owned by:** `.github/workflows/ci-diagnostics.yml`, `scripts/ci_diagnostics.py`, `scripts/prfail`
@@ -2741,13 +2783,37 @@ scripts/agent_control.py exits 0 only when a check passes, 1 when a check ran an
 
 **PARTIAL → PR-013** · medium · requirement · source: OPS-2026-10-13
 
-The knowledge-index utility checks complete tracked-file coverage and current FILE_INDEX metadata, validates CHUNK_INDEX and CODEBASE_KNOWLEDGE source hashes and line ranges, verifies API_REFERENCE method/path/handler/line rows against AST-derived routes, and offers a safe refresh operation that preserves existing notes/priorities without rewriting semantic anchor ranges.
+The knowledge-index utility gates pull requests on structure (every FILE_INDEX path is tracked, every CHUNK_INDEX and CODEBASE_KNOWLEDGE anchor names an existing file and an in-range span, every API_REFERENCE route matches by method, path and handler) and, with --strict, verifies full FILE_INDEX metadata, anchor source hashes and route line numbers; it offers a safe refresh operation that preserves existing notes/priorities without rewriting semantic anchor ranges.
 
 - **If violated:** A stale index sends an agent to wrong code or makes old line ranges look authoritative, and no reproducible check identifies the drift before the index is trusted.
 - **Owned by:** `scripts/codebase_knowledge_index.py`
 - **Depends on:** `GOV-005`
 - **Verification:**
   - `tests/test_codebase_knowledge_index.py` (unit)
+
+#### `GOV-067` — A pull request Claude opened is handed to ChatGPT Codex, once per head, with a hard cap
+
+**VERIFIED** · medium · requirement · source: OPS-2026-10-26
+
+After Claude opens a pull request it stops touching it, and ChatGPT Codex carries it to merge. The handoff workflow runs the default branch's script with the owner's token and comments `@codex fix` only for a failed same-repository pull-request run of CI, CodeQL, Security or Workflow lint, or a Codex review with inline findings, on the pull request's current open head; it asks once per kind and head, at most five times per pull request, then posts one notice and stops. It never merges, arms auto-merge, or runs Claude, and a missing token fails without posting.
+
+- **If violated:** Without the cap and per-head dedupe, each Codex push re-triggers a failing check or review and the handoff loops on the owner's plan; without the default-branch checkout, a pull request could rewrite the script that holds the owner's token.
+- **Owned by:** `scripts/codex_pr_handoff.py`, `.github/workflows/codex-pr-handoff.yml`
+- **Depends on:** `GOV-036`, `GOV-037`
+- **Verification:**
+  - `tests/test_codex_pr_handoff.py` (contract)
+
+#### `GOV-068` — prfail prints only the exact failure lines of every non-green PR run, or wait
+
+**VERIFIED** · medium · requirement · source: OPS-2026-10-26
+
+./scripts/prfail --pr N prints, one per line and nothing else, the failure lines of the current PR head's finished report, then one `path:line: first line of the opening comment` line per review conversation that is still unresolved, outdated ones included, read fresh from GitHub's reviewThreads because resolving a conversation fires no Actions event (empty when nothing failed and nothing is unresolved). While any pull-request run is unfinished or the report is not yet published it prints `wait`, and a call made while another prfail for the same PR is running prints `wait` without reading anything. A workflow added to the repository is included without editing the collector, because the collector triggers on every workflow and lists the PR's runs from the API.
+
+- **If violated:** prfail returned 266 lines of JSON for a green PR head: twelve records of steps skipped by their own `if:` (durations refresh), each with twenty fields, and no failure. The collector also listed four workflows by name, so a fifth would have been silently left out of the report. A required unresolved review conversation blocked PR 521 while prfail had no way to show it.
+- **Owned by:** `scripts/ci_diagnostics.py`, `scripts/prfail`, `.github/workflows/ci-diagnostics.yml`, `scripts/apply_ci_patch.py`
+- **Depends on:** `GOV-013`, `GOV-020`
+- **Verification:**
+  - `tests/test_prfail_exact_lines.py` (contract)
 
 #### `REG-0005` — A test's result never depends on which tests ran before it
 
@@ -2891,7 +2957,7 @@ check_import_cycles and the layering edges resolve relative imports; the route c
 
 **VERIFIED** · medium · regression · source: OPS-2026-10-25
 
-The collector retries the signed job-log download and names the final cause; a green job whose log cannot be fetched adds nothing, and a failed job's gets a log_unavailable record, so the report still finalizes and says which failure lines are missing.
+The collector retries the signed job-log download and names the final cause; a green job whose log cannot be fetched adds nothing, and a failed job's gets one line saying its log is unavailable, so the report still finalizes and says which failure lines are missing.
 
 - **If violated:** A single failed signed-URL log download raised through the collector, so the report was published as collection failed and ./scripts/prfail showed no job's failures at all (PR #512).
 - **Owned by:** `scripts/ci_diagnostics.py`
@@ -3121,4 +3187,4 @@ To add or change an entry, edit the registry and regenerate this file. See
 `docs/quality/TEST_STRATEGY.md` for the taxonomy the `test_type` column draws
 on, and `docs/quality/IMPLEMENTATION_PLAN.md` for what each phase delivers.
 
-Registry version: 1.0.0 — 240 entries.
+Registry version: 1.0.0 — 245 entries.
