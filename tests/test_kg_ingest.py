@@ -18,5 +18,5 @@ def test_ingest_document_combines_extract_and_assemble():
         stats = ingest_document("A works with B.", source="doc.txt")
 
     mock_extract.assert_called_once_with("A works with B.", "doc.txt")
-    mock_assemble.assert_called_once_with(triples)
+    mock_assemble.assert_called_once_with(triples, run_id=None)
     assert stats == {"nodes_upserted": 2, "edges_upserted": 1, "triples_extracted": 1}

@@ -48,7 +48,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version-file: .python-version
           cache: pip
@@ -70,7 +70,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version-file: .python-version
           cache: pip
@@ -222,7 +222,8 @@ jobs:
         #                                        for it exists at all
         #   2. registry unreachable           -> retried, then a warning:
         #                                        a finding fails this job,
-        #                                        being unable to ask does not
+        #                                        being unable to ask does not,
+        #                                        except on schedule/dispatch
         #   3. a rejected tree                -> no scan ran, so passing
         #                                        would be a lie
         #
@@ -318,6 +319,15 @@ jobs:
           # /frontend for npm advisories independently of this job and opens
           # PRs for them, so an outage here delays a duplicate check rather
           # than removing the only one.
+          #
+          # The weekly schedule and a manual dispatch block no pull request,
+          # so there the outage fails the run (REG-1601, audit OPS-012).
+          # Otherwise a quiet week of outages would leave the scan green
+          # without it ever having run.
+          if [ "$GITHUB_EVENT_NAME" = "schedule" ] || [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            echo "::error::npm audit could not reach the registry after 2 attempts on a ${GITHUB_EVENT_NAME} run -- no CVE scan ran."
+            exit 1
+          fi
           echo "::warning::npm audit could not reach the registry after 2 attempts -- no CVE scan ran this time. Dependabot still watches /frontend independently."
 
   secrets:
@@ -379,7 +389,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version-file: .python-version
 
