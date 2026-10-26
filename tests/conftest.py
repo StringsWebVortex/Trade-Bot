@@ -342,4 +342,3 @@ def _no_unraisable_at_session_end():
             "exceptions raised by finalizers at session end: "
             + "; ".join(f"{u.object!r}: {u.exc_value!r}" for u in caught)
         )
-

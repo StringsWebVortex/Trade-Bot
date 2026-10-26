@@ -65,4 +65,3 @@ def test_session_end_guard_names_a_finalizer_that_raises() -> None:
     assert len(caught) == 1
     assert isinstance(caught[0].exc_value, RuntimeError)
     assert "_RaisesOnFinalize" in repr(caught[0].object)
-
