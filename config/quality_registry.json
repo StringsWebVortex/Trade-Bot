@@ -6029,6 +6029,99 @@
       ],
       "depends_on": [],
       "notes": "Lockfile refresh via npm install --package-lock-only plus npm update of the three packages; the only manifest change is the electron floor. The gate was not changed. layer: supply-chain"
+    },
+    {
+      "id": "REG-1140",
+      "kind": "regression",
+      "title": "The risk slider commits one write on release",
+      "statement": "Slider keeps drag state locally and calls onChange once on pointer/key release or blur, and not at all when the value is unchanged.",
+      "criticality": "high",
+      "subsystem": "api",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "Audit finding FE-02. layer: test-suite",
+      "failure_mode": "A range input called onChange on every input event, so one drag sent dozens of operator-gated risk-control POSTs, each applying an intermediate risk value live and tripping the rate limit and alert storms.",
+      "owning_modules": [
+        "frontend/src/components/Controls.jsx"
+      ],
+      "verification": [
+        {
+          "test": "frontend/src/components/Controls.test.jsx",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1141",
+      "kind": "regression",
+      "title": "NumberInput writes only a valid, changed value",
+      "statement": "NumberInput calls onChange on blur or Enter only when the parsed value is in range and differs from the current value; an invalid entry leaves draft mode and reverts to the current value.",
+      "criticality": "high",
+      "subsystem": "api",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "Audit finding FE-03. layer: test-suite",
+      "failure_mode": "Every blur posted an operator action even with no edit, and an out-of-range value left the field stuck in draft mode with no feedback.",
+      "owning_modules": [
+        "frontend/src/components/Controls.jsx"
+      ],
+      "verification": [
+        {
+          "test": "frontend/src/components/Controls.test.jsx",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1142",
+      "kind": "regression",
+      "title": "High-impact operator actions confirm and block double submission",
+      "statement": "Switching to automatic mode, approve/reject, self-tuning rollback and strategy re-enable ask for confirmation, and the button is disabled while its request is in flight so it is sent once.",
+      "criticality": "high",
+      "subsystem": "api",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "Audit finding FE-04. layer: test-suite",
+      "failure_mode": "One-click AUTOMATIC mode, trade approval, rollback and re-enable fired immediately and could be double-clicked before the next poll refreshed the UI.",
+      "owning_modules": [
+        "frontend/src/components/Controls.jsx",
+        "frontend/src/components/panels/ApprovalsPanel.jsx",
+        "frontend/src/components/panels/SelfTuningPanel.jsx",
+        "frontend/src/components/panels/StrategiesPanel.jsx"
+      ],
+      "verification": [
+        {
+          "test": "frontend/src/components/Controls.test.jsx",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1143",
+      "kind": "regression",
+      "title": "A crashing panel is contained by an error boundary",
+      "statement": "Each workspace panel and the app root render inside an ErrorBoundary that shows the error in place, so one panel throwing does not unmount the dashboard.",
+      "criticality": "high",
+      "subsystem": "api",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "Audit finding FE-05. layer: test-suite",
+      "failure_mode": "With no error boundary one unexpected null in a panel unmounted the whole dashboard, including approvals and controls.",
+      "owning_modules": [
+        "frontend/src/components/ErrorBoundary.jsx",
+        "frontend/src/App.jsx",
+        "frontend/src/main.jsx"
+      ],
+      "verification": [
+        {
+          "test": "frontend/src/components/Controls.test.jsx",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
     }
   ]
 }
