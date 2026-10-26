@@ -277,7 +277,7 @@ This is an enforcement rule, not a prompt instruction:
 - Native shells, integrated terminals, filesystem tools, browser tools, agents,
   unlisted MCP tools, newly introduced tool names, and unscoped GitHub requests
   are refused before execution. Unknown routes do not inherit permission.
-- CI diagnostics have one authorized observation route: ./scripts/prfail --pr <PR_NUMBER>. The CLI reads the centralized Check Run manifest and its digest-verified pages only; it never downloads workflow logs or queries job, annotation, artifact, or raw check endpoints. It returns only normalized non-success records, with empty stdout for a finalized report with no diagnostics. An absent, stale, incomplete, or inaccessible report is an operational error, never a success response or a fallback. scripts/ci_verdict.py and scripts/local_checks.py prepare are legacy routes and are denied by the command policy. Pre-tool enforcement applies only when the session actually loads the repository hook/settings; connector permissions and tool endpoints independently exposed by the host require external configuration.
+- CI diagnostics have one authorized observation route: ./scripts/prfail --pr <PR_NUMBER>. The CLI reads the centralized Check Run manifest and its digest-verified pages only; it never downloads workflow logs or queries job, annotation, artifact, or raw check endpoints. It prints only the exact failure lines (lines naming error, failed, failure, skipped, cancelled or canceled) of every non-green job of every non-green PR run, with empty stdout when nothing failed. Until every PR run has finished and the report is published it prints `wait` (exit 3), and a call made while another prfail for the same PR is running prints `wait` too. A broken, stale, or inaccessible report is an operational error, never a success response or a fallback. scripts/ci_verdict.py and scripts/local_checks.py prepare are legacy routes and are denied by the command policy. Pre-tool enforcement applies only when the session actually loads the repository hook/settings; connector permissions and tool endpoints independently exposed by the host require external configuration.
 - A read names its target and receives that block. `get_file_contents` must
   carry `tb_lines` (`"120-160"`) or `tb_anchor` (a unique line of the block);
   neither exists on the server schema, so the hook records the target and strips
@@ -338,18 +338,19 @@ The canonical diagnostic command is ./scripts/prfail --pr <PR_NUMBER>. Treat eve
 To fix a reported source location without remote writes, inspect the file at
 the exact report head SHA and produce a unified diff based on its current
 contents. Apply it locally only through
-`python3 scripts/apply_ci_patch.py --pr <PR_NUMBER> --head-sha <REPORT_HEAD_SHA> --patch-stdin`.
+`python3 scripts/apply_ci_patch.py --pr <PR_NUMBER> --head-sha <PR_HEAD_SHA> --patch-stdin`.
 The applier checks the local HEAD against that SHA, restricts paths to existing
 regular files in the repository, validates the diff with `git apply --check`,
 and changes the working tree only. It does not stage, commit, push, switch
 branches, or run tests. A line number is only a locator; source context and
 the current SHA must be verified before editing.
 
-The .github/workflows/ci-diagnostics.yml collector waits for the explicitly
-inventoried PR workflows and their jobs to become terminal, correlates them to
-the same PR head SHA, and publishes a report manifest plus deterministic
-Check Run pages containing only non-success outcomes and extracted diagnostic
-lines. Retrieval verifies PR, head SHA, page generation, record count, message
+The .github/workflows/ci-diagnostics.yml collector starts when any workflow
+completes (`workflows: ["*"]`), lists every pull_request run GitHub created for
+the PR head SHA (no fixed list, so new workflows are covered), waits for all of
+them and their jobs to become terminal, and publishes a report manifest plus
+deterministic Check Run pages holding the failure lines of the non-green jobs
+(GOV-068). Retrieval verifies PR, head SHA, page generation, record count, message
 fragments, and the overall digest. It never falls back to the older mutable
 PR-comment notice or to direct log/check APIs.
 
@@ -502,8 +503,8 @@ The registry entry and deciding test belong in the same commit as the behavior.
 checks, so an instruction to run it before pushing would order a command the
 pre-tool boundary refuses. No local test, build, lint, security scan, or quality-gate run is permitted,
 even for a previously failing check. The only local CI-observation exception is the read-only command
-`./scripts/prfail --pr <PR_NUMBER>`, which returns only the finalized filtered
-report for the current PR head SHA. The separate local patch-applier exception
+`./scripts/prfail --pr <PR_NUMBER>`, which returns only the failure lines of the
+finished report for the current PR head SHA, or `wait`. The separate local patch-applier exception
 accepts only a quoted, report-bound unified diff; it refuses protected control-plane
 files and never runs checks. Push the correction through the approved GitHub
 branch-write route and use GitHub Actions for every test, build, lint, security
