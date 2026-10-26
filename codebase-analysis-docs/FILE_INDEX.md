@@ -15,7 +15,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | ---: | --- | --- | --- | ---: | --- | --- |
 | 1 | P0 | .github/workflows/ci-diagnostics.yml | YAML | 44 | 00c6ca90 | SHA-bound CI diagnostics collector |
 | 2 | P0 | .github/workflows/ci.yml | YAML | 408 | 157db505 | CI jobs and gate composition |
-| 3 | P0 | AGENTS.md | Markdown | 46 | c98828a6 | Engineering workflow and safety contract |
+| 3 | P0 | AGENTS.md | Markdown | 72 | 448bacc2 | Engineering workflow and safety contract |
 | 4 | P0 | CLAUDE.md | Markdown | 658 | 17e4fd71 | Architecture, quality, CI and project policy |
 | 5 | P0 | Dockerfile | Other text/source | 145 | db5c42f1 | Container runtime, identity, healthcheck and entrypoint |
 | 6 | P0 | Makefile | Other text/source | 45 | f5f88b46 | Developer commands governed by repository policy |
@@ -69,7 +69,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | # | Priority | Path | Type | Lines | SHA8 | Notes |
 | ---: | --- | --- | --- | ---: | --- | --- |
 | 1 | P0 | .github/workflows/ci.yml | YAML | 408 | 157db505 | CI jobs and gate composition |
-| 2 | P0 | AGENTS.md | Markdown | 46 | c98828a6 | Engineering workflow and safety contract |
+| 2 | P0 | AGENTS.md | Markdown | 72 | 448bacc2 | Engineering workflow and safety contract |
 | 3 | P0 | CLAUDE.md | Markdown | 658 | 17e4fd71 | Architecture, quality, CI and project policy |
 | 4 | P0 | Dockerfile | Other text/source | 145 | db5c42f1 | Container runtime, identity, healthcheck and entrypoint |
 | 5 | P0 | Makefile | Other text/source | 45 | f5f88b46 | Developer commands governed by repository policy |
@@ -1224,7 +1224,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 1154 | P2 | .vscode/settings.json | JSON | 9 | 35d5bf39 |  |
 | 1155 | P2 | CONTRIBUTING.md | Markdown | 61 | 04155331 |  |
 | 1156 | P2 | LICENSE | Other text/source | 21 | 49a961c5 |  |
-| 1157 | P2 | SECURITY.md | Markdown | 30 | ef15bb55 |  |
+| 1157 | P2 | SECURITY.md | Markdown | 74 | d89158d1 |  |
 | 1158 | P2 | common/__init__.py | Python | 0 | e3b0c442 |  |
 | 1159 | P2 | common/claude_cli.py | Python | 79 | fbe378e7 |  |
 | 1160 | P2 | common/command_schema.py | Python | 616 | 1de280b9 |  |
