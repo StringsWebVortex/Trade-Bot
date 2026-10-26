@@ -47,11 +47,11 @@ deletion of the thing it points at.
 
 | Status | Entries |
 |---|---|
-| VERIFIED | 236 |
+| VERIFIED | 241 |
 | PARTIAL | 3 |
 | PLANNED | 0 |
 | ACCEPTED GAP | 0 |
-| **Total** | **239** |
+| **Total** | **244** |
 
 ## Summary by subsystem
 
@@ -63,8 +63,8 @@ deletion of the thing it points at.
 | Signal and features | 7 | 7 |
 | Models and leakage | 12 | 12 |
 | Data, money and time | 14 | 13 |
-| API and WebSocket | 22 | 22 |
-| Cryptography and secrets | 32 | 32 |
+| API and WebSocket | 26 | 26 |
+| Cryptography and secrets | 33 | 33 |
 | Supply chain and artifacts | 7 | 7 |
 | Resilience and recovery | 26 | 26 |
 | Release and production | 14 | 14 |
@@ -1105,6 +1105,58 @@ The default API_CORS_ORIGINS allows both loopback spellings of the dashboard dev
 
 > layer: test-suite
 
+#### `REG-1140` — The risk slider commits one write on release
+
+**VERIFIED** · high · regression · source: OPS-2026-10-25
+
+Slider keeps drag state locally and calls onChange once on pointer/key release or blur, and not at all when the value is unchanged.
+
+- **If violated:** A range input called onChange on every input event, so one drag sent dozens of operator-gated risk-control POSTs, each applying an intermediate risk value live and tripping the rate limit and alert storms.
+- **Owned by:** `frontend/src/components/Controls.jsx`
+- **Verification:**
+  - `frontend/src/components/Controls.test.jsx` (regression)
+
+> Audit finding FE-02. layer: test-suite
+
+#### `REG-1141` — NumberInput writes only a valid, changed value
+
+**VERIFIED** · high · regression · source: OPS-2026-10-25
+
+NumberInput calls onChange on blur or Enter only when the parsed value is in range and differs from the current value; an invalid entry leaves draft mode and reverts to the current value.
+
+- **If violated:** Every blur posted an operator action even with no edit, and an out-of-range value left the field stuck in draft mode with no feedback.
+- **Owned by:** `frontend/src/components/Controls.jsx`
+- **Verification:**
+  - `frontend/src/components/Controls.test.jsx` (regression)
+
+> Audit finding FE-03. layer: test-suite
+
+#### `REG-1142` — High-impact operator actions confirm and block double submission
+
+**VERIFIED** · high · regression · source: OPS-2026-10-25
+
+Switching to automatic mode, approve/reject, self-tuning rollback and strategy re-enable ask for confirmation, and the button is disabled while its request is in flight so it is sent once.
+
+- **If violated:** One-click AUTOMATIC mode, trade approval, rollback and re-enable fired immediately and could be double-clicked before the next poll refreshed the UI.
+- **Owned by:** `frontend/src/components/Controls.jsx`, `frontend/src/components/panels/ApprovalsPanel.jsx`, `frontend/src/components/panels/SelfTuningPanel.jsx`, `frontend/src/components/panels/StrategiesPanel.jsx`
+- **Verification:**
+  - `frontend/src/components/Controls.test.jsx` (regression)
+
+> Audit finding FE-04. layer: test-suite
+
+#### `REG-1143` — A crashing panel is contained by an error boundary
+
+**VERIFIED** · high · regression · source: OPS-2026-10-25
+
+Each workspace panel and the app root render inside an ErrorBoundary that shows the error in place, so one panel throwing does not unmount the dashboard.
+
+- **If violated:** With no error boundary one unexpected null in a panel unmounted the whole dashboard, including approvals and controls.
+- **Owned by:** `frontend/src/components/ErrorBoundary.jsx`, `frontend/src/App.jsx`, `frontend/src/main.jsx`
+- **Verification:**
+  - `frontend/src/components/Controls.test.jsx` (regression)
+
+> Audit finding FE-05. layer: test-suite
+
 #### `REG-1703` — One environment variable never binds two settings fields
 
 **VERIFIED** · low · regression · source: OPS-2026-10-25
@@ -1491,6 +1543,19 @@ The integrated terminal adds a command-execution surface; nothing reaches it exc
   - `frontend/src/desktop/terminalBridge.test.js` (security)
 
 > layer: test-suite
+
+#### `SEC-0011` — The frontend lockfile resolves electron, follow-redirects and undici outside their high advisory ranges
+
+**VERIFIED** · high · security_regression · source: OPS-2026-10-25
+
+frontend's npm tree resolves electron >= 44.9.1, follow-redirects >= 1.16.1 and undici >= 7.30.1 (>= 8.12.2 on the 8.x line), so npm audit at --audit-level=high reports no fixable advisory.
+
+- **If violated:** Security gate (npm audit) failed on pull requests that do not touch frontend (#498, #499) because main's lockfile resolved electron 44.7.0 (GHSA-jr5w-w6x2-84p9), follow-redirects 1.16.0 (GHSA-q3jh-wrc6-jgq8, GHSA-8r9p-f939-6h3c) and undici 7.30.0 / 8.11.2 (GHSA-4qv8-2p9j-2685, GHSA-f72v-6w45-q472), all with fixAvailable true. Measured with npm audit --json on a copy of frontend/: 3 high before; 0 high after (4 moderate vitest advisories remain, below the gate threshold).
+- **Owned by:** `frontend/package.json`, `.github/workflows/security.yml`
+- **Verification:**
+  - `tests/test_frontend_audit_scope.py` (unit)
+
+> Lockfile refresh via npm install --package-lock-only plus npm update of the three packages; the only manifest change is the electron floor. The gate was not changed. layer: supply-chain
 
 #### `SEC-0012` — The runtime manifest never resolves a vulnerable filelock
 
@@ -3108,4 +3173,4 @@ To add or change an entry, edit the registry and regenerate this file. See
 `docs/quality/TEST_STRATEGY.md` for the taxonomy the `test_type` column draws
 on, and `docs/quality/IMPLEMENTATION_PLAN.md` for what each phase delivers.
 
-Registry version: 1.0.0 — 239 entries.
+Registry version: 1.0.0 — 244 entries.

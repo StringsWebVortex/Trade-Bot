@@ -6008,6 +6008,122 @@
       "notes": "Audit STR-21. Part 1: the cost model and the strategies. The orchestrator does not yet fill PortfolioInputs.execution_cost, so the three families (all disabled by default) stay flat until part 2 wires the account's fills, the live half-spread and the calibrated impact in, adds the measured fee to check_slippage_veto, and replaces the fixed fee constants in paper.py, live.py, rl_agent.py and e15_rl.py. Those files are in open PRs. layer: test-suite"
     },
     {
+      "id": "SEC-0011",
+      "kind": "security_regression",
+      "title": "The frontend lockfile resolves electron, follow-redirects and undici outside their high advisory ranges",
+      "statement": "frontend's npm tree resolves electron >= 44.9.1, follow-redirects >= 1.16.1 and undici >= 7.30.1 (>= 8.12.2 on the 8.x line), so npm audit at --audit-level=high reports no fixable advisory.",
+      "criticality": "high",
+      "subsystem": "security",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "Security gate (npm audit) failed on pull requests that do not touch frontend (#498, #499) because main's lockfile resolved electron 44.7.0 (GHSA-jr5w-w6x2-84p9), follow-redirects 1.16.0 (GHSA-q3jh-wrc6-jgq8, GHSA-8r9p-f939-6h3c) and undici 7.30.0 / 8.11.2 (GHSA-4qv8-2p9j-2685, GHSA-f72v-6w45-q472), all with fixAvailable true. Measured with npm audit --json on a copy of frontend/: 3 high before; 0 high after (4 moderate vitest advisories remain, below the gate threshold).",
+      "owning_modules": [
+        "frontend/package.json",
+        ".github/workflows/security.yml"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_frontend_audit_scope.py",
+          "test_type": "unit"
+        }
+      ],
+      "depends_on": [],
+      "notes": "Lockfile refresh via npm install --package-lock-only plus npm update of the three packages; the only manifest change is the electron floor. The gate was not changed. layer: supply-chain"
+    },
+    {
+      "id": "REG-1140",
+      "kind": "regression",
+      "title": "The risk slider commits one write on release",
+      "statement": "Slider keeps drag state locally and calls onChange once on pointer/key release or blur, and not at all when the value is unchanged.",
+      "criticality": "high",
+      "subsystem": "api",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "Audit finding FE-02. layer: test-suite",
+      "failure_mode": "A range input called onChange on every input event, so one drag sent dozens of operator-gated risk-control POSTs, each applying an intermediate risk value live and tripping the rate limit and alert storms.",
+      "owning_modules": [
+        "frontend/src/components/Controls.jsx"
+      ],
+      "verification": [
+        {
+          "test": "frontend/src/components/Controls.test.jsx",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1141",
+      "kind": "regression",
+      "title": "NumberInput writes only a valid, changed value",
+      "statement": "NumberInput calls onChange on blur or Enter only when the parsed value is in range and differs from the current value; an invalid entry leaves draft mode and reverts to the current value.",
+      "criticality": "high",
+      "subsystem": "api",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "Audit finding FE-03. layer: test-suite",
+      "failure_mode": "Every blur posted an operator action even with no edit, and an out-of-range value left the field stuck in draft mode with no feedback.",
+      "owning_modules": [
+        "frontend/src/components/Controls.jsx"
+      ],
+      "verification": [
+        {
+          "test": "frontend/src/components/Controls.test.jsx",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1142",
+      "kind": "regression",
+      "title": "High-impact operator actions confirm and block double submission",
+      "statement": "Switching to automatic mode, approve/reject, self-tuning rollback and strategy re-enable ask for confirmation, and the button is disabled while its request is in flight so it is sent once.",
+      "criticality": "high",
+      "subsystem": "api",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "Audit finding FE-04. layer: test-suite",
+      "failure_mode": "One-click AUTOMATIC mode, trade approval, rollback and re-enable fired immediately and could be double-clicked before the next poll refreshed the UI.",
+      "owning_modules": [
+        "frontend/src/components/Controls.jsx",
+        "frontend/src/components/panels/ApprovalsPanel.jsx",
+        "frontend/src/components/panels/SelfTuningPanel.jsx",
+        "frontend/src/components/panels/StrategiesPanel.jsx"
+      ],
+      "verification": [
+        {
+          "test": "frontend/src/components/Controls.test.jsx",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1143",
+      "kind": "regression",
+      "title": "A crashing panel is contained by an error boundary",
+      "statement": "Each workspace panel and the app root render inside an ErrorBoundary that shows the error in place, so one panel throwing does not unmount the dashboard.",
+      "criticality": "high",
+      "subsystem": "api",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "Audit finding FE-05. layer: test-suite",
+      "failure_mode": "With no error boundary one unexpected null in a panel unmounted the whole dashboard, including approvals and controls.",
+      "owning_modules": [
+        "frontend/src/components/ErrorBoundary.jsx",
+        "frontend/src/App.jsx",
+        "frontend/src/main.jsx"
+      ],
+      "verification": [
+        {
+          "test": "frontend/src/components/Controls.test.jsx",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
       "id": "REG-1090",
       "kind": "regression",
       "title": "BOCPD changepoint probability responds to a mean shift",

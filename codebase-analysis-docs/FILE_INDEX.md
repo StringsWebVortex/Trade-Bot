@@ -4,7 +4,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 
 ## Totals
 
-- Tracked paths: 1223
+- Tracked paths: 1225
 - Python files: 1017
 - P0 anchors: 58
 - P1 files: 1044
@@ -14,31 +14,31 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | # | Priority | Path | Type | Lines | SHA8 | Why it matters |
 | ---: | --- | --- | --- | ---: | --- | --- |
 | 1 | P0 | .github/workflows/ci-diagnostics.yml | YAML | 44 | 00c6ca90 | SHA-bound CI diagnostics collector |
-| 2 | P0 | .github/workflows/ci.yml | YAML | 408 | 1afd1d2e | CI jobs and gate composition |
+| 2 | P0 | .github/workflows/ci.yml | YAML | 408 | 157db505 | CI jobs and gate composition |
 | 3 | P0 | AGENTS.md | Markdown | 46 | c98828a6 | Engineering workflow and safety contract |
 | 4 | P0 | CLAUDE.md | Markdown | 658 | 17e4fd71 | Architecture, quality, CI and project policy |
-| 5 | P0 | Dockerfile | Other text/source | 142 | 63505f02 | Container runtime, identity, healthcheck and entrypoint |
+| 5 | P0 | Dockerfile | Other text/source | 145 | db5c42f1 | Container runtime, identity, healthcheck and entrypoint |
 | 6 | P0 | Makefile | Other text/source | 45 | f5f88b46 | Developer commands governed by repository policy |
 | 7 | P0 | README.md | Markdown | 467 | 930f180e | Purpose, usage and declared architecture |
 | 8 | P0 | config/architecture_layers.json | JSON | 78 | 734d6397 | Enforced import layering |
 | 9 | P0 | config/command_policy.json | JSON | 264 | 84e63848 | Tool command and CI observation policy |
 | 10 | P0 | config/horizons.yaml | YAML | 53 | 2ede87ec | Auxiliary prediction horizon definitions |
 | 11 | P0 | config/math_registry.json | JSON | 1903 | 8fa18ffc | Mathematical object registry |
-| 12 | P0 | config/quality_registry.json | JSON | 6099 | 9a22c4b5 | Requirements, regressions and deciding tests |
+| 12 | P0 | config/quality_registry.json | JSON | 6215 | b0e65997 | Requirements, regressions and deciding tests |
 | 13 | P0 | config/risk.yaml | YAML | 26 | dd4766f8 | Horizon/intelligence risk, distinct from core Settings |
 | 14 | P0 | docker-compose.yml | YAML | 82 | 80ec3eca | API/Timescale/optional-worker composition |
 | 15 | P0 | docs/quality/CI_GATE_ARCHITECTURE.md | Markdown | 255 | 02726345 | CI gates |
 | 16 | P0 | docs/runtime/RUNTIME_PLATFORM.md | Markdown | 296 | 37fde0ad | Runtime control plane architecture |
 | 17 | P0 | docs/security/THREAT_MODEL.md | Markdown | 341 | ab52c113 | Threat model |
 | 18 | P0 | docs/terminal/ARCHITECTURE.md | Markdown | 217 | ac1b11e0 | Terminal/workspace architecture; historical baseline clearly labeled |
-| 19 | P0 | frontend/package.json | JSON | 77 | 397d38f6 | Node toolchain and frontend scripts |
-| 20 | P0 | frontend/src/App.jsx | React JSX | 470 | babdff7e | Dashboard composition |
+| 19 | P0 | frontend/package.json | JSON | 77 | 1b928b39 | Node toolchain and frontend scripts |
+| 20 | P0 | frontend/src/App.jsx | React JSX | 471 | 14ed8fbf | Dashboard composition |
 | 21 | P0 | frontend/src/hooks/useApi.js | JavaScript | 463 | 79cc9d3c | HTTP and WebSocket client |
-| 22 | P0 | frontend/src/main.jsx | React JSX | 10 | b57d0e84 | React entrypoint |
+| 22 | P0 | frontend/src/main.jsx | React JSX | 13 | 2a4613fa | React entrypoint |
 | 23 | P0 | pyproject.toml | TOML | 94 | 78e2122b | Python version, pytest/coverage and Ruff configuration |
-| 24 | P0 | requirements-dev.txt | Text | 22 | 2a136c55 | Development/test dependencies |
-| 25 | P0 | requirements-optional.txt | Text | 43 | 57f632fc | Optional/lazy dependencies |
-| 26 | P0 | requirements.txt | Text | 96 | be258cb7 | Runtime Python dependency source |
+| 24 | P0 | requirements-dev.txt | Text | 22 | 78da51ef | Development/test dependencies |
+| 25 | P0 | requirements-optional.txt | Text | 43 | aba5af86 | Optional/lazy dependencies |
+| 26 | P0 | requirements.txt | Text | 96 | d8d7f348 | Runtime Python dependency source |
 | 27 | P0 | src/api/__main__.py | Python | 42 | f07796d2 | API entrypoint |
 | 28 | P0 | src/api/access_control.py | Python | 84 | 263fe5ed | Permission/role definitions |
 | 29 | P0 | src/api/auth.py | Python | 179 | c9a226cf | API key and role authentication |
@@ -68,31 +68,31 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 
 | # | Priority | Path | Type | Lines | SHA8 | Notes |
 | ---: | --- | --- | --- | ---: | --- | --- |
-| 1 | P0 | .github/workflows/ci.yml | YAML | 408 | 1afd1d2e | CI jobs and gate composition |
+| 1 | P0 | .github/workflows/ci.yml | YAML | 408 | 157db505 | CI jobs and gate composition |
 | 2 | P0 | AGENTS.md | Markdown | 46 | c98828a6 | Engineering workflow and safety contract |
 | 3 | P0 | CLAUDE.md | Markdown | 658 | 17e4fd71 | Architecture, quality, CI and project policy |
-| 4 | P0 | Dockerfile | Other text/source | 142 | 63505f02 | Container runtime, identity, healthcheck and entrypoint |
+| 4 | P0 | Dockerfile | Other text/source | 145 | db5c42f1 | Container runtime, identity, healthcheck and entrypoint |
 | 5 | P0 | Makefile | Other text/source | 45 | f5f88b46 | Developer commands governed by repository policy |
 | 6 | P0 | README.md | Markdown | 467 | 930f180e | Purpose, usage and declared architecture |
 | 7 | P0 | config/architecture_layers.json | JSON | 78 | 734d6397 | Enforced import layering |
 | 8 | P0 | config/command_policy.json | JSON | 264 | 84e63848 | Tool command and CI observation policy |
 | 9 | P0 | config/horizons.yaml | YAML | 53 | 2ede87ec | Auxiliary prediction horizon definitions |
 | 10 | P0 | config/math_registry.json | JSON | 1903 | 8fa18ffc | Mathematical object registry |
-| 11 | P0 | config/quality_registry.json | JSON | 6099 | 9a22c4b5 | Requirements, regressions and deciding tests |
+| 11 | P0 | config/quality_registry.json | JSON | 6215 | b0e65997 | Requirements, regressions and deciding tests |
 | 12 | P0 | config/risk.yaml | YAML | 26 | dd4766f8 | Horizon/intelligence risk, distinct from core Settings |
 | 13 | P0 | docker-compose.yml | YAML | 82 | 80ec3eca | API/Timescale/optional-worker composition |
 | 14 | P0 | docs/quality/CI_GATE_ARCHITECTURE.md | Markdown | 255 | 02726345 | CI gates |
 | 15 | P0 | docs/runtime/RUNTIME_PLATFORM.md | Markdown | 296 | 37fde0ad | Runtime control plane architecture |
 | 16 | P0 | docs/security/THREAT_MODEL.md | Markdown | 341 | ab52c113 | Threat model |
 | 17 | P0 | docs/terminal/ARCHITECTURE.md | Markdown | 217 | ac1b11e0 | Terminal/workspace architecture; historical baseline clearly labeled |
-| 18 | P0 | frontend/package.json | JSON | 77 | 397d38f6 | Node toolchain and frontend scripts |
-| 19 | P0 | frontend/src/App.jsx | React JSX | 470 | babdff7e | Dashboard composition |
+| 18 | P0 | frontend/package.json | JSON | 77 | 1b928b39 | Node toolchain and frontend scripts |
+| 19 | P0 | frontend/src/App.jsx | React JSX | 471 | 14ed8fbf | Dashboard composition |
 | 20 | P0 | frontend/src/hooks/useApi.js | JavaScript | 463 | 79cc9d3c | HTTP and WebSocket client |
-| 21 | P0 | frontend/src/main.jsx | React JSX | 10 | b57d0e84 | React entrypoint |
+| 21 | P0 | frontend/src/main.jsx | React JSX | 13 | 2a4613fa | React entrypoint |
 | 22 | P0 | pyproject.toml | TOML | 94 | 78e2122b | Python version, pytest/coverage and Ruff configuration |
-| 23 | P0 | requirements-dev.txt | Text | 22 | 2a136c55 | Development/test dependencies |
-| 24 | P0 | requirements-optional.txt | Text | 43 | 57f632fc | Optional/lazy dependencies |
-| 25 | P0 | requirements.txt | Text | 96 | be258cb7 | Runtime Python dependency source |
+| 23 | P0 | requirements-dev.txt | Text | 22 | 78da51ef | Development/test dependencies |
+| 24 | P0 | requirements-optional.txt | Text | 43 | aba5af86 | Optional/lazy dependencies |
+| 25 | P0 | requirements.txt | Text | 96 | d8d7f348 | Runtime Python dependency source |
 | 26 | P0 | src/api/__main__.py | Python | 42 | f07796d2 | API entrypoint |
 | 27 | P0 | src/api/access_control.py | Python | 84 | 263fe5ed | Permission/role definitions |
 | 28 | P0 | src/api/auth.py | Python | 179 | c9a226cf | API key and role authentication |
@@ -135,13 +135,13 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 65 | P1 | .github/pull_request_template.md | Markdown | 15 | e8ad60ce |  |
 | 66 | P1 | .github/rulesets/main-protection.json | JSON | 110 | 585c7190 |  |
 | 67 | P1 | .github/workflows/ci-diagnostics.yml | YAML | 44 | 00c6ca90 |  |
-| 68 | P1 | .github/workflows/codeql.yml | YAML | 118 | 0a720b76 |  |
-| 69 | P1 | .github/workflows/deploy.yml | YAML | 173 | 0a5699c6 |  |
-| 70 | P1 | .github/workflows/nightly-quality.yml | YAML | 141 | 44436fa9 |  |
-| 71 | P1 | .github/workflows/pr-auto-update.yml | YAML | 309 | 35b663ab |  |
-| 72 | P1 | .github/workflows/rag-ingest.yml | YAML | 54 | 61ce5844 |  |
-| 73 | P1 | .github/workflows/release.yml | YAML | 133 | dfddb74d |  |
-| 74 | P1 | .github/workflows/security.yml | YAML | 476 | 6337eba3 |  |
+| 68 | P1 | .github/workflows/codeql.yml | YAML | 118 | 92cec6ba |  |
+| 69 | P1 | .github/workflows/deploy.yml | YAML | 173 | b4b44dc3 |  |
+| 70 | P1 | .github/workflows/nightly-quality.yml | YAML | 141 | 08f2db1b |  |
+| 71 | P1 | .github/workflows/pr-auto-update.yml | YAML | 309 | 9122095b |  |
+| 72 | P1 | .github/workflows/rag-ingest.yml | YAML | 54 | 3ef87ddd |  |
+| 73 | P1 | .github/workflows/release.yml | YAML | 133 | b595cd54 |  |
+| 74 | P1 | .github/workflows/security.yml | YAML | 476 | fa6294fe |  |
 | 75 | P1 | .github/workflows/workflow-lint.yml | YAML | 112 | efae0a17 |  |
 | 76 | P1 | config/arch_baseline.json | JSON | 39 | e87a9ea6 |  |
 | 77 | P1 | config/exchange_key_posture.json | JSON | 23 | eed97927 |  |
@@ -183,7 +183,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 113 | P1 | docs/quality/QUALITY_BASELINE.md | Markdown | 125 | bbc75e22 |  |
 | 114 | P1 | docs/quality/QUALITY_METRICS.md | Markdown | 122 | 386b71a5 |  |
 | 115 | P1 | docs/quality/QUALITY_POLICY.md | Markdown | 232 | 8c4629b8 |  |
-| 116 | P1 | docs/quality/REQUIREMENTS_TRACEABILITY.md | Markdown | 3111 | dc4a9635 |  |
+| 116 | P1 | docs/quality/REQUIREMENTS_TRACEABILITY.md | Markdown | 3176 | 81f508ab |  |
 | 117 | P1 | docs/quality/ROOT_CAUSE_TEMPLATE.md | Markdown | 84 | a55b20e9 |  |
 | 118 | P1 | docs/quality/TEST_STRATEGY.md | Markdown | 252 | efbde1ba |  |
 | 119 | P1 | docs/runtime/IMPLEMENTATION_MATRIX.md | Markdown | 79 | 7e5cd563 |  |
@@ -194,11 +194,11 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 124 | P1 | docs/security/SECURITY_POLICY.md | Markdown | 361 | 4d750b78 |  |
 | 125 | P1 | docs/security/claude-cloud-github-only.md | Markdown | 41 | de2c0e75 |  |
 | 126 | P1 | docs/terminal/OPERATIONS.md | Markdown | 204 | f1b999ca |  |
-| 127 | P1 | frontend/src/components/Controls.jsx | React JSX | 136 | 7ae46cc6 |  |
+| 127 | P1 | frontend/src/components/Controls.jsx | React JSX | 183 | 315bb378 |  |
 | 128 | P1 | frontend/src/components/Panel.jsx | React JSX | 111 | 2477557c |  |
 | 129 | P1 | frontend/src/components/StartupBanner.jsx | React JSX | 58 | 60b03901 |  |
 | 130 | P1 | frontend/src/components/StartupBanner.test.jsx | React JSX | 66 | ecd6354a |  |
-| 131 | P1 | frontend/src/components/panels/ApprovalsPanel.jsx | React JSX | 53 | 4df758a1 |  |
+| 131 | P1 | frontend/src/components/panels/ApprovalsPanel.jsx | React JSX | 54 | 48c2aa54 |  |
 | 132 | P1 | frontend/src/components/panels/ConfigPanel.jsx | React JSX | 297 | aa5c6aff |  |
 | 133 | P1 | frontend/src/components/panels/ControlHubPanel.jsx | React JSX | 281 | b3441f4e |  |
 | 134 | P1 | frontend/src/components/panels/EquityChart.jsx | React JSX | 102 | a31e7cea |  |
@@ -208,8 +208,8 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 138 | P1 | frontend/src/components/panels/PositionsPanel.jsx | React JSX | 47 | 202c0d59 |  |
 | 139 | P1 | frontend/src/components/panels/RiskControlsPanel.jsx | React JSX | 83 | 8b163cc9 |  |
 | 140 | P1 | frontend/src/components/panels/RuntimePanel.jsx | React JSX | 263 | cb6c2ead |  |
-| 141 | P1 | frontend/src/components/panels/SelfTuningPanel.jsx | React JSX | 94 | 50ecc2a2 |  |
-| 142 | P1 | frontend/src/components/panels/StrategiesPanel.jsx | React JSX | 151 | e1511071 |  |
+| 141 | P1 | frontend/src/components/panels/SelfTuningPanel.jsx | React JSX | 95 | 557e223c |  |
+| 142 | P1 | frontend/src/components/panels/StrategiesPanel.jsx | React JSX | 153 | 7e2040f5 |  |
 | 143 | P1 | frontend/src/components/panels/TradesPanel.jsx | React JSX | 99 | 5004c345 |  |
 | 144 | P1 | frontend/src/components/panels/VenuesPanel.jsx | React JSX | 149 | 1bf23f04 |  |
 | 145 | P1 | frontend/src/components/panels/VenuesPanel.test.jsx | React JSX | 178 | c9b499e7 |  |
@@ -704,7 +704,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 634 | P1 | tests/regime/test_garch.py | Python | 148 | 8a4195c0 |  |
 | 635 | P1 | tests/regression/__init__.py | Python | 0 | e3b0c442 |  |
 | 636 | P1 | tests/regression/test_metrics_payload.py | Python | 120 | 094976c7 |  |
-| 637 | P1 | tests/regression/test_regression_registry_contract.py | Python | 661 | fcce45ac |  |
+| 637 | P1 | tests/regression/test_regression_registry_contract.py | Python | 661 | ddd9d1c3 |  |
 | 638 | P1 | tests/risk/__init__.py | Python | 0 | e3b0c442 |  |
 | 639 | P1 | tests/risk/test_probability_bounds.py | Python | 137 | a3b65a78 |  |
 | 640 | P1 | tests/risk/test_risk_limit_boundaries.py | Python | 300 | 37b9b36e |  |
@@ -901,7 +901,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 831 | P1 | tests/test_fetcher_symbol_precision.py | Python | 94 | fef0ec91 |  |
 | 832 | P1 | tests/test_fetcher_venue_degradation.py | Python | 195 | 505ce832 |  |
 | 833 | P1 | tests/test_folklore_gate.py | Python | 213 | 3c91b2db |  |
-| 834 | P1 | tests/test_frontend_audit_scope.py | Python | 155 | 89d0f9a5 |  |
+| 834 | P1 | tests/test_frontend_audit_scope.py | Python | 187 | 2c082658 |  |
 | 835 | P1 | tests/test_funding_carry.py | Python | 101 | cc7256d7 |  |
 | 836 | P1 | tests/test_gap015_backfill.py | Python | 394 | 1b36ebf2 |  |
 | 837 | P1 | tests/test_gap015_intelligence_training.py | Python | 150 | 5f0a0cbc |  |
@@ -1248,46 +1248,48 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 1178 | P2 | frontend/electron/terminalBridge.cjs | CommonJS | 221 | df9b68c6 |  |
 | 1179 | P2 | frontend/index.html | HTML | 14 | 937890f7 |  |
 | 1180 | P2 | frontend/linux/tradebot-dashboard.desktop | Desktop-entry config | 9 | d8c53c4f |  |
-| 1181 | P2 | frontend/package-lock.json | JSON | 4826 | 980cdc25 |  |
+| 1181 | P2 | frontend/package-lock.json | JSON | 4856 | f95a718c |  |
 | 1182 | P2 | frontend/postcss.config.js | JavaScript | 7 | ad943233 |  |
 | 1183 | P2 | frontend/public/icon.svg | Vector asset | 15 | 9a6da623 |  |
 | 1184 | P2 | frontend/scripts/build-icons.mjs | ES module | 36 | 4489c079 |  |
 | 1185 | P2 | frontend/scripts/install-desktop-shortcut.sh | Shell | 83 | 2cf78edf |  |
-| 1186 | P2 | frontend/tailwind.config.js | JavaScript | 43 | a8d2f444 |  |
-| 1187 | P2 | frontend/vite.config.js | JavaScript | 40 | 8d61c39d |  |
-| 1188 | P2 | frontend/vitest.browser.config.js | JavaScript | 19 | 968832f5 |  |
-| 1189 | P2 | frontend/vitest.config.js | JavaScript | 14 | d37c0445 |  |
-| 1190 | P2 | kg/__init__.py | Python | 0 | e3b0c442 |  |
-| 1191 | P2 | kg/assemble.py | Python | 48 | 991327ed |  |
-| 1192 | P2 | kg/config.py | Python | 12 | 02f60bb4 |  |
-| 1193 | P2 | kg/db.py | Python | 39 | 29dd8727 |  |
-| 1194 | P2 | kg/extract.py | Python | 21 | c97eece2 |  |
-| 1195 | P2 | kg/ingest.py | Python | 9 | 34d740a2 |  |
-| 1196 | P2 | kg/query.py | Python | 55 | 5ad9efb1 |  |
-| 1197 | P2 | kg/resolve.py | Python | 30 | 2277a38a |  |
-| 1198 | P2 | kg/schema.py | Python | 42 | 86f3afdb |  |
-| 1199 | P2 | kg_cli.py | Python | 30 | e83e37da |  |
-| 1200 | P2 | orchestrator/__init__.py | Python | 0 | e3b0c442 |  |
-| 1201 | P2 | orchestrator/config.py | Python | 11 | f435c05e |  |
-| 1202 | P2 | orchestrator/planner.py | Python | 29 | 6aa66058 |  |
-| 1203 | P2 | orchestrator/run.py | Python | 58 | 4e09c347 |  |
-| 1204 | P2 | orchestrator/synthesizer.py | Python | 18 | 3f5f44bf |  |
-| 1205 | P2 | orchestrator/worker.py | Python | 27 | a4668aae |  |
-| 1206 | P2 | orchestrator_cli.py | Python | 16 | 1817eda3 |  |
-| 1207 | P2 | rag_cli.py | Python | 39 | 47b9e6bf |  |
-| 1208 | P2 | rag_mongo/__init__.py | Python | 0 | e3b0c442 |  |
-| 1209 | P2 | rag_mongo/config.py | Python | 14 | da9922ab |  |
-| 1210 | P2 | rag_mongo/db.py | Python | 80 | 0a1ac336 |  |
-| 1211 | P2 | rag_mongo/embeddings.py | Python | 21 | 9635c55e |  |
-| 1212 | P2 | rag_mongo/generate.py | Python | 19 | 2eaea14b |  |
-| 1213 | P2 | rag_mongo/ingest.py | Python | 21 | b3d1dff7 |  |
-| 1214 | P2 | rag_mongo/pipeline.py | Python | 7 | b445a01a |  |
-| 1215 | P2 | rag_mongo/retrieve.py | Python | 20 | 553da338 |  |
-| 1216 | P2 | requirements-topology-optional.txt | Text | 9 | 69f74fd0 |  |
-| 1217 | P2 | review/__init__.py | Python | 0 | e3b0c442 |  |
-| 1218 | P2 | review/build_context.py | Python | 75 | 3de69e47 |  |
-| 1219 | P2 | review/config.py | Python | 8 | b6dbb57a |  |
-| 1220 | P2 | review/retrieval.py | Python | 60 | 9c4e1629 |  |
-| 1221 | P2 | tools/__init__.py | Python | 0 | e3b0c442 |  |
-| 1222 | P2 | tools/example_tools.py | Python | 50 | bf4d6a53 |  |
-| 1223 | P2 | tools/registry.py | Python | 114 | c3a96723 |  |
+| 1186 | P2 | frontend/src/components/Controls.test.jsx | React JSX | 106 | cf6f9c5a |  |
+| 1187 | P2 | frontend/src/components/ErrorBoundary.jsx | React JSX | 33 | 4ffb65c6 |  |
+| 1188 | P2 | frontend/tailwind.config.js | JavaScript | 43 | a8d2f444 |  |
+| 1189 | P2 | frontend/vite.config.js | JavaScript | 40 | 8d61c39d |  |
+| 1190 | P2 | frontend/vitest.browser.config.js | JavaScript | 19 | 968832f5 |  |
+| 1191 | P2 | frontend/vitest.config.js | JavaScript | 14 | d37c0445 |  |
+| 1192 | P2 | kg/__init__.py | Python | 0 | e3b0c442 |  |
+| 1193 | P2 | kg/assemble.py | Python | 48 | 991327ed |  |
+| 1194 | P2 | kg/config.py | Python | 12 | 02f60bb4 |  |
+| 1195 | P2 | kg/db.py | Python | 39 | 29dd8727 |  |
+| 1196 | P2 | kg/extract.py | Python | 21 | c97eece2 |  |
+| 1197 | P2 | kg/ingest.py | Python | 9 | 34d740a2 |  |
+| 1198 | P2 | kg/query.py | Python | 55 | 5ad9efb1 |  |
+| 1199 | P2 | kg/resolve.py | Python | 30 | 2277a38a |  |
+| 1200 | P2 | kg/schema.py | Python | 42 | 86f3afdb |  |
+| 1201 | P2 | kg_cli.py | Python | 30 | e83e37da |  |
+| 1202 | P2 | orchestrator/__init__.py | Python | 0 | e3b0c442 |  |
+| 1203 | P2 | orchestrator/config.py | Python | 11 | f435c05e |  |
+| 1204 | P2 | orchestrator/planner.py | Python | 29 | 6aa66058 |  |
+| 1205 | P2 | orchestrator/run.py | Python | 58 | 4e09c347 |  |
+| 1206 | P2 | orchestrator/synthesizer.py | Python | 18 | 3f5f44bf |  |
+| 1207 | P2 | orchestrator/worker.py | Python | 27 | a4668aae |  |
+| 1208 | P2 | orchestrator_cli.py | Python | 16 | 1817eda3 |  |
+| 1209 | P2 | rag_cli.py | Python | 39 | 47b9e6bf |  |
+| 1210 | P2 | rag_mongo/__init__.py | Python | 0 | e3b0c442 |  |
+| 1211 | P2 | rag_mongo/config.py | Python | 14 | da9922ab |  |
+| 1212 | P2 | rag_mongo/db.py | Python | 80 | 0a1ac336 |  |
+| 1213 | P2 | rag_mongo/embeddings.py | Python | 21 | 9635c55e |  |
+| 1214 | P2 | rag_mongo/generate.py | Python | 19 | 2eaea14b |  |
+| 1215 | P2 | rag_mongo/ingest.py | Python | 21 | b3d1dff7 |  |
+| 1216 | P2 | rag_mongo/pipeline.py | Python | 7 | b445a01a |  |
+| 1217 | P2 | rag_mongo/retrieve.py | Python | 20 | 553da338 |  |
+| 1218 | P2 | requirements-topology-optional.txt | Text | 9 | 69f74fd0 |  |
+| 1219 | P2 | review/__init__.py | Python | 0 | e3b0c442 |  |
+| 1220 | P2 | review/build_context.py | Python | 75 | 3de69e47 |  |
+| 1221 | P2 | review/config.py | Python | 8 | b6dbb57a |  |
+| 1222 | P2 | review/retrieval.py | Python | 60 | 9c4e1629 |  |
+| 1223 | P2 | tools/__init__.py | Python | 0 | e3b0c442 |  |
+| 1224 | P2 | tools/example_tools.py | Python | 50 | bf4d6a53 |  |
+| 1225 | P2 | tools/registry.py | Python | 114 | c3a96723 |  |
