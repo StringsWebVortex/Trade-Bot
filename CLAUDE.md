@@ -277,7 +277,7 @@ This is an enforcement rule, not a prompt instruction:
 - Native shells, integrated terminals, filesystem tools, browser tools, agents,
   unlisted MCP tools, newly introduced tool names, and unscoped GitHub requests
   are refused before execution. Unknown routes do not inherit permission.
-- CI diagnostics have one authorized observation route: ./scripts/prfail --pr <PR_NUMBER>. The CLI reads the centralized Check Run manifest and its digest-verified pages only; it never downloads workflow logs or queries job, annotation, artifact, or raw check endpoints. It prints only the exact failure lines (lines naming error, failed, failure, skipped, cancelled or canceled) of every non-green job of every non-green PR run, with empty stdout when nothing failed. Until every PR run has finished and the report is published it prints `wait` (exit 3), and a call made while another prfail for the same PR is running prints `wait` too. A broken, stale, or inaccessible report is an operational error, never a success response or a fallback. scripts/ci_verdict.py and scripts/local_checks.py prepare are legacy routes and are denied by the command policy. Pre-tool enforcement applies only when the session actually loads the repository hook/settings; connector permissions and tool endpoints independently exposed by the host require external configuration.
+- CI diagnostics have one authorized observation route: ./scripts/prfail --pr <PR_NUMBER>. The CLI reads the centralized Check Run manifest and its digest-verified pages only; it never downloads workflow logs or queries job, annotation, artifact, or raw check endpoints. It prints only the exact failure lines (lines naming error, failed, failure, skipped, cancelled or canceled) of every non-green job of every non-green PR run, then one `path:line: first line of the opening comment` line per unresolved review conversation (outdated ones included), which it reads fresh through the GraphQL `reviewThreads` query because resolving a conversation fires no Actions event; stdout is empty when nothing failed and nothing is unresolved. Until every PR run has finished and the report is published it prints `wait` (exit 3), and a call made while another prfail for the same PR is running prints `wait` too. A broken, stale, or inaccessible report is an operational error, never a success response or a fallback. scripts/ci_verdict.py and scripts/local_checks.py prepare are legacy routes and are denied by the command policy. Pre-tool enforcement applies only when the session actually loads the repository hook/settings; connector permissions and tool endpoints independently exposed by the host require external configuration.
 - A read names its target and receives that block. `get_file_contents` must
   carry `tb_lines` (`"120-160"`) or `tb_anchor` (a unique line of the block);
   neither exists on the server schema, so the hook records the target and strips
@@ -350,7 +350,8 @@ completes (`workflows: ["*"]`), lists every pull_request run GitHub created for
 the PR head SHA (no fixed list, so new workflows are covered), waits for all of
 them and their jobs to become terminal, and publishes a report manifest plus
 deterministic Check Run pages holding the failure lines of the non-green jobs
-(GOV-068). Retrieval verifies PR, head SHA, page generation, record count, message
+(GOV-068). Unresolved review conversations are not in the report; prfail reads
+them when it runs. Retrieval verifies PR, head SHA, page generation, record count, message
 fragments, and the overall digest. It never falls back to the older mutable
 PR-comment notice or to direct log/check APIs.
 

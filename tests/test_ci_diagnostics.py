@@ -267,6 +267,7 @@ def test_empty_finalized_report_returns_no_stdout(monkeypatch, capsys) -> None:
         lambda slug, pr: {"number": pr, "state": "open", "head": {"sha": sha}},
     )
     monkeypatch.setattr(ci_diagnostics, "_report_runs", lambda slug, head, pr: (master, {}))
+    monkeypatch.setattr(ci_diagnostics, "_unresolved_threads", lambda slug, pr: [])
     assert ci_diagnostics._retrieve(313) == 0
     captured = capsys.readouterr()
     assert captured.out == ""

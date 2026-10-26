@@ -9,8 +9,17 @@ Run exactly:
 The argument is a positive decimal pull-request number. No shell wrapper,
 selector, extra flag, raw log command, report URL, or fallback command is part
 of the contract. The command prints only the exact failure lines of the
-current head's finished report, one per line, and exits zero; a finished report
-with no failure lines prints nothing. Until that report exists (runs still
+current head's finished report, one per line, then one line per review
+conversation that is still unresolved, and exits zero; it prints nothing when
+nothing failed and nothing is unresolved.
+
+A conversation line reads `path:line: <first line of the opening comment>`
+(the original line when the thread is outdated; an outdated thread that is
+still unresolved blocks the merge, so it is listed). The full comment is not
+read. Conversations are read fresh from the GraphQL `reviewThreads` query each
+time the report is ready, because resolving one fires no GitHub Actions event
+the collector could react to. A thread list GitHub does not return in full is
+an operational error, never an empty answer. Until that report exists (runs still
 going, collector still working, or the head moved while reading) it prints
 `wait` and exits 3. While one call for a pull request is running, any other
 call for it prints `wait` and reads nothing. A broken, stale, malformed, or
@@ -24,8 +33,8 @@ printed by the command. The collector uses the workflow's scoped ephemeral
 GITHUB_TOKEN inside GitHub Actions. The CLI does not read Actions runs, jobs,
 annotations, artifacts, or logs, and never falls back to the legacy PR-comment
 notice. The agent-facing command remains exactly `./scripts/prfail --pr <PR_NUMBER>`;
-GitHub API calls are encapsulated inside that command, not authorized as
-separate agent commands.
+GitHub API calls (the pull-request, Check Run and review-thread queries) are
+encapsulated inside that command, not authorized as separate agent commands.
 
 ## Autonomous collection (outside agent usage)
 
@@ -113,7 +122,7 @@ CI-only test and quality-gate policy remains unchanged.
 
 The collector job receives Actions: read to inspect/download source job logs
 and Checks: write to publish the filtered report. The retrieval CLI only calls
-the pull-request and Check Run APIs. It does not have an Actions-log fallback.
+the pull-request, Check Run and review-thread (GraphQL `reviewThreads`) APIs. It does not have an Actions-log fallback.
 The collector Check Runs are informational and are not configured as required
 branch-protection checks.
 

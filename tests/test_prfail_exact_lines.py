@@ -4,8 +4,9 @@ prfail answers with the exact failure lines of a pull request's CI, or `wait`.
 The collector finds every workflow run GitHub started for the pull request
 (no fixed list), waits until all of them finish, skips everything green, and
 copies the lines that name an error, failure, skip or cancellation. prfail
-prints those lines and nothing else; until they exist it prints `wait`, and a
-second call made while one is running prints `wait` as well.
+prints those lines, then one line per unresolved review conversation, and
+nothing else; until the report exists it prints `wait`, and a second call made
+while one is running prints `wait` as well.
 
 Decides:
   - GOV-068 — prfail prints only the exact failure lines of every non-green PR run, or wait
@@ -215,13 +216,94 @@ def _finished(messages: list[str]) -> tuple[dict[str, Any], dict[int, dict[str, 
 
 @pytest.fixture
 def github(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> dict[str, Any]:
-    state: dict[str, Any] = {"report": (None, {})}
+    state: dict[str, Any] = {"report": (None, {}), "thread_pages": [[]], "graphql": []}
     # prfail's one-call-at-a-time lock lives in the temp directory.
     monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))
     monkeypatch.setattr(ci_diagnostics, "_repo_slug", lambda: "o/r")
     monkeypatch.setattr(ci_diagnostics, "_load_current_pr", lambda slug, pr: PULL)
     monkeypatch.setattr(ci_diagnostics, "_report_runs", lambda *a: state["report"])
+
+    def graphql(path: str, *, method: str = "GET", body: Any = None, **kw: Any) -> Any:
+        assert (path, method) == ("graphql", "POST")
+        state["graphql"].append(body["variables"])
+        index = len(state["graphql"]) - 1
+        pages = state["thread_pages"]
+        return {
+            "data": {
+                "repository": {
+                    "pullRequest": {
+                        "reviewThreads": {
+                            "pageInfo": {
+                                "hasNextPage": index + 1 < len(pages),
+                                "endCursor": f"cursor-{index}",
+                            },
+                            "nodes": pages[index],
+                        }
+                    }
+                }
+            }
+        }
+
+    monkeypatch.setattr(ci_diagnostics, "_json", graphql)
     return state
+
+
+def _thread(resolved: bool, path: str, line: int | None, body: str, **extra: Any) -> dict:
+    return {
+        "isResolved": resolved,
+        "path": path,
+        "line": line,
+        "originalLine": None,
+        "comments": {"nodes": [{"body": body}]},
+        **extra,
+    }
+
+
+def test_unresolved_conversations_follow_the_failure_lines(github, capsys) -> None:
+    github["report"] = _finished(["##[error]Process completed with exit code 1."])
+    github["thread_pages"] = [
+        [
+            _thread(False, "SECURITY.md", 12, "\n**P2: CodeQL wording is wrong**\nLong detail."),
+            _thread(True, "AGENTS.md", 3, "Resolved already"),
+        ],
+        # An outdated thread has no current line; it still blocks the merge.
+        [_thread(False, "tests/conftest.py", None, "Leaks a loop", originalLine=40)],
+    ]
+    assert ci_diagnostics.main_prfail(["--pr", str(PR)]) == 0
+    assert capsys.readouterr().out == (
+        "##[error]Process completed with exit code 1.\n"
+        "SECURITY.md:12: **P2: CodeQL wording is wrong**\n"
+        "tests/conftest.py:40: Leaks a loop\n"
+    )
+    assert [page["after"] for page in github["graphql"]] == [None, "cursor-0"]
+    assert {page["number"] for page in github["graphql"]} == {PR}
+
+
+def test_unresolved_conversations_alone_are_printed_when_ci_is_green(github, capsys) -> None:
+    github["report"] = _finished([])
+    github["thread_pages"] = [[_thread(False, "README.md", 1, "Typo")]]
+    assert ci_diagnostics.main_prfail(["--pr", str(PR)]) == 0
+    assert capsys.readouterr().out == "README.md:1: Typo\n"
+
+
+def test_conversations_are_not_read_while_the_report_waits(github, capsys) -> None:
+    github["thread_pages"] = [[_thread(False, "README.md", 1, "Typo")]]
+    assert ci_diagnostics.main_prfail(["--pr", str(PR)]) == ci_diagnostics.WAIT_EXIT
+    assert capsys.readouterr().out == "wait\n"
+    assert github["graphql"] == []
+
+
+@pytest.mark.parametrize(
+    "nodes",
+    [[{"path": "a.py"}], None],
+    ids=["no-resolved-state", "no-thread-list"],
+)
+def test_an_unreadable_thread_list_is_an_error_not_silence(github, capsys, nodes) -> None:
+    github["report"] = _finished([])
+    github["thread_pages"] = [nodes]
+    assert ci_diagnostics.main_prfail(["--pr", str(PR)]) == 2
+    out, err = capsys.readouterr()
+    assert out == "" and "review thread" in err
 
 
 def test_prfail_prints_only_the_lines(github, capsys) -> None:

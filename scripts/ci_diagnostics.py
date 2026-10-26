@@ -7,10 +7,11 @@ new workflow joins on its own), waits until all of them and their jobs are
 terminal, skips every green run and green job, and copies from the remaining
 job logs each exact line that names an error, failure, skip or cancellation.
 
-The operator-facing CLI (./scripts/prfail --pr N) reads only that finalized
-report and prints only those lines. Until the report exists it prints `wait`,
-and while one prfail call for a pull request is running, any other prints
-`wait` too. It has no Actions API fallback.
+The operator-facing CLI (./scripts/prfail --pr N) reads that finalized report
+and prints only those lines, followed by one line per review conversation that
+is still unresolved (read fresh, since resolving one fires no Actions event).
+Until the report exists it prints `wait`, and while one prfail call for a pull
+request is running, any other prints `wait` too. It has no Actions API fallback.
 """
 
 from __future__ import annotations
@@ -56,6 +57,18 @@ SELF_WORKFLOW_PATH = ".github/workflows/ci-diagnostics.yml"
 WAIT_EXIT = 3
 _COLLECTOR_CONTEXT = False
 
+REVIEW_THREADS_QUERY = """
+query($owner: String!, $name: String!, $number: Int!, $after: String) {
+  repository(owner: $owner, name: $name) {
+    pullRequest(number: $number) {
+      reviewThreads(first: 100, after: $after) {
+        pageInfo { hasNextPage endCursor }
+        nodes { isResolved path line originalLine comments(first: 1) { nodes { body } } }
+      }
+    }
+  }
+}
+"""
 TIMESTAMP_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T[\d:.]+Z\s?")
 
 
@@ -1183,9 +1196,61 @@ def read_report(pr_number: int) -> tuple[str, list[dict[str, Any]]]:
     return sha, records
 
 
+def _thread_line(thread: dict[str, Any]) -> str:
+    """`path:line: first line of the opening comment` for one review thread."""
+    line = thread.get("line") or thread.get("originalLine")
+    location = str(thread.get("path") or "(no file)")
+    if isinstance(line, int):
+        location += f":{line}"
+    comments = (thread.get("comments") or {}).get("nodes") or []
+    body = str((comments[0] or {}).get("body") or "") if comments else ""
+    first = next((text.strip() for text in body.splitlines() if text.strip()), "(no text)")
+    return f"{location}: {_redact_message(first)}"
+
+
+def _unresolved_threads(slug: str, pr_number: int) -> list[str]:
+    """One line per unresolved review conversation, read fresh from GitHub.
+
+    A conversation is resolved by hand, and no Actions event fires for that,
+    so this is read when prfail runs rather than stored in the report. An
+    outdated thread that is still unresolved blocks the merge, so it is listed.
+    """
+    owner, name = slug.split("/", 1)
+    found: list[str] = []
+    after: str | None = None
+    for _ in range(50):
+        payload = _json(
+            "graphql",
+            method="POST",
+            body={
+                "query": REVIEW_THREADS_QUERY,
+                "variables": {"owner": owner, "name": name, "number": pr_number, "after": after},
+            },
+        )
+        data = payload.get("data") if isinstance(payload, dict) else None
+        if not isinstance(data, dict) or payload.get("errors"):
+            raise DiagnosticError("GitHub did not return the pull request's review threads")
+        pull = (data.get("repository") or {}).get("pullRequest") or {}
+        threads = pull.get("reviewThreads")
+        if not isinstance(threads, dict) or not isinstance(threads.get("nodes"), list):
+            raise DiagnosticError("GitHub did not return the pull request's review threads")
+        for thread in threads["nodes"]:
+            resolved = thread.get("isResolved") if isinstance(thread, dict) else None
+            if not isinstance(resolved, bool):
+                raise DiagnosticError("GitHub returned a review thread without its resolved state")
+            if not resolved:
+                found.append(_thread_line(thread))
+        page = threads.get("pageInfo") or {}
+        if not page.get("hasNextPage"):
+            return found
+        after = page.get("endCursor")
+    raise DiagnosticError("GitHub review-thread pagination safety limit reached")
+
+
 def _retrieve(pr_number: int) -> int:
     try:
         _sha, records = read_report(pr_number)
+        threads = _unresolved_threads(_repo_slug(), pr_number)
     except ReportPending:
         sys.stdout.write("wait\n")
         return WAIT_EXIT
@@ -1193,7 +1258,7 @@ def _retrieve(pr_number: int) -> int:
         return _report_error(str(exc))
     except (OSError, ValueError, TypeError, KeyError) as exc:
         return _report_error(f"report could not be validated ({type(exc).__name__})")
-    lines = list(dict.fromkeys(str(record["message"]) for record in records))
+    lines = list(dict.fromkeys([str(record["message"]) for record in records] + threads))
     if lines:
         sys.stdout.write("\n".join(lines) + "\n")
     return 0

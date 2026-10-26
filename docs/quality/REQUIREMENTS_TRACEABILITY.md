@@ -2807,9 +2807,9 @@ After Claude opens a pull request it stops touching it, and ChatGPT Codex carrie
 
 **VERIFIED** · medium · requirement · source: OPS-2026-10-26
 
-./scripts/prfail --pr N prints, one per line and nothing else, the failure lines of the current PR head's finished report (empty when nothing failed). While any pull-request run is unfinished or the report is not yet published it prints `wait`, and a call made while another prfail for the same PR is running prints `wait` without reading anything. A workflow added to the repository is included without editing the collector, because the collector triggers on every workflow and lists the PR's runs from the API.
+./scripts/prfail --pr N prints, one per line and nothing else, the failure lines of the current PR head's finished report, then one `path:line: first line of the opening comment` line per review conversation that is still unresolved, outdated ones included, read fresh from GitHub's reviewThreads because resolving a conversation fires no Actions event (empty when nothing failed and nothing is unresolved). While any pull-request run is unfinished or the report is not yet published it prints `wait`, and a call made while another prfail for the same PR is running prints `wait` without reading anything. A workflow added to the repository is included without editing the collector, because the collector triggers on every workflow and lists the PR's runs from the API.
 
-- **If violated:** prfail returned 266 lines of JSON for a green PR head: twelve records of steps skipped by their own `if:` (durations refresh), each with twenty fields, and no failure. The collector also listed four workflows by name, so a fifth would have been silently left out of the report.
+- **If violated:** prfail returned 266 lines of JSON for a green PR head: twelve records of steps skipped by their own `if:` (durations refresh), each with twenty fields, and no failure. The collector also listed four workflows by name, so a fifth would have been silently left out of the report. A required unresolved review conversation blocked PR 521 while prfail had no way to show it.
 - **Owned by:** `scripts/ci_diagnostics.py`, `scripts/prfail`, `.github/workflows/ci-diagnostics.yml`, `scripts/apply_ci_patch.py`
 - **Depends on:** `GOV-013`, `GOV-020`
 - **Verification:**
