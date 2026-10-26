@@ -245,7 +245,6 @@ class TestTheRegistryHasAPlaceForDefects:
             # REG-1704: audit STR-21 -- carry and arbitrage entries gated on
             # fixed thresholds no cost measurement produced.
             "REG-1704",
-            # REG-1140..1143: audit FE-02..FE-05 -- frontend control defects.
             "REG-1140",
             "REG-1141",
             "REG-1142",
@@ -280,6 +279,7 @@ class TestTheRegistryHasAPlaceForDefects:
             "SEC-0008",
             "SEC-0009",
             "SEC-0010",
+            "SEC-0011",
             "SEC-0012",
         }
 
@@ -552,9 +552,9 @@ class TestTheMetricsCollector:
         # test-suite, 43.
         # REG-1704 adds the fixed-threshold carry/arbitrage regression (STR-21):
         # no test asked what the thresholds cost to clear -- test-suite, 44.
-        # REG-1140..1143 add four frontend audit regressions (FE-02..FE-05) --
-        # test-suite, 48.
-        assert metric["value"] == {"test-suite": 48, "review": 1, "supply-chain": 3}
+        # SEC-0011: the lockfile drifted into three high advisories on main with
+        # no test of the resolved tree -- supply-chain, 3 to 4.
+        assert metric["value"] == {"test-suite": 48, "review": 1, "supply-chain": 4}
 
     def test_zero_escaped_defects_would_be_stated_explicitly(self, collector, monkeypatch):
         # "We have not measured this" and "this is zero" are different

@@ -14,31 +14,31 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | # | Priority | Path | Type | Lines | SHA8 | Why it matters |
 | ---: | --- | --- | --- | ---: | --- | --- |
 | 1 | P0 | .github/workflows/ci-diagnostics.yml | YAML | 44 | 00c6ca90 | SHA-bound CI diagnostics collector |
-| 2 | P0 | .github/workflows/ci.yml | YAML | 408 | 1afd1d2e | CI jobs and gate composition |
+| 2 | P0 | .github/workflows/ci.yml | YAML | 408 | 157db505 | CI jobs and gate composition |
 | 3 | P0 | AGENTS.md | Markdown | 46 | c98828a6 | Engineering workflow and safety contract |
 | 4 | P0 | CLAUDE.md | Markdown | 658 | 17e4fd71 | Architecture, quality, CI and project policy |
-| 5 | P0 | Dockerfile | Other text/source | 142 | 63505f02 | Container runtime, identity, healthcheck and entrypoint |
+| 5 | P0 | Dockerfile | Other text/source | 145 | db5c42f1 | Container runtime, identity, healthcheck and entrypoint |
 | 6 | P0 | Makefile | Other text/source | 45 | f5f88b46 | Developer commands governed by repository policy |
 | 7 | P0 | README.md | Markdown | 467 | 930f180e | Purpose, usage and declared architecture |
 | 8 | P0 | config/architecture_layers.json | JSON | 78 | 734d6397 | Enforced import layering |
 | 9 | P0 | config/command_policy.json | JSON | 264 | 84e63848 | Tool command and CI observation policy |
 | 10 | P0 | config/horizons.yaml | YAML | 53 | 2ede87ec | Auxiliary prediction horizon definitions |
 | 11 | P0 | config/math_registry.json | JSON | 1903 | 8fa18ffc | Mathematical object registry |
-| 12 | P0 | config/quality_registry.json | JSON | 6104 | c8e63d59 | Requirements, regressions and deciding tests |
+| 12 | P0 | config/quality_registry.json | JSON | 6127 | 43fb83ca | Requirements, regressions and deciding tests |
 | 13 | P0 | config/risk.yaml | YAML | 26 | dd4766f8 | Horizon/intelligence risk, distinct from core Settings |
 | 14 | P0 | docker-compose.yml | YAML | 82 | 80ec3eca | API/Timescale/optional-worker composition |
 | 15 | P0 | docs/quality/CI_GATE_ARCHITECTURE.md | Markdown | 255 | 02726345 | CI gates |
 | 16 | P0 | docs/runtime/RUNTIME_PLATFORM.md | Markdown | 296 | 37fde0ad | Runtime control plane architecture |
 | 17 | P0 | docs/security/THREAT_MODEL.md | Markdown | 341 | ab52c113 | Threat model |
 | 18 | P0 | docs/terminal/ARCHITECTURE.md | Markdown | 217 | ac1b11e0 | Terminal/workspace architecture; historical baseline clearly labeled |
-| 19 | P0 | frontend/package.json | JSON | 77 | 397d38f6 | Node toolchain and frontend scripts |
+| 19 | P0 | frontend/package.json | JSON | 77 | 1b928b39 | Node toolchain and frontend scripts |
 | 20 | P0 | frontend/src/App.jsx | React JSX | 471 | 14ed8fbf | Dashboard composition |
 | 21 | P0 | frontend/src/hooks/useApi.js | JavaScript | 463 | 79cc9d3c | HTTP and WebSocket client |
 | 22 | P0 | frontend/src/main.jsx | React JSX | 13 | 2a4613fa | React entrypoint |
 | 23 | P0 | pyproject.toml | TOML | 94 | 78e2122b | Python version, pytest/coverage and Ruff configuration |
-| 24 | P0 | requirements-dev.txt | Text | 22 | 2a136c55 | Development/test dependencies |
-| 25 | P0 | requirements-optional.txt | Text | 43 | 57f632fc | Optional/lazy dependencies |
-| 26 | P0 | requirements.txt | Text | 96 | be258cb7 | Runtime Python dependency source |
+| 24 | P0 | requirements-dev.txt | Text | 22 | 78da51ef | Development/test dependencies |
+| 25 | P0 | requirements-optional.txt | Text | 43 | aba5af86 | Optional/lazy dependencies |
+| 26 | P0 | requirements.txt | Text | 96 | d8d7f348 | Runtime Python dependency source |
 | 27 | P0 | src/api/__main__.py | Python | 42 | f07796d2 | API entrypoint |
 | 28 | P0 | src/api/access_control.py | Python | 84 | 263fe5ed | Permission/role definitions |
 | 29 | P0 | src/api/auth.py | Python | 179 | c9a226cf | API key and role authentication |
@@ -68,31 +68,31 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 
 | # | Priority | Path | Type | Lines | SHA8 | Notes |
 | ---: | --- | --- | --- | ---: | --- | --- |
-| 1 | P0 | .github/workflows/ci.yml | YAML | 408 | 1afd1d2e | CI jobs and gate composition |
+| 1 | P0 | .github/workflows/ci.yml | YAML | 408 | 157db505 | CI jobs and gate composition |
 | 2 | P0 | AGENTS.md | Markdown | 46 | c98828a6 | Engineering workflow and safety contract |
 | 3 | P0 | CLAUDE.md | Markdown | 658 | 17e4fd71 | Architecture, quality, CI and project policy |
-| 4 | P0 | Dockerfile | Other text/source | 142 | 63505f02 | Container runtime, identity, healthcheck and entrypoint |
+| 4 | P0 | Dockerfile | Other text/source | 145 | db5c42f1 | Container runtime, identity, healthcheck and entrypoint |
 | 5 | P0 | Makefile | Other text/source | 45 | f5f88b46 | Developer commands governed by repository policy |
 | 6 | P0 | README.md | Markdown | 467 | 930f180e | Purpose, usage and declared architecture |
 | 7 | P0 | config/architecture_layers.json | JSON | 78 | 734d6397 | Enforced import layering |
 | 8 | P0 | config/command_policy.json | JSON | 264 | 84e63848 | Tool command and CI observation policy |
 | 9 | P0 | config/horizons.yaml | YAML | 53 | 2ede87ec | Auxiliary prediction horizon definitions |
 | 10 | P0 | config/math_registry.json | JSON | 1903 | 8fa18ffc | Mathematical object registry |
-| 11 | P0 | config/quality_registry.json | JSON | 6104 | c8e63d59 | Requirements, regressions and deciding tests |
+| 11 | P0 | config/quality_registry.json | JSON | 6127 | 43fb83ca | Requirements, regressions and deciding tests |
 | 12 | P0 | config/risk.yaml | YAML | 26 | dd4766f8 | Horizon/intelligence risk, distinct from core Settings |
 | 13 | P0 | docker-compose.yml | YAML | 82 | 80ec3eca | API/Timescale/optional-worker composition |
 | 14 | P0 | docs/quality/CI_GATE_ARCHITECTURE.md | Markdown | 255 | 02726345 | CI gates |
 | 15 | P0 | docs/runtime/RUNTIME_PLATFORM.md | Markdown | 296 | 37fde0ad | Runtime control plane architecture |
 | 16 | P0 | docs/security/THREAT_MODEL.md | Markdown | 341 | ab52c113 | Threat model |
 | 17 | P0 | docs/terminal/ARCHITECTURE.md | Markdown | 217 | ac1b11e0 | Terminal/workspace architecture; historical baseline clearly labeled |
-| 18 | P0 | frontend/package.json | JSON | 77 | 397d38f6 | Node toolchain and frontend scripts |
+| 18 | P0 | frontend/package.json | JSON | 77 | 1b928b39 | Node toolchain and frontend scripts |
 | 19 | P0 | frontend/src/App.jsx | React JSX | 471 | 14ed8fbf | Dashboard composition |
 | 20 | P0 | frontend/src/hooks/useApi.js | JavaScript | 463 | 79cc9d3c | HTTP and WebSocket client |
 | 21 | P0 | frontend/src/main.jsx | React JSX | 13 | 2a4613fa | React entrypoint |
 | 22 | P0 | pyproject.toml | TOML | 94 | 78e2122b | Python version, pytest/coverage and Ruff configuration |
-| 23 | P0 | requirements-dev.txt | Text | 22 | 2a136c55 | Development/test dependencies |
-| 24 | P0 | requirements-optional.txt | Text | 43 | 57f632fc | Optional/lazy dependencies |
-| 25 | P0 | requirements.txt | Text | 96 | be258cb7 | Runtime Python dependency source |
+| 23 | P0 | requirements-dev.txt | Text | 22 | 78da51ef | Development/test dependencies |
+| 24 | P0 | requirements-optional.txt | Text | 43 | aba5af86 | Optional/lazy dependencies |
+| 25 | P0 | requirements.txt | Text | 96 | d8d7f348 | Runtime Python dependency source |
 | 26 | P0 | src/api/__main__.py | Python | 42 | f07796d2 | API entrypoint |
 | 27 | P0 | src/api/access_control.py | Python | 84 | 263fe5ed | Permission/role definitions |
 | 28 | P0 | src/api/auth.py | Python | 179 | c9a226cf | API key and role authentication |
@@ -135,13 +135,13 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 65 | P1 | .github/pull_request_template.md | Markdown | 15 | e8ad60ce |  |
 | 66 | P1 | .github/rulesets/main-protection.json | JSON | 110 | 585c7190 |  |
 | 67 | P1 | .github/workflows/ci-diagnostics.yml | YAML | 44 | 00c6ca90 |  |
-| 68 | P1 | .github/workflows/codeql.yml | YAML | 118 | 0a720b76 |  |
-| 69 | P1 | .github/workflows/deploy.yml | YAML | 173 | 0a5699c6 |  |
-| 70 | P1 | .github/workflows/nightly-quality.yml | YAML | 141 | 44436fa9 |  |
-| 71 | P1 | .github/workflows/pr-auto-update.yml | YAML | 309 | 35b663ab |  |
-| 72 | P1 | .github/workflows/rag-ingest.yml | YAML | 54 | 61ce5844 |  |
-| 73 | P1 | .github/workflows/release.yml | YAML | 133 | dfddb74d |  |
-| 74 | P1 | .github/workflows/security.yml | YAML | 476 | 6337eba3 |  |
+| 68 | P1 | .github/workflows/codeql.yml | YAML | 118 | 92cec6ba |  |
+| 69 | P1 | .github/workflows/deploy.yml | YAML | 173 | b4b44dc3 |  |
+| 70 | P1 | .github/workflows/nightly-quality.yml | YAML | 141 | 08f2db1b |  |
+| 71 | P1 | .github/workflows/pr-auto-update.yml | YAML | 309 | 9122095b |  |
+| 72 | P1 | .github/workflows/rag-ingest.yml | YAML | 54 | 3ef87ddd |  |
+| 73 | P1 | .github/workflows/release.yml | YAML | 133 | b595cd54 |  |
+| 74 | P1 | .github/workflows/security.yml | YAML | 476 | fa6294fe |  |
 | 75 | P1 | .github/workflows/workflow-lint.yml | YAML | 112 | efae0a17 |  |
 | 76 | P1 | config/arch_baseline.json | JSON | 39 | e87a9ea6 |  |
 | 77 | P1 | config/exchange_key_posture.json | JSON | 23 | eed97927 |  |
@@ -183,7 +183,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 113 | P1 | docs/quality/QUALITY_BASELINE.md | Markdown | 125 | bbc75e22 |  |
 | 114 | P1 | docs/quality/QUALITY_METRICS.md | Markdown | 122 | 386b71a5 |  |
 | 115 | P1 | docs/quality/QUALITY_POLICY.md | Markdown | 232 | 8c4629b8 |  |
-| 116 | P1 | docs/quality/REQUIREMENTS_TRACEABILITY.md | Markdown | 3111 | 7ef07f3d |  |
+| 116 | P1 | docs/quality/REQUIREMENTS_TRACEABILITY.md | Markdown | 3124 | 48d7a19b |  |
 | 117 | P1 | docs/quality/ROOT_CAUSE_TEMPLATE.md | Markdown | 84 | a55b20e9 |  |
 | 118 | P1 | docs/quality/TEST_STRATEGY.md | Markdown | 252 | efbde1ba |  |
 | 119 | P1 | docs/runtime/IMPLEMENTATION_MATRIX.md | Markdown | 79 | 7e5cd563 |  |
@@ -704,7 +704,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 634 | P1 | tests/regime/test_garch.py | Python | 148 | 8a4195c0 |  |
 | 635 | P1 | tests/regression/__init__.py | Python | 0 | e3b0c442 |  |
 | 636 | P1 | tests/regression/test_metrics_payload.py | Python | 120 | 094976c7 |  |
-| 637 | P1 | tests/regression/test_regression_registry_contract.py | Python | 654 | 9f54fed1 |  |
+| 637 | P1 | tests/regression/test_regression_registry_contract.py | Python | 661 | ddd9d1c3 |  |
 | 638 | P1 | tests/risk/__init__.py | Python | 0 | e3b0c442 |  |
 | 639 | P1 | tests/risk/test_probability_bounds.py | Python | 137 | a3b65a78 |  |
 | 640 | P1 | tests/risk/test_risk_limit_boundaries.py | Python | 300 | 37b9b36e |  |
@@ -901,7 +901,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 831 | P1 | tests/test_fetcher_symbol_precision.py | Python | 94 | fef0ec91 |  |
 | 832 | P1 | tests/test_fetcher_venue_degradation.py | Python | 195 | 505ce832 |  |
 | 833 | P1 | tests/test_folklore_gate.py | Python | 213 | 3c91b2db |  |
-| 834 | P1 | tests/test_frontend_audit_scope.py | Python | 155 | 89d0f9a5 |  |
+| 834 | P1 | tests/test_frontend_audit_scope.py | Python | 187 | 2c082658 |  |
 | 835 | P1 | tests/test_funding_carry.py | Python | 101 | cc7256d7 |  |
 | 836 | P1 | tests/test_gap015_backfill.py | Python | 394 | 1b36ebf2 |  |
 | 837 | P1 | tests/test_gap015_intelligence_training.py | Python | 150 | 5f0a0cbc |  |
@@ -1248,7 +1248,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 1178 | P2 | frontend/electron/terminalBridge.cjs | CommonJS | 221 | df9b68c6 |  |
 | 1179 | P2 | frontend/index.html | HTML | 14 | 937890f7 |  |
 | 1180 | P2 | frontend/linux/tradebot-dashboard.desktop | Desktop-entry config | 9 | d8c53c4f |  |
-| 1181 | P2 | frontend/package-lock.json | JSON | 4826 | 980cdc25 |  |
+| 1181 | P2 | frontend/package-lock.json | JSON | 4856 | f95a718c |  |
 | 1182 | P2 | frontend/postcss.config.js | JavaScript | 7 | ad943233 |  |
 | 1183 | P2 | frontend/public/icon.svg | Vector asset | 15 | 9a6da623 |  |
 | 1184 | P2 | frontend/scripts/build-icons.mjs | ES module | 36 | 4489c079 |  |
