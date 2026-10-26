@@ -112,5 +112,6 @@ def test_shutdown_never_waits_on_a_poisoned_pool() -> None:
         executor.submit(release.wait)
         # Returns immediately despite the worker still being blocked.
         executor.shutdown(wait=False, cancel_futures=True)
+        assert not release.is_set()
     finally:
         release.set()

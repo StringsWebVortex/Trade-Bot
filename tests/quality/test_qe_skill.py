@@ -24,8 +24,9 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from required_import import require
 
-jsonschema = pytest.importorskip("jsonschema")
+jsonschema = require("jsonschema")
 from jsonschema import Draft7Validator  # noqa: E402
 
 REPO = Path(__file__).resolve().parents[2]

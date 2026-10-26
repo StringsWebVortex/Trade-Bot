@@ -236,6 +236,9 @@ class TestTheRegistryHasAPlaceForDefects:
             "REG-1608",
             # REG-1609: one failed job-log download failed the whole report.
             "REG-1609",
+            # REG-1610, REG-1611: audits SCR-018 and TSA-07 (section D rest).
+            "REG-1610",
+            "REG-1611",
             # REG-1700..1703: audit OPS-011 (digest pins, rag-ingest torch
             # floor), DOC-015 and API-031 -- block C of the phase 7 findings.
             "REG-1700",
@@ -561,14 +564,11 @@ class TestTheMetricsCollector:
         # test-suite, 43.
         # REG-1704 adds the fixed-threshold carry/arbitrage regression (STR-21):
         # no test asked what the thresholds cost to clear -- test-suite, 44.
-        # SEC-0011: the lockfile drifted into three high advisories on main with
-        # no test of the resolved tree -- supply-chain, 3 to 4.
-        # REG-1705, REG-1706: the CI gates themselves made failures recur (a
-        # knowledge gate any merge invalidates, fail-fast hiding shards) --
-        # ci-gate-design, 2.
-        # REG-1707: a leaked async resource never failed its test -- test-suite, 49.
+        # REG-1610 and REG-1611 add the section D script and CI-skip regressions.
+        # REG-1707 adds the async-resource regression; main also adds the CI gate
+        # and supply-chain findings. Keep both branches' allocations represented.
         assert metric["value"] == {
-            "test-suite": 49,
+            "test-suite": 51,
             "review": 1,
             "supply-chain": 4,
             "ci-gate-design": 2,

@@ -47,11 +47,11 @@ deletion of the thing it points at.
 
 | Status | Entries |
 |---|---|
-| VERIFIED | 242 |
+| VERIFIED | 244 |
 | PARTIAL | 3 |
 | PLANNED | 0 |
 | ACCEPTED GAP | 0 |
-| **Total** | **245** |
+| **Total** | **247** |
 
 ## Summary by subsystem
 
@@ -68,7 +68,7 @@ deletion of the thing it points at.
 | Supply chain and artifacts | 7 | 7 |
 | Resilience and recovery | 26 | 26 |
 | Release and production | 17 | 17 |
-| Governance | 69 | 68 |
+| Governance | 71 | 70 |
 | Terminal and process center | 13 | 13 |
 
 ## Outstanding work by phase
@@ -2967,6 +2967,32 @@ The collector retries the signed job-log download and names the final cause; a g
 
 > Follow-up to REG-1604: once failures were published, the first one seen was this. No test fed the collector a failing log download. layer: test-suite
 
+#### `REG-1610` — Repository scripts do what their names and docs say (resolver add/add, fixture --check, coverage metric, index refresh)
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+resolve_registry_merge.py merges an add/add conflict against an empty base instead of calling it unconflicted; generate_signal_fixtures.py --check creates nothing and reports a fixture whose case was removed, and a write removes it; collect_quality_metrics.py names coverage's combined line and branch total line_and_branch_coverage_pct; codebase_knowledge_index.py --refresh-file-index keeps content after the file table.
+
+- **If violated:** An add/add registry conflict was left for a person with a misleading message; --check wrote a directory and missed stale golden fixtures; a combined coverage figure was read as branch coverage; a refresh silently deleted anything written after the index table.
+- **Owned by:** `scripts/resolve_registry_merge.py`, `scripts/generate_signal_fixtures.py`, `scripts/collect_quality_metrics.py`, `scripts/codebase_knowledge_index.py`
+- **Verification:**
+  - `tests/test_script_fixes_scr018.py` (regression)
+
+> Audit SCR-018 (rest). The provenance traversal part is in #502 and the validation.py empty-list part in #501. layer: test-suite
+
+#### `REG-1611` — jsonschema and cryptography tests fail in CI when the dependency is missing
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+The registry-schema, QE-skill, ID-allocation and API-signer tests import jsonschema and cryptography through required_import.require, which skips only when CI is unset; in CI a missing module fails collection.
+
+- **If violated:** pytest.importorskip turned a broken CI install into skips, so security and quality tests stopped running while the job stayed green.
+- **Owned by:** `tests/required_import.py`
+- **Verification:**
+  - `tests/test_required_import_in_ci.py` (regression)
+
+> Audit TSA-07 (rest). The arch-baseline skip is in #502. py_ecc stays optional: it is not in requirements.txt. layer: test-suite
+
 #### `REG-1700` — The CI TimescaleDB service and scripts/timescaledb.sh pin the image by digest
 
 **VERIFIED** · low · regression · source: OPS-2026-10-25
@@ -3187,4 +3213,4 @@ To add or change an entry, edit the registry and regenerate this file. See
 `docs/quality/TEST_STRATEGY.md` for the taxonomy the `test_type` column draws
 on, and `docs/quality/IMPLEMENTATION_PLAN.md` for what each phase delivers.
 
-Registry version: 1.0.0 — 245 entries.
+Registry version: 1.0.0 — 247 entries.

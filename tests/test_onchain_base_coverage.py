@@ -177,6 +177,9 @@ class TestRateLimiter:
         for _ in range(3):
             await limiter.acquire()
 
+        # Three of the five starting tokens are spent, and none of the calls waited.
+        assert 2.0 <= limiter._tokens < 3.0
+
     @pytest.mark.asyncio
     async def test_acquire_sleeps_when_no_tokens(self):
         limiter = RateLimiter(rate=1.0)

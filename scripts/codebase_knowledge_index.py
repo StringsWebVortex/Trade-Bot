@@ -133,8 +133,14 @@ def refresh_file_index(text: str, root: Path = PROJECT_ROOT) -> tuple[str, list[
     if table_header_index is None:
         return text, ["FILE_INDEX.md complete inventory has no table header"]
 
+    # The table ends at its first non-row line; whatever follows is kept (SCR-018).
+    table_end = next(
+        (i for i in range(table_header_index + 1, len(lines)) if not lines[i].startswith("|")),
+        len(lines),
+    )
+
     existing: dict[str, tuple[str, str, str]] = {}
-    for line in lines[table_header_index + 1 :]:
+    for line in lines[table_header_index + 1 : table_end]:
         match = FILE_ROW.match(line)
         if not match:
             continue
@@ -198,7 +204,7 @@ def refresh_file_index(text: str, root: Path = PROJECT_ROOT) -> tuple[str, list[
         return text, issues
 
     header = lines[section_start : table_header_index + 1]
-    result_lines = refreshed_top + header + rendered_rows
+    result_lines = refreshed_top + header + rendered_rows + lines[table_end:]
     totals = {
         "Tracked paths": len(rows),
         "Python files": sum(1 for _, path_text, *_ in rows if path_text.endswith(".py")),
