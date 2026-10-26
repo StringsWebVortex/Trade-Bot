@@ -22,9 +22,9 @@ orders. Treat the following as security-relevant, not merely bugs:
 
 ## Security review guidelines
 
-Automated reviewers (ChatGPT Codex code and security review, GitHub Copilot
-code review, CodeQL) and human reviewers should treat the following as
-security findings on any pull request. `AGENTS.md` ("Code Review Rules")
+Pull-request reviewers (ChatGPT Codex code and security review, GitHub Copilot
+code review, and people) should treat the following as security findings on
+any pull request. `AGENTS.md` ("Code Review Rules")
 lists the wider review rules, and `docs/security/THREAT_MODEL.md` is the
 threat model.
 
@@ -69,8 +69,10 @@ Only `main` receives security fixes. There are no maintained release branches.
 
 ## Automated scanning
 
-CodeQL (`security-and-quality`) runs on every pull request and weekly on a
-schedule; Dependabot opens grouped dependency updates weekly.
+CodeQL (`security-and-quality`) runs its configured queries; it does not read
+this file. On pull requests and in the merge queue it runs without uploading
+results, so its alerts reach code scanning from pushes to `main` and the
+weekly scheduled scan. Dependabot opens grouped dependency updates weekly.
 `.github/workflows/security.yml` runs Bandit, pip-audit, npm audit, TruffleHog,
 dependency review, the supply-chain posture checks, and a container scan on
 every pull request and in the merge queue.

@@ -1228,7 +1228,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 1158 | P2 | .vscode/settings.json | JSON | 9 | 35d5bf39 |  |
 | 1159 | P2 | CONTRIBUTING.md | Markdown | 61 | 04155331 |  |
 | 1160 | P2 | LICENSE | Other text/source | 21 | 49a961c5 |  |
-| 1161 | P2 | SECURITY.md | Markdown | 76 | 4faa9b03 |  |
+| 1161 | P2 | SECURITY.md | Markdown | 78 | 4c96f444 |  |
 | 1162 | P2 | common/__init__.py | Python | 0 | e3b0c442 |  |
 | 1163 | P2 | common/claude_cli.py | Python | 79 | fbe378e7 |  |
 | 1164 | P2 | common/command_schema.py | Python | 616 | 1de280b9 |  |
