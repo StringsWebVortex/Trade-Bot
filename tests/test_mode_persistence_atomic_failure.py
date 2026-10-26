@@ -10,11 +10,9 @@ from src.config import ExecutionMode
 from src.execution import mode_persistence
 
 
-def test_failed_atomic_replace_preserves_previous_mode_and_cleans_temp_file(
-    tmp_path, monkeypatch
-):
+def test_failed_atomic_replace_preserves_previous_mode_and_cleans_temp_file(tmp_path, monkeypatch):
     target = tmp_path / "execution_mode.json"
-    original = json.dumps({"version": 1, "execution_mode": ExecutionMode.PAPER.value})
+    original = json.dumps({"version": 1, "execution_mode": ExecutionMode.AUTOMATIC.value})
     target.write_text(original, encoding="utf-8")
 
     def fail_replace(_source, _destination):
@@ -29,9 +27,7 @@ def test_failed_atomic_replace_preserves_previous_mode_and_cleans_temp_file(
     assert list(tmp_path.glob(".execution_mode-*")) == []
 
 
-def test_failed_replace_without_an_existing_file_leaves_no_partial_state(
-    tmp_path, monkeypatch
-):
+def test_failed_replace_without_an_existing_file_leaves_no_partial_state(tmp_path, monkeypatch):
     target = tmp_path / "nested" / "execution_mode.json"
 
     def fail_replace(_source, _destination):
