@@ -121,9 +121,12 @@ CI_HARD_DENY_PATTERNS: tuple[str, ...] = (
     r"\bgh\s+pr\s+checks\b",
 )
 
-# Compatibility name retained for callers; the sole allowed CI route is the
-# exact report-only prfail command. Direct PR-comment reads remain blocked.
-CI_COMMENT_ALLOW_PATTERNS: tuple[str, ...] = (r"^\s*\./scripts/prfail\s+--pr\s+[1-9][0-9]*\s*$",)
+# Compatibility name retained for callers; permit only the filtered prfail
+# report and the approved local problems wrapper. Direct PR-comment reads remain blocked.
+CI_COMMENT_ALLOW_PATTERNS: tuple[str, ...] = (
+    r"^\s*\./scripts/problems\s+(?:pytest|ruff|format|vitest|browser|frontend|build|all|selftest)(?:\s+[A-Za-z0-9_./-]+)*\s*$",
+    r"^\s*\./scripts/prfail\s+--pr\s+[1-9][0-9]*\s*$",
+)
 
 
 LOCAL_CHECK_PATTERNS: tuple[str, ...] = (
