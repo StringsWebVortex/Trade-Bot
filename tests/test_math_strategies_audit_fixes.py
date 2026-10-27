@@ -369,13 +369,18 @@ def test_bars_per_day_scales_slippage_adv_to_daily_volume() -> None:
 
 
 def test_entropy_harness_does_not_report_a_dead_win_rate() -> None:
+    from src.config import FeatureSettings
     from src.tuning.backtest_harness import TradeSample, run_entropy_threshold_backtest
 
     samples = [
         TradeSample(raw_return=0.01 * (1 if i % 3 else -1), entropy=0.1 * (i % 9))
         for i in range(120)
     ]
-    names = {c.metric_name for c in run_entropy_threshold_backtest(samples, 0.5, 0.5, 0.4, 0.6)}
+    # The default 10 folds x 60-bar purge need more than 600 samples; a 1-bar
+    # purge lets 120 samples form valid folds, as in test_tuning_backtest_harness.
+    cfg = FeatureSettings(cpcv_n_splits=10, purge_gap_bars=1, triple_barrier_max_holding_bars=1)
+    comparisons = run_entropy_threshold_backtest(samples, 0.5, 0.5, 0.4, 0.6, features_cfg=cfg)
+    names = {c.metric_name for c in comparisons}
     assert "win_rate" not in names
 
 
