@@ -6333,7 +6333,7 @@
       "criticality": "high",
       "subsystem": "governance",
       "status": "verified",
-      "source": "PR-524 review",
+      "source": "OPS-2026-10-27",
       "owning_modules": [
         "config/command_policy.json",
         "tests/test_diagnostic_route_boundary.py"

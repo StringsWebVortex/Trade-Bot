@@ -2829,7 +2829,7 @@ With .githooks/reference-transaction installed by scripts/install_push_wait_hook
 
 #### `GOV-070` — Duplicate-delivery prevention stays disabled until enforcement is verifiable
 
-**VERIFIED** · high · requirement · source: PR-524 review
+**VERIFIED** · high · requirement · source: OPS-2026-10-27
 
 The repository must not advertise duplicate-delivery enforcement as enabled until a registry-backed deciding test verifies the actual enforcement point and persistent-index failure behavior; an external host hook without repository-verifiable coverage is insufficient evidence.
 
