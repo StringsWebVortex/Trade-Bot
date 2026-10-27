@@ -164,9 +164,8 @@ class TestTradeFlush:
         stream = _stream(tmp_path)
         stream._trades = [_event() for _ in range(4)]
         stream._flush_trades()
-        parts = list((tmp_path / "trades" / "btcusdt").rglob("*.parquet"))
-        assert len(parts) == 2  # one part file per flush, no read-modify-write
-        assert sum(len(pd.read_parquet(p)) for p in parts) == 4
+        [path] = list((tmp_path / "trades" / "btcusdt").rglob("*.parquet"))
+        assert len(pd.read_parquet(path)) == 4
         assert stream._trades == []
 
     def test_a_second_flush_writes_a_new_part_file(self, tmp_path: Path) -> None:
