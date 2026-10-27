@@ -11,7 +11,6 @@ import time
 import pandas as pd
 import requests
 
-
 KRAKEN_OHLC_URL = "https://api.kraken.com/0/public/OHLC"
 
 # Kraken interval is in minutes

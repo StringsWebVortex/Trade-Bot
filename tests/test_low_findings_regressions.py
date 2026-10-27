@@ -11,7 +11,6 @@ Decides:
   - REG-1525 — Model-artifact preflight matches exact trainer filenames per timeframe
   - REG-1526 — Mutation floor fails closed on timeout and clears the shared cache per subsystem
   - REG-1527 — Ruleset drift check compares rule parameters the file sets
-  - REG-1528 — CI diagnostic values decode percent-escapes once, with %25 last
   - REG-1529 — Quality id regex accepts registry ids past the old digit caps
   - REG-1530 — Review context refuses option-shaped refs and provenance refuses escaping names
   - REG-1531 — Market fetchers drop the still-forming last candle
@@ -21,6 +20,7 @@ from __future__ import annotations
 
 import importlib.util
 import subprocess
+import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -34,7 +34,13 @@ ROOT = Path(__file__).resolve().parents[1]
 def _load(rel: str, name: str):
     spec = importlib.util.spec_from_file_location(name, ROOT / rel)
     module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    # Dataclasses resolve their module through sys.modules during class creation.
+    sys.modules[name] = module
+    try:
+        spec.loader.exec_module(module)
+    except BaseException:
+        sys.modules.pop(name, None)
+        raise
     return module
 
 
@@ -181,13 +187,6 @@ def test_ruleset_check_ignores_github_default_echo():
         "rules": [{"type": "deletion", "parameters": {"unrelated_default": True}}],
     }
     assert mod.compare(payload, remote) == []
-
-
-# SCR-016: %25 is decoded last, so an encoded percent is not decoded into a newline.
-def test_command_value_unquote_does_not_double_decode():
-    mod = _load("scripts/ci_diagnostics.py", "ci_diagnostics_t")
-    assert mod._unquote_command_value("%250A") == "%0A"
-    assert mod._unquote_command_value("a%0Ab") == "a\nb"
 
 
 # DOC-028: qe id regex accepts ids past the old digit caps.

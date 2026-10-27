@@ -8,7 +8,6 @@ import time
 import pandas as pd
 import requests
 
-
 BINANCE_KLINES_URL = "https://api.binance.com/api/v3/klines"
 
 INTERVAL_MS = {

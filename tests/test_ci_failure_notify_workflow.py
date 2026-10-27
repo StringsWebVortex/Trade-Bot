@@ -28,12 +28,8 @@ def test_collector_is_autonomous_and_starts_only_after_source_completion() -> No
     spec = yaml.safe_load(COLLECTOR_WORKFLOW.read_text(encoding="utf-8"))
     triggers = _triggers(spec)
     assert triggers["workflow_run"]["types"] == ["completed"]
-    assert set(triggers["workflow_run"]["workflows"]) == {
-        "CI",
-        "CodeQL",
-        "Security",
-        "Workflow lint",
-    }
+    # Every workflow, by glob: a workflow added later needs no edit here.
+    assert triggers["workflow_run"]["workflows"] == ["*"]
     assert "pull_request" not in triggers
     assert "workflow_dispatch" not in triggers
     assert spec["jobs"]["collect"]["permissions"]["actions"] == "read"
