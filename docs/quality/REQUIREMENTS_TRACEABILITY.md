@@ -2838,6 +2838,7 @@ The repository must not advertise duplicate-delivery enforcement as enabled unti
 - **Verification:**
   - `tests/test_diagnostic_route_boundary.py` (contract) — Pins the policy disabled and verifies the registry-backed requirement until actual enforcement can be decided in CI.
 
+
 #### `REG-0005` — A test's result never depends on which tests ran before it
 
 **VERIFIED** · high · regression · source: QE-91
