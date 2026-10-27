@@ -1,4 +1,7 @@
-"""Regression tests for the canonical diagnostic routes and duplicate-delivery policy."""
+"""Regression tests for the canonical diagnostic routes and duplicate-delivery policy.
+
+Decides: GOV-070.
+"""
 from __future__ import annotations
 
 import importlib.util
