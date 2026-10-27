@@ -14,7 +14,7 @@ requests>=2.34.2,<3.0
 urllib3>=2.8.0,<3.0
 # 13.0 is the first release with websockets.asyncio.server, which the terminal
 # service's loopback listener uses (src/terminal/server.py); 12.x lacks it.
-websockets>=13.0,<16.0
+websockets>=17.2,<18.0
 
 # --- API surface ------------------------------------------------------------
 fastapi>=0.142.2,<1.0
@@ -43,7 +43,7 @@ ccxt>=4.3,<4.5.65
 
 # --- numerics and modelling -------------------------------------------------
 numpy>=2.4.6,<3.0
-pandas>=2.2,<3.0
+pandas>=3.0.6,<4.0
 scipy>=1.13,<2.0
 scikit-learn>=1.9.1,<2.0
 statsmodels>=0.15,<1.0   # 0.15 removed grangercausalitytests(verbose=)
@@ -61,7 +61,7 @@ pyarrow>=16.0,<24.0
 cryptography>=50.0.1,<51.0
 prometheus-client>=0.20,<1.0
 structlog>=26.1.0,<27.0
-python-dotenv>=1.2.3,<2.0
+python-dotenv>=1.2.4,<2.0
 PyYAML>=6.0,<7.0
 
 # --- hard imports at module scope -------------------------------------------

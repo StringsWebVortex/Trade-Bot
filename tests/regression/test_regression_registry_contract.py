@@ -236,6 +236,9 @@ class TestTheRegistryHasAPlaceForDefects:
             "REG-1608",
             # REG-1609: one failed job-log download failed the whole report.
             "REG-1609",
+            # REG-1610, REG-1611: audits SCR-018 and TSA-07 (section D rest).
+            "REG-1610",
+            "REG-1611",
             # REG-1700..1703: audit OPS-011 (digest pins, rag-ingest torch
             # floor), DOC-015 and API-031 -- block C of the phase 7 findings.
             "REG-1700",
@@ -245,6 +248,19 @@ class TestTheRegistryHasAPlaceForDefects:
             # REG-1704: audit STR-21 -- carry and arbitrage entries gated on
             # fixed thresholds no cost measurement produced.
             "REG-1704",
+            # REG-1705: the knowledge-index gate demanded fresh hashes for every
+            # file, so any merge broke every other open PR -- ci-gate-design.
+            # REG-1706: fail-fast cancelled five shards when one failed, hiding
+            # their failures until the next push -- ci-gate-design.
+            # REG-1707: a leaked async resource printed "Event loop is closed"
+            # under a passing run; REG-0023 had locked only the reporter -- test-suite.
+            "REG-1705",
+            "REG-1706",
+            "REG-1707",
+            "REG-1140",
+            "REG-1141",
+            "REG-1142",
+            "REG-1143",
         }
         # SEC-0005: `.gitignore` carried a bare `.env`, which matches that one
         # name and nothing else -- so `.env.bak.<timestamp>` from a
@@ -275,6 +291,7 @@ class TestTheRegistryHasAPlaceForDefects:
             "SEC-0008",
             "SEC-0009",
             "SEC-0010",
+            "SEC-0011",
             "SEC-0012",
             # SEC-1020..1023: CI tooling and workflow security findings.
             "SEC-1020",
@@ -552,8 +569,16 @@ class TestTheMetricsCollector:
         # test-suite, 43.
         # REG-1704 adds the fixed-threshold carry/arbitrage regression (STR-21):
         # no test asked what the thresholds cost to clear -- test-suite, 44.
-        # SEC-1020..1023 add four CI tooling security findings -- test-suite, 48.
-        assert metric["value"] == {"test-suite": 48, "review": 1, "supply-chain": 3}
+        # SEC-1020..1023 add four CI tooling security findings.
+        # REG-1610 and REG-1611 add the section D script and CI-skip regressions.
+        # REG-1707 adds the async-resource regression; main also adds the CI gate
+        # and supply-chain findings. Keep both branches' allocations represented.
+        assert metric["value"] == {
+            "test-suite": 55,
+            "review": 1,
+            "supply-chain": 4,
+            "ci-gate-design": 2,
+        }
 
     def test_zero_escaped_defects_would_be_stated_explicitly(self, collector, monkeypatch):
         # "We have not measured this" and "this is zero" are different

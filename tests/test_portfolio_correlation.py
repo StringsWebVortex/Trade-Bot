@@ -146,6 +146,9 @@ class TestPushBarReturns:
         t = PortfolioCorrelationTracker()
         t.push_bar_returns({})  # should not crash
 
+        assert t._series == {}
+        assert t._covs == {}
+
 
 # ---------------------------------------------------------------------------
 # push_return (sequential API)
