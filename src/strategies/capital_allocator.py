@@ -168,9 +168,10 @@ def performance_weighted_allocate(
             # Warm-up phase - give equal share so new strategies get capital
             raw[s.strategy_id] = equal_share
         else:
-            score = getattr(attr, metric, None)
-            if score is None:  # `or` would also swap in Sharpe for a genuine 0.0
-                score = attr.sharpe
+            # metric is validated above and every one is a StrategyAttribution
+            # field; no `or attr.sharpe` fallback, which swapped in Sharpe for a
+            # genuine 0.0 score.
+            score = getattr(attr, metric)
             if score >= 0.0:
                 scores[s.strategy_id] = score
             else:

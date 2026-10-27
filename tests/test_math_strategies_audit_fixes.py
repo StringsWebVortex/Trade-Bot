@@ -380,32 +380,6 @@ def test_warm_up_share_is_not_mixed_with_raw_scores() -> None:
     assert result.fractions["mature"] == pytest.approx(0.5)
 
 
-def test_unknown_metric_falls_back_to_sharpe() -> None:
-    from src.diagnostics.attribution import AttributedFill, get_attribution_tracker
-    from src.strategies.capital_allocator import (
-        _MIN_TRADES_FOR_SHARPE,
-        performance_weighted_allocate,
-    )
-
-    tracker = get_attribution_tracker()
-    tracker.reset()
-    try:
-        for sid, high in (("steady", 3.0), ("swingy", 30.0)):
-            for i in range(_MIN_TRADES_FOR_SHARPE + 5):
-                pnl = high if i % 2 else 1.0
-                tracker.record(
-                    AttributedFill(strategy_id=sid, pnl_usd=pnl, entry_ts=i, exit_ts=i + 1)
-                )
-        strategies = (_Strat("steady"), _Strat("swingy"))
-        enabled = {"steady", "swingy"}
-        by_sharpe = performance_weighted_allocate(strategies, enabled, metric="sharpe")
-        by_unknown = performance_weighted_allocate(strategies, enabled, metric="not_a_metric")
-    finally:
-        tracker.reset()
-    # A metric the attribution record does not carry is scored by Sharpe.
-    assert by_unknown.fractions == pytest.approx(by_sharpe.fractions)
-
-
 # ---- STR-14 ----------------------------------------------------------------
 
 
