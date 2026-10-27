@@ -18,6 +18,7 @@
       "mcp__github__search_pull_requests",
       "mcp__github__update_pull_request",
       "Bash(./scripts/prfail --pr *)",
+      "Bash(./scripts/problems *)",
       "Bash(python3 scripts/apply_ci_patch.py *)"
     ],
     "deny": [

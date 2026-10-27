@@ -47,11 +47,11 @@ deletion of the thing it points at.
 
 | Status | Entries |
 |---|---|
-| VERIFIED | 245 |
+| VERIFIED | 246 |
 | PARTIAL | 3 |
 | PLANNED | 0 |
 | ACCEPTED GAP | 0 |
-| **Total** | **248** |
+| **Total** | **249** |
 
 ## Summary by subsystem
 
@@ -68,7 +68,7 @@ deletion of the thing it points at.
 | Supply chain and artifacts | 7 | 7 |
 | Resilience and recovery | 26 | 26 |
 | Release and production | 17 | 17 |
-| Governance | 72 | 71 |
+| Governance | 73 | 72 |
 | Terminal and process center | 13 | 13 |
 
 ## Outstanding work by phase
@@ -2827,6 +2827,18 @@ With .githooks/reference-transaction installed by scripts/install_push_wait_hook
 - **Verification:**
   - `tests/test_push_wait.py` (contract)
 
+#### `GOV-070` — Checks print only exact problem lines, everywhere, through two commands
+
+**VERIFIED** · high · requirement · source: OPS-2026-10-27
+
+Every test, lint, format and build check reports a problem as one `path:line:col: tool message` line, leaving out a part the tool does not report and never inventing one, and prints `no problems` otherwise. ./scripts/problems <pytest|ruff|format|vitest|browser|frontend|build|all|selftest> [paths] is the one local route and refuses options; pytest (tests/problems_plugin.py) and vitest (frontend/problems-reporter.js) print the same lines themselves, so a direct run shows nothing else; there is no switch that shows tracebacks or logs. CI runs every check through the same command, so ./scripts/prfail returns each line exactly as printed, names a failed step that printed no failure line, and still prints the CI lines when GitHub refuses the review-thread query. The pre-tool hook admits only ./scripts/problems and ./scripts/prfail for local execution and protects both and their plugins from agent edits. `./scripts/problems selftest` runs the real tools on tests/fixtures/problems in CI and compares against expected.json.
+
+- **If violated:** prfail kept only lines containing a failure word, so ruff and ruff format findings reached it without file or line, and a pytest failure arrived without its assertion. To debug, the agent ran pytest and ruff directly in a cloud session whose hooks were not loaded and read about 1,100 lines of raw output, against the repository rule. No control limited what a check printed; the tools now print only problem lines themselves, the hook admits only the two commands, and tests/test_problems_pipeline.py fails if a check, the CI wiring, prfail or the hook lets anything else through.
+- **Owned by:** `scripts/problems.py`, `scripts/problems`, `tests/problems_plugin.py`, `frontend/problems-reporter.js`, `scripts/ci_diagnostics.py`, `.claude/hooks/pre_tool_use.py`, `.github/workflows/ci.yml`
+- **Depends on:** `GOV-068`
+- **Verification:**
+  - `tests/test_problems_pipeline.py` (contract)
+
 #### `REG-0005` — A test's result never depends on which tests ran before it
 
 **VERIFIED** · high · regression · source: QE-91
@@ -3225,4 +3237,4 @@ To add or change an entry, edit the registry and regenerate this file. See
 `docs/quality/TEST_STRATEGY.md` for the taxonomy the `test_type` column draws
 on, and `docs/quality/IMPLEMENTATION_PLAN.md` for what each phase delivers.
 
-Registry version: 1.0.0 — 248 entries.
+Registry version: 1.0.0 — 249 entries.

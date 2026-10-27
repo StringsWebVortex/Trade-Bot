@@ -1,0 +1,45 @@
+{
+  "_note": "GOV-070. What ./scripts/problems prints for each fixture, exactly. CI runs `./scripts/problems selftest <target>` against this file.",
+  "pytest": {
+    "paths": [
+      "tests/fixtures/problems/failing_sample.py"
+    ],
+    "lines": [
+      "tests/fixtures/problems/failing_sample.py:9: pytest tests/fixtures/problems/failing_sample.py::test_a_failing_assertion_is_reported_at_its_line - assert 1 == 2"
+    ]
+  },
+  "ruff": {
+    "paths": [
+      "tests/fixtures/problems/lint_sample.py"
+    ],
+    "lines": [
+      "tests/fixtures/problems/lint_sample.py:3:8: ruff F401 `os` imported but unused"
+    ]
+  },
+  "format": {
+    "paths": [
+      "tests/fixtures/problems/format_sample.py"
+    ],
+    "lines": [
+      "tests/fixtures/problems/format_sample.py:3: ruff-format would reformat"
+    ]
+  },
+  "vitest": {
+    "paths": [
+      "--config",
+      "vitest.selftest.config.js"
+    ],
+    "lines": [
+      "frontend/problems-fixture/failing.selftest.js:6:13: vitest a failing expectation is reported at its line - AssertionError: expected 5 to be 4 // Object.is equality"
+    ]
+  },
+  "build": {
+    "paths": [
+      "--config",
+      "vite.selftest.config.js"
+    ],
+    "lines": [
+      "frontend/problems-fixture/broken.js:3:24: build [PARSE_ERROR] Unexpected token"
+    ]
+  }
+}

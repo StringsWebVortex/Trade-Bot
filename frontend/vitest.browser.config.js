@@ -8,6 +8,9 @@ export default defineConfig({
     include: ['browser-e2e/**/*.e2e.jsx'],
     restoreMocks: true,
     clearMocks: true,
+    // GOV-070: problem lines only, with the failing line and column.
+    reporters: ['./problems-reporter.js'],
+    includeTaskLocation: true,
     browser: {
       enabled: true,
       provider: playwright(),

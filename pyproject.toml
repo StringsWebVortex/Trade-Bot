@@ -67,7 +67,7 @@ exclude_also = [
 [tool.ruff]
 target-version = "py311"
 line-length = 100
-extend-exclude = ["frontend", "crypto-predictor"]
+extend-exclude = ["frontend", "crypto-predictor", "tests/fixtures/problems"]
 
 [tool.ruff.lint]
 # The dedicated cleanup pass the previous comment here asked for: UP, B, SIM

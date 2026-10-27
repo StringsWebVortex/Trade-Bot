@@ -49,6 +49,12 @@ PROTECTED_BOUNDARY_PATHS = frozenset(
         "common/shell_exec.py",
         "scripts/ci_diagnostics.py",
         "scripts/prfail",
+        "scripts/problems",
+        "scripts/problems.py",
+        "tests/problems_plugin.py",
+        "tests/test_problems_pipeline.py",
+        "tests/fixtures/problems/expected.json",
+        "frontend/problems-reporter.js",
         "scripts/apply_ci_patch.py",
         "scripts/ci_verdict.py",
         "scripts/local_checks.py",
@@ -259,6 +265,19 @@ def _github_boundary_write_violation(tool: str, data: dict[str, Any]) -> str:
     return ""
 
 
+# GOV-070: the one local check route. Arguments are paths or pytest node ids;
+# an option (`-p`, `--noconftest`, `--config`) could change what is printed,
+# so none is accepted, and no shell syntax can follow.
+PROBLEMS_COMMAND_RE = re.compile(
+    r"\s*\./scripts/problems\s+(?:pytest|ruff|format|vitest|browser|frontend|build|all|selftest)"
+    r"(?:\s+[A-Za-z0-9_][A-Za-z0-9_./:\[\]=@-]*)*\s*"
+)
+
+
+def _is_exact_problems_command(command: str) -> bool:
+    return "\n" not in command.strip() and bool(PROBLEMS_COMMAND_RE.fullmatch(command))
+
+
 def _is_exact_patch_apply_command(command: str) -> bool:
     """Allow only the reviewed patcher with a quoted heredoc and one final terminator."""
     lines = command.strip().splitlines()
@@ -297,6 +316,8 @@ def _github_route_violation(event: dict[str, Any]) -> str:
                 and not _local_check_violation(command, _load_policy())
             ):
                 return ""
+            if isinstance(command, str) and _is_exact_problems_command(command):
+                return ""
             if isinstance(command, str) and _is_exact_patch_apply_command(command):
                 header = command.splitlines()[0]
                 if not _local_check_violation(header, _load_policy()):
@@ -304,7 +325,8 @@ def _github_route_violation(event: dict[str, Any]) -> str:
         return (
             "Universal GitHub-only boundary: denied. Use an approved GitHub MCP tool; "
             "local exceptions are the exact report command "
-            "./scripts/prfail --pr <PR_NUMBER> and the report-bound patch applier."
+            "./scripts/prfail --pr <PR_NUMBER>, the check command "
+            "./scripts/problems <target> [paths], and the report-bound patch applier."
         )
     tail = tool[len(GITHUB_TOOL_PREFIX) :]
     gap = unresolved_tools()
@@ -615,9 +637,11 @@ def _is_ci_request(tool: str, data: dict[str, Any]) -> bool:
     command = data.get("command")
     if isinstance(command, str) and command.strip():
         # The canonical report and report-bound patcher have exact allow rules.
-        if re.fullmatch(
-            r"\s*\./scripts/prfail\s+--pr\s+[1-9][0-9]*\s*", command
-        ) or _is_exact_patch_apply_command(command):
+        if (
+            re.fullmatch(r"\s*\./scripts/prfail\s+--pr\s+[1-9][0-9]*\s*", command)
+            or _is_exact_patch_apply_command(command)
+            or _is_exact_problems_command(command)
+        ):
             return False
         if is_ci_log_access(command) or CI_SUBJECT_RE.search(command):
             return True
@@ -915,7 +939,10 @@ def _violations(event: dict[str, Any], policy: dict[str, Any]) -> list[str]:
     if not isinstance(command, str) or not command.strip():
         return problems
 
-    local_check = "" if exact_patch_apply else _local_check_violation(command, policy)
+    exact_problems = _is_exact_problems_command(command)
+    local_check = (
+        "" if exact_patch_apply or exact_problems else _local_check_violation(command, policy)
+    )
     if local_check:
         problems.append(local_check)
 

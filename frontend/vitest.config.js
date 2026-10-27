@@ -10,5 +10,8 @@ export default defineConfig({
     // A frontend test that reaches the network is a flake waiting for a
     // slow day; there is no server in CI to reach.
     restoreMocks: true,
+    // GOV-070: problem lines only, with the failing line and column.
+    reporters: ['./problems-reporter.js'],
+    includeTaskLocation: true,
   },
 });

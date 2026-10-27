@@ -22,6 +22,15 @@ from urllib.parse import urlparse
 
 import pytest
 
+# GOV-070: pytest prints only problem lines; see tests/problems_plugin.py.
+from tests.problems_plugin import (  # noqa: F401
+    pytest_collectreport,
+    pytest_configure,
+    pytest_internalerror,
+    pytest_runtest_logreport,
+    pytest_sessionfinish,
+)
+
 # REG-0009: one path per *process*, not per run. Under xdist the controller
 # imports this module first, so the DUCKDB_PATH it sets is inherited by every
 # worker it spawns -- and `setdefault` then finds the variable already present

@@ -277,7 +277,7 @@ This is an enforcement rule, not a prompt instruction:
 - Native shells, integrated terminals, filesystem tools, browser tools, agents,
   unlisted MCP tools, newly introduced tool names, and unscoped GitHub requests
   are refused before execution. Unknown routes do not inherit permission.
-- CI diagnostics have one authorized observation route: ./scripts/prfail --pr <PR_NUMBER>. The CLI reads the centralized Check Run manifest and its digest-verified pages only; it never downloads workflow logs or queries job, annotation, artifact, or raw check endpoints. It prints only the exact failure lines (lines naming error, failed, failure, skipped, cancelled or canceled) of every non-green job of every non-green PR run, then one `path:line: first line of the opening comment` line per unresolved review conversation (outdated ones included), which it reads fresh through the GraphQL `reviewThreads` query because resolving a conversation fires no Actions event; stdout is empty when nothing failed and nothing is unresolved. Until every PR run has finished and the report is published it prints `wait` (exit 3), and a call made while another prfail for the same PR is running prints `wait` too. A broken, stale, or inaccessible report is an operational error, never a success response or a fallback. scripts/ci_verdict.py and scripts/local_checks.py prepare are legacy routes and are denied by the command policy. Pre-tool enforcement applies only when the session actually loads the repository hook/settings; connector permissions and tool endpoints independently exposed by the host require external configuration.
+- Local checks have one route, `./scripts/problems <target> [paths]`, which prints only `path:line:col: tool message` problem lines (GOV-070, section 14). CI diagnostics have one authorized observation route: ./scripts/prfail --pr <PR_NUMBER>. The CLI reads the centralized Check Run manifest and its digest-verified pages only; it never downloads workflow logs or queries job, annotation, artifact, or raw check endpoints. It prints only the exact failure lines (lines naming error, failed, failure, skipped, cancelled or canceled) of every non-green job of every non-green PR run, then one `path:line: first line of the opening comment` line per unresolved review conversation (outdated ones included), which it reads fresh through the GraphQL `reviewThreads` query because resolving a conversation fires no Actions event; stdout is empty when nothing failed and nothing is unresolved. Until every PR run has finished and the report is published it prints `wait` (exit 3), and a call made while another prfail for the same PR is running prints `wait` too. A broken, stale, or inaccessible report is an operational error, never a success response or a fallback. scripts/ci_verdict.py and scripts/local_checks.py prepare are legacy routes and are denied by the command policy. Pre-tool enforcement applies only when the session actually loads the repository hook/settings; connector permissions and tool endpoints independently exposed by the host require external configuration.
 - A read names its target and receives that block. `get_file_contents` must
   carry `tb_lines` (`"120-160"`) or `tb_anchor` (a unique line of the block);
   neither exists on the server schema, so the hook records the target and strips
@@ -502,14 +502,23 @@ The registry entry and deciding test belong in the same commit as the behavior.
 `qe_gate.py` runs in CI, not from a session: `config/command_policy.json` lists
 `.claude/skills/quality-engineering/scripts/qe_gate.py` among the blocked local
 checks, so an instruction to run it before pushing would order a command the
-pre-tool boundary refuses. No local test, build, lint, security scan, or quality-gate run is permitted,
-even for a previously failing check. The only local CI-observation exception is the read-only command
-`./scripts/prfail --pr <PR_NUMBER>`, which returns only the failure lines of the
-finished report for the current PR head SHA, or `wait`. The separate local patch-applier exception
-accepts only a quoted, report-bound unified diff; it refuses protected control-plane
-files and never runs checks. Push the correction through the approved GitHub
-branch-write route and use GitHub Actions for every test, build, lint, security
-scan, and quality gate.
+pre-tool boundary refuses.
+
+**GOV-070 — two commands, problem lines only.** A test, lint, format or build
+check may run anywhere (a cloud shell, a terminal, a sandbox, CI), but only as
+`./scripts/problems <pytest|ruff|format|vitest|browser|frontend|build|all|selftest> [paths]`,
+and it prints nothing but `path:line:col: tool message` lines, or `no problems`.
+CI output is read only through `./scripts/prfail --pr <PR_NUMBER>`, which returns
+the same lines. No other command runs a check or reads its output: not `pytest`,
+`ruff`, `npm test`, `vite build`, a log file, a report, an artifact or a live
+watch. Options are refused, and there is no switch that shows tracebacks or logs,
+for an agent or a person. pytest and vitest print the same lines themselves
+(`tests/problems_plugin.py`, `frontend/problems-reporter.js`), so even a session
+whose hooks are not loaded sees nothing more; running anything else there is
+still a breach of this rule, not a mistake. The separate patch-applier exception
+accepts only a quoted, report-bound unified diff; it refuses protected
+control-plane files and never runs checks. GitHub Actions remains the source of
+truth for every gate.
 
 The gate validates:
 

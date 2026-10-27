@@ -111,11 +111,17 @@ jobs:
         # set -- and therefore the required-check surface -- is unchanged.
         run: python3 .claude/skills/quality-engineering/scripts/qe_gate.py
 
+      # GOV-070: each check prints only `path:line:col: tool message` lines,
+      # the same lines ./scripts/problems prints anywhere else and
+      # ./scripts/prfail returns from this log.
       - name: Lint
-        run: ruff check .
+        run: ./scripts/problems ruff
 
       - name: Format check
-        run: ruff format --check .
+        run: ./scripts/problems format
+
+      - name: Problem-line self-test (ruff, format)
+        run: ./scripts/problems selftest ruff format
 
   python-tests:
     name: Python tests (shard ${{ matrix.shard }}/${{ matrix.total }})
@@ -221,6 +227,11 @@ jobs:
             -n auto --dist load \
             --durations=15 \
             --cov-fail-under=0
+
+      - name: Problem-line self-test (pytest)
+        # GOV-070. One shard is enough: the fixture run is the same everywhere.
+        if: matrix.shard == 1
+        run: ./scripts/problems selftest pytest
 
       - name: Upload coverage data
         if: always()
@@ -378,25 +389,25 @@ jobs:
         run: npm ci --prefer-offline --no-audit
 
       - name: Test
-        working-directory: frontend
         # Runs in the job that already installed these dependencies, so this
         # adds a step rather than a job: no second checkout, no second
         # `npm ci`, nothing installed that is not executed (GOV-015). It
         # runs before the build because a lifecycle defect the build cannot
-        # see is exactly what these tests are for.
-        run: npm test
+        # see is exactly what these tests are for. GOV-070: problem lines only.
+        run: ./scripts/problems vitest
 
       - name: Install Chromium for browser E2E
         working-directory: frontend
         run: npx playwright install --with-deps chromium
 
       - name: Browser E2E
-        working-directory: frontend
-        run: npm run test:browser
+        run: ./scripts/problems browser
 
       - name: Build
-        working-directory: frontend
-        run: npm run build
+        run: ./scripts/problems build
+
+      - name: Problem-line self-test (vitest, build)
+        run: ./scripts/problems selftest vitest build
 
   gate:
     name: CI gate (all jobs green)

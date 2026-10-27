@@ -5,9 +5,12 @@ description: Enforce GitHub-only validation and retrieve the finalized filtered 
 
 # GitHub-only check and diagnostics contract
 
-GitHub Actions is the sole execution path for tests, builds, lint, security scans,
+GitHub Actions is the source of truth for tests, builds, lint, security scans,
 workflow validation, registry/schema checks, generated-document checks, and quality
-gates. Never execute an individual test, test suite, build, or check locally.
+gates. A test, lint, format or build check may also run locally, but only as
+`./scripts/problems <pytest|ruff|format|vitest|browser|frontend|build|all> [paths]`
+(GOV-070): it prints only `path:line:col: tool message` lines, or `no problems`,
+and refuses options. Never run a check, or read its output, any other way.
 
 1. Use the exact command `./scripts/prfail --pr <PR_NUMBER>` to retrieve the
    exact failure lines for the requested open PR's current head SHA. Empty output

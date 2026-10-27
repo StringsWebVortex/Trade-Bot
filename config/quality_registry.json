@@ -4704,6 +4704,35 @@
       ]
     },
     {
+      "id": "GOV-070",
+      "kind": "requirement",
+      "title": "Checks print only exact problem lines, everywhere, through two commands",
+      "statement": "Every test, lint, format and build check reports a problem as one `path:line:col: tool message` line, leaving out a part the tool does not report and never inventing one, and prints `no problems` otherwise. ./scripts/problems <pytest|ruff|format|vitest|browser|frontend|build|all|selftest> [paths] is the one local route and refuses options; pytest (tests/problems_plugin.py) and vitest (frontend/problems-reporter.js) print the same lines themselves, so a direct run shows nothing else; there is no switch that shows tracebacks or logs. CI runs every check through the same command, so ./scripts/prfail returns each line exactly as printed, names a failed step that printed no failure line, and still prints the CI lines when GitHub refuses the review-thread query. The pre-tool hook admits only ./scripts/problems and ./scripts/prfail for local execution and protects both and their plugins from agent edits. `./scripts/problems selftest` runs the real tools on tests/fixtures/problems in CI and compares against expected.json.",
+      "criticality": "high",
+      "subsystem": "governance",
+      "status": "verified",
+      "source": "OPS-2026-10-27",
+      "failure_mode": "prfail kept only lines containing a failure word, so ruff and ruff format findings reached it without file or line, and a pytest failure arrived without its assertion. To debug, the agent ran pytest and ruff directly in a cloud session whose hooks were not loaded and read about 1,100 lines of raw output, against the repository rule. No control limited what a check printed; the tools now print only problem lines themselves, the hook admits only the two commands, and tests/test_problems_pipeline.py fails if a check, the CI wiring, prfail or the hook lets anything else through.",
+      "owning_modules": [
+        "scripts/problems.py",
+        "scripts/problems",
+        "tests/problems_plugin.py",
+        "frontend/problems-reporter.js",
+        "scripts/ci_diagnostics.py",
+        ".claude/hooks/pre_tool_use.py",
+        ".github/workflows/ci.yml"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_problems_pipeline.py",
+          "test_type": "contract"
+        }
+      ],
+      "depends_on": [
+        "GOV-068"
+      ]
+    },
+    {
       "id": "REG-1705",
       "kind": "regression",
       "title": "A merge elsewhere never breaks the knowledge-index gate on an open pull request",

@@ -219,7 +219,8 @@
     "wrapper": "scripts/local_checks.py",
     "prepare_command": "DISABLED: superseded by ./scripts/prfail --pr <PR_NUMBER>",
     "run_command": "DISABLED: GitHub Actions is the sole test/build/check execution path.",
-    "rule": "GitHub Actions is the sole execution path for tests, builds, lint, security scans, workflow validation, and quality gates. The legacy local_checks.py prepare notice reader is retired for agent use. The only permitted diagnostic retrieval command is ./scripts/prfail --pr <PR_NUMBER>, which reads the finalized filtered Check Run report; the run subcommand remains disabled.",
+    "rule": "GOV-070: a test, lint, format or build check runs locally only as ./scripts/problems <pytest|ruff|format|vitest|browser|frontend|build|all|selftest> [paths], which prints nothing but `path:line:col: tool message` problem lines (or `no problems`); options are refused and every other way of running a check is blocked. CI output is read only through ./scripts/prfail --pr <PR_NUMBER>. The legacy local_checks.py prepare notice reader is retired for agent use; its run subcommand remains disabled.",
+    "problems_command": "^\\s*\\./scripts/problems\\s+(?:pytest|ruff|format|vitest|browser|frontend|build|all|selftest)(?:\\s+[A-Za-z0-9_][A-Za-z0-9_./:\\[\\]=@-]*)*\\s*$",
     "blocked_patterns": [
       "(?:^|[;&|]\\s*)(?:uv\\s+run\\s+)?(?:[^\\s;&|]+/)?pytest(?:\\s|$)",
       "\\bpython(?:3)?(?:\\.\\d+)?\\s+-m\\s+pytest\\b",

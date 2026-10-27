@@ -35,6 +35,11 @@ from pathlib import Path
 from typing import Any
 
 try:
+    from scripts import problems
+except ImportError:  # run as scripts/ci_diagnostics.py or through scripts/prfail
+    import problems
+
+try:
     import fcntl
 except ImportError:  # Windows: prfail runs there through Git Bash
     fcntl = None  # type: ignore[assignment]
@@ -576,6 +581,15 @@ def _add_failure_lines(
         )
         _add_record(records, record)
         return
+    # GOV-070: a step that fails without a line naming the failure (a gate
+    # script, a bare exit code) is still named, by workflow, job and step.
+    for step in job.get("steps") or []:
+        if isinstance(step, dict) and _normal_conclusion(step.get("conclusion")) == "failure":
+            record = _base_record(repository, pr_number, sha, run, job)
+            record["message"] = (
+                f"{record['workflow_name']} / {record['job_name']} / {step.get('name')}: failure"
+            )
+            _add_record(records, record)
     if log is None:
         return
     for number, line in failure_lines(log):
@@ -1286,11 +1300,29 @@ def _single_flight(pr_number: int) -> Iterator[None]:
                 msvcrt.locking(lock.fileno(), msvcrt.LK_UNLCK, 1)
 
 
+# GOV-070: a problem line from ./scripts/problems or the pytest plugin reaches
+# the job log behind GitHub's error marker; prfail returns it without the marker,
+# exactly as ./scripts/problems printed it.
+ERROR_MARKERS = ("##[error]", "::error::")
+
+
+def problem_text(message: str) -> str:
+    for marker in ERROR_MARKERS:
+        rest = message.removeprefix(marker)
+        if rest != message and problems.PROBLEM.match(rest):
+            return rest
+    return message
+
+
 def _answer(pr_number: int) -> tuple[str, list[str]]:
     """The report's head SHA and every line prfail prints for it."""
     sha, records = read_report(pr_number)
     threads = _unresolved_threads(_repo_slug(), pr_number)
-    return sha, list(dict.fromkeys([str(record["message"]) for record in records] + threads))
+    return sha, list(dict.fromkeys(_ci_lines(records) + threads))
+
+
+def _ci_lines(records: list[dict[str, Any]]) -> list[str]:
+    return list(dict.fromkeys(problem_text(str(record["message"])) for record in records))
 
 
 def prfail_answer(pr_number: int) -> tuple[str, list[str]]:
@@ -1304,7 +1336,7 @@ def prfail_answer(pr_number: int) -> tuple[str, list[str]]:
 
 def _retrieve(pr_number: int) -> int:
     try:
-        _sha, lines = _answer(pr_number)
+        _sha, records = read_report(pr_number)
     except ReportPending:
         sys.stdout.write("wait\n")
         return WAIT_EXIT
@@ -1312,9 +1344,22 @@ def _retrieve(pr_number: int) -> int:
         return _report_error(str(exc))
     except (OSError, ValueError, TypeError, KeyError) as exc:
         return _report_error(f"report could not be validated ({type(exc).__name__})")
+    lines = _ci_lines(records)
+    try:
+        threads = _unresolved_threads(_repo_slug(), pr_number)
+    except (DiagnosticError, OSError, ValueError, TypeError, KeyError) as exc:
+        # GOV-070: the CI lines are printed even when GitHub refuses the
+        # review-thread query (a 403 from a token without GraphQL access);
+        # the answer is still incomplete, so it ends in an error.
+        _write_lines(lines)
+        return _report_error(f"review threads unavailable: {exc}")
+    _write_lines(list(dict.fromkeys(lines + threads)))
+    return 0
+
+
+def _write_lines(lines: list[str]) -> None:
     if lines:
         sys.stdout.write("\n".join(lines) + "\n")
-    return 0
 
 
 def main_prfail(argv: list[str]) -> int:
