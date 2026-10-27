@@ -31,6 +31,7 @@ import time
 import urllib.parse
 from collections.abc import Callable, Iterable, Mapping
 from pathlib import Path
+from typing import TypeVar
 
 try:
     from scripts import ci_diagnostics
@@ -51,34 +52,45 @@ GIT_COMMAND = re.compile(
     r'^(?:"(?:[^"]*[/\\])?git(?:\.exe)?"|(?:[^\s"]*[/\\])?git(?:\.exe)?)(?:\s+(.*))?$',
     re.IGNORECASE,
 )
-REMOTE_PREFIX = "refs/remotes/origin/"
+REMOTE_PREFIX = "refs/remotes/"
+# Global git options that take the next argument, before the subcommand.
+GIT_OPTION_ARGS = frozenset(
+    {"-c", "-C", "--git-dir", "--work-tree", "--namespace", "--config-env", "--super-prefix"}
+)
 DELETED = "0" * 40
 MAX_ANCESTORS = 64
 
 Answer = Callable[[int], tuple[str, list[str]]]
+T = TypeVar("T")
+R = TypeVar("R")
 
 
 class AnswerTimeout(Exception):
     """prfail did not answer before the hold's deadline."""
 
 
-def pushed_refs(lines: Iterable[str]) -> list[tuple[str, str]]:
-    """(branch, sha) for each origin branch the transaction moved to a commit.
+def pushed_refs(lines: Iterable[str], remotes: Iterable[str]) -> list[tuple[str, str, str]]:
+    """(remote, branch, sha) for each remote-tracking branch the transaction moved.
 
-    Inside `git push` (see is_git_push) git updates origin/<dst> only for the
+    Inside `git push` (see is_git_push) git updates <remote>/<dst> only for the
     destinations it pushed, whatever the source branch was called, so the
-    destination and the new commit are the pushed pair.
+    destination and the new commit are the pushed pair. A remote name may hold
+    a slash, so the longest configured name that prefixes the ref wins.
     """
-    found: list[tuple[str, str]] = []
+    names = sorted({name for name in remotes if name}, key=len, reverse=True)
+    found: list[tuple[str, str, str]] = []
     for line in lines:
         parts = line.split()
         if len(parts) != 3:
             continue
         _old, new, ref = parts
-        branch = ref[len(REMOTE_PREFIX) :] if ref.startswith(REMOTE_PREFIX) else ""
-        if not branch or branch == "HEAD" or new == DELETED:
+        if not ref.startswith(REMOTE_PREFIX) or new == DELETED:
             continue
-        found.append((branch, new))
+        rest = ref[len(REMOTE_PREFIX) :]
+        remote = next((name for name in names if rest.startswith(name + "/")), "")
+        branch = rest[len(remote) + 1 :] if remote else ""
+        if branch and branch != "HEAD":
+            found.append((remote, branch, new))
     return found
 
 
@@ -99,8 +111,21 @@ def is_git_push(ancestors: Iterable[str]) -> bool:
     for command in ancestors:
         match = GIT_COMMAND.match(command.strip())
         if match:
-            return "push" in (match.group(1) or "").split()
+            return git_subcommand((match.group(1) or "").split()) == "push"
     return False
+
+
+def git_subcommand(args: list[str]) -> str:
+    """The subcommand of `git <args>`, after any global options."""
+    skip = False
+    for arg in args:
+        if skip:
+            skip = False
+        elif arg in GIT_OPTION_ARGS:
+            skip = True
+        elif not arg.startswith("-"):
+            return arg
+    return ""
 
 
 def proc_ancestry(pid: int, root: Path = Path("/proc")) -> list[str]:
@@ -176,28 +201,28 @@ def find_pr(branch: str) -> int | None:
     return numbers[0] if len(numbers) == 1 else None
 
 
-def within(answer: Answer, pr: int, seconds: float) -> tuple[str, list[str]]:
-    """answer(pr), or AnswerTimeout once seconds pass without it returning.
+def within(call: Callable[[T], R], arg: T, seconds: float) -> R:
+    """call(arg), or AnswerTimeout once seconds pass without it returning.
 
-    The lookup runs in a daemon thread, so a GitHub request that hangs does not
+    The call runs in a daemon thread, so a GitHub request that hangs does not
     keep `git push` open past the deadline; the thread ends with the hook.
     """
-    result: list[tuple[str, list[str]]] = []
+    result: list[R] = []
     failure: list[BaseException] = []
 
     def target() -> None:
         try:
-            result.append(answer(pr))
+            result.append(call(arg))
         except BaseException as exc:  # handed to the caller below
             failure.append(exc)
 
-    worker = threading.Thread(target=target, name="prfail-answer", daemon=True)
+    worker = threading.Thread(target=target, name="prfail-lookup", daemon=True)
     worker.start()
     worker.join(max(seconds, 0))
     if failure:
         raise failure[0]
     if not result:
-        raise AnswerTimeout(f"prfail did not answer within {seconds:.0f}s")
+        raise AnswerTimeout(f"no answer from GitHub within {seconds:.0f}s")
     return result[0]
 
 
@@ -262,12 +287,26 @@ def _say(text: str) -> None:
     sys.stderr.flush()
 
 
+def _remotes() -> list[str]:
+    return _run(["git", "remote"]).split()
+
+
+def _remote_slug(remote: str) -> str | None:
+    try:
+        return ci_diagnostics.github_slug(_run(["git", "remote", "get-url", remote]), remote)
+    except ci_diagnostics.DiagnosticError:
+        return None
+
+
 def main(
     argv: list[str],
     stdin: Iterable[str],
     env: Mapping[str, str],
     *,
     ancestors: Callable[[], list[str]] = ancestry,
+    remotes: Callable[[], list[str]] = _remotes,
+    slug_of: Callable[[str], str | None] = _remote_slug,
+    repo: Callable[[], str] = ci_diagnostics._repo_slug,
     pr_for: Callable[[str], int | None] = find_pr,
     answer: Answer = ci_diagnostics.prfail_answer,
     say: Callable[[str], None] = _say,
@@ -278,16 +317,36 @@ def main(
     # what ChatGPT reads is the text.
     if argv[:1] != ["committed"]:
         return 0
-    pushes = pushed_refs(stdin)
-    if not pushes:
+    lines = [line for line in stdin if f" {REMOTE_PREFIX}" in line]
+    if not lines:
         return 0
     chain = ancestors()
     if not is_git_push(chain) or not is_agent_push(env, chain):
         return 0
+    pushes = pushed_refs(lines, remotes())
+    if not pushes:
+        return 0
+    try:
+        home = repo()
+    except (ci_diagnostics.DiagnosticError, OSError) as exc:
+        say(f"PRFAIL: error: {exc}. Stop and tell the owner.")
+        return 0
     deadline = clock() + HOLD_SECONDS
-    for branch, sha in pushes:
+    for remote, branch, sha in pushes:
+        if slug_of(remote) != home:
+            say(f"PRFAIL: {remote} is not {home}; nothing to wait for.")
+            continue
         try:
-            pr = pr_for(branch)
+            remaining = deadline - clock()
+            if remaining <= 0:
+                raise AnswerTimeout("deadline spent")
+            pr = within(pr_for, branch, remaining)
+        except AnswerTimeout:
+            say(
+                f"PRFAIL: the 12 min ran out before {branch} was checked; a request is stuck. "
+                "Stop and tell the owner."
+            )
+            break
         except (ci_diagnostics.DiagnosticError, OSError, ValueError) as exc:
             say(f"PRFAIL: error: could not find the pull request for {branch}: {exc}")
             continue

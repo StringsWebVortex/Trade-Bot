@@ -34,18 +34,31 @@ def _line(new: str, ref: str, old: str = OLD) -> str:
 @pytest.mark.parametrize(
     ("line", "expected"),
     [
-        (_line(SHA, "refs/remotes/origin/feature"), [("feature", SHA)]),
-        (_line(SHA, "refs/remotes/origin/review"), [("review", SHA)]),  # feature:review
+        (_line(SHA, "refs/remotes/origin/feature"), [("origin", "feature", SHA)]),
+        (_line(SHA, "refs/remotes/origin/review"), [("origin", "review", SHA)]),  # feature:review
+        (_line(SHA, "refs/remotes/upstream/feature"), [("upstream", "feature", SHA)]),
+        (_line(SHA, "refs/remotes/my/fork/a/b"), [("my/fork", "a/b", SHA)]),  # slash in remote
+        (_line(SHA, "refs/remotes/gone/feature"), []),  # not a configured remote
         (_line("0" * 40, "refs/remotes/origin/feature"), []),  # a deleted branch
         (_line(SHA, "refs/heads/feature"), []),  # a local branch update
-        (_line(SHA, "refs/remotes/upstream/feature"), []),
         (_line(SHA, "refs/remotes/origin/HEAD"), []),
         ("garbage\n", []),
     ],
-    ids=["push", "renamed", "delete", "local", "other-remote", "origin-head", "garbage"],
+    ids=[
+        "push",
+        "renamed",
+        "other-remote",
+        "slash-remote",
+        "unknown-remote",
+        "delete",
+        "local",
+        "origin-head",
+        "garbage",
+    ],
 )
-def test_every_origin_branch_the_push_moved_counts(line: str, expected) -> None:
-    assert push_wait.pushed_refs([line]) == expected
+def test_every_remote_branch_the_push_moved_counts(line: str, expected) -> None:
+    remotes = ["origin", "upstream", "my", "my/fork"]
+    assert push_wait.pushed_refs([line], remotes) == expected
 
 
 @pytest.mark.parametrize(
@@ -81,6 +94,9 @@ def test_only_chatgpt_pushes_are_held(env, ancestors, held) -> None:
         (["git -c push.default=simple fetch"], False),
         (["git pull", "git push"], False),  # the nearest git decides
         (["/bin/bash -c cd /repo && /usr/bin/git push"], False),
+        (["git fetch origin push"], False),  # a branch named push
+        (["git -C /repo --git-dir push push"], True),  # option arguments are skipped
+        (["git -C push fetch"], False),
         (["node desktop-commander"], False),
     ],
     ids=[
@@ -91,6 +107,9 @@ def test_only_chatgpt_pushes_are_held(env, ancestors, held) -> None:
         "fetch-push-option",
         "pull",
         "shell",
+        "fetch-branch-named-push",
+        "option-args",
+        "option-arg-named-push",
         "no-git",
     ],
 )
@@ -230,7 +249,28 @@ def test_an_error_releases_and_says_so() -> None:
 GIT_PUSH = ["git push -u origin feature"]
 
 
-def _main(argv, *, ancestors=GIT_PUSH + AGENT, pr=7, answer=None):
+REPO = "owner/trade-bot"
+SLUGS = {"origin": REPO, "fork": "someone/trade-bot"}
+
+
+def _run_main(argv, lines, *, ancestors=GIT_PUSH + AGENT, pr_for, answer, clock, said):
+    return push_wait.main(
+        argv,
+        lines,
+        {},
+        ancestors=lambda: ancestors,
+        remotes=lambda: list(SLUGS),
+        slug_of=SLUGS.get,
+        repo=lambda: REPO,
+        pr_for=pr_for,
+        answer=answer,
+        say=said.append,
+        clock=clock,
+        sleep=clock.sleep,
+    )
+
+
+def _main(argv, *, ancestors=GIT_PUSH + AGENT, pr=7, answer=None, remote="origin"):
     said: list[str] = []
     clock = _Clock()
     calls: list[str] = []
@@ -239,16 +279,14 @@ def _main(argv, *, ancestors=GIT_PUSH + AGENT, pr=7, answer=None):
         calls.append(branch)
         return pr
 
-    code = push_wait.main(
+    code = _run_main(
         argv,
-        [_line(SHA, "refs/remotes/origin/feature")],
-        {},
-        ancestors=lambda: ancestors,
+        [_line(SHA, f"refs/remotes/{remote}/feature")],
+        ancestors=ancestors,
         pr_for=pr_for,
         answer=answer or (lambda n: (SHA, [])),
-        say=said.append,
         clock=clock,
-        sleep=clock.sleep,
+        said=said,
     )
     return code, said, calls
 
@@ -309,17 +347,52 @@ def test_one_push_of_several_branches_shares_the_12_minutes() -> None:
         asked.append(pr)
         raise ci_diagnostics.ReportPending("never")
 
-    push_wait.main(
+    _run_main(
         ["committed"],
         [_line(SHA, "refs/remotes/origin/feature"), _line(SHA, "refs/remotes/origin/other")],
-        {},
-        ancestors=lambda: GIT_PUSH + AGENT,
         pr_for={"feature": 7, "other": 8}.get,
         answer=answer,
-        say=said.append,
         clock=clock,
-        sleep=clock.sleep,
+        said=said,
     )
     assert clock.now == push_wait.HOLD_SECONDS
-    assert sum("did not finish within 12 min" in line for line in said) == 2
+    assert sum("did not finish within 12 min" in line for line in said) == 1
+    assert said[-1].startswith("PRFAIL: the 12 min ran out before other was checked")
     assert 8 not in asked  # the second branch found the deadline already spent
+
+
+def test_a_hung_pull_request_lookup_is_bounded_by_the_deadline(monkeypatch) -> None:
+    said: list[str] = []
+    seen: list[float] = []
+
+    def hung(call, branch, seconds):
+        seen.append(seconds)
+        raise push_wait.AnswerTimeout("hung")
+
+    monkeypatch.setattr(push_wait, "within", hung)
+    _run_main(
+        ["committed"],
+        [_line(SHA, "refs/remotes/origin/feature"), _line(SHA, "refs/remotes/origin/other")],
+        pr_for=lambda branch: 7,
+        answer=None,
+        clock=_Clock(),
+        said=said,
+    )
+    assert seen == [push_wait.HOLD_SECONDS]  # one lookup, then it stops
+    assert said == [
+        "PRFAIL: the 12 min ran out before feature was checked; a request is stuck. "
+        "Stop and tell the owner."
+    ]
+
+
+def test_a_push_to_another_repository_is_not_held() -> None:
+    code, said, calls = _main(["committed"], remote="fork")
+    assert (code, calls) == (0, [])
+    assert said == [f"PRFAIL: fork is not {REPO}; nothing to wait for."]
+
+
+def test_a_push_to_another_remote_of_this_repository_is_held(monkeypatch) -> None:
+    monkeypatch.setitem(SLUGS, "mirror", REPO)
+    _code, said, calls = _main(["committed"], remote="mirror")
+    assert calls == ["feature"]
+    assert said[-1].startswith("PRFAIL: no failures")

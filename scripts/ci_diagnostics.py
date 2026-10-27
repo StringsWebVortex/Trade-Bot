@@ -233,18 +233,23 @@ def _repo_slug() -> str:
         )
     except (OSError, subprocess.SubprocessError) as exc:
         raise DiagnosticError("Cannot determine the GitHub repository") from exc
-    remote = proc.stdout.strip().removesuffix(".git")
     if proc.returncode != 0:
         raise DiagnosticError("Cannot determine the GitHub repository")
-    if remote.startswith("git@github.com:"):
-        slug = remote.split(":", 1)[1]
-    elif "github.com/" in remote:
-        slug = remote.split("github.com/", 1)[1].split("?", 1)[0]
+    return github_slug(proc.stdout)
+
+
+def github_slug(url: str, remote: str = "origin") -> str:
+    """owner/name of a GitHub remote URL (https or ssh)."""
+    url = url.strip().removesuffix(".git")
+    if url.startswith("git@github.com:"):
+        slug = url.split(":", 1)[1]
+    elif "github.com/" in url:
+        slug = url.split("github.com/", 1)[1].split("?", 1)[0]
     else:
-        raise DiagnosticError("origin is not a GitHub repository")
+        raise DiagnosticError(f"{remote} is not a GitHub repository")
     slug = slug.strip("/")
     if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", slug):
-        raise DiagnosticError("origin is not a recognized GitHub repository")
+        raise DiagnosticError(f"{remote} is not a recognized GitHub repository")
     return slug
 
 
