@@ -17,7 +17,6 @@ request is running, any other prints `wait` too. It has no Actions API fallback.
 from __future__ import annotations
 
 import contextlib
-import fcntl
 import hashlib
 import io
 import json
@@ -31,8 +30,15 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import zipfile
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
+
+try:
+    import fcntl
+except ImportError:  # Windows: prfail runs there through Git Bash
+    fcntl = None  # type: ignore[assignment]
+    import msvcrt
 
 API_ROOT = "https://api.github.com/"
 API_VERSION = "2022-11-28"
@@ -1247,10 +1253,53 @@ def _unresolved_threads(slug: str, pr_number: int) -> list[str]:
     raise DiagnosticError("GitHub review-thread pagination safety limit reached")
 
 
+class PrfailBusy(ReportPending):
+    """Another prfail for the same pull request is running; the answer is `wait`."""
+
+
+@contextlib.contextmanager
+def _single_flight(pr_number: int) -> Iterator[None]:
+    # One call per pull request at a time: any other call made meanwhile
+    # answers `wait` and touches nothing.
+    lock_path = Path(tempfile.gettempdir()) / f"tradebot-prfail-{pr_number}.lock"
+    with open(lock_path, "a+", encoding="utf-8") as lock:
+        try:
+            if fcntl is not None:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            else:
+                lock.seek(0)
+                msvcrt.locking(lock.fileno(), msvcrt.LK_NBLCK, 1)
+        except OSError:
+            raise PrfailBusy("another prfail for this pull request is running") from None
+        try:
+            yield
+        finally:
+            if fcntl is not None:
+                fcntl.flock(lock, fcntl.LOCK_UN)
+            else:
+                lock.seek(0)
+                msvcrt.locking(lock.fileno(), msvcrt.LK_UNLCK, 1)
+
+
+def _answer(pr_number: int) -> tuple[str, list[str]]:
+    """The report's head SHA and every line prfail prints for it."""
+    sha, records = read_report(pr_number)
+    threads = _unresolved_threads(_repo_slug(), pr_number)
+    return sha, list(dict.fromkeys([str(record["message"]) for record in records] + threads))
+
+
+def prfail_answer(pr_number: int) -> tuple[str, list[str]]:
+    """What ./scripts/prfail would print, with the head SHA it belongs to.
+
+    Raises ReportPending while the answer is `wait`.
+    """
+    with _single_flight(pr_number):
+        return _answer(pr_number)
+
+
 def _retrieve(pr_number: int) -> int:
     try:
-        _sha, records = read_report(pr_number)
-        threads = _unresolved_threads(_repo_slug(), pr_number)
+        _sha, lines = _answer(pr_number)
     except ReportPending:
         sys.stdout.write("wait\n")
         return WAIT_EXIT
@@ -1258,7 +1307,6 @@ def _retrieve(pr_number: int) -> int:
         return _report_error(str(exc))
     except (OSError, ValueError, TypeError, KeyError) as exc:
         return _report_error(f"report could not be validated ({type(exc).__name__})")
-    lines = list(dict.fromkeys([str(record["message"]) for record in records] + threads))
     if lines:
         sys.stdout.write("\n".join(lines) + "\n")
     return 0
@@ -1268,19 +1316,12 @@ def main_prfail(argv: list[str]) -> int:
     pr_number = _canonical_invocation(argv)
     if pr_number is None:
         return _report_error("usage: ./scripts/prfail --pr <positive-decimal-PR-number>")
-    # One call per pull request at a time: any other call made meanwhile
-    # answers `wait` and touches nothing.
-    lock_path = Path(tempfile.gettempdir()) / f"tradebot-prfail-{pr_number}.lock"
-    with open(lock_path, "a", encoding="utf-8") as lock:
-        try:
-            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError:
-            sys.stdout.write("wait\n")
-            return WAIT_EXIT
-        try:
+    try:
+        with _single_flight(pr_number):
             return _retrieve(pr_number)
-        finally:
-            fcntl.flock(lock, fcntl.LOCK_UN)
+    except PrfailBusy:
+        sys.stdout.write("wait\n")
+        return WAIT_EXIT
 
 
 def main_collector() -> int:

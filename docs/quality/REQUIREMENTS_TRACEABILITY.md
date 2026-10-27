@@ -47,11 +47,11 @@ deletion of the thing it points at.
 
 | Status | Entries |
 |---|---|
-| VERIFIED | 244 |
+| VERIFIED | 245 |
 | PARTIAL | 3 |
 | PLANNED | 0 |
 | ACCEPTED GAP | 0 |
-| **Total** | **247** |
+| **Total** | **248** |
 
 ## Summary by subsystem
 
@@ -68,7 +68,7 @@ deletion of the thing it points at.
 | Supply chain and artifacts | 7 | 7 |
 | Resilience and recovery | 26 | 26 |
 | Release and production | 17 | 17 |
-| Governance | 71 | 70 |
+| Governance | 72 | 71 |
 | Terminal and process center | 13 | 13 |
 
 ## Outstanding work by phase
@@ -2815,6 +2815,18 @@ After Claude opens a pull request it stops touching it, and ChatGPT Codex carrie
 - **Verification:**
   - `tests/test_prfail_exact_lines.py` (contract)
 
+#### `GOV-069` — A ChatGPT push waits up to 12 minutes for prfail's answer on that commit
+
+**VERIFIED** · medium · requirement · source: OPS-2026-10-27
+
+With .githooks/reference-transaction installed by scripts/install_push_wait_hook.sh, a push whose process ancestry contains Desktop Commander (ChatGPT's terminal on the owner's machine) does not return until ./scripts/prfail answers for exactly the pushed commit: no lines releases it as green, failure lines are printed for ChatGPT to fix and push again, and no answer within 12 minutes is reported as a stuck workflow. A fetch, a push by anyone else, or a branch without exactly one open pull request is never held. TB_PUSH_WAIT=1 forces the hold and TB_PUSH_WAIT=0 disables it.
+
+- **If violated:** ChatGPT pushed fixes through Desktop Commander and returned before CI finished, so failures were seen only when someone ran prfail by hand, and a workflow hung for four hours unnoticed. No control held the agent on its own push; the hook and its 12-minute ceiling now do, and tests/test_push_wait.py fails if a report for the previous commit, a person's push, or an unbounded wait is accepted.
+- **Owned by:** `scripts/push_wait.py`, `.githooks/reference-transaction`, `scripts/install_push_wait_hook.sh`, `scripts/ci_diagnostics.py`
+- **Depends on:** `GOV-068`
+- **Verification:**
+  - `tests/test_push_wait.py` (contract)
+
 #### `REG-0005` — A test's result never depends on which tests ran before it
 
 **VERIFIED** · high · regression · source: QE-91
@@ -3213,4 +3225,4 @@ To add or change an entry, edit the registry and regenerate this file. See
 `docs/quality/TEST_STRATEGY.md` for the taxonomy the `test_type` column draws
 on, and `docs/quality/IMPLEMENTATION_PLAN.md` for what each phase delivers.
 
-Registry version: 1.0.0 — 247 entries.
+Registry version: 1.0.0 — 248 entries.
