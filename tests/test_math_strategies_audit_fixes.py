@@ -127,6 +127,34 @@ def test_utxo_age_uses_confirmations_and_excludes_unknown_age() -> None:
     assert compute_hodler_index([undated]).mean_age_days == 0.0
 
 
+def test_utxo_with_known_age_but_no_value_reports_age_without_an_index() -> None:
+    from src.ecc.utxo_curve import compute_hodler_index
+
+    # A dated UTXO is counted even when it carries no value; with zero total
+    # value there is nothing to weight, so the index stays 0 but the age is real.
+    result = compute_hodler_index([{"value_btc": 0.0, "confirmations": 144}])
+    assert result.hodler_index == 0.0
+    assert result.supply_shock_risk is False
+    assert result.mean_age_days == pytest.approx(1.0)
+
+
+def test_cluster_address_reused_across_transactions_stays_one_cluster() -> None:
+    from src.ecc.secp256k1_cluster import AddressClusterer
+
+    clusterer = AddressClusterer()
+    clusterer._graphsense_available = False
+    utxos = [
+        {"txid": "t1", "address": "a", "amount": 1.0},
+        {"txid": "t1", "address": "b", "amount": 1.0},
+        {"txid": "t2", "address": "a", "amount": 1.0},
+        {"txid": "t2", "address": "b", "amount": 1.0},
+    ]
+    clusters = clusterer.fit(utxos)
+    assert len(clusters) == 1
+    assert sorted(clusters[0].addresses) == ["a", "b"]
+    assert clusters[0].total_btc == pytest.approx(4.0)
+
+
 # ---- MTH-012 ---------------------------------------------------------------
 
 
@@ -350,6 +378,32 @@ def test_warm_up_share_is_not_mixed_with_raw_scores() -> None:
     # The warm-up strategy keeps its equal share; the mature one gets the rest.
     assert result.fractions["fresh"] == pytest.approx(0.5)
     assert result.fractions["mature"] == pytest.approx(0.5)
+
+
+def test_unknown_metric_falls_back_to_sharpe() -> None:
+    from src.diagnostics.attribution import AttributedFill, get_attribution_tracker
+    from src.strategies.capital_allocator import (
+        _MIN_TRADES_FOR_SHARPE,
+        performance_weighted_allocate,
+    )
+
+    tracker = get_attribution_tracker()
+    tracker.reset()
+    try:
+        for sid, high in (("steady", 3.0), ("swingy", 30.0)):
+            for i in range(_MIN_TRADES_FOR_SHARPE + 5):
+                pnl = high if i % 2 else 1.0
+                tracker.record(
+                    AttributedFill(strategy_id=sid, pnl_usd=pnl, entry_ts=i, exit_ts=i + 1)
+                )
+        strategies = (_Strat("steady"), _Strat("swingy"))
+        enabled = {"steady", "swingy"}
+        by_sharpe = performance_weighted_allocate(strategies, enabled, metric="sharpe")
+        by_unknown = performance_weighted_allocate(strategies, enabled, metric="not_a_metric")
+    finally:
+        tracker.reset()
+    # A metric the attribution record does not carry is scored by Sharpe.
+    assert by_unknown.fractions == pytest.approx(by_sharpe.fractions)
 
 
 # ---- STR-14 ----------------------------------------------------------------
