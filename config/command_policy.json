@@ -173,7 +173,7 @@
   "ci_log_access": {
     "enabled": true,
     "_note": "The .github/workflows/ci-diagnostics.yml collector publishes the finalized filtered report. Use only ./scripts/prfail --pr <PR_NUMBER>; direct Actions data, annotations, logs, artifacts, check results, local check execution, and legacy PR-comment reads remain blocked.",
-    "message": "THAPPAR — CI DIAGNOSTIC ACCESS BLOCKED. Use only: ./scripts/prfail --pr <PR_NUMBER>. Direct or alternative diagnostic retrieval is prohibited.",
+    "message": "THAPPAR \u2014 CI DIAGNOSTIC ACCESS BLOCKED. Use only: ./scripts/prfail --pr <PR_NUMBER>. Direct or alternative diagnostic retrieval is prohibited.",
     "_hard_deny_note": "Raw check/log reads are denied before the allowlist. Only the exact ./scripts/prfail --pr <positive-decimal> command is exempt; local check wrappers and shell wrappers are not implemented.",
     "hard_deny_patterns": [
       "\\bgh\\s+(pr|run|repo)\\b[^|]*--json\\b[^|]*\\b(statusCheckRollup|checkRuns|checkSuites|jobs|workflowRuns)\\b",
@@ -278,15 +278,20 @@
     "github_only": true
   },
   "duplicate_delivery": {
-    "enabled": true,
+    "enabled": false,
     "threshold": 0.25,
     "denominator": "proposed-delivery-comparable-content-units",
     "filename_independent": true,
-    "enforcement": "host-level Claude Control Center hook outside the Git worktree; repository hook is defense-in-depth only",
-    "sources": ["accessible Trade-Bot worktrees", "tracked and untracked repository files", "reachable Git refs and history", "available local Claude Trade-Bot conversation records"],
+    "enforcement": "not enabled as a repository policy until a registry-backed deciding test can verify the host-level enforcement contract; the separate host hook is outside this worktree",
+    "sources": [
+      "accessible Trade-Bot worktrees",
+      "tracked and untracked repository files",
+      "reachable Git refs and history",
+      "available local Claude Trade-Bot conversation records"
+    ],
     "persistent_index": "host-level index outside branch/worktree",
     "stale_or_unavailable_index": "block delivery-shaped mutations",
-    "limitations": "The local hook cannot read ChatGPT-hosted conversation history; only sources accessible to the host Control Center are scanned."
+    "limitations": "Policy is deliberately disabled here: repository CI cannot verify the external host hook or ChatGPT-hosted conversation history."
   },
   "_gh_note": "CI run data and arbitrary PR-comment reads are blocked. Use the exact ./scripts/prfail --pr <PR_NUMBER> report command; ordinary PR metadata and comment writes remain separately governed.",
   "github_route": {

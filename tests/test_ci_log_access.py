@@ -94,6 +94,8 @@ BLOCKED = [
     "cd /tmp && ./scripts/prfail --pr 313",
     "./scripts/prfail --pr 313 | cat",
     "ruby -e 'require \"net/http\"; URI(\"https://\" + \"api.github.com\" + \"/repos/o/r/\" + \"actions/runs\")'",
+    "http GET https://api.github.com/repos/o/r/actions/runs",
+    "xh get https://api.github.com/repos/o/r/actions/runs",
     "curl -s https://api.github.com/repos/o/r/actions/runs/1/logs",
     "curl https://api.github.com/repos/o/r/actions/jobs/2/logs -o log.zip",
     "curl -s https://api.github.com/repos/o/r/check-runs/3",

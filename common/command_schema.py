@@ -90,6 +90,7 @@ CI_LOG_PATTERNS: tuple[str, ...] = (
     r"\bgh\s+api\b[^|]*/statuses/",
     r"\bgh\s+(pr|run)\b[^|]*--json\b[^|]*\b(statusCheckRollup|checkRuns|jobs|workflowRuns)\b",
     r"\b(?:curl|wget)\b[^|]*(?:api\.github\.com|github\.com/)[^|]*(?:actions|check-runs|check-suites|annotations|statuses|workflow_runs)\b",
+    r"\b(?:http|xh)\b[^|]*(?:api\.github\.com|github\.com/)[^|]*(?:actions|check-runs?|check-suites?|annotations|statuses|workflow_runs|artifacts|jobs)\b",
     r"\bact\b\s+-",
     r"\bgh\s+pr\s+view\b[^|]*(?:--comments\b|--json\b[^|]*\bcomments\b)",
     r"\bgh\s+issue\s+view\b[^|]*(?:--comments\b|--json\b[^|]*\bcomments\b)",
