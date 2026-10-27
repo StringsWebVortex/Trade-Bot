@@ -105,7 +105,7 @@ CI_LOG_PATTERNS: tuple[str, ...] = (
     r"\bpython(?:3)?(?:\.\d+)?\s+-m\s+scripts\.ci_diagnostics\b",
     r"\bpython(?:3)?(?:\.\d+)?\s+-c\b[\s\S]*(?:\bscripts[./](?:ci_diagnostics|ci_verdict|local_checks|prfail)\b|\bfrom\s+scripts\s+import\b[\s\S]*\b(?:ci_diagnostics|ci_verdict|local_checks)\b)",
     r"\bpython(?:3)?(?:\.\d+)?\s+-\s*<<[\s\S]*(?:\bscripts[./](?:ci_diagnostics|ci_verdict|local_checks|prfail)\b|\bfrom\s+scripts\s+import\b[\s\S]*\b(?:ci_diagnostics|ci_verdict|local_checks)\b)",
-    r"\b(?:python|python3|node)\b[^|]*(?:urllib|requests|httpx|fetch\()\b[^|]*(?:github\.com|api\.github\.com)",
+    r"\b(?:python(?:3)?(?:\.\d+)?|node|ruby|perl|php|go)\b[^|]*(?:urllib|requests|httpx|fetch\(|axios|Net::HTTP|curl_easy|github\.com|api\.github\.com)[^|]*(?:actions|check-runs?|check-suites?|annotations|statuses|workflow_runs|artifacts|jobs)",
 )
 
 

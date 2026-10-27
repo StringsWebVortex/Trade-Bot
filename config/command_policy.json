@@ -172,8 +172,8 @@
   },
   "ci_log_access": {
     "enabled": true,
-    "_note": "Use only ./scripts/prfail --pr <PR_NUMBER> for the finalized filtered CI report. Direct Actions data, annotations, logs, artifacts, check results, local check execution, and legacy PR-comment reads remain blocked.",
-    "message": "THAPPAR — diagnostic access is blocked. Use only ./scripts/prfail --pr <PR_NUMBER> for the filtered CI report.",
+    "_note": "The .github/workflows/ci-diagnostics.yml collector publishes the finalized filtered report. Use only ./scripts/prfail --pr <PR_NUMBER>; direct Actions data, annotations, logs, artifacts, check results, local check execution, and legacy PR-comment reads remain blocked.",
+    "message": "THAPPAR — CI DIAGNOSTIC ACCESS BLOCKED. Use only: ./scripts/prfail --pr <PR_NUMBER>. Direct or alternative diagnostic retrieval is prohibited.",
     "_hard_deny_note": "Raw check/log reads are denied before the allowlist. Only the exact ./scripts/prfail --pr <positive-decimal> command is exempt; local check wrappers and shell wrappers are not implemented.",
     "hard_deny_patterns": [
       "\\bgh\\s+(pr|run|repo)\\b[^|]*--json\\b[^|]*\\b(statusCheckRollup|checkRuns|checkSuites|jobs|workflowRuns)\\b",
@@ -202,7 +202,7 @@
       "\\bgh\\s+pr\\s+checks\\b",
       "\\bgh\\s+api\\b[^|]*(?:actions|check-runs?|check-suites?|annotations|statuses|workflow_runs|artifacts|jobs)",
       "\\b(?:curl|wget|http|https|xh)\\b[^|]*(?:api\\.github\\.com|github\\.com/)[^|]*(?:actions|check-runs?|check-suites?|annotations|statuses|workflow_runs|artifacts|jobs)",
-      "\\b(?:python|python3|node|ruby|perl|php|go)\\b[^|]*(?:urllib|requests|httpx|fetch\\(|axios|Net::HTTP|curl_easy|github\\.com|api\\.github\\.com)",
+      "\\b(?:python(?:3)?(?:\\.\\d+)?|node|ruby|perl|php|go)\\b[^|]*(?:urllib|requests|httpx|fetch\\(|axios|Net::HTTP|curl_easy|github\\.com|api\\.github\\.com)[^|]*(?:actions|check-runs?|check-suites?|annotations|statuses|workflow_runs|artifacts|jobs)",
       "\\b(?:jq|yq)\\b[^|]*(?:workflow|check_run|check_suite|artifact|annotation|conclusion|statusCheckRollup)",
       "\\b(?:act|gh-runner|actions-runner)\\b"
     ],
@@ -234,7 +234,7 @@
       "\\bpython(?:3)?(?:\\.\\d+)?\\s+-m\\s+scripts\\.ci_diagnostics\\b",
       "\\bpython(?:3)?(?:\\.\\d+)?\\s+-c\\b[\\s\\S]*(?:\\bscripts[./](?:ci_diagnostics|ci_verdict|local_checks|prfail)\\b|\\bfrom\\s+scripts\\s+import\\b[\\s\\S]*\\b(?:ci_diagnostics|ci_verdict|local_checks)\\b)",
       "\\bpython(?:3)?(?:\\.\\d+)?\\s+-\\s*<<[\\s\\S]*(?:\\bscripts[./](?:ci_diagnostics|ci_verdict|local_checks|prfail)\\b|\\bfrom\\s+scripts\\s+import\\b[\\s\\S]*\\b(?:ci_diagnostics|ci_verdict|local_checks)\\b)",
-      "\\b(?:python|python3|node)\\b[^|]*(?:urllib|requests|httpx|fetch\\()\\b[^|]*(?:github\\.com|api\\.github\\.com)"
+      "\\b(?:python(?:3)?(?:\\.\\d+)?|node|ruby|perl|php|go)\\b[^|]*(?:urllib|requests|httpx|fetch\\(|axios|Net::HTTP|curl_easy|github\\.com|api\\.github\\.com)[^|]*(?:actions|check-runs?|check-suites?|annotations|statuses|workflow_runs|artifacts|jobs)"
     ]
   },
   "local_checks": {
