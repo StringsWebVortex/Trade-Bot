@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import asyncio
 
+from src.intel import IntelSignal
+
 
 class TestIntelSignal:
     def test_signal_fields(self) -> None:
@@ -94,8 +96,12 @@ class TestOnBarAsync:
             "volume": 100.0,
         }
         result = self._run(intel.on_bar("BTC/USDT", ohlcv))
-        # RiskGate may suppress → None is valid
-        assert result is None or hasattr(result, "direction")
+        # RiskGate may suppress -> None is valid; any emitted signal must be typed.
+        assert result is None or (
+            isinstance(result, IntelSignal)
+            and result.symbol == "BTC/USDT"
+            and result.direction in (-1, 0, 1)
+        )
         intel.close()
 
     def test_on_bar_auto_starts(self, tmp_path) -> None:
@@ -118,7 +124,7 @@ class TestOnBarAsync:
         bids = [[49990.0, 1.0], [49980.0, 2.0]]
         asks = [[50010.0, 1.0], [50020.0, 2.0]]
         result = self._run(intel.on_bar("BTC/USDT", ohlcv, bids=bids, asks=asks))
-        assert result is None or hasattr(result, "symbol")
+        assert result is None or (isinstance(result, IntelSignal) and result.symbol == "BTC/USDT")
         intel.close()
 
     def test_on_bar_with_derivatives_data(self, tmp_path) -> None:
@@ -129,7 +135,7 @@ class TestOnBarAsync:
         ohlcv = {"close": 50000.0, "volume": 10.0}
         deriv = {"oi_usd": 1e9, "funding_rate": 0.0001, "liquidations_usd": 5e6}
         result = self._run(intel.on_bar("BTC/USDT", ohlcv, derivatives_data=deriv))
-        assert result is None or hasattr(result, "symbol")
+        assert result is None or (isinstance(result, IntelSignal) and result.symbol == "BTC/USDT")
         intel.close()
 
 
@@ -138,8 +144,11 @@ class TestCollectECC:
         from src.intel import CryptoIntelligence
 
         cfg = tmp_path / "i.yaml"
+        # With the ECC thread off nothing can report, so there is no ECC state to
+        # expose. Left on, it publishes a cycle immediately and the result races it.
+        cfg.write_text("ecc_enabled: false\n", encoding="utf-8")
         intel = CryptoIntelligence(config_path=cfg)
         intel.start()
         result = intel._collect_ecc()
-        assert isinstance(result, dict)
+        assert result == {}
         intel.close()

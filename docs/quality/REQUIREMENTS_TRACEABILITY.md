@@ -47,11 +47,11 @@ deletion of the thing it points at.
 
 | Status | Entries |
 |---|---|
-| VERIFIED | 261 |
+| VERIFIED | 266 |
 | PARTIAL | 3 |
 | PLANNED | 0 |
 | ACCEPTED GAP | 0 |
-| **Total** | **264** |
+| **Total** | **269** |
 
 ## Summary by subsystem
 
@@ -61,8 +61,8 @@ deletion of the thing it points at.
 | Execution | 13 | 12 |
 | Portfolio | 2 | 2 |
 | Signal and features | 15 | 15 |
-| Models and leakage | 14 | 14 |
-| Data, money and time | 11 | 10 |
+| Models and leakage | 18 | 18 |
+| Data, money and time | 12 | 11 |
 | API and WebSocket | 26 | 26 |
 | Cryptography and secrets | 34 | 34 |
 | Supply chain and artifacts | 7 | 7 |
@@ -758,6 +758,58 @@ Orchestrator._metrics_payload() builds a complete metrics snapshot for every tic
 
 > Pins payload completeness with and without an executor, the method-vs-property fact the bug turned on, and the original TypeError as a negative case. layer: test-suite
 
+#### `REG-1281` — Predictor labels never fabricate a down move for unlabelable tail rows
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+forward_direction_label returns NaN for the last horizon rows, so they are dropped rather than labelled 0.
+
+- **If violated:** The last horizon rows entered training and test folds as down labels, biasing accuracy and PBO proxies.
+- **Owned by:** `crypto-predictor/indicators.py`, `crypto-predictor/validation.py`
+- **Verification:**
+  - `tests/test_crypto_predictor_regressions.py` (regression)
+
+> Audit SCR-007, SCR-008 and DOC-014 (standalone crypto-predictor). layer: test-suite
+
+#### `REG-1282` — Walk-forward training purges labels that overlap the test window
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+walk_forward_backtest excludes the last horizon training rows before each test block, because their labels use closes inside that block.
+
+- **If violated:** Training labels used prices from the test window, inflating out-of-sample accuracy.
+- **Owned by:** `crypto-predictor/backtest.py`
+- **Verification:**
+  - `tests/test_crypto_predictor_regressions.py` (regression)
+
+> Audit SCR-007, SCR-008 and DOC-014 (standalone crypto-predictor). layer: test-suite
+
+#### `REG-1283` — Backtest P&L uses non-overlapping holds and horizon-correct annualisation
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+evaluate compounds returns only on every horizon-th row and annualises with sqrt(365*24/horizon).
+
+- **If violated:** Overlapping forward returns were compounded and Sharpe used a 252-day factor, so total return and Sharpe were overstated.
+- **Owned by:** `crypto-predictor/backtest.py`
+- **Verification:**
+  - `tests/test_crypto_predictor_regressions.py` (regression)
+
+> Audit SCR-007, SCR-008 and DOC-014 (standalone crypto-predictor). layer: test-suite
+
+#### `REG-1284` — Probability calibration folds are time-ordered
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+calibrate_probabilities uses TimeSeriesSplit so the calibrator never trains on rows later than those it scores.
+
+- **If violated:** An unshuffled KFold calibrated on future rows and scored earlier ones, leaking information into the probabilities that drive Kelly sizing.
+- **Owned by:** `crypto-predictor/risk.py`
+- **Verification:**
+  - `tests/test_crypto_predictor_regressions.py` (regression)
+
+> Audit SCR-007, SCR-008 and DOC-014 (standalone crypto-predictor). layer: test-suite
+
 #### `REG-1360` — HNP key recovery is correct for a non-zero leaked nonce prefix
 
 **VERIFIED** · high · regression · source: OPS-2026-10-25
@@ -942,6 +994,19 @@ MarketDataFetcher.initialize() must open each venue independently, record an una
   - `tests/test_fetcher_venue_degradation.py` (regression)
 
 > Observed against Binance answering HTTP 451 'Service unavailable from a restricted location' on both mainnet and testnet from an affected network, which made the backend unstartable however healthy OKX and everything else was. initialize() built both venues and loaded their markets in one unisolated sequence. GET /venues and POST /venues/{venue}/reconnect expose the state and the recovery so neither needs a restart. layer: test-suite
+
+#### `REG-1280` — Standalone predictor drops the still-forming candle
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+crypto-predictor data fetchers never return the still-open candle: Binance rows whose close_time is in the future are removed, and the final uncommitted Kraken OHLC entry is removed.
+
+- **If violated:** A repainting bar entered features and labels, so backtest results looked better than the data available at the time.
+- **Owned by:** `crypto-predictor/data_fetch.py`, `crypto-predictor/data_fetch_kraken.py`
+- **Verification:**
+  - `tests/test_crypto_predictor_regressions.py` (regression)
+
+> Audit SCR-007, SCR-008 and DOC-014 (standalone crypto-predictor). layer: test-suite
 
 #### `REG-1702` — kg/ and rag_mongo/ share one MongoClient factory and one URI check
 
@@ -3434,4 +3499,4 @@ To add or change an entry, edit the registry and regenerate this file. See
 `docs/quality/TEST_STRATEGY.md` for the taxonomy the `test_type` column draws
 on, and `docs/quality/IMPLEMENTATION_PLAN.md` for what each phase delivers.
 
-Registry version: 1.0.0 — 264 entries.
+Registry version: 1.0.0 — 269 entries.

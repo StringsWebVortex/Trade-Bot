@@ -261,6 +261,13 @@ class TestTheRegistryHasAPlaceForDefects:
             "REG-1141",
             "REG-1142",
             "REG-1143",
+            # REG-1280..1284: standalone crypto-predictor audit findings (SCR-007,
+            # SCR-008, DOC-014), each filed with its deciding test.
+            "REG-1280",
+            "REG-1281",
+            "REG-1282",
+            "REG-1283",
+            "REG-1284",
             # REG-1360..1374: phase 5 math/strategy audit findings (MTH-002/004/005/012/014,
             # STR-07..STR-16), each filed with its deciding test.
             "REG-1360",
@@ -583,11 +590,12 @@ class TestTheMetricsCollector:
         # no test asked what the thresholds cost to clear -- test-suite, 44.
         # REG-1610 and REG-1611 add the section D script and CI-skip regressions.
         # REG-1707 adds the async-resource regression; main also adds the CI gate
-        # and supply-chain findings.
+        # and supply-chain findings. REG-1280..1284 add five crypto-predictor
+        # audit regressions -- test-suite.
         # REG-1360..1374 add fifteen phase 5 math/strategy audit regressions
-        # no test exercised -- test-suite, 51 -> 66.
+        # no test exercised -- test-suite, 56 -> 71.
         assert metric["value"] == {
-            "test-suite": 66,
+            "test-suite": 71,
             "review": 1,
             "supply-chain": 4,
             "ci-gate-design": 2,
