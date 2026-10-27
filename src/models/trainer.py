@@ -525,16 +525,23 @@ def _fit_final_xgb(
     """
     split = int(len(x) * 0.85)
     fit_end = max(split - max(int(purge_gap), 0), 1)
-    probe = _build_xgb(cfg, scale_pos_weight=pos_weight)
-    probe.fit(
-        x[:fit_end],
-        y[:fit_end],
-        sample_weight=weights[:fit_end],
-        eval_set=[(x[split:], y[split:])],
-        verbose=False,
-    )
-    best_iter = getattr(probe, "best_iteration", None)
-    n_rounds = int(best_iter) + 1 if best_iter is not None else int(cfg.n_estimators)
+    n_rounds = int(cfg.n_estimators)
+    # A slice with a single class cannot be fitted (XGBoost infers classes from
+    # the slice, so "Invalid classes inferred") nor early-stopped on: meta
+    # labels in particular are heavily skewed. Skip the probe and keep the
+    # configured round count, still refitting on every row.
+    if len(np.unique(y[:fit_end])) == 2 and len(np.unique(y[split:])) == 2:
+        probe = _build_xgb(cfg, scale_pos_weight=pos_weight)
+        probe.fit(
+            x[:fit_end],
+            y[:fit_end],
+            sample_weight=weights[:fit_end],
+            eval_set=[(x[split:], y[split:])],
+            verbose=False,
+        )
+        best_iter = getattr(probe, "best_iteration", None)
+        if best_iter is not None:
+            n_rounds = int(best_iter) + 1
     final = _build_xgb(cfg, scale_pos_weight=pos_weight)
     final.set_params(early_stopping_rounds=None, n_estimators=max(n_rounds, 1))
     final.fit(x, y, sample_weight=weights, verbose=False)
