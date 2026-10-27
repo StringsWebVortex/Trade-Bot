@@ -2838,7 +2838,6 @@ The repository must not advertise duplicate-delivery enforcement as enabled unti
 - **Verification:**
   - `tests/test_diagnostic_route_boundary.py` (contract) — Pins the policy disabled and verifies the registry-backed requirement until actual enforcement can be decided in CI.
 
-
 #### `REG-0005` — A test's result never depends on which tests ran before it
 
 **VERIFIED** · high · regression · source: QE-91
@@ -3237,4 +3236,4 @@ To add or change an entry, edit the registry and regenerate this file. See
 `docs/quality/TEST_STRATEGY.md` for the taxonomy the `test_type` column draws
 on, and `docs/quality/IMPLEMENTATION_PLAN.md` for what each phase delivers.
 
-Registry version: 1.0.0 — 248 entries.
+Registry version: 1.0.0 — 249 entries.
