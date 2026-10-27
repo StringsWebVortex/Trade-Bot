@@ -62,13 +62,12 @@ class AnswerTimeout(Exception):
     """prfail did not answer before the hold's deadline."""
 
 
-def pushed_refs(
-    lines: Iterable[str], local_sha: Callable[[str], str | None]
-) -> list[tuple[str, str]]:
-    """(branch, sha) for each origin branch moved to the commit its local branch holds.
+def pushed_refs(lines: Iterable[str]) -> list[tuple[str, str]]:
+    """(branch, sha) for each origin branch the transaction moved to a commit.
 
-    A push moves origin/<branch> to the local branch's commit. A fetch moves it
-    to a commit the local branch does not hold yet, so it is not a push.
+    Inside `git push` (see is_git_push) git updates origin/<dst> only for the
+    destinations it pushed, whatever the source branch was called, so the
+    destination and the new commit are the pushed pair.
     """
     found: list[tuple[str, str]] = []
     for line in lines:
@@ -79,8 +78,7 @@ def pushed_refs(
         branch = ref[len(REMOTE_PREFIX) :] if ref.startswith(REMOTE_PREFIX) else ""
         if not branch or branch == "HEAD" or new == DELETED:
             continue
-        if local_sha(branch) == new:
-            found.append((branch, new))
+        found.append((branch, new))
     return found
 
 
@@ -211,10 +209,16 @@ def hold(
     clock: Callable[[], float] = time.monotonic,
     sleep: Callable[[float], None] = time.sleep,
     bounded: Callable[[Answer, int, float], tuple[str, list[str]]] = within,
+    deadline: float | None = None,
 ) -> str:
-    """Wait for prfail's answer on exactly this commit; return how it ended."""
+    """Wait for prfail's answer on exactly this commit; return how it ended.
+
+    deadline is shared by every branch of one push, so the push as a whole is
+    held for at most HOLD_SECONDS.
+    """
     short = sha[:7]
-    deadline = clock() + HOLD_SECONDS
+    if deadline is None:
+        deadline = clock() + HOLD_SECONDS
     stuck = (
         f"PRFAIL: CI did not finish within 12 min on {short}; a workflow is stuck. "
         "Stop and tell the owner."
@@ -253,11 +257,6 @@ def hold(
         sleep(min(POLL_SECONDS, max(deadline - clock(), 0)))
 
 
-def _local_sha(branch: str) -> str | None:
-    sha = _run(["git", "rev-parse", "--verify", "--quiet", f"refs/heads/{branch}"]).strip()
-    return sha or None
-
-
 def _say(text: str) -> None:
     sys.stderr.write(text + "\n")
     sys.stderr.flush()
@@ -269,7 +268,6 @@ def main(
     env: Mapping[str, str],
     *,
     ancestors: Callable[[], list[str]] = ancestry,
-    local_sha: Callable[[str], str | None] = _local_sha,
     pr_for: Callable[[str], int | None] = find_pr,
     answer: Answer = ci_diagnostics.prfail_answer,
     say: Callable[[str], None] = _say,
@@ -280,12 +278,13 @@ def main(
     # what ChatGPT reads is the text.
     if argv[:1] != ["committed"]:
         return 0
-    pushes = pushed_refs(stdin, local_sha)
+    pushes = pushed_refs(stdin)
     if not pushes:
         return 0
     chain = ancestors()
     if not is_git_push(chain) or not is_agent_push(env, chain):
         return 0
+    deadline = clock() + HOLD_SECONDS
     for branch, sha in pushes:
         try:
             pr = pr_for(branch)
@@ -295,7 +294,7 @@ def main(
         if pr is None:
             say(f"PRFAIL: no single open pull request for {branch}; nothing to wait for.")
             continue
-        hold(pr, sha, answer, say, clock, sleep)
+        hold(pr, sha, answer, say, clock, sleep, deadline=deadline)
     return 0
 
 

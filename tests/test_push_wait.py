@@ -35,18 +35,17 @@ def _line(new: str, ref: str, old: str = OLD) -> str:
     ("line", "expected"),
     [
         (_line(SHA, "refs/remotes/origin/feature"), [("feature", SHA)]),
-        (_line(OLD, "refs/remotes/origin/feature", old=SHA), []),  # a fetch of another commit
+        (_line(SHA, "refs/remotes/origin/review"), [("review", SHA)]),  # feature:review
         (_line("0" * 40, "refs/remotes/origin/feature"), []),  # a deleted branch
         (_line(SHA, "refs/heads/feature"), []),  # a local branch update
         (_line(SHA, "refs/remotes/upstream/feature"), []),
         (_line(SHA, "refs/remotes/origin/HEAD"), []),
         ("garbage\n", []),
     ],
-    ids=["push", "fetch", "delete", "local", "other-remote", "origin-head", "garbage"],
+    ids=["push", "renamed", "delete", "local", "other-remote", "origin-head", "garbage"],
 )
-def test_only_a_push_of_the_local_commit_counts(line: str, expected) -> None:
-    local = {"feature": SHA}
-    assert push_wait.pushed_refs([line], local.get) == expected
+def test_every_origin_branch_the_push_moved_counts(line: str, expected) -> None:
+    assert push_wait.pushed_refs([line]) == expected
 
 
 @pytest.mark.parametrize(
@@ -245,7 +244,6 @@ def _main(argv, *, ancestors=GIT_PUSH + AGENT, pr=7, answer=None):
         [_line(SHA, "refs/remotes/origin/feature")],
         {},
         ancestors=lambda: ancestors,
-        local_sha={"feature": SHA}.get,
         pr_for=pr_for,
         answer=answer or (lambda n: (SHA, [])),
         say=said.append,
@@ -300,3 +298,28 @@ def test_a_second_prfail_answer_while_one_runs_is_wait(tmp_path, monkeypatch) ->
         with pytest.raises(ci_diagnostics.PrfailBusy):
             ci_diagnostics.prfail_answer(7)
     assert os.path.exists(tmp_path / "tradebot-prfail-7.lock")
+
+
+def test_one_push_of_several_branches_shares_the_12_minutes() -> None:
+    said: list[str] = []
+    clock = _Clock()
+    asked: list[int] = []
+
+    def answer(pr: int):
+        asked.append(pr)
+        raise ci_diagnostics.ReportPending("never")
+
+    push_wait.main(
+        ["committed"],
+        [_line(SHA, "refs/remotes/origin/feature"), _line(SHA, "refs/remotes/origin/other")],
+        {},
+        ancestors=lambda: GIT_PUSH + AGENT,
+        pr_for={"feature": 7, "other": 8}.get,
+        answer=answer,
+        say=said.append,
+        clock=clock,
+        sleep=clock.sleep,
+    )
+    assert clock.now == push_wait.HOLD_SECONDS
+    assert sum("did not finish within 12 min" in line for line in said) == 2
+    assert 8 not in asked  # the second branch found the deadline already spent
