@@ -2,6 +2,7 @@
 
 Decides: GOV-070.
 """
+
 from __future__ import annotations
 
 import importlib.util
@@ -35,20 +36,23 @@ def test_only_filtered_prfail_report_matches_shared_allowlist() -> None:
     assert hook_decision(command) == ""
 
 
-@pytest.mark.parametrize("command", [
-    "./scripts/problems pytest",
-    "./scripts/problems ruff common/command_schema.py",
-    "./scripts/problems selftest",
-    "./scripts/problems all src tests",
-    "./scripts/problems",
-    "./scripts/problems --help",
-    "./scripts/problems pytest; gh run view 123 --log",
-    "./scripts/problems pytest | cat",
-    "bash ./scripts/problems selftest",
-    "./scripts/problems unknown-target",
-    "./scripts/problems pytest --all",
-    "./scripts/problems pytest ../outside.py",
-])
+@pytest.mark.parametrize(
+    "command",
+    [
+        "./scripts/problems pytest",
+        "./scripts/problems ruff common/command_schema.py",
+        "./scripts/problems selftest",
+        "./scripts/problems all src tests",
+        "./scripts/problems",
+        "./scripts/problems --help",
+        "./scripts/problems pytest; gh run view 123 --log",
+        "./scripts/problems pytest | cat",
+        "bash ./scripts/problems selftest",
+        "./scripts/problems unknown-target",
+        "./scripts/problems pytest --all",
+        "./scripts/problems pytest ../outside.py",
+    ],
+)
 def test_local_check_wrapper_and_noncanonical_routes_are_denied(command: str) -> None:
     assert hook_decision(command)
 
@@ -64,7 +68,10 @@ def test_duplicate_delivery_stays_disabled_until_registry_backed_enforcement_exi
     requirement = next(entry for entry in registry["entries"] if entry["id"] == "GOV-070")
     assert requirement["status"] == "verified"
     assert requirement["criticality"] == "high"
-    assert any(item.get("test") == "tests/test_diagnostic_route_boundary.py" for item in requirement["verification"])
+    assert any(
+        item.get("test") == "tests/test_diagnostic_route_boundary.py"
+        for item in requirement["verification"]
+    )
 
 
 def test_protected_diagnostic_scripts_are_not_modified_by_this_policy_change() -> None:
