@@ -261,6 +261,13 @@ class TestTheRegistryHasAPlaceForDefects:
             "REG-1141",
             "REG-1142",
             "REG-1143",
+            # REG-1280..1284: standalone crypto-predictor audit findings (SCR-007,
+            # SCR-008, DOC-014), each filed with its deciding test.
+            "REG-1280",
+            "REG-1281",
+            "REG-1282",
+            "REG-1283",
+            "REG-1284",
         }
         # SEC-0005: `.gitignore` carried a bare `.env`, which matches that one
         # name and nothing else -- so `.env.bak.<timestamp>` from a
@@ -566,9 +573,10 @@ class TestTheMetricsCollector:
         # no test asked what the thresholds cost to clear -- test-suite, 44.
         # REG-1610 and REG-1611 add the section D script and CI-skip regressions.
         # REG-1707 adds the async-resource regression; main also adds the CI gate
-        # and supply-chain findings. Keep both branches' allocations represented.
+        # and supply-chain findings. REG-1280..1284 add five crypto-predictor
+        # audit regressions -- test-suite.
         assert metric["value"] == {
-            "test-suite": 51,
+            "test-suite": 56,
             "review": 1,
             "supply-chain": 4,
             "ci-gate-design": 2,

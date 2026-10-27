@@ -85,17 +85,17 @@ def probability_of_backtest_overfitting(fold_accuracies: list) -> dict:
 
 if __name__ == "__main__":
     from data_fetch_kraken import fetch_ohlcv
-    from indicators import build_feature_matrix
+    from indicators import build_feature_matrix, forward_direction_label
     from xgboost import XGBClassifier
 
     df = fetch_ohlcv("XBTUSD", "1h")
     feats = build_feature_matrix(df)
     horizon = 4
-    future_return = df["close"].shift(-horizon) / df["close"] - 1
-    label = (future_return > 0).astype(int)
     data = feats.copy()
-    data["label"] = label
+    data["label"] = forward_direction_label(df["close"], horizon)
+    # Tail rows whose label is NaN (no future close) are dropped here, not trained on.
     data = data.dropna()
+    data["label"] = data["label"].astype(int)
 
     feature_cols = [c for c in data.columns if c != "label"]
     fold_accs = []
