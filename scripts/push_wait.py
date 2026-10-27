@@ -26,6 +26,7 @@ import os
 import re
 import subprocess
 import sys
+import threading
 import time
 import urllib.parse
 from collections.abc import Callable, Iterable, Mapping
@@ -44,11 +45,21 @@ AGENT_MARKER = "desktop-commander"
 # whose command text merely mentions the name does not match.
 AGENT_PATH = re.compile(r"[/\\]" + AGENT_MARKER + r"(?:[/\\@]|$)", re.IGNORECASE)
 FORCE_ENV = "TB_PUSH_WAIT"
+# The git process that runs this hook: argv[0] is git or git.exe, possibly a
+# full path, quoted on Windows when it holds spaces.
+GIT_COMMAND = re.compile(
+    r'^(?:"(?:[^"]*[/\\])?git(?:\.exe)?"|(?:[^\s"]*[/\\])?git(?:\.exe)?)(?:\s+(.*))?$',
+    re.IGNORECASE,
+)
 REMOTE_PREFIX = "refs/remotes/origin/"
 DELETED = "0" * 40
 MAX_ANCESTORS = 64
 
 Answer = Callable[[int], tuple[str, list[str]]]
+
+
+class AnswerTimeout(Exception):
+    """prfail did not answer before the hold's deadline."""
 
 
 def pushed_refs(
@@ -78,6 +89,20 @@ def is_agent_push(env: Mapping[str, str], ancestors: Iterable[str]) -> bool:
     if forced in {"0", "1"}:
         return forced == "1"
     return any(AGENT_PATH.search(token) for command in ancestors for token in command.split())
+
+
+def is_git_push(ancestors: Iterable[str]) -> bool:
+    """True when the nearest git ancestor is `git push`.
+
+    The hook runs for every command that updates refs. A fetch can move
+    origin/<branch> to the commit the local branch already holds, so only the
+    command git is running tells a push from a fetch.
+    """
+    for command in ancestors:
+        match = GIT_COMMAND.match(command.strip())
+        if match:
+            return "push" in (match.group(1) or "").split()
+    return False
 
 
 def proc_ancestry(pid: int, root: Path = Path("/proc")) -> list[str]:
@@ -153,6 +178,31 @@ def find_pr(branch: str) -> int | None:
     return numbers[0] if len(numbers) == 1 else None
 
 
+def within(answer: Answer, pr: int, seconds: float) -> tuple[str, list[str]]:
+    """answer(pr), or AnswerTimeout once seconds pass without it returning.
+
+    The lookup runs in a daemon thread, so a GitHub request that hangs does not
+    keep `git push` open past the deadline; the thread ends with the hook.
+    """
+    result: list[tuple[str, list[str]]] = []
+    failure: list[BaseException] = []
+
+    def target() -> None:
+        try:
+            result.append(answer(pr))
+        except BaseException as exc:  # handed to the caller below
+            failure.append(exc)
+
+    worker = threading.Thread(target=target, name="prfail-answer", daemon=True)
+    worker.start()
+    worker.join(max(seconds, 0))
+    if failure:
+        raise failure[0]
+    if not result:
+        raise AnswerTimeout(f"prfail did not answer within {seconds:.0f}s")
+    return result[0]
+
+
 def hold(
     pr: int,
     sha: str,
@@ -160,14 +210,26 @@ def hold(
     say: Callable[[str], None],
     clock: Callable[[], float] = time.monotonic,
     sleep: Callable[[float], None] = time.sleep,
+    bounded: Callable[[Answer, int, float], tuple[str, list[str]]] = within,
 ) -> str:
     """Wait for prfail's answer on exactly this commit; return how it ended."""
     short = sha[:7]
     deadline = clock() + HOLD_SECONDS
+    stuck = (
+        f"PRFAIL: CI did not finish within 12 min on {short}; a workflow is stuck. "
+        "Stop and tell the owner."
+    )
     say(f"PRFAIL: holding this push until CI answers for PR #{pr} at {short} (up to 12 min).")
     while True:
+        remaining = deadline - clock()
+        if remaining <= 0:
+            say(stuck)
+            return "timeout"
         try:
-            head, lines = answer(pr)
+            head, lines = bounded(answer, pr, remaining)
+        except AnswerTimeout:
+            say(stuck)
+            return "timeout"
         except ci_diagnostics.ReportPending:
             head, lines = "", []
         except (ci_diagnostics.DiagnosticError, OSError, ValueError, TypeError, KeyError) as exc:
@@ -187,12 +249,6 @@ def hold(
             for line in lines:
                 say(line)
             return "failed"
-        if clock() >= deadline:
-            say(
-                f"PRFAIL: CI did not finish within 12 min on {short}; a workflow is stuck. "
-                "Stop and tell the owner."
-            )
-            return "timeout"
         say("PRFAIL: wait")
         sleep(min(POLL_SECONDS, max(deadline - clock(), 0)))
 
@@ -225,7 +281,10 @@ def main(
     if argv[:1] != ["committed"]:
         return 0
     pushes = pushed_refs(stdin, local_sha)
-    if not pushes or not is_agent_push(env, ancestors()):
+    if not pushes:
+        return 0
+    chain = ancestors()
+    if not is_git_push(chain) or not is_agent_push(env, chain):
         return 0
     for branch, sha in pushes:
         try:

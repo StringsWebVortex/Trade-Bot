@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import os
 import stat
+import threading
 from pathlib import Path
 
 import pytest
@@ -71,6 +72,33 @@ def test_only_chatgpt_pushes_are_held(env, ancestors, held) -> None:
     assert push_wait.is_agent_push(env, ancestors) is held
 
 
+@pytest.mark.parametrize(
+    ("ancestors", "push"),
+    [
+        (["git push"], True),
+        (["/usr/bin/git -c push.negotiate=false push -q", "bash"], True),
+        (['"C:\\Program Files\\Git\\mingw64\\bin\\git.exe" push origin x'], True),
+        (["git fetch origin"], False),
+        (["git -c push.default=simple fetch"], False),
+        (["git pull", "git push"], False),  # the nearest git decides
+        (["/bin/bash -c cd /repo && /usr/bin/git push"], False),
+        (["node desktop-commander"], False),
+    ],
+    ids=[
+        "push",
+        "push-with-options",
+        "windows",
+        "fetch",
+        "fetch-push-option",
+        "pull",
+        "shell",
+        "no-git",
+    ],
+)
+def test_only_a_git_push_is_a_push(ancestors, push) -> None:
+    assert push_wait.is_git_push(ancestors) is push
+
+
 def test_proc_ancestry_walks_up_to_init(tmp_path: Path) -> None:
     for pid, ppid in [(30, 20), (20, 10), (10, 1)]:
         (tmp_path / str(pid)).mkdir(exist_ok=True)
@@ -105,6 +133,11 @@ class _Clock:
         self.now += seconds
 
 
+def _direct(answer, pr: int, seconds: float):
+    assert seconds > 0
+    return answer(pr)
+
+
 def _hold(answers: list) -> tuple[str, list[str], _Clock]:
     said: list[str] = []
     clock = _Clock()
@@ -117,7 +150,7 @@ def _hold(answers: list) -> tuple[str, list[str], _Clock]:
             raise item
         return item
 
-    result = push_wait.hold(7, SHA, answer, said.append, clock, clock.sleep)
+    result = push_wait.hold(7, SHA, answer, said.append, clock, clock.sleep, _direct)
     return result, said, clock
 
 
@@ -152,13 +185,53 @@ def test_twelve_minutes_without_an_answer_means_ci_is_stuck() -> None:
     assert "did not finish within 12 min" in said[-1]
 
 
+def test_a_lookup_that_outlives_the_deadline_is_stuck() -> None:
+    said: list[str] = []
+    clock = _Clock()
+
+    def never(answer, pr: int, seconds: float):
+        assert seconds == push_wait.HOLD_SECONDS
+        raise push_wait.AnswerTimeout("hung")
+
+    result = push_wait.hold(7, SHA, None, said.append, clock, clock.sleep, never)
+    assert result == "timeout"
+    assert "did not finish within 12 min" in said[-1]
+
+
+def test_within_stops_waiting_for_a_hung_lookup() -> None:
+    release = threading.Event()
+
+    def hung(pr: int):
+        release.wait()
+        return SHA, []
+
+    try:
+        with pytest.raises(push_wait.AnswerTimeout):
+            push_wait.within(hung, 7, 0)
+    finally:
+        release.set()
+
+
+def test_within_returns_or_raises_what_the_lookup_did() -> None:
+    assert push_wait.within(lambda pr: (SHA, [str(pr)]), 7, 5) == (SHA, ["7"])
+    with pytest.raises(ci_diagnostics.ReportPending):
+        push_wait.within(_raise_pending, 7, 5)
+
+
+def _raise_pending(pr: int):
+    raise ci_diagnostics.ReportPending("not yet")
+
+
 def test_an_error_releases_and_says_so() -> None:
     result, said, _ = _hold([ci_diagnostics.DiagnosticError("report digest mismatch")])
     assert result == "error"
     assert said[-1] == "PRFAIL: error: report digest mismatch. Stop and tell the owner."
 
 
-def _main(argv, *, ancestors=AGENT, pr=7, answer=None):
+GIT_PUSH = ["git push -u origin feature"]
+
+
+def _main(argv, *, ancestors=GIT_PUSH + AGENT, pr=7, answer=None):
     said: list[str] = []
     clock = _Clock()
     calls: list[str] = []
@@ -190,8 +263,12 @@ def test_a_chatgpt_push_is_held_until_green() -> None:
 
 @pytest.mark.parametrize(
     ("argv", "ancestors"),
-    [(["prepared"], AGENT), (["committed"], ["/bin/bash"])],
-    ids=["not-committed-yet", "a-person-pushed"],
+    [
+        (["prepared"], GIT_PUSH + AGENT),
+        (["committed"], [*GIT_PUSH, "/bin/bash"]),
+        (["committed"], ["git fetch origin", *AGENT]),
+    ],
+    ids=["not-committed-yet", "a-person-pushed", "chatgpt-fetched"],
 )
 def test_other_pushes_return_at_once_without_asking_github(argv, ancestors) -> None:
     code, said, calls = _main(argv, ancestors=ancestors)
@@ -215,12 +292,11 @@ def test_the_hook_runs_push_wait_only_after_the_push_committed() -> None:
 
 
 def test_a_second_prfail_answer_while_one_runs_is_wait(tmp_path, monkeypatch) -> None:
-    import fcntl
     import tempfile
 
     monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))
-    with open(Path(tempfile.gettempdir()) / "tradebot-prfail-7.lock", "a") as first:
-        fcntl.flock(first, fcntl.LOCK_EX)
-        with pytest.raises(ci_diagnostics.ReportPending):
+    # The same lock prfail takes, so this holds on POSIX (fcntl) and Windows (msvcrt).
+    with ci_diagnostics._single_flight(7):
+        with pytest.raises(ci_diagnostics.PrfailBusy):
             ci_diagnostics.prfail_answer(7)
     assert os.path.exists(tmp_path / "tradebot-prfail-7.lock")
