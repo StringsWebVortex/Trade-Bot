@@ -173,9 +173,13 @@ class TestRateLimiter:
 
     @pytest.mark.asyncio
     async def test_acquire_multiple_times(self):
-        limiter = RateLimiter(rate=5.0)
-        for _ in range(3):
-            await limiter.acquire()
+        with patch("src.intelligence.onchain.base.time.monotonic", return_value=100.0):
+            limiter = RateLimiter(rate=5.0)
+            for _ in range(3):
+                await limiter.acquire()
+
+        # Three of the five starting tokens are spent, and none of the calls waited.
+        assert limiter._tokens == 2.0
 
     @pytest.mark.asyncio
     async def test_acquire_sleeps_when_no_tokens(self):

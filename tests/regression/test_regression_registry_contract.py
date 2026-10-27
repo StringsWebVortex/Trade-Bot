@@ -236,6 +236,9 @@ class TestTheRegistryHasAPlaceForDefects:
             "REG-1608",
             # REG-1609: one failed job-log download failed the whole report.
             "REG-1609",
+            # REG-1610, REG-1611: audits SCR-018 and TSA-07 (section D rest).
+            "REG-1610",
+            "REG-1611",
             # REG-1700..1703: audit OPS-011 (digest pins, rag-ingest torch
             # floor), DOC-015 and API-031 -- block C of the phase 7 findings.
             "REG-1700",
@@ -245,6 +248,19 @@ class TestTheRegistryHasAPlaceForDefects:
             # REG-1704: audit STR-21 -- carry and arbitrage entries gated on
             # fixed thresholds no cost measurement produced.
             "REG-1704",
+            # REG-1705: the knowledge-index gate demanded fresh hashes for every
+            # file, so any merge broke every other open PR -- ci-gate-design.
+            # REG-1706: fail-fast cancelled five shards when one failed, hiding
+            # their failures until the next push -- ci-gate-design.
+            # REG-1707: a leaked async resource printed "Event loop is closed"
+            # under a passing run; REG-0023 had locked only the reporter -- test-suite.
+            "REG-1705",
+            "REG-1706",
+            "REG-1707",
+            "REG-1140",
+            "REG-1141",
+            "REG-1142",
+            "REG-1143",
             # REG-1300..1305 and REG-1307: phase 5 execution audit,
             # EXR-014..EXR-019 and EXR-021 (EXR-020 is SEC-1306 below).
             "REG-1300",
@@ -284,6 +300,7 @@ class TestTheRegistryHasAPlaceForDefects:
             "SEC-0008",
             "SEC-0009",
             "SEC-0010",
+            "SEC-0011",
             "SEC-0012",
             "SEC-1306",
         }
@@ -557,9 +574,17 @@ class TestTheMetricsCollector:
         # test-suite, 43.
         # REG-1704 adds the fixed-threshold carry/arbitrage regression (STR-21):
         # no test asked what the thresholds cost to clear -- test-suite, 44.
+        # REG-1610 and REG-1611 add the section D script and CI-skip regressions.
+        # REG-1707 adds the async-resource regression; main also adds the CI gate
+        # and supply-chain findings. Keep both branches' allocations represented.
         # REG-1300..1305, REG-1307 and SEC-1306 add the eight phase 5 execution
-        # audit findings EXR-014..EXR-021 -- test-suite, 52.
-        assert metric["value"] == {"test-suite": 52, "review": 1, "supply-chain": 3}
+        # audit findings EXR-014..EXR-021 -- test-suite, 51 to 59.
+        assert metric["value"] == {
+            "test-suite": 59,
+            "review": 1,
+            "supply-chain": 4,
+            "ci-gate-design": 2,
+        }
 
     def test_zero_escaped_defects_would_be_stated_explicitly(self, collector, monkeypatch):
         # "We have not measured this" and "this is zero" are different

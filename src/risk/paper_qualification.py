@@ -34,11 +34,12 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
-import os
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Final
+
+from src.config import PaperQualificationSettings
 
 QUALIFICATION_PATH: Final[Path] = Path("data/paper_qualification.json")
 
@@ -203,7 +204,7 @@ def evaluate(record: PaperRecord) -> QualificationResult:
 
 
 def _hmac_key() -> bytes:
-    key = os.environ.get(HMAC_KEY_ENV, "")
+    key = PaperQualificationSettings().hmac_key
     if not key:
         raise NotQualifiedError(
             f"{HMAC_KEY_ENV} is not set: the qualification record cannot be signed or verified"
@@ -255,9 +256,7 @@ def load_qualification(path: Path | None = None) -> dict[str, Any]:
     return raw
 
 
-def assert_qualified_for_live(
-    path: Path | None = None, expected_strategy_id: str = DEFAULT_STRATEGY_ID
-) -> None:
+def assert_qualified_for_live(path: Path | None = None) -> None:
     """
     Raise unless a stored record shows every criterion passing *at today's
     thresholds*.
@@ -274,6 +273,18 @@ def assert_qualified_for_live(
             f"qualification record schema {stored.get('schema_version')!r} is not "
             f"{SCHEMA_VERSION}; re-qualify rather than migrating the verdict"
         )
+
+    # Structure first, then authenticity: a record that is not even shaped like
+    # a qualification is reported as such, and nothing is trusted until the
+    # signature over exactly these bytes verifies.
+    raw_record = stored.get("record")
+    if not isinstance(raw_record, dict):
+        raise NotQualifiedError("qualification record contains no measurements")
+
+    try:
+        record = PaperRecord(**raw_record)
+    except TypeError as exc:
+        raise NotQualifiedError(f"qualification record is incomplete: {exc}") from exc
 
     signature = stored.get("signature")
     if not isinstance(signature, str) or not hmac.compare_digest(signature, _sign(stored)):
@@ -292,22 +303,13 @@ def assert_qualified_for_live(
             "re-qualify"
         )
 
-    raw_record = stored.get("record")
-    if not isinstance(raw_record, dict):
-        raise NotQualifiedError("qualification record contains no measurements")
-
-    try:
-        record = PaperRecord(**raw_record)
-    except TypeError as exc:
-        raise NotQualifiedError(f"qualification record is incomplete: {exc}") from exc
-
     if (
-        record.strategy_id != expected_strategy_id
-        or stored.get("strategy_id") != expected_strategy_id
+        record.strategy_id != DEFAULT_STRATEGY_ID
+        or stored.get("strategy_id") != DEFAULT_STRATEGY_ID
     ):
         raise NotQualifiedError(
             f"qualification record is for strategy {record.strategy_id!r}, "
-            f"not {expected_strategy_id!r}"
+            f"not {DEFAULT_STRATEGY_ID!r}"
         )
 
     result = evaluate(record)
