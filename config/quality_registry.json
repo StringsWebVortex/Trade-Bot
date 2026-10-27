@@ -4678,6 +4678,32 @@
       ]
     },
     {
+      "id": "GOV-069",
+      "kind": "requirement",
+      "title": "A ChatGPT push waits up to 12 minutes for prfail's answer on that commit",
+      "statement": "With .githooks/reference-transaction installed by scripts/install_push_wait_hook.sh, a push whose process ancestry contains Desktop Commander (ChatGPT's terminal on the owner's machine) does not return until ./scripts/prfail answers for exactly the pushed commit: no lines releases it as green, failure lines are printed for ChatGPT to fix and push again, and no answer within 12 minutes is reported as a stuck workflow. A fetch, a push by anyone else, or a branch without exactly one open pull request is never held. TB_PUSH_WAIT=1 forces the hold and TB_PUSH_WAIT=0 disables it.",
+      "criticality": "medium",
+      "subsystem": "governance",
+      "status": "verified",
+      "source": "OPS-2026-10-27",
+      "failure_mode": "ChatGPT pushed fixes through Desktop Commander and returned before CI finished, so failures were seen only when someone ran prfail by hand, and a workflow hung for four hours unnoticed. No control held the agent on its own push; the hook and its 12-minute ceiling now do, and tests/test_push_wait.py fails if a report for the previous commit, a person's push, or an unbounded wait is accepted.",
+      "owning_modules": [
+        "scripts/push_wait.py",
+        ".githooks/reference-transaction",
+        "scripts/install_push_wait_hook.sh",
+        "scripts/ci_diagnostics.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_push_wait.py",
+          "test_type": "contract"
+        }
+      ],
+      "depends_on": [
+        "GOV-068"
+      ]
+    },
+    {
       "id": "REG-1705",
       "kind": "regression",
       "title": "A merge elsewhere never breaks the knowledge-index gate on an open pull request",

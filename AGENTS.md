@@ -90,6 +90,16 @@ When you are Codex working one of these requests:
 - Never edit the agent control plane (`.claude/`, `config/command_policy.json`, `config/observation_boundary.json`, `common/command_schema.py`, `src/agent_control/`), `CLAUDE.md`, the handoff workflow or its script, or this file as part of a fix.
 - Never skip, xfail, delete, or weaken a test or gate to get green. If a fix is not possible inside these limits, say what is failing and why in a pull request comment and stop.
 
+### Pushing through Desktop Commander (GOV-069)
+
+When you are ChatGPT working in the owner's terminal through Desktop Commander, install the push hook once per clone with `sh scripts/install_push_wait_hook.sh`. After that, your `git push` does not return until CI has answered for the commit you pushed, for at most 12 minutes. Read the `PRFAIL:` lines it prints:
+
+- `PRFAIL: no failures on <sha>`: CI is green and no review conversation is open. You are done.
+- `PRFAIL: N line(s) to fix on <sha>` followed by the lines: fix exactly those, commit, and push again. That push is held the same way.
+- `PRFAIL: CI did not finish within 12 min` or `PRFAIL: error: ...`: stop, and tell the owner what it printed. Do not push again to retry.
+
+If the terminal tool times out before the push returns, run `./scripts/prfail --pr <PR_NUMBER>` for the same answer.
+
 ## Delivery
 
 Use a dedicated branch based on the verified current origin/main; preserve unrelated worktrees. Commit and push only the task-scoped reviewed files when explicitly authorized. Do not merge or enable auto-merge unless separately instructed. Final reports must include exact commit/branch/PR, files changed, commands and actual results, CI state, remaining gaps, and any actions requiring account/workspace UI access.
