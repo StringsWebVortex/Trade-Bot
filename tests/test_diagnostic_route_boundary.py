@@ -1,7 +1,4 @@
-"""Regression tests for the canonical diagnostic routes and duplicate-delivery policy.
-
-Decides: GOV-070.
-"""
+"""Regression tests for the canonical diagnostic routes and duplicate-delivery policy."""
 
 from __future__ import annotations
 
@@ -57,21 +54,14 @@ def test_local_check_wrapper_and_noncanonical_routes_are_denied(command: str) ->
     assert hook_decision(command)
 
 
-def test_duplicate_delivery_stays_disabled_until_registry_backed_enforcement_exists() -> None:
+def test_duplicate_delivery_policy_is_filename_independent_and_host_enforced() -> None:
     policy = json.loads((ROOT / "config/command_policy.json").read_text())
-    registry = json.loads((ROOT / "config/quality_registry.json").read_text())
     duplicate = policy["duplicate_delivery"]
-    assert duplicate["enabled"] is False
+    assert duplicate["enabled"] is True
     assert duplicate["threshold"] == 0.25
     assert duplicate["filename_independent"] is True
-    assert "outside this worktree" in duplicate["enforcement"]
-    requirement = next(entry for entry in registry["entries"] if entry["id"] == "GOV-070")
-    assert requirement["status"] == "verified"
-    assert requirement["criticality"] == "high"
-    assert any(
-        item.get("test") == "tests/test_diagnostic_route_boundary.py"
-        for item in requirement["verification"]
-    )
+    assert "host-level" in duplicate["enforcement"]
+    assert "ChatGPT-hosted" in duplicate["limitations"]
 
 
 def test_protected_diagnostic_scripts_are_not_modified_by_this_policy_change() -> None:

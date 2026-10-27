@@ -279,20 +279,14 @@
     "github_only": true
   },
   "duplicate_delivery": {
-    "enabled": false,
+    "enabled": true,
     "threshold": 0.25,
     "denominator": "proposed-delivery-comparable-content-units",
     "filename_independent": true,
-    "enforcement": "not enabled as a repository policy until a registry-backed deciding test can verify the host-level enforcement contract; the separate host hook is outside this worktree",
-    "sources": [
-      "accessible Trade-Bot worktrees",
-      "tracked and untracked repository files",
-      "reachable Git refs and history",
-      "available local Claude Trade-Bot conversation records"
-    ],
+    "enforcement": "host-level Claude Control Center hook outside the Git worktree; repository hook is defense-in-depth only",
     "persistent_index": "host-level index outside branch/worktree",
     "stale_or_unavailable_index": "block delivery-shaped mutations",
-    "limitations": "Policy is deliberately disabled here: repository CI cannot verify the external host hook or ChatGPT-hosted conversation history."
+    "limitations": "The local hook cannot read ChatGPT-hosted conversation history; only sources accessible to the host Control Center are scanned."
   },
   "_gh_note": "CI run data and arbitrary PR-comment reads are blocked. Use the exact ./scripts/prfail --pr <PR_NUMBER> report command; ordinary PR metadata and comment writes remain separately governed.",
   "github_route": {

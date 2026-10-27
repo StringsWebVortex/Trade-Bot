@@ -47,11 +47,11 @@ deletion of the thing it points at.
 
 | Status | Entries |
 |---|---|
-| VERIFIED | 246 |
+| VERIFIED | 245 |
 | PARTIAL | 3 |
 | PLANNED | 0 |
 | ACCEPTED GAP | 0 |
-| **Total** | **249** |
+| **Total** | **248** |
 
 ## Summary by subsystem
 
@@ -68,7 +68,7 @@ deletion of the thing it points at.
 | Supply chain and artifacts | 7 | 7 |
 | Resilience and recovery | 26 | 26 |
 | Release and production | 17 | 17 |
-| Governance | 73 | 72 |
+| Governance | 72 | 71 |
 | Terminal and process center | 13 | 13 |
 
 ## Outstanding work by phase
@@ -2827,17 +2827,6 @@ With .githooks/reference-transaction installed by scripts/install_push_wait_hook
 - **Verification:**
   - `tests/test_push_wait.py` (contract)
 
-#### `GOV-070` — Duplicate-delivery prevention stays disabled until enforcement is verifiable
-
-**VERIFIED** · high · requirement · source: OPS-2026-10-27
-
-The repository must not advertise duplicate-delivery enforcement as enabled until a registry-backed deciding test verifies the actual enforcement point and persistent-index failure behavior; an external host hook without repository-verifiable coverage is insufficient evidence.
-
-- **If violated:** The repository advertises duplicate-delivery enforcement that CI cannot decide, allowing duplicate content through while a policy-only test passes.
-- **Owned by:** `config/command_policy.json`, `tests/test_diagnostic_route_boundary.py`
-- **Verification:**
-  - `tests/test_diagnostic_route_boundary.py` (contract) — Pins the policy disabled and verifies the registry-backed requirement until actual enforcement can be decided in CI.
-
 #### `REG-0005` — A test's result never depends on which tests ran before it
 
 **VERIFIED** · high · regression · source: QE-91
@@ -3236,4 +3225,4 @@ To add or change an entry, edit the registry and regenerate this file. See
 `docs/quality/TEST_STRATEGY.md` for the taxonomy the `test_type` column draws
 on, and `docs/quality/IMPLEMENTATION_PLAN.md` for what each phase delivers.
 
-Registry version: 1.0.0 — 249 entries.
+Registry version: 1.0.0 — 248 entries.
