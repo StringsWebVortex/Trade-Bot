@@ -172,16 +172,15 @@
   },
   "ci_log_access": {
     "enabled": true,
-    "_note": "Use ./scripts/prfail --pr <PR_NUMBER> for the finalized filtered CI report and ./scripts/problems <approved-target> [safe paths] for supported local diagnostics. Direct Actions data, annotations, logs, artifacts, check results, and legacy PR-comment reads remain blocked.",
-    "message": "THAPPAR — direct CI diagnostic access is blocked. Use ./scripts/prfail --pr <PR_NUMBER>; use ./scripts/problems <approved-target> [safe paths] only for supported local checks.",
-    "_hard_deny_note": "Raw check/log reads are denied before the allowlist. Only ./scripts/problems <approved-target> [safe-paths] and ./scripts/prfail --pr <positive-decimal> are exempt; selectors and shell wrappers are not implemented.",
+    "_note": "Use only ./scripts/prfail --pr <PR_NUMBER> for the finalized filtered CI report. Direct Actions data, annotations, logs, artifacts, check results, local check execution, and legacy PR-comment reads remain blocked.",
+    "message": "THAPPAR — diagnostic access is blocked. Use only ./scripts/prfail --pr <PR_NUMBER> for the filtered CI report.",
+    "_hard_deny_note": "Raw check/log reads are denied before the allowlist. Only the exact ./scripts/prfail --pr <positive-decimal> command is exempt; local check wrappers and shell wrappers are not implemented.",
     "hard_deny_patterns": [
       "\\bgh\\s+(pr|run|repo)\\b[^|]*--json\\b[^|]*\\b(statusCheckRollup|checkRuns|checkSuites|jobs|workflowRuns)\\b",
       "\\bgh\\s+pr\\s+checks\\b"
     ],
-    "_allowed_note": "Exactly two diagnostic routes are permitted: ./scripts/problems <pytest|ruff|format|vitest|browser|frontend|build|all|selftest> [safe paths], and ./scripts/prfail --pr followed by a positive decimal PR number.",
+    "_allowed_note": "Exactly one diagnostic route is permitted: ./scripts/prfail --pr followed by a positive decimal PR number.",
     "allowed_patterns": [
-      "^\\s*\\./scripts/problems\\s+(?:pytest|ruff|format|vitest|browser|frontend|build|all|selftest)(?:\\s+[A-Za-z0-9_./-]+)*\\s*$",
       "^\\s*\\./scripts/prfail\\s+--pr\\s+[1-9][0-9]*\\s*$"
     ],
     "denied_tool_patterns": [

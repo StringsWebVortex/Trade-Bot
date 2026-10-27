@@ -290,21 +290,9 @@ def _github_route_violation(event: dict[str, Any]) -> str:
             data = _hook_input(event)
             command = data.get("command", "")
             canonical_report = re.compile(r"^\s*\./scripts/prfail\s+--pr\s+[1-9][0-9]*\s*$")
-            canonical_problems = re.compile(r"^\s*\./scripts/problems\s+(?:pytest|ruff|format|vitest|browser|frontend|build|all|selftest)(?:\s+[A-Za-z0-9_./-]+)*\s*$")
             if (
                 isinstance(command, str)
-                and (
-                    canonical_report.fullmatch(command.strip())
-                    or (
-                        canonical_problems.fullmatch(command.strip())
-                        and all(
-                            not part.startswith("-")
-                            and not Path(part).is_absolute()
-                            and ".." not in Path(part).parts
-                            for part in command.strip().split()[2:]
-                        )
-                    )
-                )
+                and canonical_report.fullmatch(command.strip())
                 and not is_ci_log_access(command)
                 and not _local_check_violation(command, _load_policy())
             ):
@@ -315,8 +303,8 @@ def _github_route_violation(event: dict[str, Any]) -> str:
                     return ""
         return (
             "Universal GitHub-only boundary: denied. Use an approved GitHub MCP tool; "
-            "local exceptions are ./scripts/prfail --pr <PR_NUMBER>, "
-            "./scripts/problems <approved-target> [safe paths], and the report-bound patch applier."
+            "local exceptions are the exact ./scripts/prfail --pr <PR_NUMBER> command "
+            "and the report-bound patch applier."
         )
     tail = tool[len(GITHUB_TOOL_PREFIX) :]
     gap = unresolved_tools()

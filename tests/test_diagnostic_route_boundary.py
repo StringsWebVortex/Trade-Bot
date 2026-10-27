@@ -1,11 +1,10 @@
 """Regression tests for the canonical diagnostic routes and duplicate-delivery policy."""
 from __future__ import annotations
 
+import importlib.util
 import json
 import os
 import re
-import subprocess
-import sys
 from pathlib import Path
 
 import pytest
@@ -14,15 +13,23 @@ from common.command_schema import CI_COMMENT_ALLOW_PATTERNS, is_ci_log_access
 
 ROOT = Path(__file__).resolve().parents[1]
 HOOK = ROOT / ".claude/hooks/pre_tool_use.py"
+_spec = importlib.util.spec_from_file_location("trade_bot_pre_tool_use_test", HOOK)
+assert _spec and _spec.loader
+_hook = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_hook)
 
 
-def hook_decision(command: str) -> dict:
-    payload = json.dumps({"tool_name": "Bash", "tool_input": {"command": command}})
-    env = {**os.environ, "CLAUDE_PROJECT_DIR": str(ROOT)}
-    env.pop("TB_COMMAND_POLICY", None)
-    result = subprocess.run([sys.executable, str(HOOK)], input=payload, capture_output=True,
-                            text=True, env=env, timeout=20, check=True)
-    return json.loads(result.stdout)["hookSpecificOutput"]
+def hook_decision(command: str) -> str:
+    os.environ["CLAUDE_PROJECT_DIR"] = str(ROOT)
+    os.environ.pop("TB_COMMAND_POLICY", None)
+    return _hook._github_route_violation({"tool_name": "Bash", "tool_input": {"command": command}})
+
+
+def test_only_filtered_prfail_report_matches_shared_allowlist() -> None:
+    command = "./scripts/prfail --pr 521"
+    assert any(re.fullmatch(pattern, command) for pattern in CI_COMMENT_ALLOW_PATTERNS)
+    assert not is_ci_log_access(command)
+    assert hook_decision(command) == ""
 
 
 @pytest.mark.parametrize("command", [
@@ -30,14 +37,6 @@ def hook_decision(command: str) -> dict:
     "./scripts/problems ruff common/command_schema.py",
     "./scripts/problems selftest",
     "./scripts/problems all src tests",
-    "./scripts/prfail --pr 521",
-])
-def test_canonical_diagnostic_routes_match_shared_allowlist(command: str) -> None:
-    assert any(re.fullmatch(pattern, command) for pattern in CI_COMMENT_ALLOW_PATTERNS)
-    assert not is_ci_log_access(command)
-
-
-@pytest.mark.parametrize("command", [
     "./scripts/problems",
     "./scripts/problems --help",
     "./scripts/problems pytest; gh run view 123 --log",
@@ -47,9 +46,8 @@ def test_canonical_diagnostic_routes_match_shared_allowlist(command: str) -> Non
     "./scripts/problems pytest --all",
     "./scripts/problems pytest ../outside.py",
 ])
-def test_noncanonical_or_wrapped_diagnostic_routes_are_denied(command: str) -> None:
-    decision = hook_decision(command)
-    assert decision["permissionDecision"] == "deny"
+def test_local_check_wrapper_and_noncanonical_routes_are_denied(command: str) -> None:
+    assert hook_decision(command)
 
 
 def test_duplicate_delivery_policy_is_filename_independent_and_host_enforced() -> None:
