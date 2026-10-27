@@ -21,7 +21,6 @@ from xgboost import XGBClassifier
 
 from risk import calibrate_probabilities, kelly_fraction
 
-
 FEE_RATE = 0.001  # 0.10% per trade, typical retail spot taker fee
 SLIPPAGE_RATE = 0.0005  # 0.05% assumed slippage on market orders
 

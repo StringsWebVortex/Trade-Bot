@@ -47,11 +47,11 @@ deletion of the thing it points at.
 
 | Status | Entries |
 |---|---|
-| VERIFIED | 237 |
+| VERIFIED | 251 |
 | PARTIAL | 3 |
 | PLANNED | 0 |
 | ACCEPTED GAP | 0 |
-| **Total** | **240** |
+| **Total** | **254** |
 
 ## Summary by subsystem
 
@@ -63,12 +63,12 @@ deletion of the thing it points at.
 | Signal and features | 7 | 7 |
 | Models and leakage | 15 | 15 |
 | Data, money and time | 12 | 11 |
-| API and WebSocket | 22 | 22 |
-| Cryptography and secrets | 32 | 32 |
+| API and WebSocket | 26 | 26 |
+| Cryptography and secrets | 33 | 33 |
 | Supply chain and artifacts | 7 | 7 |
 | Resilience and recovery | 26 | 26 |
-| Release and production | 14 | 14 |
-| Governance | 67 | 66 |
+| Release and production | 17 | 17 |
+| Governance | 73 | 72 |
 | Terminal and process center | 13 | 13 |
 
 ## Outstanding work by phase
@@ -1118,6 +1118,58 @@ The default API_CORS_ORIGINS allows both loopback spellings of the dashboard dev
 
 > layer: test-suite
 
+#### `REG-1140` — The risk slider commits one write on release
+
+**VERIFIED** · high · regression · source: OPS-2026-10-25
+
+Slider keeps drag state locally and calls onChange once on pointer/key release or blur, and not at all when the value is unchanged.
+
+- **If violated:** A range input called onChange on every input event, so one drag sent dozens of operator-gated risk-control POSTs, each applying an intermediate risk value live and tripping the rate limit and alert storms.
+- **Owned by:** `frontend/src/components/Controls.jsx`
+- **Verification:**
+  - `frontend/src/components/Controls.test.jsx` (regression)
+
+> Audit finding FE-02. layer: test-suite
+
+#### `REG-1141` — NumberInput writes only a valid, changed value
+
+**VERIFIED** · high · regression · source: OPS-2026-10-25
+
+NumberInput calls onChange on blur or Enter only when the parsed value is in range and differs from the current value; an invalid entry leaves draft mode and reverts to the current value.
+
+- **If violated:** Every blur posted an operator action even with no edit, and an out-of-range value left the field stuck in draft mode with no feedback.
+- **Owned by:** `frontend/src/components/Controls.jsx`
+- **Verification:**
+  - `frontend/src/components/Controls.test.jsx` (regression)
+
+> Audit finding FE-03. layer: test-suite
+
+#### `REG-1142` — High-impact operator actions confirm and block double submission
+
+**VERIFIED** · high · regression · source: OPS-2026-10-25
+
+Switching to automatic mode, approve/reject, self-tuning rollback and strategy re-enable ask for confirmation, and the button is disabled while its request is in flight so it is sent once.
+
+- **If violated:** One-click AUTOMATIC mode, trade approval, rollback and re-enable fired immediately and could be double-clicked before the next poll refreshed the UI.
+- **Owned by:** `frontend/src/components/Controls.jsx`, `frontend/src/components/panels/ApprovalsPanel.jsx`, `frontend/src/components/panels/SelfTuningPanel.jsx`, `frontend/src/components/panels/StrategiesPanel.jsx`
+- **Verification:**
+  - `frontend/src/components/Controls.test.jsx` (regression)
+
+> Audit finding FE-04. layer: test-suite
+
+#### `REG-1143` — A crashing panel is contained by an error boundary
+
+**VERIFIED** · high · regression · source: OPS-2026-10-25
+
+Each workspace panel and the app root render inside an ErrorBoundary that shows the error in place, so one panel throwing does not unmount the dashboard.
+
+- **If violated:** With no error boundary one unexpected null in a panel unmounted the whole dashboard, including approvals and controls.
+- **Owned by:** `frontend/src/components/ErrorBoundary.jsx`, `frontend/src/App.jsx`, `frontend/src/main.jsx`
+- **Verification:**
+  - `frontend/src/components/Controls.test.jsx` (regression)
+
+> Audit finding FE-05. layer: test-suite
+
 #### `REG-1703` — One environment variable never binds two settings fields
 
 **VERIFIED** · low · regression · source: OPS-2026-10-25
@@ -1504,6 +1556,19 @@ The integrated terminal adds a command-execution surface; nothing reaches it exc
   - `frontend/src/desktop/terminalBridge.test.js` (security)
 
 > layer: test-suite
+
+#### `SEC-0011` — The frontend lockfile resolves electron, follow-redirects and undici outside their high advisory ranges
+
+**VERIFIED** · high · security_regression · source: OPS-2026-10-25
+
+frontend's npm tree resolves electron >= 44.9.1, follow-redirects >= 1.16.1 and undici >= 7.30.1 (>= 8.12.2 on the 8.x line), so npm audit at --audit-level=high reports no fixable advisory.
+
+- **If violated:** Security gate (npm audit) failed on pull requests that do not touch frontend (#498, #499) because main's lockfile resolved electron 44.7.0 (GHSA-jr5w-w6x2-84p9), follow-redirects 1.16.0 (GHSA-q3jh-wrc6-jgq8, GHSA-8r9p-f939-6h3c) and undici 7.30.0 / 8.11.2 (GHSA-4qv8-2p9j-2685, GHSA-f72v-6w45-q472), all with fixAvailable true. Measured with npm audit --json on a copy of frontend/: 3 high before; 0 high after (4 moderate vitest advisories remain, below the gate threshold).
+- **Owned by:** `frontend/package.json`, `.github/workflows/security.yml`
+- **Verification:**
+  - `tests/test_frontend_audit_scope.py` (unit)
+
+> Lockfile refresh via npm install --package-lock-only plus npm update of the three packages; the only manifest change is the electron floor. The gate was not changed. layer: supply-chain
 
 #### `SEC-0012` — The runtime manifest never resolves a vulnerable filelock
 
@@ -2047,7 +2112,7 @@ The production workflow can return to the previous trusted artifact, and a drill
 
 **VERIFIED** · medium · regression · source: OPS-2026-09-30
 
-The autonomous collector waits for every applicable watched workflow, job, and step to terminate on the same PR head SHA. Failure, cancellation, timeout, neutral, action_required, stale, and skipped outcomes are retained. The collector does not cancel source runs or publish PR comments; incomplete collection never becomes a finalized report.
+The autonomous collector waits for every pull-request workflow run and job to terminate on the same PR head SHA before it publishes. Runs still going leave the report waiting, never finalized with partial results. The collector does not cancel source runs or publish PR comments.
 
 - **If violated:** The previous notice consolidated multiple failed jobs and cancellation fallout into a large comment. Agents had to sift through irrelevant failures, and cancellation from a superseded commit could overwrite the current PR state. The fail-fast notice surfaces one actionable check, cancels sibling runs, and refuses to overwrite a newer head's comment.
 - **Owned by:** `.github/workflows/ci-diagnostics.yml`, `scripts/ci_diagnostics.py`
@@ -2056,16 +2121,17 @@ The autonomous collector waits for every applicable watched workflow, job, and s
 
 > One mutable comment is the subscription surface. Its hidden SHA marker binds the notice to the current PR head; failure comments name one actionable check, success is reported only after all watched workflows finish green, and merge updates the same comment. layer: test-suite
 
-#### `REG-0020` — The collector extracts diagnostics server-side and discards ordinary success noise
+#### `REG-0020` — The collector extracts failure lines server-side and discards everything else
 
 **VERIFIED** · medium · regression · source: OPS-2026-09-30
 
-The collector scans completed job logs on its GitHub-hosted runner and retains recognized error/warning formats, source-attributed diagnostics, and structured non-success outcomes. It discards ordinary successful output, redacts common credentials, and does not send raw workflow logs to the agent.
+The collector reads job logs on its GitHub-hosted runner, only for jobs that are not green, and keeps only lines containing error, failed, failure, skipped, cancelled or canceled. It discards every other line, redacts common credentials, and does not send raw workflow logs to the agent.
 
 - **If violated:** pip-audit's vulnerability table matched none of the patterns, so the notice on #385 named the failing step and no error, and the failing lines had to be pasted by hand.
 - **Owned by:** `scripts/ci_diagnostics.py`
 - **Verification:**
   - `tests/test_ci_diagnostics.py` (unit)
+  - `tests/test_prfail_exact_lines.py` (regression)
 
 > Escaped because the notice's extraction was only ever tested against pytest-shaped output. layer: test-suite
 
@@ -2082,16 +2148,17 @@ A diagnostic report is published only after the triggering workflow is correlate
 
 > A silent notice is the one failure this channel cannot have: CLAUDE.md section 9 makes it the sole CI failure interface, so when it posts nothing every pull request looks stuck for no visible reason. layer: test-suite
 
-#### `REG-0023` — A source diagnostic retains its exact file, line, and column when provided
+#### `REG-0023` — A failure line is copied exactly, so the location it names is kept
 
 **VERIFIED** · medium · regression · source: OPS-2026-10-07
 
-GitHub annotations and recognized compiler, pytest, and Python traceback formats retain their source path and reported line/column. The collector never invents a location; workflow, infrastructure, and cancellation failures remain actionable structured records even when no source location exists.
+Each failure line is copied as logged, with only GitHub's per-line timestamp removed, so a file, line and column the tool printed stay exactly as printed. The collector never adds or invents a location.
 
 - **If violated:** A dying worker takes the short summary with it: the run ends with no FAILED line, so every SIGNAL pattern missed and the REG-0020 fallback published the step's last stdout instead. On PR 423 that made the whole notice the words 'Event loop is closed', with no node id, no file and no test. Section 8 of the directives makes the notice the only failure channel a session may read, so a failure this channel cannot name is a failure nobody can diagnose: the branch is blocked and the only remaining move is to guess.
 - **Owned by:** `scripts/ci_diagnostics.py`
 - **Verification:**
   - `tests/test_ci_diagnostics.py` (unit)
+  - `tests/test_prfail_exact_lines.py` (regression)
 
 > The crash lines rank above the summary line deliberately. When a run produces both, the crash is the one that explains the rest, and the summary is still reachable from the run itself. layer: test-suite
 
@@ -2111,6 +2178,46 @@ GitHub Actions is the sole execution path for tests, builds, lint, security scan
   - `tests/test_apply_ci_patch.py` (contract)
 
 > The old prepare/comment-notice subscription is retired. Only the finalized ./scripts/prfail --pr <PR_NUMBER> report route is allowed; the report-bound patch applier revalidates PR/head/report identity and leaves edits uncommitted. The run subcommand remains disabled. Tests, builds, lint, security scans, and quality gates are validated only by GitHub Actions. layer: test-suite
+
+#### `REG-1705` — A merge elsewhere never breaks the knowledge-index gate on an open pull request
+
+**VERIFIED** · high · regression · source: OPS-2026-10-26
+
+The pull-request gate (`codebase_knowledge_index.py --check`) validates structure only: every FILE_INDEX path is tracked, every CHUNK_INDEX/CODEBASE_KNOWLEDGE anchor names an existing file and a range inside it, and every API_REFERENCE route matches by method, path and handler. SHA8s, line counts, row numbers and route line numbers are checked by `--check --strict`, which no pull request is gated on.
+
+- **If violated:** The gate demanded a byte-identical regeneration of FILE_INDEX (a SHA8 and line count for ~1,229 files) and whole-file hashes behind every anchor on ~50 hot files. Any merge, even a dependency bump, made every other open pull request fail 'Codebase knowledge indexes are current' (PRs 500, 502, 504, 505, 508), and all 29 open pull requests carried conflicting edits to the same index. Fixing it in one pull request fixed nothing for the next.
+- **Owned by:** `scripts/codebase_knowledge_index.py`
+- **Verification:**
+  - `tests/test_codebase_knowledge_index.py` (regression)
+
+> layer: ci-gate-design
+
+#### `REG-1706` — One failing test shard never hides the failures of the others
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-26
+
+The sharded pytest matrix in ci.yml runs with fail-fast disabled, so every shard runs to completion and a single CI run reports every failing test.
+
+- **If violated:** With fail-fast: true the first failing shard cancelled the other five ('The strategy configuration was canceled because python-tests._4_6 failed' on PRs 500-508). Each run showed one shard's failures; the rest surfaced one push later and read as new failures every time.
+- **Owned by:** `.github/workflows/ci.yml`
+- **Verification:**
+  - `tests/regression/test_ci_failure_locks.py` (regression)
+
+> layer: ci-gate-design
+
+#### `REG-1707` — A test that leaks an async resource fails instead of passing with 'Event loop is closed'
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-26
+
+pytest treats PytestUnraisableExceptionWarning as an error, so an exception raised where no caller can catch it (a transport or client finalised after its event loop closed) fails the test that leaked it and names it; a session-scoped guard collects what outlives the last test and fails the worker, naming the finalizer.
+
+- **If violated:** 'RuntimeError: Event loop is closed' recurred on PR 423 and again on PRs 501, 505, 507, 508, 519 and 521, including fully green runs. REG-0023 locked the diagnostic reporter so it could name the crash; nothing locked the leak, and an unraisable exception was only a warning, so the leaking test passed every time.
+- **Owned by:** `pyproject.toml`, `tests/regression/unraisable.py`
+- **Depends on:** `REG-0023`
+- **Verification:**
+  - `tests/regression/test_ci_failure_locks.py` (regression)
+
+> layer: test-suite
 
 ## Governance
 
@@ -2254,7 +2361,7 @@ Following a CI run -- gh run watch, --watch, tail -f, docker or kubectl logs -f,
 
 **VERIFIED** · medium · requirement · source: OPS-2026-09-20
 
-When a watched pull-request workflow completes, an autonomous GitHub Actions collector waits until every applicable workflow, job, and step reaches a terminal state for the exact PR head SHA, then publishes a filtered, SHA-bound Check Run report. The collector never cancels sibling workflows, and agents retrieve diagnostics only through ./scripts/prfail --pr <PR_NUMBER>.
+When any workflow completes for a pull request, an autonomous GitHub Actions collector finds every workflow run GitHub started for the exact PR head SHA (no fixed workflow list), waits until every run and job is terminal, then publishes one SHA-bound Check Run report. The collector never cancels sibling workflows, and agents never poll workflow logs: they read the report through ./scripts/prfail.
 
 - **If violated:** Without a push notice the only way to learn a pull request failed is to poll or to read logs, which is exactly what GOV-011 and GOV-012 forbid.
 - **Owned by:** `.github/workflows/ci-diagnostics.yml`, `scripts/ci_diagnostics.py`, `scripts/prfail`
@@ -2336,11 +2443,11 @@ No CI log, job record, step annotation, artifact, cache entry or check result ca
   - `tests/test_ci_log_access.py` (contract)
   - `tests/test_pre_tool_use_hook.py` (contract)
 
-#### `GOV-020` — One SHA-bound report carries filtered diagnostics and exact source locations
+#### `GOV-020` — One SHA-bound report carries the exact failure lines of every non-green run
 
 **VERIFIED** · high · requirement · source: OPS-2026-09-22
 
-After all applicable watched workflows terminate for a PR head, one finalized Check Run manifest and its integrity-verified pages contain structured non-success outcomes and filtered diagnostics. Records include workflow/job/step identity and exact path, line, and column when supplied by the source evidence. Ordinary successful output is discarded, and the report is retrieved only by the canonical PR-number command.
+After every pull-request run for a PR head has terminated, one finalized Check Run manifest and its integrity-verified pages carry, for each non-green job of each non-green run, the exact log lines that name an error, failure, skip or cancellation, bound to their workflow run, job and line number. Green runs and green jobs contribute nothing.
 
 - **If violated:** A contributor or agent with no route to the cause of a red pull request. Since GOV-019 makes CI logs permanently unreadable, this comment is the only channel, so each of its failure modes is total: one comment per workflow means five to read and four chances to read a stale one; posting before every workflow finishes announces green on a commit that failed; and reporting 'Process completed with exit code 1' -- which is what the notice actually said on a failing shard of PR 313 -- names no test, no file and no assertion, leaving nothing to act on at all.
 - **Owned by:** `.github/workflows/ci-diagnostics.yml`, `scripts/ci_diagnostics.py`, `scripts/prfail`
@@ -2741,13 +2848,60 @@ scripts/agent_control.py exits 0 only when a check passes, 1 when a check ran an
 
 **PARTIAL → PR-013** · medium · requirement · source: OPS-2026-10-13
 
-The knowledge-index utility checks complete tracked-file coverage and current FILE_INDEX metadata, validates CHUNK_INDEX and CODEBASE_KNOWLEDGE source hashes and line ranges, verifies API_REFERENCE method/path/handler/line rows against AST-derived routes, and offers a safe refresh operation that preserves existing notes/priorities without rewriting semantic anchor ranges.
+The knowledge-index utility gates pull requests on structure (every FILE_INDEX path is tracked, every CHUNK_INDEX and CODEBASE_KNOWLEDGE anchor names an existing file and an in-range span, every API_REFERENCE route matches by method, path and handler) and, with --strict, verifies full FILE_INDEX metadata, anchor source hashes and route line numbers; it offers a safe refresh operation that preserves existing notes/priorities without rewriting semantic anchor ranges.
 
 - **If violated:** A stale index sends an agent to wrong code or makes old line ranges look authoritative, and no reproducible check identifies the drift before the index is trusted.
 - **Owned by:** `scripts/codebase_knowledge_index.py`
 - **Depends on:** `GOV-005`
 - **Verification:**
   - `tests/test_codebase_knowledge_index.py` (unit)
+
+#### `GOV-067` — A pull request Claude opened is handed to ChatGPT Codex, once per head, with a hard cap
+
+**VERIFIED** · medium · requirement · source: OPS-2026-10-26
+
+After Claude opens a pull request it stops touching it, and ChatGPT Codex carries it to merge. The handoff workflow runs the default branch's script with the owner's token and comments `@codex fix` only for a failed same-repository pull-request run of CI, CodeQL, Security or Workflow lint, or a Codex review with inline findings, on the pull request's current open head; it asks once per kind and head, at most five times per pull request, then posts one notice and stops. It never merges, arms auto-merge, or runs Claude, and a missing token fails without posting.
+
+- **If violated:** Without the cap and per-head dedupe, each Codex push re-triggers a failing check or review and the handoff loops on the owner's plan; without the default-branch checkout, a pull request could rewrite the script that holds the owner's token.
+- **Owned by:** `scripts/codex_pr_handoff.py`, `.github/workflows/codex-pr-handoff.yml`
+- **Depends on:** `GOV-036`, `GOV-037`
+- **Verification:**
+  - `tests/test_codex_pr_handoff.py` (contract)
+
+#### `GOV-068` — prfail prints only the exact failure lines of every non-green PR run, or wait
+
+**VERIFIED** · medium · requirement · source: OPS-2026-10-26
+
+./scripts/prfail --pr N prints, one per line and nothing else, the failure lines of the current PR head's finished report, then one `path:line: first line of the opening comment` line per review conversation that is still unresolved, outdated ones included, read fresh from GitHub's reviewThreads because resolving a conversation fires no Actions event (empty when nothing failed and nothing is unresolved). While any pull-request run is unfinished or the report is not yet published it prints `wait`, and a call made while another prfail for the same PR is running prints `wait` without reading anything. A workflow added to the repository is included without editing the collector, because the collector triggers on every workflow and lists the PR's runs from the API.
+
+- **If violated:** prfail returned 266 lines of JSON for a green PR head: twelve records of steps skipped by their own `if:` (durations refresh), each with twenty fields, and no failure. The collector also listed four workflows by name, so a fifth would have been silently left out of the report. A required unresolved review conversation blocked PR 521 while prfail had no way to show it.
+- **Owned by:** `scripts/ci_diagnostics.py`, `scripts/prfail`, `.github/workflows/ci-diagnostics.yml`, `scripts/apply_ci_patch.py`
+- **Depends on:** `GOV-013`, `GOV-020`
+- **Verification:**
+  - `tests/test_prfail_exact_lines.py` (contract)
+
+#### `GOV-069` — A ChatGPT push waits up to 12 minutes for prfail's answer on that commit
+
+**VERIFIED** · medium · requirement · source: OPS-2026-10-27
+
+With .githooks/reference-transaction installed by scripts/install_push_wait_hook.sh, a push whose process ancestry contains Desktop Commander (ChatGPT's terminal on the owner's machine) does not return until ./scripts/prfail answers for exactly the pushed commit: no lines releases it as green, failure lines are printed for ChatGPT to fix and push again, and no answer within 12 minutes is reported as a stuck workflow. A fetch, a push by anyone else, or a branch without exactly one open pull request is never held. TB_PUSH_WAIT=1 forces the hold and TB_PUSH_WAIT=0 disables it.
+
+- **If violated:** ChatGPT pushed fixes through Desktop Commander and returned before CI finished, so failures were seen only when someone ran prfail by hand, and a workflow hung for four hours unnoticed. No control held the agent on its own push; the hook and its 12-minute ceiling now do, and tests/test_push_wait.py fails if a report for the previous commit, a person's push, or an unbounded wait is accepted.
+- **Owned by:** `scripts/push_wait.py`, `.githooks/reference-transaction`, `scripts/install_push_wait_hook.sh`, `scripts/ci_diagnostics.py`
+- **Depends on:** `GOV-068`
+- **Verification:**
+  - `tests/test_push_wait.py` (contract)
+
+#### `GOV-070` — Duplicate-delivery prevention stays disabled until enforcement is verifiable
+
+**VERIFIED** · high · requirement · source: OPS-2026-10-27
+
+The repository must not advertise duplicate-delivery enforcement as enabled until a registry-backed deciding test verifies the actual enforcement point and persistent-index failure behavior; an external host hook without repository-verifiable coverage is insufficient evidence.
+
+- **If violated:** The repository advertises duplicate-delivery enforcement that CI cannot decide, allowing duplicate content through while a policy-only test passes.
+- **Owned by:** `config/command_policy.json`, `tests/test_diagnostic_route_boundary.py`
+- **Verification:**
+  - `tests/test_diagnostic_route_boundary.py` (contract) — Pins the policy disabled and verifies the registry-backed requirement until actual enforcement can be decided in CI.
 
 #### `REG-0005` — A test's result never depends on which tests ran before it
 
@@ -2891,7 +3045,7 @@ check_import_cycles and the layering edges resolve relative imports; the route c
 
 **VERIFIED** · medium · regression · source: OPS-2026-10-25
 
-The collector retries the signed job-log download and names the final cause; a green job whose log cannot be fetched adds nothing, and a failed job's gets a log_unavailable record, so the report still finalizes and says which failure lines are missing.
+The collector retries the signed job-log download and names the final cause; a green job whose log cannot be fetched adds nothing, and a failed job's gets one line saying its log is unavailable, so the report still finalizes and says which failure lines are missing.
 
 - **If violated:** A single failed signed-URL log download raised through the collector, so the report was published as collection failed and ./scripts/prfail showed no job's failures at all (PR #512).
 - **Owned by:** `scripts/ci_diagnostics.py`
@@ -2900,6 +3054,32 @@ The collector retries the signed job-log download and names the final cause; a g
   - `tests/test_ci_diagnostics_log_unavailable.py` (regression)
 
 > Follow-up to REG-1604: once failures were published, the first one seen was this. No test fed the collector a failing log download. layer: test-suite
+
+#### `REG-1610` — Repository scripts do what their names and docs say (resolver add/add, fixture --check, coverage metric, index refresh)
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+resolve_registry_merge.py merges an add/add conflict against an empty base instead of calling it unconflicted; generate_signal_fixtures.py --check creates nothing and reports a fixture whose case was removed, and a write removes it; collect_quality_metrics.py names coverage's combined line and branch total line_and_branch_coverage_pct; codebase_knowledge_index.py --refresh-file-index keeps content after the file table.
+
+- **If violated:** An add/add registry conflict was left for a person with a misleading message; --check wrote a directory and missed stale golden fixtures; a combined coverage figure was read as branch coverage; a refresh silently deleted anything written after the index table.
+- **Owned by:** `scripts/resolve_registry_merge.py`, `scripts/generate_signal_fixtures.py`, `scripts/collect_quality_metrics.py`, `scripts/codebase_knowledge_index.py`
+- **Verification:**
+  - `tests/test_script_fixes_scr018.py` (regression)
+
+> Audit SCR-018 (rest). The provenance traversal part is in #502 and the validation.py empty-list part in #501. layer: test-suite
+
+#### `REG-1611` — jsonschema and cryptography tests fail in CI when the dependency is missing
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+The registry-schema, QE-skill, ID-allocation and API-signer tests import jsonschema and cryptography through required_import.require, which skips only when CI is unset; in CI a missing module fails collection.
+
+- **If violated:** pytest.importorskip turned a broken CI install into skips, so security and quality tests stopped running while the job stayed green.
+- **Owned by:** `tests/required_import.py`
+- **Verification:**
+  - `tests/test_required_import_in_ci.py` (regression)
+
+> Audit TSA-07 (rest). The arch-baseline skip is in #502. py_ecc stays optional: it is not in requirements.txt. layer: test-suite
 
 #### `REG-1700` — The CI TimescaleDB service and scripts/timescaledb.sh pin the image by digest
 
@@ -3121,4 +3301,4 @@ To add or change an entry, edit the registry and regenerate this file. See
 `docs/quality/TEST_STRATEGY.md` for the taxonomy the `test_type` column draws
 on, and `docs/quality/IMPLEMENTATION_PLAN.md` for what each phase delivers.
 
-Registry version: 1.0.0 — 240 entries.
+Registry version: 1.0.0 — 254 entries.

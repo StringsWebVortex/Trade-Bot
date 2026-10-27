@@ -28,12 +28,28 @@ from sklearn.model_selection import TimeSeriesSplit
 PKG = Path(__file__).resolve().parents[1] / "crypto-predictor"
 sys.path.insert(0, str(PKG))
 
+# The package's flat modules (risk, indicators, ...) share bare names with test
+# packages such as tests/risk, which other test files may already have bound in
+# sys.modules. Evict any module of that name that is not the package's own file,
+# import the package's copy, then put the foreign module back for its owners.
+_FOREIGN = {}
+for _name in ("risk", "indicators", "backtest", "data_fetch", "data_fetch_kraken"):
+    _mod = sys.modules.get(_name)
+    if _mod is not None and not str(getattr(_mod, "__file__", "") or "").startswith(str(PKG)):
+        _FOREIGN[_name] = sys.modules.pop(_name)
+
 import backtest  # noqa: E402
 import data_fetch  # noqa: E402
 import data_fetch_kraken  # noqa: E402
 from indicators import forward_direction_label  # noqa: E402
 
 import risk  # noqa: E402
+
+# Never leave the package's bare-named modules registered: they would shadow
+# tests/risk (and friends) for every test module collected afterwards.
+for _name in ("risk", "indicators", "backtest", "data_fetch", "data_fetch_kraken"):
+    sys.modules.pop(_name, None)
+sys.modules.update(_FOREIGN)
 
 
 class _Resp:

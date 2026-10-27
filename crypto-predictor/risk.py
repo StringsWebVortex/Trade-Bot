@@ -91,8 +91,8 @@ if __name__ == "__main__":
     avg_loss = 0.016  # 1.6% average loss
     f = kelly_fraction(p, avg_win, avg_loss, kelly_multiplier=0.25)
     print(f"Calibrated p_win: {p}")
-    print(f"Full Kelly fraction: {((avg_win/avg_loss)*p - (1-p)) / (avg_win/avg_loss):.4f}")
-    print(f"Quarter-Kelly (actually used): {f:.4f} → risk {f*100:.2f}% of capital per trade")
+    print(f"Full Kelly fraction: {((avg_win / avg_loss) * p - (1 - p)) / (avg_win / avg_loss):.4f}")
+    print(f"Quarter-Kelly (actually used): {f:.4f} → risk {f * 100:.2f}% of capital per trade")
 
     mean_p, lo, hi = confidence_interval_from_ensemble([0.58, 0.54, 0.61, 0.52])
     print(f"\nEnsemble mean probability: {mean_p:.3f}, 90% CI: [{lo:.3f}, {hi:.3f}]")

@@ -9,7 +9,6 @@ the same either way, so downstream code (indicators/backtester) is unaffected.
 import pandas as pd
 import requests
 
-
 KRAKEN_OHLC_URL = "https://api.kraken.com/0/public/OHLC"
 
 # Kraken interval is in minutes
