@@ -150,7 +150,9 @@ def test_run_entropy_threshold_backtest_defaults_features_cfg() -> None:
         challenger_threshold=0.4,
         challenger_floor=0.6,
     )
-    assert len(comparisons) == 4
+    # No win_rate (REG-1373): the entropy scalar never flips a return's sign, so
+    # champion and challenger win rates are always identical.
+    assert len(comparisons) == 3
 
 
 def test_lower_floor_can_only_shrink_or_equal_scaled_returns() -> None:
