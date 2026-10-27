@@ -1181,7 +1181,7 @@ def test_performance_drift_exception(mock_state):
     client = _get_client()
     resp = client.get("/performance-drift", headers={"x-api-key": _API_KEY})
     assert resp.status_code == 200
-    assert resp.json() == {"error": "drift boom"}
+    assert resp.json() == {"error": "Internal error."}
 
 
 # ---------------------------------------------------------------------------
@@ -1205,7 +1205,7 @@ def test_intelligence_coverage_exception(mock_state):
     client = _get_client()
     resp = client.get("/intelligence/coverage", headers={"x-api-key": _API_KEY})
     assert resp.status_code == 200
-    assert resp.json() == {"error": "cov boom"}
+    assert resp.json() == {"error": "Internal error."}
 
 
 # ---------------------------------------------------------------------------

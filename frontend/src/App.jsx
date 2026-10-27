@@ -6,6 +6,7 @@ import { ControlHubPanel } from './components/panels/ControlHubPanel';
 import { Panel } from './components/Panel';
 import { StartupBanner } from './components/StartupBanner';
 import { ModeSwitcher, StatCard } from './components/Controls';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { EquityChart, DrawdownChart } from './components/panels/EquityChart';
 import { PositionsTable } from './components/panels/PositionsPanel';
 import { TradesTable, MissedTradesTable } from './components/panels/TradesPanel';
@@ -227,7 +228,7 @@ function Dashboard() {
         onMove={(dx, dy) => updateLayout((l) => moveBy(l, id, dx, dy))}
         onResize={(dw, dh) => updateLayout((l) => resizeBy(l, id, dw, dh, spec))}
       >
-        {panel.render()}
+        <ErrorBoundary label={spec.label}>{panel.render()}</ErrorBoundary>
       </Panel>
     );
   };

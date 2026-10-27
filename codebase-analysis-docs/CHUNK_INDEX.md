@@ -1831,7 +1831,7 @@ SHA8 10e2649d; total lines 457.
 
 ## frontend/src/App.jsx
 
-SHA8 babdff7e; AST parse unavailable near line 65: unterminated string literal (detected at line 65). Use bounded textual slices.
+SHA8 14ed8fbf; AST parse unavailable near line 65: unterminated string literal (detected at line 65). Use bounded textual slices.
 
 ## frontend/src/hooks/useApi.js
 
@@ -1972,21 +1972,21 @@ Python AST parsing is not valid for JSX, JavaScript, YAML or Markdown. These ran
 
 ### frontend/src/App.jsx
 
-SHA8 babdff7e; total lines 470.
+SHA8 14ed8fbf; total lines 471.
 
-- CHUNK_ID = frontend/src/App.jsx#1-38#babdff7e — [[F:frontend/src/App.jsx#1-38#babdff7e]].
-- CHUNK_ID = frontend/src/App.jsx#39-76#babdff7e — [[F:frontend/src/App.jsx#39-76#babdff7e]] declarations nearby: REGIME_COLOR, REGIME_NAME, SPEC_BY_ID, App, Dashboard.
-- CHUNK_ID = frontend/src/App.jsx#77-114#babdff7e — [[F:frontend/src/App.jsx#77-114#babdff7e]] declarations nearby: onEvent, status, readiness, equityCurve, trades.
-- CHUNK_ID = frontend/src/App.jsx#115-152#babdff7e — [[F:frontend/src/App.jsx#115-152#babdff7e]] declarations nearby: riskControls, modelsStatus, handleModeSwitch, handleRiskUpdate, handleApprovalResolve.
-- CHUNK_ID = frontend/src/App.jsx#153-190#babdff7e — [[F:frontend/src/App.jsx#153-190#babdff7e]] declarations nearby: activeTimeframes, equity, dailyPnl, positions, regime.
-- CHUNK_ID = frontend/src/App.jsx#191-228#babdff7e — [[F:frontend/src/App.jsx#191-228#babdff7e]] declarations nearby: renderPanel, spec, panel, item.
-- CHUNK_ID = frontend/src/App.jsx#229-266#babdff7e — [[F:frontend/src/App.jsx#229-266#babdff7e]] declarations nearby: hiddenCount.
-- CHUNK_ID = frontend/src/App.jsx#267-304#babdff7e — [[F:frontend/src/App.jsx#267-304#babdff7e]].
-- CHUNK_ID = frontend/src/App.jsx#305-342#babdff7e — [[F:frontend/src/App.jsx#305-342#babdff7e]] declarations nearby: Header.
-- CHUNK_ID = frontend/src/App.jsx#343-380#babdff7e — [[F:frontend/src/App.jsx#343-380#babdff7e]].
-- CHUNK_ID = frontend/src/App.jsx#381-418#babdff7e — [[F:frontend/src/App.jsx#381-418#babdff7e]] declarations nearby: StatsRow, regimeState, regimeColor, regimeName.
-- CHUNK_ID = frontend/src/App.jsx#419-456#babdff7e — [[F:frontend/src/App.jsx#419-456#babdff7e]] declarations nearby: PanelManager, visible.
-- CHUNK_ID = frontend/src/App.jsx#457-470#babdff7e — [[F:frontend/src/App.jsx#457-470#babdff7e]].
+- CHUNK_ID = frontend/src/App.jsx#1-38#14ed8fbf — [[F:frontend/src/App.jsx#1-38#14ed8fbf]].
+- CHUNK_ID = frontend/src/App.jsx#39-76#14ed8fbf — [[F:frontend/src/App.jsx#39-76#14ed8fbf]] declarations nearby: REGIME_COLOR, REGIME_NAME, SPEC_BY_ID, App, Dashboard.
+- CHUNK_ID = frontend/src/App.jsx#77-114#14ed8fbf — [[F:frontend/src/App.jsx#77-114#14ed8fbf]] declarations nearby: onEvent, status, readiness, equityCurve, trades.
+- CHUNK_ID = frontend/src/App.jsx#115-152#14ed8fbf — [[F:frontend/src/App.jsx#115-152#14ed8fbf]] declarations nearby: riskControls, modelsStatus, handleModeSwitch, handleRiskUpdate, handleApprovalResolve.
+- CHUNK_ID = frontend/src/App.jsx#153-190#14ed8fbf — [[F:frontend/src/App.jsx#153-190#14ed8fbf]] declarations nearby: activeTimeframes, equity, dailyPnl, positions, regime.
+- CHUNK_ID = frontend/src/App.jsx#191-228#14ed8fbf — [[F:frontend/src/App.jsx#191-228#14ed8fbf]] declarations nearby: renderPanel, spec, panel, item.
+- CHUNK_ID = frontend/src/App.jsx#229-266#14ed8fbf — [[F:frontend/src/App.jsx#229-266#14ed8fbf]] declarations nearby: hiddenCount.
+- CHUNK_ID = frontend/src/App.jsx#267-304#14ed8fbf — [[F:frontend/src/App.jsx#267-304#14ed8fbf]].
+- CHUNK_ID = frontend/src/App.jsx#305-342#14ed8fbf — [[F:frontend/src/App.jsx#305-342#14ed8fbf]] declarations nearby: Header.
+- CHUNK_ID = frontend/src/App.jsx#343-380#14ed8fbf — [[F:frontend/src/App.jsx#343-380#14ed8fbf]].
+- CHUNK_ID = frontend/src/App.jsx#381-418#14ed8fbf — [[F:frontend/src/App.jsx#381-418#14ed8fbf]] declarations nearby: StatsRow, regimeState, regimeColor, regimeName.
+- CHUNK_ID = frontend/src/App.jsx#419-456#14ed8fbf — [[F:frontend/src/App.jsx#419-456#14ed8fbf]] declarations nearby: PanelManager, visible.
+- CHUNK_ID = frontend/src/App.jsx#457-471#14ed8fbf — [[F:frontend/src/App.jsx#457-471#14ed8fbf]].
 
 ### frontend/src/hooks/useApi.js
 
@@ -2052,10 +2052,10 @@ SHA8 df9b68c6; total lines 221.
 
 ### frontend/package.json
 
-SHA8 377921c4; total lines 77.
+SHA8 1b928b39; total lines 77.
 
-- CHUNK_ID = frontend/package.json#1-38#377921c4 — [[F:frontend/package.json#1-38#377921c4]].
-- CHUNK_ID = frontend/package.json#39-77#377921c4 — [[F:frontend/package.json#39-77#377921c4]].
+- CHUNK_ID = frontend/package.json#1-38#1b928b39 — [[F:frontend/package.json#1-38#1b928b39]].
+- CHUNK_ID = frontend/package.json#39-77#1b928b39 — [[F:frontend/package.json#39-77#1b928b39]].
 
 ### .github/workflows/ci.yml
 

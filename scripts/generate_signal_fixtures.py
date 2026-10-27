@@ -37,17 +37,20 @@ from tests.signals.golden import CASES, build_record  # noqa: E402
 OUTPUT_DIR = PROJECT_ROOT / "tests" / "fixtures" / "signals"
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--check",
         action="store_true",
         help="exit non-zero if any fixture on disk is stale instead of rewriting it",
     )
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    # --check only reads: it neither creates the directory nor touches a file (SCR-018).
+    if not args.check:
+        OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     stale: list[str] = []
+    expected = {f"{case.case_id}.json" for case in CASES}
 
     for case in CASES:
         record = build_record(case)
@@ -63,6 +66,15 @@ def main() -> int:
 
         target.write_text(rendered, encoding="utf-8")
         print(f"wrote {target.relative_to(PROJECT_ROOT)}")
+
+    # A fixture whose case was removed still looks like a reviewed golden file.
+    orphans = sorted(p for p in OUTPUT_DIR.glob("*.json") if p.name not in expected)
+    for orphan in orphans:
+        if args.check:
+            stale.append(f"{orphan.name} has no case")
+        else:
+            orphan.unlink()
+            print(f"removed {orphan.relative_to(PROJECT_ROOT)}")
 
     if args.check:
         if stale:

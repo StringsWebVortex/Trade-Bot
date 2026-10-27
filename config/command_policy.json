@@ -172,18 +172,41 @@
   },
   "ci_log_access": {
     "enabled": true,
-    "_note": "The sole agent-facing CI route is ./scripts/prfail --pr <PR_NUMBER>. The collector in .github/workflows/ci-diagnostics.yml publishes a filtered Check Run report bound to the current PR head SHA; all direct Actions data, annotations, logs, artifacts, check results, and legacy PR-comment reads are blocked.",
-    "message": "THAPPAR — CI DIAGNOSTIC ACCESS BLOCKED. Use only: ./scripts/prfail --pr <PR_NUMBER>. Direct or alternative diagnostic retrieval is prohibited.",
-    "_hard_deny_note": "Raw check/log reads are denied before the allowlist. Only the exact ./scripts/prfail --pr positive-decimal command is exempt; selectors and shell wrappers are not implemented.",
+    "_note": "The .github/workflows/ci-diagnostics.yml collector publishes the finalized filtered report. Use only ./scripts/prfail --pr <PR_NUMBER>; direct Actions data, annotations, logs, artifacts, check results, local check execution, and legacy PR-comment reads remain blocked.",
+    "message": "THAPPAR \u2014 CI DIAGNOSTIC ACCESS BLOCKED. Use only: ./scripts/prfail --pr <PR_NUMBER>. Direct or alternative diagnostic retrieval is prohibited.",
+    "_hard_deny_note": "Raw check/log reads are denied before the allowlist. Only the exact ./scripts/prfail --pr <positive-decimal> command is exempt; local check wrappers and shell wrappers are not implemented.",
     "hard_deny_patterns": [
       "\\bgh\\s+(pr|run|repo)\\b[^|]*--json\\b[^|]*\\b(statusCheckRollup|checkRuns|checkSuites|jobs|workflowRuns)\\b",
       "\\bgh\\s+pr\\s+checks\\b"
     ],
-    "_allowed_note": "Exactly one command is permitted: ./scripts/prfail --pr followed by a positive decimal PR number.",
+    "_allowed_note": "Exactly one diagnostic route is permitted: ./scripts/prfail --pr followed by a positive decimal PR number.",
     "allowed_patterns": [
       "^\\s*\\./scripts/prfail\\s+--pr\\s+[1-9][0-9]*\\s*$"
     ],
-    "_banned_note": "Mirrors common.command_schema.CI_LOG_PATTERNS; tests require the shared classifier and JSON fallback to agree.",
+    "denied_tool_patterns": [
+      "mcp__*__*workflow*log*",
+      "mcp__*__*workflow*artifact*",
+      "mcp__*__*workflow*job*",
+      "mcp__*__*workflow*run*",
+      "mcp__*__*check*run*",
+      "mcp__*__*check*suite*",
+      "mcp__*__*annotation*",
+      "mcp__*__*artifact*",
+      "mcp__*__*actions*",
+      "mcp__*__*status*check*",
+      "mcp__*__*workflow*step*"
+    ],
+    "denied_command_patterns": [
+      "\\bgh\\s+run\\s+\\w+\\b",
+      "\\bgh\\s+workflow\\s+\\w+\\b",
+      "\\bgh\\s+pr\\s+checks\\b",
+      "\\bgh\\s+api\\b[^|]*(?:actions|check-runs?|check-suites?|annotations|statuses|workflow_runs|artifacts|jobs)",
+      "\\b(?:curl|wget|http|https|xh)\\b[^|]*(?:api\\.github\\.com|github\\.com/)[^|]*(?:actions|check-runs?|check-suites?|annotations|statuses|workflow_runs|artifacts|jobs)",
+      "\\b(?:python(?:3)?(?:\\.\\d+)?|node|ruby|perl|php|go)\\b[^|]*(?:urllib|requests|httpx|fetch\\(|axios|Net::HTTP|curl_easy|github\\.com|api\\.github\\.com)[^|]*(?:actions|check-runs?|check-suites?|annotations|statuses|workflow_runs|artifacts|jobs)",
+      "\\b(?:jq|yq)\\b[^|]*(?:workflow|check_run|check_suite|artifact|annotation|conclusion|statusCheckRollup)",
+      "\\b(?:act|gh-runner|actions-runner)\\b"
+    ],
+    "_banned_note": "Mirrors common.command_schema.CI_LOG_PATTERNS; tests require the shared classifier and JSON fallback to agree. The PreToolUse hook independently fails closed for all unapproved tools and shell commands.",
     "banned_patterns": [
       "\\bgh\\s+run\\s+(view|list|download|watch|rerun|cancel|delete)\\b",
       "\\bgh\\s+workflow\\s+(run|view|list)\\b",
@@ -196,6 +219,7 @@
       "\\bgh\\s+api\\b[^|]*/statuses/",
       "\\bgh\\s+(pr|run)\\b[^|]*--json\\b[^|]*\\b(statusCheckRollup|checkRuns|jobs|workflowRuns)\\b",
       "\\b(?:curl|wget)\\b[^|]*(?:api\\.github\\.com|github\\.com/)[^|]*(?:actions|check-runs|check-suites|annotations|statuses|workflow_runs)\\b",
+      "\\b(?:https?|xh)\\b[^|]*(?:api\\.github\\.com|github\\.com/)[^|]*(?:actions|check-runs?|check-suites?|annotations|statuses|workflow_runs|artifacts|jobs)\\b",
       "\\bact\\b\\s+-",
       "\\bgh\\s+pr\\s+view\\b[^|]*(?:--comments\\b|--json\\b[^|]*\\bcomments\\b)",
       "\\bgh\\s+issue\\s+view\\b[^|]*(?:--comments\\b|--json\\b[^|]*\\bcomments\\b)",
@@ -211,7 +235,7 @@
       "\\bpython(?:3)?(?:\\.\\d+)?\\s+-m\\s+scripts\\.ci_diagnostics\\b",
       "\\bpython(?:3)?(?:\\.\\d+)?\\s+-c\\b[\\s\\S]*(?:\\bscripts[./](?:ci_diagnostics|ci_verdict|local_checks|prfail)\\b|\\bfrom\\s+scripts\\s+import\\b[\\s\\S]*\\b(?:ci_diagnostics|ci_verdict|local_checks)\\b)",
       "\\bpython(?:3)?(?:\\.\\d+)?\\s+-\\s*<<[\\s\\S]*(?:\\bscripts[./](?:ci_diagnostics|ci_verdict|local_checks|prfail)\\b|\\bfrom\\s+scripts\\s+import\\b[\\s\\S]*\\b(?:ci_diagnostics|ci_verdict|local_checks)\\b)",
-      "\\b(?:python|python3|node)\\b[^|]*(?:urllib|requests|httpx|fetch\\()\\b[^|]*(?:github\\.com|api\\.github\\.com)"
+      "\\b(?:python(?:3)?(?:\\.\\d+)?|node|ruby|perl|php|go)\\b[^|]*(?:urllib|requests|httpx|fetch\\(|axios|Net::HTTP|curl_easy|github\\.com|api\\.github\\.com)[^|]*(?:actions|check-runs?|check-suites?|annotations|statuses|workflow_runs|artifacts|jobs)"
     ]
   },
   "local_checks": {
@@ -254,7 +278,23 @@
     ],
     "github_only": true
   },
-  "_gh_note": "CI run data and arbitrary PR-comment reads are blocked. The only permitted diagnostic route is the exact ./scripts/prfail --pr <PR_NUMBER> command; ordinary PR metadata and comment writes remain separately governed.",
+  "duplicate_delivery": {
+    "enabled": false,
+    "threshold": 0.25,
+    "denominator": "proposed-delivery-comparable-content-units",
+    "filename_independent": true,
+    "enforcement": "not enabled as a repository policy until a registry-backed deciding test can verify the host-level enforcement contract; the separate host hook is outside this worktree",
+    "sources": [
+      "accessible Trade-Bot worktrees",
+      "tracked and untracked repository files",
+      "reachable Git refs and history",
+      "available local Claude Trade-Bot conversation records"
+    ],
+    "persistent_index": "host-level index outside branch/worktree",
+    "stale_or_unavailable_index": "block delivery-shaped mutations",
+    "limitations": "Policy is deliberately disabled here: repository CI cannot verify the external host hook or ChatGPT-hosted conversation history."
+  },
+  "_gh_note": "CI run data and arbitrary PR-comment reads are blocked. Use the exact ./scripts/prfail --pr <PR_NUMBER> report command; ordinary PR metadata and comment writes remain separately governed.",
   "github_route": {
     "contract": ".claude/hooks/_gh_contract.py",
     "_note": "The GitHub tool contract is code-owned. This section is documentary; it cannot widen a route.",

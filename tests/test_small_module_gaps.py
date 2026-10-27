@@ -104,6 +104,7 @@ def test_writing_an_empty_feature_dict_is_a_no_op(tmp_path):
     store = DuckDBStore(path=tmp_path / "t.duckdb")
     try:
         store.write_feature_log(symbol="BTC/USDT", features={})
+        assert store._conn.execute("SELECT COUNT(*) FROM feature_log").fetchone() == (0,)
     finally:
         store.close()
 
