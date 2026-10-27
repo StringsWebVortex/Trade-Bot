@@ -268,6 +268,23 @@ class TestTheRegistryHasAPlaceForDefects:
             "REG-1282",
             "REG-1283",
             "REG-1284",
+            # REG-1360..1374: phase 5 math/strategy audit findings (MTH-002/004/005/012/014,
+            # STR-07..STR-16), each filed with its deciding test.
+            "REG-1360",
+            "REG-1361",
+            "REG-1362",
+            "REG-1363",
+            "REG-1364",
+            "REG-1365",
+            "REG-1366",
+            "REG-1367",
+            "REG-1368",
+            "REG-1369",
+            "REG-1370",
+            "REG-1371",
+            "REG-1372",
+            "REG-1373",
+            "REG-1374",
         }
         # SEC-0005: `.gitignore` carried a bare `.env`, which matches that one
         # name and nothing else -- so `.env.bak.<timestamp>` from a
@@ -575,8 +592,10 @@ class TestTheMetricsCollector:
         # REG-1707 adds the async-resource regression; main also adds the CI gate
         # and supply-chain findings. REG-1280..1284 add five crypto-predictor
         # audit regressions -- test-suite.
+        # REG-1360..1374 add fifteen phase 5 math/strategy audit regressions
+        # no test exercised -- test-suite, 56 -> 71.
         assert metric["value"] == {
-            "test-suite": 56,
+            "test-suite": 71,
             "review": 1,
             "supply-chain": 4,
             "ci-gate-design": 2,
