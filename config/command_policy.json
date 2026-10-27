@@ -219,6 +219,7 @@
       "\\bgh\\s+api\\b[^|]*/statuses/",
       "\\bgh\\s+(pr|run)\\b[^|]*--json\\b[^|]*\\b(statusCheckRollup|checkRuns|jobs|workflowRuns)\\b",
       "\\b(?:curl|wget)\\b[^|]*(?:api\\.github\\.com|github\\.com/)[^|]*(?:actions|check-runs|check-suites|annotations|statuses|workflow_runs)\\b",
+      "\\b(?:https?|xh)\\b[^|]*(?:api\\.github\\.com|github\\.com/)[^|]*(?:actions|check-runs?|check-suites?|annotations|statuses|workflow_runs|artifacts|jobs)\\b",
       "\\bact\\b\\s+-",
       "\\bgh\\s+pr\\s+view\\b[^|]*(?:--comments\\b|--json\\b[^|]*\\bcomments\\b)",
       "\\bgh\\s+issue\\s+view\\b[^|]*(?:--comments\\b|--json\\b[^|]*\\bcomments\\b)",
