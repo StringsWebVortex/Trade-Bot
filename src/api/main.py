@@ -3732,7 +3732,8 @@ async def set_control(name: str, body: SetControlRequest, request: Request) -> d
 # ---------------------------------------------------------------------------
 # Runtime platform (src/runtime) -- RES-017
 #
-# Reads need VIEW_STATUS; every mutation needs CHANGE_RUNTIME plus the
+# Reads need VIEW_STATUS, except the agent-control ledgers, which need
+# CHANGE_RUNTIME (SEC-0015); every mutation needs CHANGE_RUNTIME plus the
 # operator second factor, and goes through the change manager, which
 # classifies it, checks dependencies, applies policy and audits it. No route
 # here reaches a supervisor or a component directly.
@@ -3843,6 +3844,10 @@ _RUNTIME_WRITE = [
     Depends(api_key_header),
     Depends(requires(Permission.CHANGE_RUNTIME)),
 ]
+# SEC-0015: the agent ledgers disclose in-flight engineering work (objectives,
+# branches, SHAs), so reading them is operator authority, not VIEW_STATUS. The
+# route changes nothing, so it takes no operator second factor.
+_RUNTIME_OPERATOR_READ = _RUNTIME_WRITE
 
 
 @app.get("/runtime", dependencies=_RUNTIME_READ)
@@ -3898,9 +3903,9 @@ async def runtime_trace(trace_id: str) -> dict[str, Any]:
     return result
 
 
-@app.get("/runtime/agent", dependencies=_RUNTIME_READ)
+@app.get("/runtime/agent", dependencies=_RUNTIME_OPERATOR_READ)
 async def runtime_agent_ledgers() -> dict[str, Any]:
-    """Claude session task manifests and the branch-audit ledger (read-only)."""
+    """Claude session task manifests and the branch-audit ledger; CHANGE_RUNTIME only."""
     return runtime_control.agent_ledgers()
 
 
