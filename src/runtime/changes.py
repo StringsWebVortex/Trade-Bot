@@ -16,8 +16,11 @@ Policy:
 * LIVE_SAFE changes need only an authorised requester: taking risk off must
   never wait for a person.
 * Everything else waits for approval by a human holding the approver role.
-  An AI actor can request but never approve, and never approves its own
-  change by being the requester.
+  An AI actor can request but never approve. The kind is only as true as
+  the caller that builds the Actor: the API takes it from the operator's
+  credential (src/api/runtime_control.py, SEC-0016). Approval does not
+  require a second person, so a solo human operator can approve their own
+  request.
 * SHADOW_REQUIRED and CANARY_REQUIRED changes execute only once a passed
   stage result is recorded for them.
 * One open change per component: a second request is rejected, so two

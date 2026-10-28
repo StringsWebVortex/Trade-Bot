@@ -76,7 +76,8 @@ moves only through the tuning runner's promotion. A shadow model declares
 
 Every write needs a trade-authorizing API key, the `CHANGE_RUNTIME`
 permission, and the operator second factor (`operator`, `operator_secret`,
-SEC-007). `actor_kind` is `human` (default) or `ai`.
+SEC-007). `actor_kind` is optional, `human` or `ai`; who the caller is comes
+from the operator credential, not from the body (see "Operator identity").
 
 | Route | Effect |
 |---|---|
@@ -104,9 +105,39 @@ Classification decides what happens next:
 | `FORBIDDEN` | the table, the capabilities or an unmet dependency refuse it | read the reasons; nothing to approve |
 
 An AI actor can request changes and execute approved ones; it can never
-approve, record a stage result or promote. Whoever holds `OPERATOR_SECRET` is
-treated as the human operator, so that secret must never be given to an
-automated client.
+approve, record a stage result or promote.
+
+### Operator identity (SEC-0016)
+
+Set `OPERATOR_CREDENTIALS` to give every operator their own secret, so the
+name and kind on a change come from the credential and an AI client cannot
+claim to be human. It is a JSON object, one entry per operator:
+
+```
+OPERATOR_CREDENTIALS={"alice": {"kind": "human", "secret_sha256": "<hex>"}, "agent": {"kind": "ai", "secret_sha256": "<hex>"}}
+```
+
+* `secret_sha256` is the SHA-256 of the operator's secret, 64 lowercase hex
+  characters: `s=$(openssl rand -hex 32); printf %s "$s" | sha256sum`. The
+  operator sends `s` as `operator_secret`; the server stores only the hash.
+* The secret alone picks the operator. `operator` in the body must equal that
+  operator's name and `actor_kind`, when sent, must equal its kind, otherwise
+  the call is refused with 403. A wrong secret is 401.
+* A malformed value, two operators sharing one secret, or an `ai` entry whose
+  secret is `OPERATOR_SECRET` makes every runtime write answer 503 until it is
+  fixed.
+* While it is set, `OPERATOR_SECRET` no longer authorises runtime writes. To
+  keep one secret for both, give the human entry the hash of
+  `OPERATOR_SECRET`. The other operator endpoints (`/controls`,
+  `/execution-mode`, venues, ...) still use `OPERATOR_SECRET`, which stays
+  required at startup and must never be given to an automated client.
+* Approval needs a human credential but not a second person: a solo human
+  operator approves their own requests.
+
+Without `OPERATOR_CREDENTIALS` the earlier single-operator model applies:
+whoever holds `OPERATOR_SECRET` is the human operator, the body's `operator`
+is recorded as sent, and `actor_kind: "ai"` can only lower that to an AI
+actor. That secret must never be given to an automated client.
 
 One open change per component; a request carrying `expected_version` is
 refused once the component has moved (stale version).
