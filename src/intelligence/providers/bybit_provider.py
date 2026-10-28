@@ -51,6 +51,7 @@ import structlog
 
 from src.intelligence.providers.base import (
     ExchangeIntelligenceProvider,
+    exchange_stress_score,
     tickers_are_synchronous,
 )
 
@@ -62,10 +63,6 @@ _FR_HISTORY_PERIODS: Final[int] = 90
 _OI_HISTORY_HOURS: Final[int] = 25
 # Recent-trades window for taker-flow ratio
 _TRADES_LIMIT: Final[int] = 200
-# Stress score weights (must sum to 1.0)
-_W_BASIS: Final[float] = 0.35
-_W_FR_Z: Final[float] = 0.40
-_W_OI: Final[float] = 0.25
 # Confidence handling
 _CONFIDENCE_PENALTY: Final[float] = 0.05
 _MISSING_PAID_FIELDS: Final[int] = 8
@@ -354,18 +351,8 @@ class BybitIntelligenceProvider(ExchangeIntelligenceProvider):
         self._set_cache(cache_key, ratio)
         return ratio
 
-    @staticmethod
-    def _compute_stress_score(
-        basis_bps: float,
-        funding_zscore: float,
-        oi_change_pct: float,
-    ) -> float:
-        """Exchange stress composite [0, 1]. Identical formula to Binance/OKX providers."""
-        basis_stress = min(abs(basis_bps) / 100.0, 1.0)
-        funding_stress = min(abs(funding_zscore) / 3.0, 1.0)
-        oi_stress = min(max(-oi_change_pct, 0.0) / 5.0, 1.0)
-        score = _W_BASIS * basis_stress + _W_FR_Z * funding_stress + _W_OI * oi_stress
-        return round(min(max(score, 0.0), 1.0), 4)
+    # Shared formula (base.exchange_stress_score); kept as a class attribute for callers.
+    _compute_stress_score = staticmethod(exchange_stress_score)
 
 
 # ---------------------------------------------------------------------------
