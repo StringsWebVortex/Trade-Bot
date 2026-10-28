@@ -20,7 +20,6 @@ learns to return a score.
 
 from __future__ import annotations
 
-import json
 import subprocess
 import sys
 from pathlib import Path
@@ -208,5 +207,7 @@ class TestTheMaturityClaim:
         assert (REPO / artifact).exists(), f"{artifact} is claimed but absent"
 
     def test_the_registry_records_the_whole_programme(self):
-        registry = json.loads((REPO / "config/quality_registry.json").read_text())
+        from src.quality.registry import read_registry_document
+
+        registry = read_registry_document(REPO / "config/quality_registry.json")
         assert len(registry["entries"]) >= 90

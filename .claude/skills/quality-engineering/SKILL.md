@@ -136,8 +136,9 @@ how a gate becomes decorative, so separate the two cases:
   the rule was wrong or the deadline was close.
 
 Never widen a bound to get green. Never add `# noqa` without a reason beside
-it. Never edit `docs/quality/REQUIREMENTS_TRACEABILITY.md` by hand — it is
-generated; edit the registry and run `scripts/generate_quality_docs.py`.
+it. Never commit `docs/quality/REQUIREMENTS_TRACEABILITY.md` — it is rendered
+on demand by `scripts/generate_quality_docs.py`. Add a new registry entry as
+its own file, `config/quality_registry.d/<ID>.json` (GOV-071).
 
 ## Writing tests that are worth having
 
