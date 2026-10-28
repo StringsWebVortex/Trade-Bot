@@ -61,11 +61,17 @@ class ApiSigner:
 
     @classmethod
     def from_env(cls, env_var: str = "API_SIGNING_KEY_B64") -> ApiSigner:
-        """Load key from environment variable (base64-encoded 32-byte seed)."""
+        """
+        Load key from environment variable (base64-encoded 32-byte seed).
+
+        An unset or empty variable is a configuration error: a key generated
+        here would sign requests no peer can verify. Call ``ApiSigner()`` to
+        get an ephemeral key on purpose.
+        """
         raw = os.environ.get(env_var, "")
-        if raw:
-            return cls(raw)
-        return cls()  # ephemeral key for testing
+        if not raw:
+            raise ValueError(f"{env_var} is not set; refusing to generate an ephemeral signing key")
+        return cls(raw)
 
     def sign_request(self, method: str, path: str, body: str, timestamp: int) -> str:
         """Return hex-encoded Ed25519 signature for the request."""

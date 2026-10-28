@@ -350,14 +350,13 @@ def test_from_env_uses_the_configured_key(monkeypatch):
     assert ApiSigner.from_env().public_key_b64() == ApiSigner(seed).public_key_b64()
 
 
-def test_from_env_falls_back_to_an_ephemeral_key(monkeypatch):
+def test_from_env_refuses_to_invent_a_key(monkeypatch):
     from src.security.api_signer import ApiSigner
 
     monkeypatch.delenv("API_SIGNING_KEY_B64", raising=False)
 
-    signer = ApiSigner.from_env()
-    sig = signer.sign_request("POST", "/orders", "{}", 1)
-    assert signer.verify("POST", "/orders", "{}", 1, sig) is True
+    with pytest.raises(ValueError, match="API_SIGNING_KEY_B64"):
+        ApiSigner.from_env()
 
 
 def test_no_signals_resolve_to_flat():
