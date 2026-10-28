@@ -21,7 +21,7 @@ from typing import Any
 
 import structlog
 
-from src.security.ssrf import assert_outbound_url_allowed
+from src.security.ssrf import PinnedTransport, resolve_allowed
 
 log = structlog.get_logger(__name__)
 
@@ -284,9 +284,10 @@ class IntelligenceAggregator:
 
         headers = {"X-Api-Key": self.glassnode_key}
 
-        async with httpx.AsyncClient(timeout=15.0) as client:
+        base_url, transport = await self._checked_base()
+        async with httpx.AsyncClient(timeout=15.0, transport=transport) as client:
             resp = await client.get(
-                f"{self._base_url}/transactions/transfers_volume_exchanges_net",
+                f"{base_url}/transactions/transfers_volume_exchanges_net",
                 params=params,
                 headers=headers,
             )
@@ -354,9 +355,10 @@ class IntelligenceAggregator:
         headers = {"X-Api-Key": self.glassnode_key}
 
         # Large-tx volume (all directions, no buy/sell split at this tier)
-        async with httpx.AsyncClient(timeout=15.0) as client:
+        base_url, transport = await self._checked_base()
+        async with httpx.AsyncClient(timeout=15.0, transport=transport) as client:
             resp = await client.get(
-                f"{self._base_url}/transactions/transfers_volume_large",
+                f"{base_url}/transactions/transfers_volume_large",
                 params={
                     "a": symbol.upper(),
                     "i": "24h",
@@ -475,10 +477,10 @@ class IntelligenceAggregator:
         if wait > 0:
             await asyncio.sleep(wait)
 
-    @property
-    def _base_url(self) -> str:
+    async def _checked_base(self) -> tuple[str, PinnedTransport]:
         """
-        The configured provider base URL, checked before it is used.
+        The configured provider base URL, checked before it is used, and a
+        transport pinned to the address the check vetted.
 
         API-004. This value comes from configuration rather than a request
         body, which makes an attack harder but not the control unnecessary: a
@@ -486,8 +488,13 @@ class IntelligenceAggregator:
         rewrites, and pointing it at the cloud metadata service turns a
         market-data fetch into a credential read. Checked on every use rather
         than once at startup, because runtime overrides can change it.
+
+        SEC-0017. The request goes through the returned transport, which
+        connects to the vetted address instead of letting httpx resolve the
+        name a second time, so a DNS-rebinding answer cannot redirect it.
         """
-        return assert_outbound_url_allowed(self._glassnode_base_url)
+        target = await resolve_allowed(self._glassnode_base_url)
+        return target.url, PinnedTransport(target)
 
     # -----------------------------------------------------------------------
     # Historical-range fetch methods (GAP-015 step 2)
@@ -546,9 +553,10 @@ class IntelligenceAggregator:
         headers = {"X-Api-Key": self.glassnode_key}
 
         try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
+            base_url, transport = await self._checked_base()
+            async with httpx.AsyncClient(timeout=30.0, transport=transport) as client:
                 resp = await client.get(
-                    f"{self._base_url}/transactions/transfers_volume_exchanges_net",
+                    f"{base_url}/transactions/transfers_volume_exchanges_net",
                     params=params,
                     headers=headers,
                 )
@@ -609,9 +617,10 @@ class IntelligenceAggregator:
         headers = {"X-Api-Key": self.glassnode_key}
 
         try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
+            base_url, transport = await self._checked_base()
+            async with httpx.AsyncClient(timeout=30.0, transport=transport) as client:
                 resp = await client.get(
-                    f"{self._base_url}/transactions/transfers_volume_large",
+                    f"{base_url}/transactions/transfers_volume_large",
                     params={
                         "a": symbol.upper(),
                         "i": interval,
