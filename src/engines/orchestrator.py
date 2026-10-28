@@ -85,6 +85,7 @@ ENGINE_CACHE_INPUTS: dict[str, tuple[str, ...]] = {
     "E-12": ("options",),
     "E-13": ("macro",),
     "E-14": ("sentiment",),
+    "E-17": ("orderbook",),
     "E-18": ("exchange_flows",),
 }
 
