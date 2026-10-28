@@ -2,6 +2,7 @@
 
 Decides:
   - RES-025 — regression coverage for the recorded behavior.
+  - REG-1714 — sequence members forecast from the realised return window.
 """
 
 from __future__ import annotations
@@ -99,26 +100,19 @@ class TestARIMAPredictor:
         ts = pd.Series(np.cumsum(np.random.default_rng(1).standard_normal(60)) + 100)
         p.fit(ts)
         if p.model is not None:
-            # NOTE: statsmodels' forecast() returns a Series whose index
-            # continues from the end of the training series (e.g. label 60
-            # for a 60-row fit), so the real `self.model.forecast(steps=1)[0]`
-            # label lookup raises KeyError for any non-trivial series and
-            # always falls into the except branch in practice (suspected
-            # production bug — not fixed here, out of scope for this test
-            # pass). Mock a 0-indexed forecast result to exercise the
-            # intended success path.
-            with patch.object(p.model, "forecast", return_value=pd.Series([42.0], index=[0])):
-                pred = p.predict(_make_features(1))
-            assert pred == pytest.approx(42.0)
+            pred = p.predict(_make_features(1), recent_returns=ts.to_numpy()[-30:])
+            assert np.isfinite(pred)
 
-    def test_predict_forecast_exception_returns_zero(self):
+    def test_predict_forecast_exception_is_raised_not_zeroed(self):
         p = ARIMAPredictor()
         ts = pd.Series(np.cumsum(np.random.default_rng(1).standard_normal(60)) + 100)
         p.fit(ts)
         if p.model is not None:
-            with patch.object(p.model, "forecast", side_effect=RuntimeError("boom")):
-                pred = p.predict(_make_features(1))
-            assert pred == 0.0
+            with (
+                patch.object(p.model, "apply", side_effect=RuntimeError("boom")),
+                pytest.raises(RuntimeError, match="boom"),
+            ):
+                p.predict(_make_features(1), recent_returns=ts.to_numpy()[-30:])
 
 
 # ---------------------------------------------------------------------------
@@ -255,10 +249,10 @@ class TestLSTMPredictor:
         ):
             p.fit(X, y)
         assert p.model is not None
-        pred = p.predict(X[:1].reshape(1, -1))
+        pred = p.predict(_make_features(1), recent_returns=X[0, :, 0])
         assert isinstance(pred, float)
 
-    def test_predict_exception_returns_zero(self):
+    def test_predict_exception_is_raised_not_zeroed(self):
         p = LSTMPredictor(hidden_dim=4, lookback=5, epochs=1)
         rng = np.random.default_rng(3)
         X = rng.standard_normal((30, 5, 1)).astype(np.float32)
@@ -267,9 +261,11 @@ class TestLSTMPredictor:
             "src.intelligence.ensemble_predictor._torch_fits_memory_budget", return_value=True
         ):
             p.fit(X, y)
-        with patch.object(p.model, "eval", side_effect=RuntimeError("boom")):
-            result = p.predict(X[:1].reshape(1, -1))
-        assert result == 0.0
+        with (
+            patch.object(p.model, "eval", side_effect=RuntimeError("boom")),
+            pytest.raises(RuntimeError, match="boom"),
+        ):
+            p.predict(_make_features(1), recent_returns=X[0, :, 0])
 
 
 # ---------------------------------------------------------------------------
@@ -503,7 +499,7 @@ class TestEnsemblePredictor:
             "src.intelligence.ensemble_predictor._torch_fits_memory_budget", return_value=True
         ):
             ep.fit(X, y)
-        result = ep.predict(X.iloc[:1])
+        result = ep.predict(X.iloc[:1], recent_returns=y.to_numpy())
         assert isinstance(result, EnsemblePrediction)
         assert len(result.individual_predictions) == 5
 
