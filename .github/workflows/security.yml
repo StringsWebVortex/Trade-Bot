@@ -408,9 +408,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     # Only meaningful on a pull request: the action diffs the base against the
-    # head. On push and schedule there is nothing to diff, and a job that
-    # cannot run is excused here rather than reported as a pass.
-    if: ${{ github.event_name == 'pull_request' }}
+    # head. GitHub supports dependency review for public repositories; private
+    # repositories need an eligible organization plan and Code Security. This
+    # repository is private under a personal account, where the action fails
+    # before it can inspect the diff. Keep the existing pip-audit and npm audit
+    # jobs as the private-repository fallback. Set the repository variable
+    # DEPENDENCY_REVIEW_ENABLED=true to opt an eligible private repository in.
+    if: ${{ github.event_name == 'pull_request' && (github.repository_visibility == 'public' || vars.DEPENDENCY_REVIEW_ENABLED == 'true') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -468,9 +472,10 @@ jobs:
       - name: Assert every job in this workflow succeeded
         env:
           NEEDS: ${{ toJSON(needs) }}
-          # dependency-review diffs a pull request's base against its head, so
-          # it has nothing to do on push, schedule or workflow_dispatch and
-          # skips itself there. The allowance excuses skipping only: if it
-          # runs on a pull request and fails, the gate still fails.
+          # dependency-review has no pull-request diff on push/schedule, and is
+          # unavailable on private repositories without an eligible Code
+          # Security license. Private repositories still run pip-audit and npm
+          # audit above. If enabled for an eligible private repo, failures are
+          # still fatal; this allowance accepts only the unsupported skip.
           ALLOW_SKIPPED: dependency-review
         run: python3 scripts/assert_jobs_green.py
