@@ -1794,18 +1794,18 @@ The integrated terminal adds a command-execution surface; nothing reaches it exc
 
 > layer: test-suite
 
-#### `SEC-0011` — The frontend lockfile resolves electron, follow-redirects and undici outside their high advisory ranges
+#### `SEC-0011` — The frontend lockfile resolves dependencies outside their high advisory ranges
 
 **VERIFIED** · high · security_regression · source: OPS-2026-10-25
 
-frontend's npm tree resolves electron >= 44.9.1, follow-redirects >= 1.16.2 and undici >= 7.30.1 (>= 8.12.2 on the 8.x line), so npm audit at --audit-level=high reports no fixable advisory.
+frontend's npm tree resolves electron >= 44.9.1, follow-redirects >= 1.16.2, joi >= 18.3.1 and undici >= 7.30.1 (>= 8.12.2 on the 8.x line), so npm audit at --audit-level=high reports no fixable advisory.
 
-- **If violated:** Security gate (npm audit) failed on pull requests that do not touch frontend (#498, #499) because main's lockfile resolved electron 44.7.0 (GHSA-jr5w-w6x2-84p9), follow-redirects 1.16.0 (GHSA-q3jh-wrc6-jgq8, GHSA-8r9p-f939-6h3c) and undici 7.30.0 / 8.11.2 (GHSA-4qv8-2p9j-2685, GHSA-f72v-6w45-q472), all with fixAvailable true. The later GHSA-mrwp-f3q8-3g9p also affects follow-redirects 1.16.0-1.16.1 and is fixed in 1.16.2. Measured with npm audit --json on a copy of frontend/: 3 high before; 0 high after the original floors; the new finding is cleared by the 1.16.2 lockfile resolution (4 moderate vitest advisories remain below the gate threshold).
+- **If violated:** Security gate (npm audit) failed on pull requests that do not touch frontend (#498, #499) because the lockfile resolved vulnerable electron, follow-redirects and undici versions, all with fixAvailable true. GHSA-mrwp-f3q8-3g9p affects follow-redirects 1.16.0-1.16.1 and is fixed in 1.16.2. GHSA-4528-x5fx-h6hg affects joi 18.0.0-18.3.0 and is fixed in 18.3.1. The lockfile floors clear these findings; 4 moderate vitest advisories remain below the gate threshold.
 - **Owned by:** `frontend/package.json`, `.github/workflows/security.yml`
 - **Verification:**
   - `tests/test_frontend_audit_scope.py` (unit)
 
-> Lockfile refresh via npm install --package-lock-only plus npm update of the three packages; the only manifest change is the electron floor. The follow-redirects floor is kept at 1.16.2 for GHSA-mrwp-f3q8-3g9p. The gate was not changed. layer: supply-chain
+> Lockfile refresh via npm install --package-lock-only plus npm update of vulnerable transitive packages; the manifest is unchanged. follow-redirects is kept at 1.16.2 for GHSA-mrwp-f3q8-3g9p and joi at 18.3.1 for GHSA-4528-x5fx-h6hg. The gate was not changed. layer: supply-chain
 
 #### `SEC-0012` — The runtime manifest never resolves a vulnerable filelock
 
