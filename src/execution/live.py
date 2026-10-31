@@ -636,7 +636,13 @@ class LiveExecutor(AbstractExecutor):
                     f"Close order for {pos.symbol} overfilled tracked quantity: "
                     f"{filled_qty} > {pos.quantity}"
                 )
-            consumed_qty = min(pos.quantity, filled_qty + base_fee_qty)
+            consumed_qty = filled_qty + base_fee_qty
+            if consumed_qty > pos.quantity + fill_tolerance:
+                raise RuntimeError(
+                    f"Close fill plus base-asset fee exceeds tracked {pos.symbol} "
+                    f"quantity: {consumed_qty} > {pos.quantity}"
+                )
+            consumed_qty = min(pos.quantity, consumed_qty)
             remaining_qty = max(0.0, pos.quantity - consumed_qty)
             # Never promote a 99.9%-or-better fill to a full close: any real
             # residual remains an open position until it is sold or reconciled.
