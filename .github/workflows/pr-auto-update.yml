@@ -160,16 +160,16 @@ jobs:
           HAS_TOKEN: ${{ secrets.PR_AUTOUPDATE_TOKEN != '' && '1' || '' }}
 
   # Resolving a merge conflict is a person's job, and this does not pretend
-  # otherwise. It resolves exactly one shape of conflict: the one where every
-  # conflicted path is a **generated** file, so a script produces the correct
-  # answer and no judgement is being exercised. Anything else is left alone.
+  # otherwise. It resolves generated outputs and the legacy registry-contract
+  # pins only when a script can produce the correct answer without discarding
+  # behavioral changes. Anything else is left alone.
   #
-  # That shape used to be the common one: `docs/quality/REQUIREMENTS_TRACEABILITY.md`
-  # was generated from `config/quality_registry.json` and committed, and every
-  # pull request that added a registry entry regenerated the whole file -- so
-  # any two of them conflicted, always. GOV-071 removed the cause: new entries
-  # are one file each under `config/quality_registry.d/` and the document is
-  # no longer committed. What remains here handles branches from before that.
+  # That shape is not a corner case here. `docs/quality/REQUIREMENTS_TRACEABILITY.md`
+  # is generated from `config/quality_registry.json`, and every pull request
+  # that adds a registry entry regenerates the whole file -- so any two of them
+  # conflict, always, no matter how unrelated the entries are. Before this job
+  # existed that made a registry entry cost a manual rebase per pull request
+  # ahead of it in the queue.
   #
   # The dangerous file is the one that does *not* conflict. Git merges the
   # registry JSON cleanly and can still produce a document that the loader
@@ -190,11 +190,12 @@ jobs:
           # The whole history: a merge needs the merge base, and a shallow
           # checkout does not have it.
           fetch-depth: 0
-          # Same PAT, for the same reason as the job above -- a push made with
-          # GITHUB_TOKEN starts no workflow run, so the pull request would end
-          # up resolved, green-looking against its previous head, and
-          # unmergeable.
-          token: ${{ secrets.PR_AUTOUPDATE_TOKEN }}
+          # OPS-001: this checkout runs with the read-only GITHUB_TOKEN and
+          # keeps no credential in .git/config. The job executes scripts taken
+          # from the pull request branch, so nothing it runs may be able to
+          # read the PAT. The PAT is handed only to the final push step, which
+          # runs no repository code.
+          persist-credentials: false
 
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
@@ -203,7 +204,8 @@ jobs:
       # No `pip install`. Both generators and the gate are stdlib-only, and a
       # job that does not import the project does not install it (GOV-015).
 
-      - name: Merge main, regenerate what is generated, push
+      - name: Merge main, regenerate what is generated
+        id: merge
         env:
           PR: ${{ needs.update-next.outputs.resolve_pr }}
           HEAD_REF: ${{ needs.update-next.outputs.resolve_ref }}
@@ -212,15 +214,17 @@ jobs:
 
           git config user.name 'pr-auto-update[bot]'
           git config user.email 'pr-auto-update[bot]@users.noreply.github.com'
-          git fetch --no-tags origin main
+          # origin/main came with the full-history checkout above; there is no
+          # credential left in the repository to fetch with.
 
           before="$(git rev-parse HEAD)"
 
-          if git merge --no-edit origin/main; then
+          if git merge --no-commit --no-ff origin/main; then
             # GitHub said `dirty`, git disagrees. Mergeability is computed
             # asynchronously and can be stale. A clean merge is still worth
             # pushing; an empty one is worth nothing.
-            if [ "${before}" = "$(git rev-parse HEAD)" ]; then
+            if [ "${before}" = "$(git rev-parse HEAD)" ] \
+              && ! git rev-parse -q --verify MERGE_HEAD >/dev/null; then
               echo "::notice::#${PR} was already up to date. Nothing pushed."
               exit 0
             fi
@@ -239,6 +243,7 @@ jobs:
               [ -n "${path}" ] || continue
               case "${path}" in
                 docs/quality/REQUIREMENTS_TRACEABILITY.md|docs/MATH_FOUNDATIONS.md) ;;
+                codebase-analysis-docs/FILE_INDEX.md|tests/regression/test_regression_registry_contract.py) ;;
                 # Not generated, but mergeable by meaning: two branches that
                 # each register an entry collide on the array's tail although
                 # their ids differ. Resolved per entry id below, where a real
@@ -252,6 +257,28 @@ jobs:
               esac
             done <<< "${conflicted}"
 
+            # FILE_INDEX is generated from the merged tracked tree. Use main's
+            # clean document as the metadata template, then refresh it after
+            # all paths are resolved so files from both branches are included.
+            if grep -qx 'codebase-analysis-docs/FILE_INDEX.md' <<< "${conflicted}"; then
+              git show origin/main:codebase-analysis-docs/FILE_INDEX.md > codebase-analysis-docs/FILE_INDEX.md
+              git add -- codebase-analysis-docs/FILE_INDEX.md
+            fi
+
+            # This older test duplicated registry ids and layer totals in
+            # literals, forcing every registry PR to edit the same lines. The
+            # current test derives these expectations from the registry. Keep
+            # main's dynamic assertions only if the PR-side changes are limited
+            # to additive legacy pins; the resolver refuses any behavioral edit.
+            if grep -qx 'tests/regression/test_regression_registry_contract.py' <<< "${conflicted}"; then
+              if ! python3 scripts/resolve_registry_contract_merge.py; then
+                git merge --abort
+                echo "::notice::#${PR} changed registry-contract test behavior beyond legacy pins. Leaving it for a person."
+                exit 0
+              fi
+              git add -- tests/regression/test_regression_registry_contract.py
+            fi
+
             if grep -qx 'config/quality_registry.json' <<< "${conflicted}"; then
               if ! python3 scripts/resolve_registry_merge.py config/quality_registry.json; then
                 git merge --abort
@@ -259,9 +286,8 @@ jobs:
                 exit 0
               fi
               git add -- config/quality_registry.json
-              # Render the traceability document from the merged registry: the
-              # strict loader behind it is what refuses a bad merge. The
-              # document itself is no longer committed (GOV-071).
+              # The traceability document is generated from the registry, so it
+              # is regenerated whether or not git managed to merge its text.
               python3 scripts/generate_quality_docs.py --check
             fi
 
@@ -272,12 +298,13 @@ jobs:
               [ -n "${path}" ] || continue
               case "${path}" in
                 docs/quality/REQUIREMENTS_TRACEABILITY.md)
-                  # A branch from before GOV-071 still carries it; main does
-                  # not, so the merge drops it rather than regenerating it.
+                  # GOV-071: the rendered traceability document is no longer tracked.
                   git rm -q --cached --ignore-unmatch -- "${path}"
                   continue ;;
                 docs/MATH_FOUNDATIONS.md)
                   python3 scripts/generate_math_docs.py ;;
+                codebase-analysis-docs/FILE_INDEX.md) ;;
+                tests/regression/test_regression_registry_contract.py) ;;
                 config/quality_registry.json) ;;
               esac
               git add -- "${path}"
@@ -288,8 +315,14 @@ jobs:
               exit 1
             fi
 
-            git commit --no-edit
           fi
+
+          # Both generated documents derive from the merged tree. They can be
+          # stale even when Git merged their text without a conflict, so refresh
+          # them on every branch update before running the gate.
+          python3 scripts/generate_quality_docs.py --check
+          python3 scripts/codebase_knowledge_index.py --refresh-file-index
+          git add -- codebase-analysis-docs/FILE_INDEX.md
 
           # The gate, on both paths, before any push. A conflict is not the
           # only way a merge goes wrong here -- `config/quality_registry.json`
@@ -304,7 +337,25 @@ jobs:
             exit 1
           fi
 
-          git push origin "HEAD:${HEAD_REF}"
+          git commit --no-edit
+
+          echo "push=true" >> "${GITHUB_OUTPUT}"
+
+      # OPS-001: the only step that sees the PAT. It executes no file from the
+      # checked-out branch -- only git itself -- so branch code cannot reach it.
+      - name: Push
+        if: steps.merge.outputs.push == 'true'
+        env:
+          PAT: ${{ secrets.PR_AUTOUPDATE_TOKEN }}
+          PR: ${{ needs.update-next.outputs.resolve_pr }}
+          HEAD_REF: ${{ needs.update-next.outputs.resolve_ref }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          auth="$(printf 'x-access-token:%s' "${PAT}" | base64 -w0)"
+          echo "::add-mask::${auth}"
+          git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic ${auth}" \
+            push "https://github.com/${REPO}.git" "HEAD:${HEAD_REF}"
           echo "::notice::#${PR} brought up to date with main and pushed."
 
 # No `gate` job. The gate law covers workflows that run on `pull_request`,
