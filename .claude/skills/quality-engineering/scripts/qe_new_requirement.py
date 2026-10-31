@@ -269,7 +269,12 @@ def main(argv: list[str] | None = None) -> int:
     target = OVERLAY_DIR / f"{entry['id']}.json"
     target.write_text(json.dumps(entry, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     print(f"[ok  ] added {entry['id']} ({entry['kind']}, {entry['status']})")
-    print(f"       in {target.relative_to(REPO)}; next: write the test that decides it")
+    try:
+        display_target = target.relative_to(REPO)
+    except ValueError:
+        # Tests and callers may point the scaffolder at an isolated temp tree.
+        display_target = target
+    print(f"       in {display_target}; next: write the test that decides it")
     return 0
 
 
