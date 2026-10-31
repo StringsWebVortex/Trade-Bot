@@ -624,11 +624,24 @@ class LiveExecutor(AbstractExecutor):
                     f"Close order for {pos.symbol} ({trade_id}) filled 0; position not closed."
                 )
 
-            # EXR-007: a partial close settles only the filled share of the
-            # position. The residual stays open (and tracked) rather than
-            # being booked closed with its notional credited to cash.
-            is_partial = filled_qty < pos.quantity * 0.999
-            close_frac = min(1.0, filled_qty / pos.quantity) if is_partial else 1.0
+            # A base-denominated sell fee also consumes inventory. Track the
+            # actual remaining balance, not just the order's filled field.
+            base_asset = pos.symbol.split("/")[0].upper()
+            base_fee_qty = (
+                self._base_fee_qty(order, base_asset) if pos.direction == 1 else 0.0
+            )
+            fill_tolerance = max(1e-12, pos.quantity * 1e-9)
+            if filled_qty > pos.quantity + fill_tolerance:
+                raise RuntimeError(
+                    f"Close order for {pos.symbol} overfilled tracked quantity: "
+                    f"{filled_qty} > {pos.quantity}"
+                )
+            consumed_qty = min(pos.quantity, filled_qty + base_fee_qty)
+            remaining_qty = max(0.0, pos.quantity - consumed_qty)
+            # Never promote a 99.9%-or-better fill to a full close: any real
+            # residual remains an open position until it is sold or reconciled.
+            is_partial = remaining_qty > fill_tolerance
+            close_frac = consumed_qty / pos.quantity
             if is_partial:
                 self._log.critical(
                     "live.close_order_partial_fill_residual_kept_open",
@@ -636,40 +649,44 @@ class LiveExecutor(AbstractExecutor):
                     symbol=pos.symbol,
                     requested_qty=pos.quantity,
                     filled_qty=filled_qty,
-                    residual_qty=pos.quantity - filled_qty,
+                    base_fee_qty=base_fee_qty,
+                    residual_qty=remaining_qty,
                 )
             closed_notional = pos.notional_usd * close_frac
             closed_entry_fee = pos.fee_usd * close_frac
-            exchange_fee = self._extract_fee(order, actual_exit_price, filled_qty)
+            exchange_fee = self._extract_fee(
+                order, actual_exit_price, filled_qty, base_asset=base_asset
+            )
+            # Base fees are paid in inventory; their cost basis is included
+            # in consumed_qty. Only quote-denominated fees reduce cash again.
+            quote_fee_usd = max(0.0, exchange_fee - base_fee_qty * actual_exit_price)
 
             exit_ts = int(datetime.now(tz=UTC).timestamp() * 1000)
 
             if pos.direction == 1:
-                gross_pnl = (actual_exit_price - pos.entry_price) * filled_qty
+                gross_pnl = (
+                    (actual_exit_price - pos.entry_price) * filled_qty
+                    - pos.entry_price * base_fee_qty
+                )
             else:
                 gross_pnl = (pos.entry_price - actual_exit_price) * filled_qty
 
-            # Both legs. pos.fee_usd is the fee the exchange charged on entry;
-            # leaving it out overstated every recorded trade by half its
-            # round-trip cost, and that number drives compute_win_loss_stats
-            # into Kelly, the Sharpe and Sortino behind capital allocation,
-            # and the out-of-sample bar the live gate checks.
-            total_fee = closed_entry_fee + exchange_fee
-            net_pnl = gross_pnl - total_fee
+            # Entry fees were charged and persisted at entry. Allocate their
+            # realised share to PnL, but persist only the new exit fee here.
+            net_pnl = gross_pnl - closed_entry_fee - quote_fee_usd
             pnl_pct = net_pnl / closed_notional if closed_notional > 0 else 0.0
 
             async with self._lock:
                 if is_partial:
-                    pos.quantity -= filled_qty
+                    pos.quantity = remaining_qty
                     pos.notional_usd -= closed_notional
                     pos.fee_usd -= closed_entry_fee
                     pos.mark(actual_exit_price)
                 else:
                     self._positions.pop(trade_id, None)
-                # Not net_pnl: the entry fee already left the balance at open
-                # (self._cash -= notional + entry_fee), so charging it again
-                # here would double-count it and drain equity over time.
-                self._cash += closed_notional + gross_pnl - exchange_fee
+                # Credit only actual quote proceeds. The base fee has already
+                # been accounted for by consuming that quantity from inventory.
+                self._cash += closed_notional + gross_pnl - quote_fee_usd
                 equity = self._equity_usd()
                 self._peak_equity = max(self._peak_equity, equity)
                 self._drawdown_tracker.update(equity)
@@ -682,7 +699,14 @@ class LiveExecutor(AbstractExecutor):
                 snap_dd_pct = self._drawdown_tracker.drawdown_from_peak_pct
                 snap_peak = self._peak_equity
 
-            if not is_partial:
+            if is_partial:
+                await self._storage.record_trade_partial_exit(
+                    trade_id=trade_id,
+                    exit_price=actual_exit_price,
+                    pnl_usd=round(net_pnl, 8),
+                    fee_usd=round(exchange_fee, 8),
+                )
+            else:
                 await self._storage.update_trade_exit(
                     trade_id=trade_id,
                     exit_price=actual_exit_price,
@@ -690,8 +714,7 @@ class LiveExecutor(AbstractExecutor):
                     pnl_usd=round(net_pnl, 8),
                     pnl_pct=round(pnl_pct, 8),
                     exit_reason=exit_reason,
-                    # Both legs, matching pnl_usd above.
-                    fee_usd=round(total_fee, 8),
+                    fee_usd=round(exchange_fee, 8),
                 )
             await self._snapshot_equity_with_values(
                 equity=snap_equity,
