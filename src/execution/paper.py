@@ -378,11 +378,8 @@ class PaperExecutor(AbstractExecutor):
                 meta_label_prob,
                 raw_signal,
             )
-            # EXR-018: bounded wait. An unbounded one stalled the tick loop and
-            # filled at the original, possibly hours-old, price and quantity.
-            approved, operator = await self._await_approval(
-                req_id, self._risk_cfg.approval_timeout_s
-            )
+            # Wait indefinitely (no timeout in MANUAL — operator must decide)
+            approved, operator = await self._await_approval(req_id, timeout_s=None)
             if not approved:
                 return None, "rejected"
             trade_id = await self._open_position_internal(
@@ -421,12 +418,8 @@ class PaperExecutor(AbstractExecutor):
         keeps the failure direction consistent: paper never invents a cost it
         cannot estimate, and never silently drops one it can.
         """
-        if pos.quantity <= 0.0 or marked_price <= 0.0:
+        if pos.adv_20d_at_entry <= 0.0 or pos.quantity <= 0.0 or marked_price <= 0.0:
             return marked_price
-        if pos.adv_20d_at_entry <= 0.0:
-            # EXR-014: unknown liquidity fails closed to the default spread cost.
-            adj = marked_price * (self._risk_cfg.slippage_default_spread_bps / 10_000.0)
-            return marked_price - adj if pos.direction == 1 else marked_price + adj
         try:
             estimate = SlippageModel().estimate(
                 symbol=pos.symbol,
@@ -764,8 +757,12 @@ class PaperExecutor(AbstractExecutor):
         return [req.to_dict() for req in self._approval_queue.values() if not req.resolved]
 
     def pending_approvals(self) -> list[dict[str, object]]:
-        """Return all unresolved approval requests as dicts for the API."""
-        return self._pending_approvals_unsafe()
+        """Unresolved approval requests as dicts (read-only; never prunes).
+
+        Pruning of stale resolved entries mutates ``_approval_queue`` and is
+        left to the lock-holding path (``_pending_approvals_unsafe``).
+        """
+        return [req.to_dict() for req in list(self._approval_queue.values()) if not req.resolved]
 
     async def open_positions_safe(self) -> list[dict[str, object]]:
         """
@@ -957,12 +954,7 @@ class PaperExecutor(AbstractExecutor):
 
         # GAP-011: simulate realistic fill price via SlippageModel (same model as gate 0)
         simulated_fill_price = current_price
-        if adv_20d <= 0.0 and current_price > 0.0:
-            # EXR-014: submit_signal never supplies ADV; fail closed to the
-            # default half-spread cost rather than a free fill.
-            _fb = current_price * (self._risk_cfg.slippage_default_spread_bps / 10_000.0)
-            simulated_fill_price = current_price + _fb if direction == 1 else current_price - _fb
-        elif adv_20d > 0.0 and kelly_result.quantity > 0.0:
+        if adv_20d > 0.0 and kelly_result.quantity > 0.0:
             try:
                 _slip = SlippageModel().estimate(
                     symbol=symbol,

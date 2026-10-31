@@ -7,7 +7,7 @@ requires() and src/api/access_control.py. With only API_SECRET_KEY configured
 every valid key holds that role, so the gates are inert until the optional
 API_READONLY_KEY is set.
 
-Endpoints:
+Endpoints (illustrative, not exhaustive; /openapi.json lists every route):
   GET  /health                     — system health + storage counts
   GET  /status                     — equity, positions, regime, execution mode
   GET  /trades                     — paginated trade history
@@ -38,7 +38,6 @@ import os
 import re
 import time
 from collections.abc import AsyncIterator, Callable, Iterable
-from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from functools import lru_cache
@@ -61,14 +60,13 @@ from pydantic import BaseModel, Field, field_validator
 
 from common.command_schema import redact
 from src.api import runtime_control
-from src.api.access_control import Permission, Role, require_permission, role_has_permission
+from src.api.access_control import Permission, Role, require_permission
 from src.api.auth import verify_api_key, verify_ws_key
 from src.api.control_surface import ControlWriteError, apply_control, build_control_surface
-from src.api.error_hygiene import GENERIC_ERROR_DETAIL, install_error_handlers
+from src.api.error_hygiene import install_error_handlers
 from src.api.fail_closed import (
     CONTROL_HEALTH,
     UNAVAILABLE_DETAIL,
-    SecurityControl,
     SecurityControlUnavailable,
     mark_all_healthy,
 )
@@ -325,24 +323,7 @@ class AppState:
             return TOPICS - _OPERATOR_ONLY_TOPICS
         return TOPICS
 
-    # API-010: a peer that cannot take a frame within this long is dropped, so
-    # one stalled socket cannot hold the fan-out (and every other dashboard).
-    _WS_SEND_TIMEOUT_S: float = 5.0
-
-    async def _send_one(self, client: WebSocket, message: str) -> bool:
-        try:
-            await asyncio.wait_for(client.send_text(message), timeout=self._WS_SEND_TIMEOUT_S)
-        except Exception:
-            return False
-        return True
-
-    async def broadcast(
-        self,
-        payload: dict[str, Any],
-        topic: str | None = None,
-        *,
-        operator_only_fields: tuple[str, ...] = (),
-    ) -> int:
+    async def broadcast(self, payload: dict[str, Any], topic: str | None = None) -> int:
         """
         Push one message to every connected dashboard. Returns how many got it.
 
@@ -397,27 +378,14 @@ class AppState:
         }
 
         message = json.dumps(payload)
-        # API-006: fields only an operator-capable key may see are stripped for
-        # the rest -- two serializations in total, not one per client.
-        restricted_message = (
-            json.dumps({k: v for k, v in payload.items() if k not in operator_only_fields})
-            if operator_only_fields
-            else message
-        )
-        # API-010: sends run concurrently, each bounded by a timeout.
-        outbound = [
-            message
-            if role_has_permission(
-                self._ws_roles.get(client, Role.READ_ONLY), Permission.APPROVE_TRADE
-            )
-            else restricted_message
-            for client in clients
-        ]
-        results = await asyncio.gather(
-            *(self._send_one(c, m) for c, m in zip(clients, outbound, strict=True))
-        )
-        delivered = sum(1 for ok in results if ok)
-        dead: list[WebSocket] = [c for c, ok in zip(clients, results, strict=True) if not ok]
+        delivered = 0
+        dead: list[WebSocket] = []
+        for client in clients:
+            try:
+                await client.send_text(message)
+                delivered += 1
+            except Exception:
+                dead.append(client)
 
         for client in dead:
             await self.remove_ws_client(client)
@@ -425,9 +393,7 @@ class AppState:
             log.info("api.ws_broadcast_dropped", dropped=len(dead), delivered=delivered)
         return delivered
 
-    def check_endpoint_rate_limit(
-        self, endpoint: str, client_ip: str = "", *, limit: int | None = None
-    ) -> None:
+    def check_endpoint_rate_limit(self, endpoint: str, client_ip: str = "") -> None:
         """
         Raise HTTP 429 if endpoint has been called too many times per minute.
 
@@ -435,9 +401,7 @@ class AppState:
         rate budget for all other clients.
         M-12: prune stale IP entries to prevent unbounded dict growth under
         rotating-IP attacks.
-        API-015: ``limit`` lowers the per-minute budget for an expensive endpoint.
         """
-        max_hits = self._ENDPOINT_LIMIT if limit is None else min(limit, self._ENDPOINT_LIMIT)
         key = f"{endpoint}:{client_ip}"
         now = time.monotonic()
         # M-12: prune expired entries before adding a new one
@@ -452,10 +416,10 @@ class AppState:
         # Evict timestamps outside the window (O(1) per pop from left)
         while dq and now - dq[0] >= self._ENDPOINT_WINDOW_S:
             dq.popleft()
-        if len(dq) >= max_hits:
+        if len(dq) >= self._ENDPOINT_LIMIT:
             raise HTTPException(
                 status_code=429,
-                detail=f"Rate limit exceeded for {endpoint} ({max_hits}/min).",
+                detail=f"Rate limit exceeded for {endpoint} ({self._ENDPOINT_LIMIT}/min).",
             )
         dq.append(now)
 
@@ -644,7 +608,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # SCAN3-012: validate_cors_config moved inside lifespan so misconfiguration
     # raises at startup time, not at import time (which caused confusing traces
     # in test suites and deployment tooling that imports the module for route inspection).
-    validate_cors_config(cfg.api.cors_origins, allow_credentials=True)
+    validate_cors_config(cfg.api.cors_origins, allow_credentials=False)
     # Security: warn loudly if binding outside loopback without TLS proxy
     if cfg.api.host not in ("127.0.0.1", "::1", "localhost"):
         has_tls = bool(os.environ.get("HTTPS_CERT", "").strip())
@@ -793,13 +757,6 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                 task.cancel()
             await asyncio.gather(*ws_tasks, return_exceptions=True)
 
-        # Close the subscription before cancelling, so the fan-out loop's
-        # `async for` ends on its own rather than being torn out of an await.
-        ws_subscription.close()
-        trace_subscription.close()
-        for task in ws_tasks:
-            task.cancel()
-        await asyncio.gather(*ws_tasks, return_exceptions=True)
         if _state.runtime_upgrades is not None:
             _state.runtime_upgrades.close()
         if _state.runtime is not None:
@@ -854,7 +811,7 @@ app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cfg.api.cors_origins,
-    allow_credentials=True,
+    allow_credentials=False,  # auth is header-based (X-API-Key); no cookies (API-024)
     # M-06: restrict to actual HTTP methods used — GET and POST only
     allow_methods=["GET", "POST"],
     allow_headers=["x-api-key", "content-type"],
@@ -930,23 +887,6 @@ def require_healthy_security_controls() -> None:
     except SecurityControlUnavailable as exc:
         log.error("api.security_control_degraded", degraded=sorted(c.value for c in exc.degraded))
         raise HTTPException(status_code=503, detail=UNAVAILABLE_DETAIL) from exc
-
-
-async def _audit_event(storage: Any, **event: Any) -> Any:
-    """
-    API-008 -- write an audit event and report the audit control's health.
-
-    A failed write closes every trading endpoint (AUDIT_LOGGING degraded)
-    until a later write succeeds; the failure itself still propagates, so the
-    caller that needed the audit trail does not proceed without it.
-    """
-    try:
-        result = await storage.insert_audit_event(**event)
-    except Exception as exc:
-        CONTROL_HEALTH.mark_degraded(SecurityControl.AUDIT_LOGGING, type(exc).__name__)
-        raise
-    CONTROL_HEALTH.mark_healthy(SecurityControl.AUDIT_LOGGING)
-    return result
 
 
 def require_ready() -> None:
@@ -1254,7 +1194,7 @@ async def prometheus_metrics() -> Any:
 
 
 @app.get("/status", dependencies=[Depends(api_key_header), Depends(require_ready)])
-async def status(role: Role = Depends(resolve_role)) -> dict[str, Any]:
+async def status() -> dict[str, Any]:
     """Current equity, open positions, regime, execution mode."""
     from src.diagnostics.signal_debugger import get_degradation_tracker
 
@@ -1301,10 +1241,7 @@ async def status(role: Role = Depends(resolve_role)) -> dict[str, Any]:
         "cash_usd": round(cash_usd, 2),
         "starting_capital_usd": cfg.starting_capital_usd,
         "open_positions": positions,
-        # API-006: the queue is withheld from a read-only key (as on /ws).
-        "pending_approvals": (
-            approvals if role_has_permission(role, Permission.APPROVE_TRADE) else []
-        ),
+        "pending_approvals": approvals,
         "regime": regime_dict,
         "predictions": get_degradation_tracker(cfg.primary_timeframe.value).prediction_stats(),
         "degradation_report": get_degradation_tracker(
@@ -1511,14 +1448,7 @@ async def crypto_box_status() -> dict[str, Any]:
     }
 
 
-@app.get(
-    "/approvals",
-    dependencies=[
-        Depends(api_key_header),
-        Depends(requires(Permission.APPROVE_TRADE)),
-        Depends(require_ready),
-    ],
-)
+@app.get("/approvals", dependencies=[Depends(api_key_header), Depends(require_ready)])
 async def approvals() -> dict[str, Any]:
     """All pending approval requests."""
     orchestrator = require_orchestrator()
@@ -1644,8 +1574,7 @@ async def set_execution_mode(body: SetExecutionModeRequest) -> dict[str, Any]:
     # finds the bot trading after a restart has no reason to.
     save_execution_mode(new_mode)
 
-    await _audit_event(
-        _state.storage,
+    await _state.storage.insert_audit_event(
         event_type="execution_mode_change",
         operator=body.operator,
         details={"old_mode": old_mode, "new_mode": new_mode.value},
@@ -1730,8 +1659,7 @@ async def set_risk_controls(body: SetRiskControlsRequest, request: Request) -> d
         trailing_stop_pct=body.trailing_stop_pct,
     )
 
-    await _audit_event(
-        _state.storage,
+    await _state.storage.insert_audit_event(
         event_type="risk_controls_change",
         operator=body.operator,
         details={"old": old_controls, "new": new_controls},
@@ -1850,7 +1778,6 @@ async def self_tuning_status() -> dict[str, Any]:
     "/self-tuning/pause",
     dependencies=[
         Depends(requires(Permission.CHANGE_EXECUTION_MODE)),
-        Depends(require_healthy_security_controls),
         Depends(require_ready),
     ],
     responses={
@@ -1880,7 +1807,6 @@ async def self_tuning_pause(body: SelfTuningPauseRequest, request: Request) -> d
     "/self-tuning/resume",
     dependencies=[
         Depends(requires(Permission.CHANGE_EXECUTION_MODE)),
-        Depends(require_healthy_security_controls),
         Depends(require_ready),
     ],
     responses={
@@ -1906,7 +1832,6 @@ async def self_tuning_resume(body: SelfTuningPauseRequest, request: Request) -> 
     "/self-tuning/rollback/{param_name}",
     dependencies=[
         Depends(requires(Permission.CHANGE_EXECUTION_MODE)),
-        Depends(require_healthy_security_controls),
         Depends(require_ready),
     ],
     responses={
@@ -2021,7 +1946,7 @@ async def _heartbeat_loop() -> None:
                 continue  # Nobody is watching; do not pay for the snapshot.
             payload = await _build_tick_snapshot()
             if payload is not None:
-                await _state.broadcast(payload, operator_only_fields=("pending_approvals",))
+                await _state.broadcast(payload)
         except asyncio.CancelledError:
             raise
         except Exception as exc:  # pragma: no cover - loop must outlive a bad beat
@@ -2121,9 +2046,6 @@ async def websocket_endpoint(ws: WebSocket) -> None:
         # broken dashboard rather than a young one.
         snapshot = await _build_tick_snapshot()
         if snapshot is not None:
-            if not role_has_permission(role, Permission.APPROVE_TRADE):
-                # API-006: the approval queue is operator-only on every path.
-                snapshot = {k: v for k, v in snapshot.items() if k != "pending_approvals"}
             await ws.send_text(json.dumps(snapshot))
 
         # Nothing else to do on this task. The shared loops do the pushing;
@@ -2473,11 +2395,6 @@ async def debug_reconcile() -> dict[str, Any]:
     }
 
 
-_SELFTEST_LIMIT_PER_MIN = 2
-_SELFTEST_EXECUTOR = ThreadPoolExecutor(max_workers=1, thread_name_prefix="selftest")
-_SELFTEST_GATE = asyncio.Lock()
-
-
 @app.post(
     "/debug/selftest",
     dependencies=[Depends(api_key_header)],
@@ -2502,19 +2419,12 @@ async def debug_selftest(request: Request) -> dict[str, Any]:
     """
     from src.features.selftest import run_pipeline_selftest
 
-    # API-015: a low per-IP limit, and a single in-flight run (whoever asks)
-    # on a dedicated worker, so the default executor the trading path uses is
-    # never occupied and many client addresses cannot multiply the CPU cost.
     _state.check_endpoint_rate_limit(
-        "debug_selftest",
-        request.client.host if request.client else "",
-        limit=_SELFTEST_LIMIT_PER_MIN,
+        "debug_selftest", request.client.host if request.client else ""
     )
-    if _SELFTEST_GATE.locked():
-        raise HTTPException(status_code=429, detail="A self-test is already running.")
-    async with _SELFTEST_GATE:
-        loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(_SELFTEST_EXECUTOR, run_pipeline_selftest)
+    loop = asyncio.get_running_loop()
+    result = await loop.run_in_executor(None, run_pipeline_selftest)
+    return result
 
 
 @app.get("/orders/{order_id}/status", tags=["execution"], dependencies=[Depends(api_key_header)])
@@ -2678,7 +2588,6 @@ async def recovery_status() -> dict[str, Any]:
     tags=["execution"],
     dependencies=[
         Depends(requires(Permission.CHANGE_EXECUTION_MODE)),
-        Depends(require_healthy_security_controls),
         Depends(require_ready),
     ],
     responses={
@@ -2707,8 +2616,7 @@ async def recovery_acknowledge(
 
     discrepancies = executor.recovery_discrepancies
     cleared = executor.acknowledge_recovery(body.operator)
-    await _audit_event(
-        _state.storage,
+    await _state.storage.insert_audit_event(
         event_type="recovery_acknowledged",
         operator=body.operator,
         details={
@@ -2766,7 +2674,7 @@ async def models_status() -> dict[str, Any]:
         else:
             entry["artifact_count"] = 0
 
-    return {"model_dir": str(model_dir), "timeframes": status}
+    return {"timeframes": status}
 
 
 @app.post(
@@ -2774,7 +2682,6 @@ async def models_status() -> dict[str, Any]:
     tags=["models"],
     dependencies=[
         Depends(requires(Permission.CHANGE_EXECUTION_MODE)),
-        Depends(require_healthy_security_controls),
         Depends(require_ready),
     ],
     responses={
@@ -2801,8 +2708,7 @@ async def trigger_retrain(body: RetrainRequest, request: Request) -> dict[str, A
             detail=f"A retrain is already running for timeframe={tf.value}.",
         )
 
-    await _audit_event(
-        _state.storage,
+    await _state.storage.insert_audit_event(
         event_type="manual_retrain_started",
         operator=body.operator,
         details={"timeframe": tf.value},
@@ -2836,7 +2742,6 @@ def _report_retrain(orchestrator: Orchestrator, tf: Timeframe, operator: str) ->
     tags=["data"],
     dependencies=[
         Depends(requires(Permission.CHANGE_EXECUTION_MODE)),
-        Depends(require_healthy_security_controls),
         Depends(require_ready),
     ],
     responses={
@@ -2935,7 +2840,6 @@ async def capital_floor() -> dict[str, Any]:
     tags=["risk"],
     dependencies=[
         Depends(requires(Permission.CHANGE_EXECUTION_MODE)),
-        Depends(require_healthy_security_controls),
         Depends(require_ready),
     ],
     responses={
@@ -2976,8 +2880,7 @@ async def capital_floor_re_authorize(
             detail=f"No capital-preservation floor for timeframe={tf.value}.",
         )
 
-    await _audit_event(
-        _state.storage,
+    await _state.storage.insert_audit_event(
         event_type="capital_floor_re_authorized",
         operator=body.operator,
         details={"timeframe": tf.value, "reason": body.reason, "at_ms": at_ms},
@@ -3201,8 +3104,7 @@ async def re_enable_strategy(
         body.operator,
         "re-enabled through the promotion gauntlet" + (" (forced)" if body.force else ""),
     )
-    await _audit_event(
-        _state.storage,
+    await _state.storage.insert_audit_event(
         event_type="strategy_re_enabled",
         operator=body.operator,
         details={"strategy_id": strategy_id, "forced": body.force},
@@ -3271,6 +3173,8 @@ async def get_strategy_portfolio(timeframe: str | None = None) -> dict[str, Any]
     orch = _state.orchestrator
     if orch is None:
         return {"evaluations": {}, "reason": "orchestrator_not_started"}
+    if timeframe is not None:
+        timeframe = _parse_timeframe_or_400(timeframe).value
     payload = orch.portfolio_evaluation(timeframe)
     if timeframe is not None:
         return {"timeframe": timeframe, "evaluation": payload}
@@ -3404,9 +3308,7 @@ async def get_performance_drift() -> dict[str, Any]:
     try:
         return _state.orchestrator._drift_adapter.check_drift()
     except Exception as exc:
-        # API-009: log the cause; the 200 body must not carry DSNs or paths.
-        log.warning("api.endpoint_failed", endpoint="drift_status", error=str(exc), exc_info=True)
-        return {"error": GENERIC_ERROR_DETAIL}
+        return {"error": str(exc)}
 
 
 @app.get("/intelligence/coverage", tags=["intelligence"], dependencies=[Depends(api_key_header)])
@@ -3443,11 +3345,7 @@ async def get_intelligence_coverage() -> dict:
         cov = await storage.intelligence_feature_coverage(symbol, timeframe)
         return {"symbol": symbol, "timeframe": timeframe, **cov}
     except Exception as exc:
-        # API-009: log the cause; the 200 body must not carry DSNs or paths.
-        log.warning(
-            "api.endpoint_failed", endpoint="intelligence_coverage", error=str(exc), exc_info=True
-        )
-        return {"error": GENERIC_ERROR_DETAIL}
+        return {"error": str(exc)}
 
 
 @app.get("/intelligence/providers", tags=["intelligence"], dependencies=[Depends(api_key_header)])
@@ -3499,11 +3397,7 @@ async def get_intelligence_providers() -> dict:
         ]
         return {"providers": providers}
     except Exception as exc:
-        # API-009: log the cause; the 200 body must not carry DSNs or paths.
-        log.warning(
-            "api.endpoint_failed", endpoint="intelligence_providers", error=str(exc), exc_info=True
-        )
-        return {"error": GENERIC_ERROR_DETAIL}
+        return {"error": str(exc)}
 
 
 # ---------------------------------------------------------------------------
@@ -3628,11 +3522,7 @@ class VenueReconnectRequest(BaseModel):
 # audit trail as an attacker-chosen string.
 _KNOWN_VENUES: frozenset[str] = frozenset({EXCHANGE_BINANCE, EXCHANGE_OKX})
 
-_VENUE_GUARDS = [
-    Depends(api_key_header),
-    Depends(requires(Permission.MANAGE_VENUES)),
-    Depends(require_healthy_security_controls),
-]
+_VENUE_GUARDS = [Depends(api_key_header), Depends(requires(Permission.MANAGE_VENUES))]
 
 
 def _known_venue_or_404(venue: str) -> str:
@@ -3654,8 +3544,8 @@ async def _venue_action_recorded(
     }
     storage = getattr(_state, "storage", None)
     if storage is not None:
-        await _audit_event(
-            storage, event_type=f"venue_{action}", operator=operator, details={**record, **details}
+        await storage.insert_audit_event(
+            event_type=f"venue_{action}", operator=operator, details={**record, **details}
         )
     log.info(f"api.venue_{action}", operator=operator, **record)
     # Out of band, like control_changed: every open dashboard re-reads the
@@ -3794,11 +3684,6 @@ class SetControlRequest(BaseModel):
     value: Any
     operator: str
     operator_secret: str
-
-    @field_validator("operator")
-    @classmethod
-    def _operator_ok(cls, v: str) -> str:
-        return _validate_operator(v)
 
 
 @app.post("/controls/{name}", dependencies=[Depends(api_key_header)])
@@ -3941,15 +3826,9 @@ def require_runtime() -> RuntimePlatform:
     return _state.runtime
 
 
-# API-011: runtime control calls can reach model deserialization and
-# learning-store writes. They run on this dedicated worker, never on the event
-# loop that carries the heartbeat, the websockets and the trading path.
-_RUNTIME_EXECUTOR = ThreadPoolExecutor(max_workers=1, thread_name_prefix="runtime-control")
-
-
-async def _runtime_call(fn: Callable[..., Any], *args: Any) -> Any:
+def _runtime_call(fn: Callable[..., Any], *args: Any) -> Any:
     try:
-        return await asyncio.get_running_loop().run_in_executor(_RUNTIME_EXECUTOR, fn, *args)
+        return fn(*args)
     except RuntimeControlError as exc:
         raise HTTPException(status_code=exc.status, detail=exc.detail) from exc
 
@@ -3958,7 +3837,6 @@ _RUNTIME_READ = [Depends(api_key_header), Depends(requires(Permission.VIEW_STATU
 _RUNTIME_WRITE = [
     Depends(api_key_header),
     Depends(requires(Permission.CHANGE_RUNTIME)),
-    Depends(require_healthy_security_controls),
 ]
 
 
@@ -3984,7 +3862,7 @@ async def runtime_components(component_type: str | None = None) -> list[dict[str
 @app.get("/runtime/components/{component_id}", dependencies=_RUNTIME_READ)
 async def runtime_component(component_id: str) -> dict[str, Any]:
     platform = require_runtime()
-    result: dict[str, Any] = await _runtime_call(runtime_control.component, platform, component_id)
+    result: dict[str, Any] = _runtime_call(runtime_control.component, platform, component_id)
     return result
 
 
@@ -4000,9 +3878,7 @@ async def runtime_changes() -> list[dict[str, Any]]:
 
 @app.get("/runtime/changes/{change_id}", dependencies=_RUNTIME_READ)
 async def runtime_change(change_id: str) -> dict[str, Any]:
-    result: dict[str, Any] = await _runtime_call(
-        runtime_control.change, require_runtime(), change_id
-    )
+    result: dict[str, Any] = _runtime_call(runtime_control.change, require_runtime(), change_id)
     return result
 
 
@@ -4013,7 +3889,7 @@ async def runtime_traces(limit: int = Query(default=20, ge=1, le=200)) -> list[d
 
 @app.get("/runtime/traces/{trace_id}", dependencies=_RUNTIME_READ)
 async def runtime_trace(trace_id: str) -> dict[str, Any]:
-    result: dict[str, Any] = await _runtime_call(runtime_control.trace, require_runtime(), trace_id)
+    result: dict[str, Any] = _runtime_call(runtime_control.trace, require_runtime(), trace_id)
     return result
 
 
@@ -4027,7 +3903,7 @@ async def runtime_agent_ledgers() -> dict[str, Any]:
 async def runtime_submit_change(body: RuntimeChangeBody, request: Request) -> dict[str, Any]:
     _state.check_endpoint_rate_limit("runtime", request.client.host if request.client else "")
     platform = require_runtime()
-    result = await _runtime_call(runtime_control.submit_change, platform, body)
+    result = _runtime_call(runtime_control.submit_change, platform, body)
     await platform.flush()
     return cast(dict[str, Any], result)
 
@@ -4038,7 +3914,7 @@ async def runtime_decide(
 ) -> dict[str, Any]:
     _state.check_endpoint_rate_limit("runtime", request.client.host if request.client else "")
     platform = require_runtime()
-    result = await _runtime_call(runtime_control.decide, platform, change_id, verb, body)
+    result = _runtime_call(runtime_control.decide, platform, change_id, verb, body)
     await platform.flush()
     return cast(dict[str, Any], result)
 
@@ -4049,9 +3925,7 @@ async def runtime_component_action(
 ) -> dict[str, Any]:
     _state.check_endpoint_rate_limit("runtime", request.client.host if request.client else "")
     platform = require_runtime()
-    result = await _runtime_call(
-        runtime_control.component_action, platform, component_id, action, body
-    )
+    result = _runtime_call(runtime_control.component_action, platform, component_id, action, body)
     await platform.flush()
     return cast(dict[str, Any], result)
 
@@ -4060,7 +3934,7 @@ async def runtime_component_action(
 async def runtime_set_desired(body: RuntimeDesiredBody, request: Request) -> dict[str, Any]:
     _state.check_endpoint_rate_limit("runtime", request.client.host if request.client else "")
     platform = require_runtime()
-    result = await _runtime_call(runtime_control.set_desired, platform, body)
+    result = _runtime_call(runtime_control.set_desired, platform, body)
     await platform.flush()
     return cast(dict[str, Any], result)
 
@@ -4069,6 +3943,6 @@ async def runtime_set_desired(body: RuntimeDesiredBody, request: Request) -> dic
 async def runtime_reconcile(body: OperatorFactor, request: Request) -> list[dict[str, Any]]:
     _state.check_endpoint_rate_limit("runtime", request.client.host if request.client else "")
     platform = require_runtime()
-    result = await _runtime_call(runtime_control.reconcile, platform, body)
+    result = _runtime_call(runtime_control.reconcile, platform, body)
     await platform.flush()
     return cast(list[dict[str, Any]], result)

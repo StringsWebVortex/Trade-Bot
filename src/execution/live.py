@@ -479,9 +479,7 @@ class LiveExecutor(AbstractExecutor):
                 regime_state,
                 meta_label_prob,
                 raw_signal,
-                # EXR-018: bounded, so an unattended approval cannot stall the
-                # tick loop or execute an arbitrarily old order.
-                timeout_s=self._risk_cfg.approval_timeout_s,
+                timeout_s=None,
                 denied_outcome="rejected",
                 strategy_id=strategy_id,
                 blend_audit=blend_audit,
@@ -795,8 +793,12 @@ class LiveExecutor(AbstractExecutor):
         return [req.to_dict() for req in self._approval_queue.values() if not req.resolved]
 
     def pending_approvals(self) -> list[dict[str, object]]:
-        """Public interface — delegates to unsafe variant (sync callers only)."""
-        return self._pending_approvals_unsafe()
+        """Unresolved approval requests as dicts (read-only; never prunes).
+
+        Pruning of stale resolved entries mutates ``_approval_queue`` and is
+        left to the lock-holding path (``_pending_approvals_unsafe``).
+        """
+        return [req.to_dict() for req in list(self._approval_queue.values()) if not req.resolved]
 
     async def open_positions_safe(self) -> list[dict[str, object]]:
         """Thread-safe snapshot of open positions for WS heartbeat (VUL-035)."""

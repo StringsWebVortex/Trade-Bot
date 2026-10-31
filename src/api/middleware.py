@@ -14,6 +14,7 @@ import structlog
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
 # Accepted origin pattern: http(s)://hostname(:port)
+_LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
 _ORIGIN_RE = re.compile(r"^https?://[a-zA-Z0-9._-]+(:\d+)?$")
 
 
@@ -48,6 +49,13 @@ def validate_cors_config(origins: list[str], allow_credentials: bool) -> None:
                 f"CORS misconfiguration: origin {origin!r} does not match "
                 "the required format 'http(s)://hostname(:port)'. "
                 "Check API_CORS_ORIGINS in your .env."
+            )
+
+        host = origin.split("://", 1)[1].rsplit(":", 1)[0] if "://" in origin else ""
+        if origin.lower().startswith("http://") and host not in _LOOPBACK_HOSTS:
+            raise RuntimeError(
+                f"CORS misconfiguration: origin {origin!r} must use https "
+                "unless it is a loopback host."
             )
 
     log.info("cors.validated", origins=origins, allow_credentials=allow_credentials)
