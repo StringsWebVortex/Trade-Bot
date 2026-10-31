@@ -166,8 +166,12 @@ class ShadowDeployer:
         """
         # Required and coerced: a defaulted 0.0 silently recorded zero returns
         # for both arms, and `if pred` raised on an array-valued prediction.
-        inc_dir = float(np.sign(float(incumbent_pred)))
-        cha_dir = float(np.sign(float(challenger_pred)))
+        # NumPy 2 rejects float(array([x])); accept scalar-like model
+        # outputs while refusing ambiguous multi-element predictions.
+        inc_value = np.asarray(incumbent_pred).item()
+        cha_value = np.asarray(challenger_pred).item()
+        inc_dir = float(np.sign(float(inc_value)))
+        cha_dir = float(np.sign(float(cha_value)))
 
         self._incumbent.returns.append(float(inc_dir * actual_return))
         self._challenger.returns.append(float(cha_dir * actual_return))
