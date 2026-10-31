@@ -1,0 +1,22 @@
+{
+  "id": "REG-1525",
+  "kind": "regression",
+  "title": "Model-artifact preflight matches exact trainer filenames per timeframe",
+  "statement": "scripts/check_model_artifacts._artifacts_for matches xgb_direction/xgb_meta names with an exact timeframe segment, so 5m does not match 15m artifacts.",
+  "criticality": "low",
+  "subsystem": "model",
+  "status": "verified",
+  "source": "OPS-2026-10-25",
+  "notes": "layer: test-suite",
+  "failure_mode": "A substring glob reported the 5m timeframe as present when only 15m models existed.",
+  "owning_modules": [
+    "scripts/check_model_artifacts.py"
+  ],
+  "verification": [
+    {
+      "test": "tests/test_low_findings_regressions.py",
+      "test_type": "regression"
+    }
+  ],
+  "depends_on": []
+}
