@@ -1,13 +1,13 @@
 from __future__ import annotations
 
+from importlib import util
 from pathlib import Path
-import importlib.util
 
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "resolve_registry_contract_merge.py"
-SPEC = importlib.util.spec_from_file_location("resolve_registry_contract_merge", SCRIPT)
+SPEC = util.spec_from_file_location("resolve_registry_contract_merge", SCRIPT)
 assert SPEC is not None and SPEC.loader is not None
-resolver = importlib.util.module_from_spec(SPEC)
+resolver = util.module_from_spec(SPEC)
 SPEC.loader.exec_module(resolver)
 
 
