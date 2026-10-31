@@ -1344,6 +1344,7 @@ class TestTickCorrelationFallback:
         signal.p_long = 0.8
         signal.p_bet = 0.8
         signal.kelly_result = MagicMock()
+        signal.kelly_result.entry_price = 100.0
         engine = AsyncMock()
         engine.tick = AsyncMock(return_value=signal)
         orch._engines[Timeframe.INTRADAY.value] = engine
