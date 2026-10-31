@@ -1,4 +1,8 @@
-"""Tests for WorkerOrchestrator — multiprocessing pool + ECC thread."""
+"""Tests for WorkerOrchestrator — multiprocessing pool + ECC thread.
+
+Decides:
+  - SEC-1499 — ECC worker has no default RPC password and redacts URLs
+"""
 
 from __future__ import annotations
 
@@ -162,3 +166,36 @@ class TestWorkerSignalHandler:
             assert exc.code == 0
         else:
             raise AssertionError("SIGTERM handler did not request clean worker exit")
+
+
+def test_rpc_url_credentials_are_redacted_and_no_default_password():
+    """AGT-020."""
+    from src.workers.orchestrator import redact_url
+
+    assert redact_url("http://u:p@host:8332/x") == "http://***@host:8332/x"
+    assert redact_url("http://host:8332") == "http://host:8332"
+    from src.workers.orchestrator import WorkerOrchestrator
+
+    assert WorkerOrchestrator(n_workers=2)._btc_rpc_pass == ""
+
+
+def test_block_fetch_checks_http_status(monkeypatch):
+    """AGT-020: a non-2xx RPC reply must raise instead of being parsed."""
+    import sys
+    import types
+
+    import pytest
+
+    from src.workers.orchestrator import _fetch_recent_block_transactions
+
+    class Resp:
+        def raise_for_status(self):
+            raise RuntimeError("401")
+
+        def json(self):
+            raise AssertionError("body must not be parsed")
+
+    fake = types.SimpleNamespace(post=lambda *a, **k: Resp())
+    monkeypatch.setitem(sys.modules, "requests", fake)
+    with pytest.raises(RuntimeError, match="401"):
+        _fetch_recent_block_transactions("http://h", "u", "p")

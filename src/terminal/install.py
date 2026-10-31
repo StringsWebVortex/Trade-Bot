@@ -208,8 +208,15 @@ def uninstall(
     elif wrapper.exists():
         report.conflicts.append(f"{wrapper} was not created by this installer; left in place")
     if purge and state_dir.is_dir():
-        shutil.rmtree(state_dir)
-        report.removed.append(str(state_dir))
+        # AGT-029: TB_TERMINAL_STATE_DIR is user-controlled; only delete a
+        # directory that this service demonstrably created (it holds the token).
+        if (state_dir / "token").is_file():
+            shutil.rmtree(state_dir)
+            report.removed.append(str(state_dir))
+        else:
+            report.conflicts.append(
+                f"{state_dir} has no terminal token; not purged (not a managed state directory)"
+            )
     return report
 
 

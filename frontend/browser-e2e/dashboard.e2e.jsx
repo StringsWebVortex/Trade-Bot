@@ -8,12 +8,12 @@ import { WORKSPACE_STORAGE_KEY } from '../src/workspace/layoutStore.js';
 
 vi.mock('../src/hooks/useApi.js', () => {
   const status = {
-    execution_mode: 'paper',
+    execution_mode: 'automatic',
     starting_capital_usd: 10_000,
     equity_usd: 10_125,
     daily_pnl_usd: 125,
-    regime: 0,
-    prediction: { direction: 'long', confidence: 0.74 },
+    regime: { state: 0 },
+    prediction: { direction: 1, confidence: 0.74 },
     positions: [{
       trade_id: 'position-1',
       symbol: 'BTC/USDT',
@@ -67,7 +67,6 @@ vi.mock('../src/hooks/useApi.js', () => {
   };
   return {
     API_ORIGIN: 'http://127.0.0.1:8000',
-    setSessionApiKey: vi.fn(),
     apiFetch,
     apiProblem: (code) => ({ status: code, message: `API error ${code}` }),
     postJson: emptyAction,

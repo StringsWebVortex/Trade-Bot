@@ -33,6 +33,9 @@ from src.terminal.protocol import encode_frame, new_process_id
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
 
+_READER_LIMIT = 4 * 1024 * 1024  # a hello snapshot can exceed the 64 KiB default
+
+
 class JobReporter:
     def __init__(
         self, socket_path: Path | None, *, timeout: float = 0.5, queue_size: int = 256
@@ -96,10 +99,16 @@ class JobReporter:
                 self.dropped += 1
                 log.debug("terminal.job_report_dropped", error=type(exc).__name__)
                 await self._disconnect()
+        # AGT-025: this connection only ever writes, and nothing reads the
+        # broadcast frames the server pushes; holding it open lets that backlog
+        # overflow and get the connection dropped mid-job. Reconnect per batch.
+        await self._disconnect()
 
     async def _send(self, frame: dict[str, Any]) -> None:
         if self._writer is None:
-            reader, writer = await asyncio.open_unix_connection(str(self._socket_path))
+            reader, writer = await asyncio.open_unix_connection(
+                str(self._socket_path), limit=_READER_LIMIT
+            )
             self._reader, self._writer = reader, writer
             await self._exchange(
                 {"t": "hello", "id": 0, "protocol": PROTOCOL_VERSION, "client": "api"}

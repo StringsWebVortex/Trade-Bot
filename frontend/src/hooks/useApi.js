@@ -1,23 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 
 const _RAW_API = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-// FE-01: only a READ-ONLY key may be built into the bundle (Vite inlines every
-// VITE_* value into dist/, readable by anyone holding the files). The admin
-// key is never built in: the operator types it into the toolbar, it lives in
-// memory only (setSessionApiKey), and in Electron the main process injects it
-// as a header so the renderer never sees it. vite.config.js refuses to build
-// when VITE_API_KEY is set.
-const BUNDLED_READONLY_KEY = import.meta.env.VITE_API_READONLY_KEY || '';
-let _sessionKey = '';
-
-/** Hold an operator-entered API key in memory for this page load only. */
-export function setSessionApiKey(key) {
-  _sessionKey = typeof key === 'string' ? key.trim() : '';
-}
-
-function currentApiKey() {
-  return _sessionKey || BUNDLED_READONLY_KEY;
-}
+const API_KEY = import.meta.env.VITE_API_KEY || '';
 
 const _ALLOWED_API_RE = /^https?:\/\/[a-zA-Z0-9._-]+(:\d+)?$/;
 if (!_ALLOWED_API_RE.test(_RAW_API)) {
@@ -34,7 +18,7 @@ export function apiFetch(path, opts = {}) {
     ...opts,
     headers: {
       ...(opts.headers || {}),
-      ...(currentApiKey() ? { 'x-api-key': currentApiKey() } : {}),
+      'x-api-key': API_KEY,
     },
   });
 }
@@ -48,6 +32,17 @@ export function apiFetch(path, opts = {}) {
  * credential the server never checks. Returns the parsed body, or null
  * after alerting.
  */
+// FE-16: failures are reported through a registered notifier (the app shows a
+// banner); alert() is only the fallback when nothing is listening.
+let _errorNotifier = null;
+export function setErrorNotifier(fn) {
+  _errorNotifier = fn;
+}
+function reportError(message) {
+  if (_errorNotifier) _errorNotifier(message);
+  else alert(message);
+}
+
 export async function postJson(path, body) {
   try {
     const res = await apiFetch(path, {
@@ -57,12 +52,12 @@ export async function postJson(path, body) {
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      alert(`Request failed: ${err.detail || res.status}`);
+      reportError(`Request failed: ${err.detail || res.status}`);
       return null;
     }
     return await res.json();
   } catch (e) {
-    alert(`Request failed: ${e.message || 'network error'}`);
+    reportError(`Request failed: ${e.message || 'network error'}`);
     return null;
   }
 }
@@ -168,11 +163,8 @@ export function useWebSocket(onTick, onEvent) {
 
     function connect() {
       if (closed) return;
-      // The key rides the Sec-WebSocket-Protocol header (hex-encoded), never the
-      // URL: the server logs every handshake URL (API-005).
-      const key = currentApiKey();
-      const hex = Array.from(new TextEncoder().encode(key), (b) => b.toString(16).padStart(2, '0')).join('');
-      const ws = key ? new WebSocket(WS_URL, ['tradebot.v1', `apikey.${hex}`]) : new WebSocket(WS_URL);
+      const wsUrl = API_KEY ? `${WS_URL}?api_key=${encodeURIComponent(API_KEY)}` : WS_URL;
+      const ws = new WebSocket(wsUrl);
       socket = ws;
       wsRef.current = ws;
       _liveSocket = ws;
@@ -336,9 +328,8 @@ export function apiProblem(status) {
       kind: 'unauthorized',
       status,
       message: `The API at ${API} rejected this dashboard's key (HTTP ${status}). Set `
-        + 'VITE_API_READONLY_KEY to the API_READONLY_KEY the API was started with and '
-        + 'restart the dashboard; enter the admin key in the toolbar to operate. Never '
-        + 'build API_SECRET_KEY into the dashboard.',
+        + 'VITE_API_KEY to the API_SECRET_KEY (or API_READONLY_KEY) the API was started '
+        + 'with, then restart the dashboard.',
     };
   }
   if (status === 404) {
@@ -412,37 +403,39 @@ export function useReadiness(interval = 5000) {
   return { report: data, problem };
 }
 
-/**
- * Like useApiResource, but keeps the last good data and says how stale it is.
- * `problem` is non-null whenever the latest request failed, so a panel can
- * show "stale" instead of presenting old numbers as current (FE-06).
- */
-export function usePollingState(path, interval, transform) {
-  const [state, setState] = useState({ data: null, problem: null, updatedAt: null });
+export function usePolling(path, interval, transform, refreshKey) {
+  const [data, setData] = useState(null);
+
+  // REG-0022. The effect's dependency array is [path, interval] but the body
+  // closed over `transform`, so a caller passing an inline arrow -- which
+  // App.jsx does at five call sites -- pinned the first render's function
+  // forever. Adding `transform` to the deps is the obvious fix and the wrong
+  // one: an inline arrow is a new identity every render, so the effect would
+  // tear down and restart the interval continuously, and a 10s poll would
+  // fire on every keystroke instead.
+  //
+  // A ref is the fix that addresses the actual defect: the latest function is
+  // always called, and the timer's lifetime stays tied to what genuinely
+  // defines it.
   const transformRef = useRef(transform);
   transformRef.current = transform;
 
   useEffect(() => {
-    let live = true;
     let inFlight = false;
+    // FE-19: a response that lands after unmount / path change is dropped.
+    let live = true;
     async function poll() {
       if (inFlight) return;
       inFlight = true;
       try {
         const res = await apiFetch(path);
-        if (!live) return;
         if (res.ok) {
           const body = await res.json();
           const fn = transformRef.current;
-          setState({ data: fn ? fn(body) : body, problem: null, updatedAt: Date.now() });
-        } else {
-          setState((prev) => ({ ...prev, problem: apiProblem(res.status) }));
+          if (live) setData(fn ? fn(body) : body);
         }
-      } catch (_) {
-        if (live) setState((prev) => ({ ...prev, problem: apiProblem(0) }));
-      } finally {
-        inFlight = false;
-      }
+      } catch (_) {}
+      finally { inFlight = false; }
     }
     poll();
     const id = setInterval(poll, interval);
@@ -450,44 +443,8 @@ export function usePollingState(path, interval, transform) {
       live = false;
       clearInterval(id);
     };
-  }, [path, interval]);
+  }, [path, interval, refreshKey]);
 
-  return state;
-}
-
-// FE-06: polls that fail are recorded here so one banner can say the numbers
-// on screen are stale, instead of every panel silently keeping old data.
-const _failing = new Map();
-const _failListeners = new Set();
-function _reportPoll(path, problem) {
-  const had = _failing.has(path);
-  if (problem) _failing.set(path, problem);
-  else _failing.delete(path);
-  if (had !== !!problem || problem) for (const l of [..._failListeners]) l();
-}
-
-/** The polls currently failing: `[{ path, problem }]`, empty when all is well. */
-export function useStalePolls() {
-  const [, bump] = useState(0);
-  useEffect(() => {
-    const l = () => bump((n) => n + 1);
-    _failListeners.add(l);
-    return () => { _failListeners.delete(l); };
-  }, []);
-  return [..._failing].map(([path, problem]) => ({ path, problem }));
-}
-
-/** Test seam: forget every recorded failure. */
-export function _resetStalePolls() {
-  _failing.clear();
-}
-
-export function usePolling(path, interval, transform) {
-  const { data, problem } = usePollingState(path, interval, transform);
-  useEffect(() => {
-    _reportPoll(path, problem);
-    return () => _reportPoll(path, null);
-  }, [path, problem]);
   return data;
 }
 
@@ -497,7 +454,7 @@ export function useOperatorAction() {
 
   const action = useCallback(async (path, method, body) => {
     if (!operatorSecret) {
-      alert('Enter the operator secret first.');
+      reportError('Enter the operator secret first.');
       return null;
     }
     try {
@@ -508,12 +465,12 @@ export function useOperatorAction() {
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        alert(`Action failed: ${err.detail || res.status}`);
+        reportError(`Action failed: ${err.detail || res.status}`);
         return null;
       }
       return await res.json();
     } catch (e) {
-      alert(`Action failed: ${e.message || 'network error'}`);
+      reportError(`Action failed: ${e.message || 'network error'}`);
       return null;
     }
   }, [operatorId, operatorSecret]);

@@ -13,6 +13,10 @@ terminal service is absent or slow.
 Decides:
   - TERM-007 -- the host CLI and application jobs share the process registry
   - TERM-008 -- install, start and stop never clobber and never orphan
+
+Decides:
+  - REG-1501 — Terminal job reporter does not hold an idle connection
+  - SEC-1502 — Terminal purge and peer-uid checks fail closed
 """
 
 from __future__ import annotations
@@ -168,6 +172,7 @@ class TestJobReporter:
             assert len(done["process"]["failure_reason"]) == 1024
             await reporter._worker
             assert reporter.sent == 3 and reporter.dropped == 0
+            assert reporter._writer is None  # AGT-025: no idle connection kept between batches
         finally:
             await reporter.aclose()
             await watcher.close()
@@ -226,3 +231,14 @@ class TestJobReporter:
         reporter = JobReporter(None)
         reporter.end(reporter.begin("x"), ok=True)
         assert (reporter.sent, reporter.dropped) == (0, 0)
+
+
+class TestPurgeSafety:
+    def test_purge_refuses_a_directory_without_the_token(self, home, tmp_path):
+        """AGT-029: a mis-set state dir (e.g. $HOME) must not be deleted."""
+        state = tmp_path / "not_ours"
+        state.mkdir()
+        (state / "precious.txt").write_text("x", encoding="utf-8")
+        report = install.uninstall(env=home, state_dir=state, purge=True, run=FakeRunner())
+        assert (state / "precious.txt").exists()
+        assert report.conflicts

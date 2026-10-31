@@ -16,6 +16,9 @@ module can take is asserted here, including the two that are failures:
 Collaborators are patched at `src.workers.trader`, so no settings file,
 storage backend, exchange fetcher or orchestrator is built. Nothing waits on
 wall-clock time: the test is released by the fake orchestrator's own events.
+
+Decides:
+  - REG-1500 — Trader worker closes storage when the fetcher fails to open
 """
 
 from __future__ import annotations
@@ -206,6 +209,20 @@ class TestTheWorkerCleansUpWhenTheLoopFails:
         # storage handle was already open and must not leak.
         assert env.storage.closed == 1
         assert made[0].shutdown_calls == 0
+
+    async def test_a_fetcher_open_failure_closes_the_storage(self):
+        """AGT-022."""
+        build, _made, _built = _orchestrators()
+
+        @contextlib.asynccontextmanager
+        async def failing(_storage):
+            raise RuntimeError("no fetcher")
+            yield
+
+        with _patched(build) as env, patch.object(trader, "open_fetcher", failing):
+            with pytest.raises(RuntimeError, match="no fetcher"):
+                await asyncio.wait_for(trader._run(), timeout=5)
+        assert env.storage.closed == 1
 
 
 class TestTheEntrypoint:
