@@ -1,0 +1,22 @@
+{
+  "id": "REG-1522",
+  "kind": "regression",
+  "title": "Feature indicators never emit infinite values and RSI handles no-loss windows",
+  "statement": "crypto-predictor indicators replace +/-inf with NaN in ratio features, and RSI is 100 for a window with no losses and 50 for a flat window.",
+  "criticality": "low",
+  "subsystem": "data",
+  "status": "verified",
+  "source": "OPS-2026-10-25",
+  "notes": "layer: test-suite",
+  "failure_mode": "Infinite OBV/Bollinger/volume ratios passed dropna and reached the model; no-loss RSI rows were dropped.",
+  "owning_modules": [
+    "crypto-predictor/indicators.py"
+  ],
+  "verification": [
+    {
+      "test": "tests/test_low_findings_regressions.py",
+      "test_type": "regression"
+    }
+  ],
+  "depends_on": []
+}
