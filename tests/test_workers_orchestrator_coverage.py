@@ -410,15 +410,13 @@ def test_scale_same_worker_count_is_a_noop() -> None:
 
 
 def test_scale_up_spawns_the_missing_model_workers() -> None:
-    """AGT-019: scale(4) after start(4) used to compare 4 with 3 and spawn 0."""
+    """AGT-019: scaling to four total workers adds two model workers."""
     from src.workers.orchestrator import WorkerOrchestrator
 
     orchestrator = WorkerOrchestrator(n_workers=4, ecc_enabled=False)
-    orchestrator._workers = [_live_worker() for _ in range(3)]
+    orchestrator._workers = [_live_worker()]
     with patch.object(orchestrator, "_spawn") as spawn:
         orchestrator.scale(4)
-        spawn.assert_not_called()
-        orchestrator.scale(6)
     spawn.assert_called_once_with(2)
 
 
