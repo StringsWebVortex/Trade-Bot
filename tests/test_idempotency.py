@@ -272,6 +272,11 @@ class TestOrderManagerDeduplication:
         retry must be refused and the order left to reconciliation."""
         mgr = OrderManager()
         ex = _exchange()
+        # This fake venue has no reliable client-order-id lookup endpoint;
+        # reconciliation must therefore leave the idempotency claim held.
+        ex.fetch_order = None
+        ex.fetch_orders = None
+        ex.fetch_order_by_client_order_id = None
         ex.create_market_order = AsyncMock(side_effect=ccxt.NetworkError("reset"))
         with pytest.raises(ccxt.NetworkError):
             await mgr.place_order_with_fsm(ex, "BTC/USDT", "buy", 1.5, "tbkey3")
