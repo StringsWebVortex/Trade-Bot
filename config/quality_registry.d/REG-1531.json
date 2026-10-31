@@ -1,0 +1,23 @@
+{
+  "id": "REG-1531",
+  "kind": "regression",
+  "title": "Market fetchers drop the still-forming last candle",
+  "statement": "crypto-predictor data_fetch.fetch_ohlcv and data_fetch_kraken.fetch_ohlcv return only candles whose interval has closed.",
+  "criticality": "low",
+  "subsystem": "data",
+  "status": "verified",
+  "source": "OPS-2026-10-25",
+  "notes": "layer: test-suite",
+  "failure_mode": "The provisional close and volume of the forming candle reached features and labels.",
+  "owning_modules": [
+    "crypto-predictor/data_fetch.py",
+    "crypto-predictor/data_fetch_kraken.py"
+  ],
+  "verification": [
+    {
+      "test": "tests/test_low_findings_regressions.py",
+      "test_type": "regression"
+    }
+  ],
+  "depends_on": []
+}
