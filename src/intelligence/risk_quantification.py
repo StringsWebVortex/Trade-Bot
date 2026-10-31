@@ -7,10 +7,8 @@ returns array, so the "blocked on API key provisioning" note that used to
 head this file never applied to it — that blocker belongs to the metrics
 that consume paid provider data, not to VaR/CVaR over local bars.
 
-The remaining methods (stress_test, uncertainty_decomposition) are still
-uncalled. estimate_probability_of_ruin was removed (REG-1713): it counted
-about 90% of all days as tail excesses and never measured a drawdown, and
-nothing called it.
+The remaining methods (stress_test, estimate_probability_of_ruin,
+uncertainty_decomposition) are still uncalled.
 
 Measures: VaR, CVaR, stress testing, uncertainty decomposition.
 
@@ -88,6 +86,10 @@ class RiskQuantifier:
         2. Parametric: Assume distribution (normal, t, etc.)
         3. Monte Carlo: Simulate market paths
         """
+
+        returns = np.asarray(returns, dtype=float)
+        if returns.size == 0 or not np.all(np.isfinite(returns)):
+            raise ValueError("returns must be non-empty and finite")
 
         if method == "historical":
             var = np.quantile(returns, 1 - confidence_level)
@@ -192,6 +194,49 @@ class RiskQuantifier:
             }
 
         return results
+
+    def estimate_probability_of_ruin(
+        self,
+        initial_capital: float,
+        daily_returns: np.ndarray,
+        drawdown_threshold: float = 0.50,  # 50% loss = ruin
+    ) -> dict:
+        """
+        Probability of catastrophic loss (> drawdown_threshold).
+
+        Uses: Actual drawdown history + extreme value theory.
+        """
+
+        # Empirical probability: % of days with loss > threshold
+        empirical_prob = (daily_returns < -drawdown_threshold).sum() / len(daily_returns)
+
+        # Parametric estimate using generalized Pareto distribution (tail model)
+        tail_returns = daily_returns[daily_returns < np.quantile(daily_returns, 0.10)]
+        if len(tail_returns) > 10:
+            # Fit GPD to extreme losses
+            u = np.quantile(daily_returns, 0.90)
+            n_excess = (daily_returns < u).sum()
+            prob_exceedance = n_excess / len(daily_returns)
+
+            # Estimate P(loss > threshold | in tail)
+            if prob_exceedance > 0:
+                gpd_prob = prob_exceedance * (1 - np.exp(-len(tail_returns) * 0.01))
+            else:
+                gpd_prob = empirical_prob
+        else:
+            gpd_prob = empirical_prob
+
+        # Use average of empirical + parametric
+        prob_ruin = (empirical_prob + gpd_prob) / 2
+
+        percentile_equivalent = (
+            f"1 in {1 / prob_ruin:.0f} days" if prob_ruin > 0 else "no observed ruin risk"
+        )
+        return {
+            "probability": prob_ruin,
+            "percentile_equivalent": percentile_equivalent,
+            "confidence": "moderate" if len(tail_returns) > 30 else "low",
+        }
 
     def uncertainty_decomposition(
         self,

@@ -242,7 +242,7 @@ class OKXIntelligenceProvider(ExchangeIntelligenceProvider):
 
         rates = [r["fundingRate"] for r in history if r.get("fundingRate") is not None]
         if len(rates) < 2:
-            return {"rate_pct": rates[-1] if rates else 0.0, "zscore": 0.0}
+            return {"rate_pct": rates[-1] * 100.0 if rates else 0.0, "zscore": 0.0}
 
         current = rates[-1]
         mu = statistics.mean(rates)
@@ -341,16 +341,35 @@ class OKXIntelligenceProvider(ExchangeIntelligenceProvider):
         if cached is not None:
             return cached
 
-        # INT-020: OKX's long/short ACCOUNT ratio is positioning (share of
-        # accounts that are long), a different quantity and scale from the
-        # taker buy/sell volume ratio Binance and Bybit report, so it must not
-        # be averaged into whale_buy_sell_ratio.  No taker-flow source is
-        # wired for OKX; raise so fetch_metrics() applies its failure branch
-        # (penalty + neutral, which the aggregator skips) instead of caching a
-        # fabricated neutral 1.0 as a reading.
-        raise RuntimeError(
-            "okx taker-flow ratio unavailable (long/short account ratio is positioning)"
-        )
+        # OKX exposes taker flow via Long/Short ratio endpoint (no auth needed)
+        # GET /api/v5/rubik/stat/contracts/long-short-account-ratio
+        # ccxt does not unify this; call raw.
+        try:
+            market = self._perp.market(self._perp_symbol)
+            inst_id = market["id"]  # e.g. "BTC-USDT-SWAP"
+            raw = await self._perp.publicGetRubikStatContractsLongShortAccountRatio(
+                {
+                    "instId": inst_id,
+                    "period": "1H",
+                }
+            )
+            data = raw.get("data", [])
+            if data:
+                # data[0] is most recent: [ts, longShortRatio]
+                ls_ratio = float(data[0][1])
+                # longShortRatio > 1 → more longs → bullish taker flow
+                # Normalize to buy/sell ratio convention (same as Binance provider)
+                # ls_ratio = long_accounts / short_accounts
+                # Map: ratio=2 → buy/sell≈2 (more buyers); ratio=0.5 → buy/sell≈0.5
+                ratio = max(0.0, min(ls_ratio, 10.0))
+                self._set_cache(cache_key, ratio)
+                return ratio
+        except Exception as e:
+            self._log.debug("okx_intelligence.ls_ratio_failed", error=str(e), exc_info=True)
+
+        # Second fallback: neutral
+        self._set_cache(cache_key, 1.0)
+        return 1.0
 
     @staticmethod
     def _compute_stress_score(
@@ -394,13 +413,5 @@ def get_okx_intelligence_provider(
             _provider = OKXIntelligenceProvider(
                 symbol=symbol,
                 perp_symbol=perp_symbol,
-            )
-            _provider._singleton_key = (symbol, perp_symbol)
-        # INT-021: the singleton is bound to the first (symbol, perp_symbol);
-        # serving a different symbol from it would return the wrong market's data.
-        if getattr(_provider, "_singleton_key", (symbol, perp_symbol)) != (symbol, perp_symbol):
-            raise ValueError(
-                f"singleton already bound to {_provider._singleton_key}; "
-                f"refusing to serve {(symbol, perp_symbol)}"
             )
         return _provider

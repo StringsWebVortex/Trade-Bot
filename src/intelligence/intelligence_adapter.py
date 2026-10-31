@@ -21,17 +21,6 @@ if TYPE_CHECKING:
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
-_TIMEFRAME_MAP: dict[str, int] = {
-    "30s": 30_000,
-    "1m": 60_000,
-    "5m": 300_000,
-    "15m": 900_000,
-    "1h": 3_600_000,
-    "4h": 14_400_000,
-    "1d": 86_400_000,
-    "7d": 604_800_000,
-}
-
 
 class IntelligenceAdapter:
     """
@@ -61,7 +50,6 @@ class IntelligenceAdapter:
         regime_confidences: list[float] | None = None,
         derivatives_data: dict | None = None,
         alt_prices: dict[str, list[float]] | None = None,
-        risk_context: dict[str, float] | None = None,
     ) -> None:
         """
         Process one bar through CryptoIntelligence and persist the signal.
@@ -81,7 +69,6 @@ class IntelligenceAdapter:
                 event_ts=bar_ts_ms / 1000.0,
                 event_id=f"{symbol}:{timeframe}:{bar_ts_ms}",
                 source_timeframe=timeframe,
-                risk_context=risk_context,
             )
         except Exception as exc:
             log.warning("intelligence_on_bar_failed", symbol=symbol, exc=str(exc))

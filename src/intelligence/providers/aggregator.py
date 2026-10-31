@@ -12,8 +12,9 @@ Merge strategy per field:
     network_activity): taken from the dedicated provider (CoinGecko /
     blockchain.info); these are not exchange-specific.
   - Glassnode-gated fields (exchange_netflow, reserve_ratio,
-    miner_netflow, staking_unlock, entity_exchange_imbalance): remain
-    NaN until paid API keys are provisioned (GAP-015).
+    miner_netflow, staking_unlock, entity_exchange_imbalance): are
+    not populated (no Glassnode provider exists) and stay at their neutral
+    defaults (0.0 / 0.5), not NaN.
 
 Extensibility:
   - Add a new provider by implementing ExchangeIntelligenceProvider and
@@ -305,14 +306,6 @@ def get_multi_provider_aggregator(
                     get_blockchain_intelligence_provider(),
                 ],
             )
-            _aggregator._singleton_key = (symbol, perp_symbol)
-        # INT-021: the singleton is bound to the first (symbol, perp_symbol);
-        # serving a different symbol from it would return the wrong market's data.
-        if getattr(_aggregator, "_singleton_key", (symbol, perp_symbol)) != (symbol, perp_symbol):
-            raise ValueError(
-                f"singleton already bound to {_aggregator._singleton_key}; "
-                f"refusing to serve {(symbol, perp_symbol)}"
-            )
         return _aggregator
 
 
@@ -503,16 +496,5 @@ def get_onchain_aware_aggregator(
                         cache_ttl_s=cfg.coinglass_cache_ttl_s,
                     ),
                 ],
-            )
-            _onchain_aware_aggregator._singleton_key = (symbol, perp_symbol)
-        # INT-021: the singleton is bound to the first (symbol, perp_symbol);
-        # serving a different symbol from it would return the wrong market's data.
-        if getattr(_onchain_aware_aggregator, "_singleton_key", (symbol, perp_symbol)) != (
-            symbol,
-            perp_symbol,
-        ):
-            raise ValueError(
-                f"singleton already bound to {_onchain_aware_aggregator._singleton_key}; "
-                f"refusing to serve {(symbol, perp_symbol)}"
             )
         return _onchain_aware_aggregator

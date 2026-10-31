@@ -226,7 +226,7 @@ class OnChainProvider(ExchangeIntelligenceProvider):
     Subclasses must set:
       _BASE_URL : str
       _CACHE_TTL_S : int
-      _RATE     : float  (calls/s)
+      _RATE     : float  (calls per _RATE_WINDOW_S seconds)
 
     Subclasses must implement: exchange_id, initialize(), close(), fetch_metrics().
     """
@@ -234,14 +234,11 @@ class OnChainProvider(ExchangeIntelligenceProvider):
     _BASE_URL: str = ""
     _CACHE_TTL_S: int = 60
     _RATE: float = 1.0
+    _RATE_WINDOW_S: float = 1.0
 
-    def __init__(self, cache_ttl_s: int | None = None) -> None:
-        # INT-013: the configured TTL must be applied before the cache is
-        # built; the cache captures default_ttl_s at construction.
-        if cache_ttl_s is not None:
-            self._CACHE_TTL_S = cache_ttl_s
+    def __init__(self) -> None:
         self._async_cache: AsyncHTTPCache = AsyncHTTPCache(default_ttl_s=self._CACHE_TTL_S)
-        self._limiter = RateLimiter(rate=self._RATE)
+        self._limiter = RateLimiter(rate=self._RATE, window_s=self._RATE_WINDOW_S)
         # type(self).__name__ rather than exchange_id: exchange_id is an
         # abstract property, and reading it from __init__ works only for
         # subclasses that return a constant. The class name is also what
@@ -263,13 +260,11 @@ class OnChainProvider(ExchangeIntelligenceProvider):
         url: str,
         headers: dict[str, str] | None = None,
         params: dict[str, Any] | None = None,
-        use_cache: bool = True,
     ) -> dict[str, Any] | None:
         cache_key = f"GET:{url}:{sorted((params or {}).items())}"
-        if use_cache:
-            cached = await self._async_cache.get(cache_key)
-            if cached is not None:
-                return cached
+        cached = await self._async_cache.get(cache_key)
+        if cached is not None:
+            return cached
         await self._limiter.acquire()
         try:
 
@@ -280,8 +275,7 @@ class OnChainProvider(ExchangeIntelligenceProvider):
                     return await resp.json(content_type=None)
 
             data = await self._breaker.call(_do)
-            if use_cache:
-                await self._async_cache.set(cache_key, data)
+            await self._async_cache.set(cache_key, data)
             return data
         except CircuitOpenError:
             log.warning("get_circuit_open", provider=self.__class__.__name__, url=url)
