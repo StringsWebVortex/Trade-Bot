@@ -3,6 +3,8 @@ Coverage for src/models/trainer.py — Debt-005.
 
 Targets predict_direction, predict_meta, TrainingResult, and
 compute_win_loss_stats without running expensive training loops.
+
+Decides: REG-1354
 """
 
 from __future__ import annotations
@@ -600,12 +602,12 @@ class TestBuildCPCVFolds:
 
 
 class TestComputeSampleWeights:
-    def test_weights_sum_to_one(self):
+    def test_weights_mean_one(self):
         from src.models.trainer import compute_sample_weights
 
         returns = pd.Series([0.01, -0.02, 0.005, 0.0, 0.03])
         weights = compute_sample_weights(returns)
-        assert abs(weights.sum() - 1.0) < 1e-9
+        assert abs(weights.mean() - 1.0) < 1e-9
 
     def test_zero_return_gets_floor_weight(self):
         from src.models.trainer import compute_sample_weights

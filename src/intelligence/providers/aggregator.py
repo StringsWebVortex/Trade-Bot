@@ -305,6 +305,14 @@ def get_multi_provider_aggregator(
                     get_blockchain_intelligence_provider(),
                 ],
             )
+            _aggregator._singleton_key = (symbol, perp_symbol)
+        # INT-021: the singleton is bound to the first (symbol, perp_symbol);
+        # serving a different symbol from it would return the wrong market's data.
+        if getattr(_aggregator, "_singleton_key", (symbol, perp_symbol)) != (symbol, perp_symbol):
+            raise ValueError(
+                f"singleton already bound to {_aggregator._singleton_key}; "
+                f"refusing to serve {(symbol, perp_symbol)}"
+            )
         return _aggregator
 
 
@@ -495,5 +503,16 @@ def get_onchain_aware_aggregator(
                         cache_ttl_s=cfg.coinglass_cache_ttl_s,
                     ),
                 ],
+            )
+            _onchain_aware_aggregator._singleton_key = (symbol, perp_symbol)
+        # INT-021: the singleton is bound to the first (symbol, perp_symbol);
+        # serving a different symbol from it would return the wrong market's data.
+        if getattr(_onchain_aware_aggregator, "_singleton_key", (symbol, perp_symbol)) != (
+            symbol,
+            perp_symbol,
+        ):
+            raise ValueError(
+                f"singleton already bound to {_onchain_aware_aggregator._singleton_key}; "
+                f"refusing to serve {(symbol, perp_symbol)}"
             )
         return _onchain_aware_aggregator

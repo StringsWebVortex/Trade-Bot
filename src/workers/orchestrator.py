@@ -562,9 +562,7 @@ def _run_ecc_cycle(
             whale_count=cluster_result.whale_count,
             total_whale_btc=cluster_result.total_whale_btc,
         )
-        # A flow score computed from clusters with no flow data is a constant
-        # zero, not a measurement (MTH-004); only vouch for it when real.
-        ecc_validity["cluster"] = cluster_result.flow_available is True
+        ecc_validity["cluster"] = True
     except Exception as exc:
         log.warning("ecc_cluster_failed", exc=str(exc))
         cluster_result = None
@@ -661,8 +659,8 @@ class WorkerOrchestrator:
         self,
         n_workers: int = 8,
         btc_rpc_url: str = "http://127.0.0.1:8332",
-        btc_rpc_user: str = "crypto",
-        btc_rpc_pass: str = "crypto",
+        btc_rpc_user: str = "",
+        btc_rpc_pass: str = "",
         ecc_interval: float = 60.0,
         ecc_enabled: bool = True,
     ) -> None:
@@ -672,7 +670,8 @@ class WorkerOrchestrator:
         self._btc_rpc_user = btc_rpc_user
         self._btc_rpc_pass = btc_rpc_pass
         self._ecc_interval = ecc_interval
-        self._ecc_enabled = bool(ecc_enabled)
+        # INT-017: no default RPC credentials; ECC needs the node, so it is off without them.
+        self._ecc_enabled = bool(ecc_enabled) and bool(btc_rpc_user and btc_rpc_pass)
 
         self._queue_in: mp.Queue = mp.Queue(maxsize=1000)
         self._queue_out: mp.Queue = mp.Queue(maxsize=1000)

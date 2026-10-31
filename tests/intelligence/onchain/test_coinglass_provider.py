@@ -246,7 +246,7 @@ class TestCoinglassProviderEnabled:
         assert isinstance(m["futures_oi_change_pct"], float)
         assert m["liquidation_cascade_risk_usd"] == pytest.approx(5e7)
         assert m["binance_funding_rate_pct"] == pytest.approx(0.01)
-        assert m["whale_buy_sell_ratio"] > 1.0
+        assert m["whale_buy_sell_ratio"] == pytest.approx(1.0)  # INT-020: positioning not mixed in
 
     @pytest.mark.asyncio
     async def test_partial_failure_degrades_confidence(self):
