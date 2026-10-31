@@ -29,7 +29,7 @@ class _OkStore:
 
     def rollback(self, param_name: str):
         self.calls.append(param_name)
-        return None
+        return types.SimpleNamespace(value=0.9)
 
 
 class _RecordingLog:
