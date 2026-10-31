@@ -31,7 +31,6 @@ import contextlib
 import fcntl
 import os
 import pty
-import secrets
 import signal
 import struct
 import subprocess
@@ -45,7 +44,7 @@ import structlog
 
 from src.terminal import procfs
 from src.terminal.buffer import OutputBuffer
-from src.terminal.config import TerminalConfig
+from src.terminal.config import TerminalConfig, scrubbed_environment
 from src.terminal.markers import Marker, MarkerScanner
 from src.terminal.protocol import ProtocolError, new_session_id
 from src.terminal.registry import ProcessRegistry
@@ -125,7 +124,6 @@ class PtySession:
         cwd: str,
         buffer_bytes: int,
         created_at: float,
-        marker_nonce: str,
     ) -> None:
         self.id = sid
         self.name = name
@@ -139,7 +137,7 @@ class PtySession:
         self.initial_cwd = cwd
         self.created_at = created_at
         self.buffer = OutputBuffer(buffer_bytes)
-        self.scanner = MarkerScanner(nonce=marker_nonce)
+        self.scanner = MarkerScanner()
         self.state = "running"
         self.exit_code: int | None = None
         self.signal_name: str | None = None
@@ -198,7 +196,7 @@ class SessionManager:
         self._registry = registry
         self._on_session = on_session
         self._on_output = on_output
-        self._base_env = dict(os.environ if base_env is None else base_env)
+        self._base_env = dict(scrubbed_environment() if base_env is None else base_env)
         self._shell = shell or self._base_env.get("SHELL") or "/bin/bash"
         self._proc = proc_root
         self._clock = clock
@@ -256,12 +254,10 @@ class SessionManager:
         else:
             command = shell_argv(self._shell, self._config.rcfile_path)
         workdir = str(cwd or self._config.default_cwd)
-        # SEC-0014: only the shell's own integration learns the nonce, so
-        # markers in a job's output or a cat'ed file are never accepted.
-        nonce = secrets.token_hex(16)
-        env = self._child_env(sid, marker_nonce=nonce if kind == "shell" else None)
         try:
-            process, master = spawn_pty(command, cwd=workdir, env=env, rows=rows, cols=cols)
+            process, master = spawn_pty(
+                command, cwd=workdir, env=self._child_env(sid), rows=rows, cols=cols
+            )
         except OSError as exc:
             raise ProtocolError(
                 "spawn_failed", f"could not start {command[0]}: {exc.strerror or exc}"
@@ -285,7 +281,6 @@ class SessionManager:
             cwd=workdir,
             buffer_bytes=self._limits.buffer_bytes,
             created_at=self._clock(),
-            marker_nonce=nonce,
         )
         self._sessions[sid] = session
         self._loop.add_reader(master, self._on_readable, session)
@@ -440,9 +435,8 @@ class SessionManager:
             raise ProtocolError("session_exited", f"session {sid} has exited")
         return session
 
-    def _child_env(self, sid: str, marker_nonce: str | None = None) -> dict[str, str]:
+    def _child_env(self, sid: str) -> dict[str, str]:
         env = dict(self._base_env)
-        env.pop("TB_TERMINAL_MARKER_NONCE", None)
         if "npm_lifecycle_event" in env:
             # Inherited from an `npm run` that launched the dashboard: npm's
             # own settings would silently change how npm behaves in here.
@@ -459,8 +453,6 @@ class SessionManager:
                 "TB_TERMINAL_SESSION_ID": sid,
             }
         )
-        if marker_nonce is not None:
-            env["TB_TERMINAL_MARKER_NONCE"] = marker_nonce
         return env
 
     @staticmethod

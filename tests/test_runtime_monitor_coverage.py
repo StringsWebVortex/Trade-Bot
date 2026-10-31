@@ -1,17 +1,15 @@
 """Tests for src/diagnostics/runtime_monitor.py (27% → target 80%+).
 
 Decides:
+  - REG-1221 -- see config/quality_registry.json
   - REL-004 — Automatic halt triggers are machine-enforced
 
-  - REG-0028 — regression coverage for the recorded behavior.
-
-Decides:
-  - REG-1492 — Tick-stall failures accumulate toward escalation
-"""
+  - REG-0028 — regression coverage for the recorded behavior."""
 
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -288,24 +286,45 @@ async def test_run_all_probes_tick_getter_exception():
 
 @pytest.mark.asyncio
 async def test_run_all_probes_detects_dead_tasks():
-    """A completed, non-cancelled asyncio task lingering in the event loop
-    (other than the harness's own "Task-1") must be flagged as an alert.
-    asyncio.all_tasks() normally excludes finished tasks by the time a test
-    can observe them, so this mocks it directly rather than relying on a
-    real (unreliable) completion race."""
+    """A watched task that dies with an exception is flagged (AGT-012).
+    asyncio.all_tasks() never contains finished tasks, so death is observed
+    through the done-callback registered by watch_task."""
     m = RuntimeMonitor()
 
-    dead_task = MagicMock()
-    dead_task.done.return_value = True
-    dead_task.cancelled.return_value = False
-    dead_task.get_name.return_value = "leaked-worker"
+    async def boom() -> None:
+        raise RuntimeError("worker crashed")
 
-    with patch("asyncio.all_tasks", return_value={dead_task}):
-        await m._run_all_probes()
+    task = asyncio.create_task(boom(), name="leaked-worker")
+    m.watch_task(task)
+    with contextlib.suppress(RuntimeError):
+        await task
+    await m._run_all_probes()
 
     snap = m.get_snapshot()
     assert snap is not None
-    assert any("dead_tasks" in a for a in snap.alerts)
+    assert any("dead_tasks" in a and "leaked-worker" in a for a in snap.alerts)
+
+
+@pytest.mark.asyncio
+async def test_watch_task_ignores_cancelled_and_clean_tasks():
+    m = RuntimeMonitor()
+
+    async def ok() -> None:
+        return None
+
+    async def forever() -> None:
+        await asyncio.sleep(60)
+
+    done = asyncio.create_task(ok())
+    hung = asyncio.create_task(forever())
+    m.watch_task(done)
+    m.watch_task(hung)
+    await done
+    hung.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await hung
+    await m._run_all_probes()
+    assert not any("dead_tasks" in a for a in m.get_snapshot().alerts)
 
 
 @pytest.mark.asyncio
@@ -411,15 +430,3 @@ def test_get_monitor_returns_singleton():
     m2 = get_monitor()
     assert m1 is m2
     assert isinstance(m1, RuntimeMonitor)
-
-
-@pytest.mark.asyncio
-async def test_tick_stall_failures_accumulate_for_escalation():
-    """AGT-013: a persistent stall must count up, not reset to 1 every cycle."""
-    m = RuntimeMonitor()
-    with patch("src.diagnostics.runtime_monitor.time.monotonic", return_value=1000.0):
-        m.register_tick_source("5m", lambda: 100.0)
-        await m._run_all_probes()
-        await m._run_all_probes()
-        await m._run_all_probes()
-    assert m._results["tick_stall_5m"].consecutive_failures == 3

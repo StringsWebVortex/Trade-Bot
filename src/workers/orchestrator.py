@@ -20,6 +20,7 @@ import hashlib
 import math
 import multiprocessing as mp
 import os
+import queue
 import signal
 import threading
 import time
@@ -456,19 +457,6 @@ def _utxos_with_ages(utxos: list[dict]) -> list[dict]:
     return converted
 
 
-def redact_url(url: str) -> str:
-    """Drop any ``user:pass@`` userinfo before a URL is logged (AGT-020)."""
-    from urllib.parse import urlsplit
-
-    parts = urlsplit(url)
-    if parts.username is None and parts.password is None:
-        return url
-    host = parts.hostname or ""
-    if parts.port:
-        host = f"{host}:{parts.port}"
-    return parts._replace(netloc=f"***@{host}").geturl()
-
-
 def _fetch_recent_block_transactions(
     rpc_url: str,
     rpc_user: str,
@@ -490,7 +478,6 @@ def _fetch_recent_block_transactions(
             auth=(rpc_user, rpc_pass),
             timeout=timeout,
         )
-        resp.raise_for_status()
         payload = resp.json()
         if payload.get("error"):
             raise RuntimeError(f"{method} failed: {payload['error']}")
@@ -507,6 +494,7 @@ def _ecc_worker(
     rpc_user: str,
     rpc_pass: str,
     interval_seconds: float = 60.0,
+    stop_event: threading.Event | None = None,
 ) -> None:
     """
     Dedicated ECC worker thread.
@@ -517,7 +505,8 @@ def _ecc_worker(
     Uses coincurve C bindings which release the GIL, so this runs in a thread
     without blocking the asyncio event loop.
     """
-    log.info("ecc_worker_started", rpc_url=redact_url(rpc_url))
+    stop = stop_event if stop_event is not None else threading.Event()
+    log.info("ecc_worker_started", rpc_url=rpc_url)
 
     from src.ecc.ecdsa_scan import ECDSAScanner
     from src.ecc.secp256k1_cluster import Secp256k1ClusterWorker
@@ -529,7 +518,7 @@ def _ecc_worker(
     # r-value against ones seen in earlier blocks.
     ecdsa_scanner = ECDSAScanner()
 
-    while True:
+    while not stop.is_set():
         ecc_result = _run_ecc_cycle(
             clusterer=clusterer,
             zk_detector=zk_detector,
@@ -538,8 +527,12 @@ def _ecc_worker(
             rpc_user=rpc_user,
             rpc_pass=rpc_pass,
         )
-        queue_out.put({"type": "ecc", "result": ecc_result})
-        time.sleep(interval_seconds)
+        try:
+            # Bounded put: a full, uncollected queue must not wedge shutdown (AGT-018).
+            queue_out.put({"type": "ecc", "result": ecc_result}, timeout=1.0)
+        except queue.Full:
+            log.warning("ecc_result_dropped_output_queue_full")
+        stop.wait(interval_seconds)
 
 
 def _run_ecc_cycle(
@@ -673,8 +666,8 @@ class WorkerOrchestrator:
         self,
         n_workers: int = 8,
         btc_rpc_url: str = "http://127.0.0.1:8332",
-        btc_rpc_user: str = "",
-        btc_rpc_pass: str = "",
+        btc_rpc_user: str = "crypto",
+        btc_rpc_pass: str = "crypto",
         ecc_interval: float = 60.0,
         ecc_enabled: bool = True,
     ) -> None:
@@ -691,18 +684,19 @@ class WorkerOrchestrator:
         self._dropped_tasks = 0
         self._workers: list[mp.Process] = []
         self._ecc_thread: threading.Thread | None = None
+        self._ecc_stop = threading.Event()
         self._started = False
 
     def start(self) -> None:
         """Spawn worker processes and ECC thread."""
         if self._started:
             return
-        self._spawn(self._n_workers)
+        self._spawn(max(0, self._n_workers - 1))
         self._started = True
         log.info("worker_orchestrator_started", n_workers=len(self._workers))
 
-    def _spawn(self, n: int) -> None:
-        model_workers = max(0, n - 1)
+    def _spawn(self, model_workers: int) -> None:
+        """Start ``model_workers`` model processes (the ECC thread is not counted)."""
         for i in range(model_workers):
             p = mp.Process(
                 target=_model_worker,
@@ -714,6 +708,7 @@ class WorkerOrchestrator:
             self._workers.append(p)
 
         if self._ecc_enabled and (self._ecc_thread is None or not self._ecc_thread.is_alive()):
+            self._ecc_stop = threading.Event()
             self._ecc_thread = threading.Thread(
                 target=_ecc_worker,
                 args=(
@@ -722,6 +717,7 @@ class WorkerOrchestrator:
                     self._btc_rpc_user,
                     self._btc_rpc_pass,
                     self._ecc_interval,
+                    self._ecc_stop,
                 ),
                 daemon=True,
             )
@@ -767,23 +763,36 @@ class WorkerOrchestrator:
     def scale(self, n: int) -> None:
         """Scale worker pool up or down to exactly `n` total workers."""
         n = max(self.MIN_WORKERS, min(n, self.MAX_WORKERS))
-        delta = n - len(self._workers)
+        # n counts every worker, including the ECC slot; _workers holds model workers only.
+        delta = (n - 1) - len(self._workers)
         if delta > 0:
             self._spawn(delta)
             log.info("workers_scaled_up", new_total=len(self._workers))
         elif delta < 0:
             for _ in range(-delta):
-                self._queue_in.put(None)  # graceful SIGTERM
-                proc = self._workers.pop()
-                proc.join(timeout=5)
+                # Stop this exact process: a None on the shared queue could be
+                # consumed by any worker, leaving the popped one running (AGT-019).
+                self._stop_process(self._workers.pop(), grace_s=5)
             log.info("workers_scaled_down", new_total=len(self._workers))
+
+    @staticmethod
+    def _stop_process(proc: mp.Process, grace_s: float) -> None:
+        """Join ``proc``; escalate to terminate() then kill() if it is still alive."""
+        proc.join(timeout=grace_s)
+        if proc.is_alive():
+            proc.terminate()
+            proc.join(timeout=5)
+            if proc.is_alive():
+                proc.kill()
+                proc.join(timeout=5)
 
     def shutdown(self) -> None:
         """Drain queues and join all workers."""
+        self._ecc_stop.set()
         for _ in self._workers:
             self._queue_in.put(None)
         for w in self._workers:
-            w.join(timeout=10)
+            self._stop_process(w, grace_s=10)
         if self._ecc_thread and self._ecc_thread.is_alive():
             self._ecc_thread.join(timeout=5)
         self._workers.clear()

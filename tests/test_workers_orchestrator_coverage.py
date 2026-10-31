@@ -3,6 +3,8 @@
 No real process is spawned: _model_worker is driven with in-process queue
 stand-ins, and signal.signal is patched because the worker installs a SIGTERM
 handler that would otherwise leak into the test session.
+
+Decides: REG-1222, REG-1223
 """
 
 from __future__ import annotations
@@ -390,18 +392,38 @@ def test_shutdown_without_started_ecc_thread_is_safe() -> None:
     assert not orchestrator._started
 
 
+def _live_worker() -> MagicMock:
+    worker = MagicMock()
+    worker.is_alive.return_value = False
+    return worker
+
+
 def test_scale_same_worker_count_is_a_noop() -> None:
     from src.workers.orchestrator import WorkerOrchestrator
 
-    orchestrator = WorkerOrchestrator(n_workers=2, ecc_enabled=False)
-    orchestrator._workers = [MagicMock(), MagicMock()]
-    orchestrator._workers[0].is_alive.return_value = True
-    orchestrator._workers[1].is_alive.return_value = True
-    orchestrator.scale(2)
+    orchestrator = WorkerOrchestrator(n_workers=3, ecc_enabled=False)
+    orchestrator._workers = [_live_worker(), _live_worker()]  # 3 total = 2 model + ECC slot
+    with patch.object(orchestrator, "_spawn") as spawn:
+        orchestrator.scale(3)
+    spawn.assert_not_called()
     assert len(orchestrator._workers) == 2
 
 
-def test_scale_down_queues_shutdown_and_joins_removed_workers() -> None:
+def test_scale_up_spawns_the_missing_model_workers() -> None:
+    """AGT-019: scale(4) after start(4) used to compare 4 with 3 and spawn 0."""
+    from src.workers.orchestrator import WorkerOrchestrator
+
+    orchestrator = WorkerOrchestrator(n_workers=4, ecc_enabled=False)
+    orchestrator._workers = [_live_worker() for _ in range(3)]
+    with patch.object(orchestrator, "_spawn") as spawn:
+        orchestrator.scale(4)
+        spawn.assert_not_called()
+        orchestrator.scale(6)
+    spawn.assert_called_once_with(2)
+
+
+def test_scale_down_stops_the_removed_processes_themselves() -> None:
+    """AGT-019: a shared-queue None may go to any worker; stop the popped ones directly."""
     from src.workers.orchestrator import WorkerOrchestrator
 
     class SentinelQueue:
@@ -411,14 +433,71 @@ def test_scale_down_queues_shutdown_and_joins_removed_workers() -> None:
         def put(self, item) -> None:
             self.items.append(item)
 
-    orchestrator = WorkerOrchestrator(n_workers=4, ecc_enabled=False)
-    workers = [MagicMock() for _ in range(4)]
+    orchestrator = WorkerOrchestrator(n_workers=5, ecc_enabled=False)
+    workers = [_live_worker() for _ in range(4)]
     orchestrator._queue_in = SentinelQueue()
-    orchestrator._workers = workers
+    orchestrator._workers = list(workers)
 
-    orchestrator.scale(2)
+    orchestrator.scale(3)
 
-    assert orchestrator._queue_in.items == [None, None]
+    assert orchestrator._queue_in.items == []
     assert orchestrator._workers == workers[:2]
     for worker in workers[2:]:
-        worker.join.assert_called_once_with(timeout=5)
+        worker.join.assert_any_call(timeout=5)
+
+
+def test_stuck_worker_is_terminated_then_killed() -> None:
+    from src.workers.orchestrator import WorkerOrchestrator
+
+    worker = MagicMock()
+    worker.is_alive.return_value = True  # ignores everything
+    WorkerOrchestrator._stop_process(worker, grace_s=0)
+    worker.terminate.assert_called_once()
+    worker.kill.assert_called_once()
+
+
+def test_shutdown_terminates_workers_that_outlive_the_join() -> None:
+    from src.workers.orchestrator import WorkerOrchestrator
+
+    orchestrator = WorkerOrchestrator(n_workers=2, ecc_enabled=False)
+    orchestrator._queue_in = MagicMock()
+    stuck = MagicMock()
+    stuck.is_alive.return_value = True
+    orchestrator._workers = [stuck]
+    orchestrator.shutdown()
+    stuck.terminate.assert_called_once()
+
+
+def test_ecc_worker_stops_on_event_and_does_not_block_on_full_queue() -> None:
+    """AGT-018: the loop used to be `while True` with an unbounded put."""
+    import sys
+    import threading
+    import types
+
+    from src.workers import orchestrator as mod
+
+    stubs = {}
+    for name, attr in (
+        ("src.ecc.ecdsa_scan", "ECDSAScanner"),
+        ("src.ecc.secp256k1_cluster", "Secp256k1ClusterWorker"),
+        ("src.ecc.zksnark_detect", "ZkSnarkDetector"),
+    ):
+        stub = types.ModuleType(name)
+        setattr(stub, attr, MagicMock())
+        stubs[name] = stub
+
+    full = MagicMock()
+    full.put.side_effect = queue.Full
+    stop = threading.Event()
+    thread = threading.Thread(
+        target=mod._ecc_worker, args=(full, "u", "u", "p", 3600.0, stop), daemon=True
+    )
+    with (
+        patch.dict(sys.modules, stubs),
+        patch.object(mod, "_run_ecc_cycle", return_value={}),
+    ):
+        thread.start()
+        time.sleep(0.2)
+        stop.set()
+        thread.join(timeout=5)
+    assert not thread.is_alive()

@@ -44,7 +44,13 @@ from typing import Any, TextIO
 
 from src.terminal import SERVICE_VERSION, auth, install
 from src.terminal.client import TerminalClient, TerminalClientError
-from src.terminal.config import REPO_ROOT, TerminalConfig, TerminalConfigError, ensure_private_dir
+from src.terminal.config import (
+    REPO_ROOT,
+    TerminalConfig,
+    TerminalConfigError,
+    ensure_private_dir,
+    scrubbed_environment,
+)
 from src.terminal.protocol import PROCESS_ID_RE, SESSION_ID_RE, SIGNALS
 
 # Only `daemon` needs asyncio, websockets, structlog and the trading logging
@@ -171,7 +177,7 @@ def _spawn_detached(config: TerminalConfig) -> None:
     if log_path.exists() and log_path.stat().st_size > LOG_ROTATE_BYTES:
         log_path.unlink()
     descriptor = os.open(log_path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
-    env = dict(os.environ)
+    env = scrubbed_environment()
     existing = env.get("PYTHONPATH")
     env["PYTHONPATH"] = f"{REPO_ROOT}{os.pathsep}{existing}" if existing else str(REPO_ROOT)
     try:
@@ -224,8 +230,7 @@ def _daemon_pid(config: TerminalConfig, proc: Path = Path("/proc")) -> int | Non
     except (OSError, ValueError):
         return None
     # A stale pid file can name a recycled pid; only signal our own daemon.
-    argv = cmdline.split(b"\0")
-    return pid if b"src.terminal" in cmdline and b"daemon" in argv else None
+    return pid if b"src.terminal" in cmdline else None
 
 
 def stop_daemon(
@@ -249,8 +254,6 @@ def stop_daemon(
     deadline = time.monotonic() + timeout_s
     while time.monotonic() < deadline and config.socket_path.exists():
         time.sleep(0.1)
-    if config.socket_path.exists():
-        raise CliError(f"the terminal daemon did not stop within {timeout_s:.0f}s")
     return True
 
 
@@ -385,8 +388,6 @@ def _collect_session_output(client: TerminalClient, sid: str) -> bytes:
 
 
 def cmd_output(config: TerminalConfig, args: argparse.Namespace, out: TextIO) -> int:
-    if args.tail is not None and args.tail <= 0:
-        raise CliError("--tail must be a positive number of bytes")
     with _client(config) as client:
         if PROCESS_ID_RE.match(args.target):
             process = client.request("process.output", process_id=args.target)["process"]

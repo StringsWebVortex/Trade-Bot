@@ -4,6 +4,8 @@ validator's model-lifecycle checks, report contracts and exit codes.
 Every validator case runs against a minimal module written to ``tmp_path``
 and asserts the finding a reviewer or CI gate would act on, never the
 presence of a keyword in the validator itself.
+
+Decides: SEC-1228
 """
 
 from __future__ import annotations
@@ -304,6 +306,25 @@ def test_malformed_baseline_is_an_input_error(va, in_tmp: Path, monkeypatch) -> 
         _main(va, monkeypatch, "--non-interactive", "--file", str(src), "--baseline", str(baseline))
         == 2
     )
+
+
+def test_baseline_count_does_not_hide_a_new_instance_in_a_baselined_file(va) -> None:
+    """DOC-022: a fingerprint has no line, so a 2nd identical finding used to be suppressed too."""
+    old = va.Finding("LAW5", "verify=False", False, va.Severity.CRITICAL, "e", file="a.py", line=3)
+    new = va.Finding("LAW5", "verify=False", False, va.Severity.CRITICAL, "e", file="a.py", line=9)
+    report = va.ValidationReport("t", [old, new])
+    assert report.fingerprint_counts() == {old.fingerprint: 2}
+    assert report.apply_baseline({old.fingerprint}, {old.fingerprint: 1}) == 1
+    assert old.suppressed and not new.suppressed
+    assert report.passed() is False
+
+
+def test_baseline_with_matching_count_suppresses_every_accepted_instance(va) -> None:
+    a = va.Finding("LAW5", "verify=False", False, va.Severity.CRITICAL, "e", file="a.py", line=3)
+    b = va.Finding("LAW5", "verify=False", False, va.Severity.CRITICAL, "e", file="a.py", line=9)
+    report = va.ValidationReport("t", [a, b])
+    assert report.apply_baseline({a.fingerprint}, {a.fingerprint: 2}) == 2
+    assert report.passed() is True
 
 
 def test_baseline_suppresses_known_findings_without_hiding_new_ones(va) -> None:
