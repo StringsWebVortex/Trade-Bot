@@ -1,0 +1,22 @@
+{
+  "id": "REG-1529",
+  "kind": "regression",
+  "title": "Quality id regex accepts registry ids past the old digit caps",
+  "statement": "qe_new_requirement.ID_RE accepts REG and SEC ids with five or more digits.",
+  "criticality": "low",
+  "subsystem": "governance",
+  "status": "verified",
+  "source": "OPS-2026-10-25",
+  "notes": "layer: test-suite",
+  "failure_mode": "next_id produced ids after 9999 that the regex rejected.",
+  "owning_modules": [
+    ".claude/skills/quality-engineering/scripts/qe_new_requirement.py"
+  ],
+  "verification": [
+    {
+      "test": "tests/test_low_findings_regressions.py",
+      "test_type": "regression"
+    }
+  ],
+  "depends_on": []
+}
