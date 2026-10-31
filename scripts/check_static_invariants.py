@@ -1314,6 +1314,9 @@ _WALL_CLOCK_ARITHMETIC_ALLOWED = {
     ("src/data/quality_gate.py", "check_ohlcv"),
     # Same: compared against the macro release date parsed from the provider.
     ("src/data/quality_gate.py", "check_macro"),
+    # Qualification age is measured against a persisted ISO timestamp. A
+    # monotonic clock has no meaning across process restarts.
+    ("src/risk/paper_qualification.py", "assert_qualified_for_live"),
     # _collect_ecc compares a recorded epoch observation time with current epoch
     # to determine the age of an observation (an absolute point in history).
     ("src/intel.py", "_collect_ecc"),
