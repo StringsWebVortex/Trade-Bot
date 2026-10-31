@@ -407,21 +407,31 @@ jobs:
     name: Dependency review (new CVEs in this diff)
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    # Only meaningful on a pull request: the action diffs the base against the
-    # head. GitHub supports dependency review for public repositories; private
-    # repositories need an eligible organization plan and Code Security. This
-    # repository is private under a personal account, where the action fails
-    # before it can inspect the diff. Keep the existing pip-audit and npm audit
-    # jobs as the private-repository fallback. Set the repository variable
-    # DEPENDENCY_REVIEW_ENABLED=true to opt an eligible private repository in.
-    if: ${{ github.event_name == 'pull_request' && (github.repository_visibility == 'public' || vars.DEPENDENCY_REVIEW_ENABLED == 'true') }}
+    needs: [pip-audit, npm-audit]
+    # A PR gets GitHub's diff review where the repository is eligible. This
+    # private personal repository is not, so its fallback ties this check to
+    # successful full-tree audits below. On non-PR events there is no diff.
+    if: ${{ always() && github.event_name == 'pull_request' }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+      - name: GitHub Dependency Review
+        if: ${{ github.repository_visibility == 'public' || vars.DEPENDENCY_REVIEW_ENABLED == 'true' }}
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
         with:
           fail-on-severity: high
           comment-summary-in-pr: on-failure
+
+      - name: Private repository audit fallback
+        if: ${{ github.repository_visibility != 'public' && vars.DEPENDENCY_REVIEW_ENABLED != 'true' }}
+        env:
+          PIP_AUDIT_RESULT: ${{ needs.pip-audit.result }}
+          NPM_AUDIT_RESULT: ${{ needs.npm-audit.result }}
+        run: |
+          if [ "$PIP_AUDIT_RESULT" != "success" ] || [ "$NPM_AUDIT_RESULT" != "success" ]; then
+            echo "::error::Dependency audit fallback requires both pip-audit and npm audit to pass."
+            echo "pip-audit: $PIP_AUDIT_RESULT; npm-audit: $NPM_AUDIT_RESULT"
+            exit 1
+          fi
+          echo "::notice::GitHub Dependency Review is unavailable for this private repository. Full Python and npm dependency audits passed; these scan the complete dependency trees rather than only the PR diff."
 
   container:
     name: Container build and scan (SUP-006)
@@ -472,10 +482,9 @@ jobs:
       - name: Assert every job in this workflow succeeded
         env:
           NEEDS: ${{ toJSON(needs) }}
-          # dependency-review has no pull-request diff on push/schedule, and is
-          # unavailable on private repositories without an eligible Code
-          # Security license. Private repositories still run pip-audit and npm
-          # audit above. If enabled for an eligible private repo, failures are
-          # still fatal; this allowance accepts only the unsupported skip.
+          # dependency-review has no pull-request diff on push/schedule, so it
+          # skips there. Every PR runs either GitHub's diff review or the
+          # private-repository fallback that requires both full-tree audits
+          # above to succeed. This allowance accepts only non-PR skips.
           ALLOW_SKIPPED: dependency-review
         run: python3 scripts/assert_jobs_green.py
