@@ -123,7 +123,7 @@ class TestARIMAPredictor:
 class TestXGBoostPredictor:
     def test_predict_unfitted_returns_zero(self):
         p = XGBoostPredictor()
-        assert p.predict(_make_features(5)) == 0.0
+        assert p.predict(_make_features(5), recent_returns=np.zeros(p.lookback)) == 0.0
 
     def test_predict_with_uncertainty_unfitted(self):
         p = XGBoostPredictor()
