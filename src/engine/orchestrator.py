@@ -74,7 +74,7 @@ from src.models.online_trainer import OnlineTrainer
 from src.models.trainer import ModelTrainer
 from src.regime.detector import RegimeDetector
 from src.risk.drift_integration import DriftIntegrationAdapter
-from src.risk.gates import check_position_exit
+from src.risk.gates import check_position_exit, stricter_daily_pnl
 from src.risk.kelly import apply_size_scalar, compute_win_loss_stats
 from src.risk.macro_exposure_budget import (
     MacroExposureBudget,
@@ -1206,10 +1206,12 @@ class Orchestrator:
         self._last_tick_ts[tf.value] = time.monotonic()
 
         # Gather risk context from executor + storage
-        daily_pnl = await executor.get_daily_pnl(self._symbol)
+        realised_pnl = await executor.get_daily_pnl(self._symbol)
         consecutive_losses = await executor.get_consecutive_losses(self._symbol)
         capital_usd = executor.equity_usd
         starting_equity = executor.starting_equity_usd  # NEW-009: via AbstractExecutor property
+        # EXR-029: an open loss counts against the daily halt too.
+        daily_pnl = stricter_daily_pnl(realised_pnl, capital_usd - starting_equity)
 
         # Live gate status from storage
         direction_gate = False

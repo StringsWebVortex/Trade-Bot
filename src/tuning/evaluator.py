@@ -4,7 +4,7 @@ Champion-vs-challenger statistical evaluator for the self-tuning subsystem.
 Design: docs/SELF_TUNING_DESIGN.md §4 ("Evaluation method").
 
 Uses the same statistical family already trusted in
-src/risk/performance_drift.py (Welch t-test for continuous metrics,
+src/risk/performance_drift.py (t-tests for continuous metrics,
 two-proportion z-test for rate metrics) so there is one audited
 significance-testing approach in the codebase, not two competing ones.
 
@@ -24,7 +24,7 @@ from dataclasses import dataclass
 from typing import Final
 
 from scipy import stats as scipy_stats
-from scipy.stats import norm, ttest_ind
+from scipy.stats import norm, ttest_ind, ttest_rel
 
 _SIGNIFICANCE_ALPHA: Final[float] = 0.05
 
@@ -148,9 +148,19 @@ def deflated_sharpe_ratio(returns: list[float], n_trials: int, benchmark_sr: flo
 
 class ChallengerEvaluator:
     """
-    Compares champion vs. challenger metric samples using Welch's t-test
-    (unequal variance, appropriate when champion/challenger sample sizes
-    or variances differ -- e.g. different numbers of CPCV folds).
+    Compares champion vs. challenger metric samples with a one-sided t-test.
+
+    Every harness builds both arms in the same fold loop, so sample i of the
+    champion and sample i of the challenger come from the same fold. Equal
+    lengths are therefore tested with the paired t-test on the per-fold
+    differences, which removes the fold-to-fold variance both arms share.
+    Welch's unequal-variance test is the fallback only when the lengths
+    differ and no pairing exists (REG-1711).
+
+    The test is one-sided in the direction of the observed delta:
+    ``alternative="greater"`` decides an improvement and ``alternative="less"``
+    a regression, each at ``_SIGNIFICANCE_ALPHA``. ``p_value`` is the p of the
+    side that was tested.
     """
 
     def compare_metric(
@@ -166,15 +176,19 @@ class ChallengerEvaluator:
         challenger_mean = statistics.mean(challenger_samples)
         delta = challenger_mean - champion_mean
 
-        # Welch's t-test: does not assume equal variance between arms.
-        _, p_value_two_sided = ttest_ind(challenger_samples, champion_samples, equal_var=False)
-        p_value_two_sided = float(p_value_two_sided)
-        # One-tailed p-value in the direction of the observed delta.
-        p_value_one_tailed = p_value_two_sided / 2.0
+        alternative = "greater" if delta > 0 else "less"
+        if len(champion_samples) == len(challenger_samples):
+            result = ttest_rel(challenger_samples, champion_samples, alternative=alternative)
+        else:
+            result = ttest_ind(
+                challenger_samples, champion_samples, equal_var=False, alternative=alternative
+            )
+        p_value = float(result.pvalue)
+        if math.isnan(p_value):
+            # 0/0 from identical arms, or NaN samples: no evidence either way.
+            p_value = 1.0
 
-        significant = p_value_one_tailed < _SIGNIFICANCE_ALPHA and not math.isnan(
-            p_value_one_tailed
-        )
+        significant = p_value < _SIGNIFICANCE_ALPHA
         significant_improvement = significant and delta > 0
         significant_regression = significant and delta < 0
 
@@ -183,7 +197,7 @@ class ChallengerEvaluator:
             champion_mean=champion_mean,
             challenger_mean=challenger_mean,
             delta=delta,
-            p_value=p_value_one_tailed,
+            p_value=p_value,
             significant_improvement=significant_improvement,
             significant_regression=significant_regression,
         )

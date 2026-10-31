@@ -85,7 +85,7 @@ SEC-007). `actor_kind` is `human` (default) or `ai`.
 | `GET /runtime/dependencies` | edges, start order, cycle, issues |
 | `GET /runtime/changes`, `GET /runtime/changes/{id}` | change records with their audit |
 | `GET /runtime/traces[?limit=]`, `GET /runtime/traces/{trace_id}` | decision traces |
-| `GET /runtime/agent` | Claude session task manifests and the branch-audit ledger (read-only) |
+| `GET /runtime/agent` | Claude session task manifests and the branch-audit ledger; changes nothing, but needs `CHANGE_RUNTIME`, so a read-only key gets 403 (SEC-0015) |
 | `POST /runtime/changes` | request a change: `component_id`, `action`, `reason`, optional `target_version`, `target_implementation`, `target_configuration`, `expected_version` |
 | `POST /runtime/changes/{id}/{approve,execute,promote,rollback,cancel}` | decide an open change |
 | `POST /runtime/components/{id}/{pause,resume,drain,stop,deactivate,quarantine,rollback,start}` | shorthand for a request on one component |

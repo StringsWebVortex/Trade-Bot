@@ -6,6 +6,7 @@ through every major branch.
 
 Decides:
   - REG-0005 — A test's result never depends on which tests ran before it
+  - REG-1714 — the ensemble receives the realised closed-bar return window
 """
 
 from __future__ import annotations
@@ -703,9 +704,10 @@ class TestEnsembleBlend:
             "filters_failed": [],
             "details": {"hurst": 0.5},
         }
+        bars = _make_bars(n=320)
 
         async def _lb():
-            return _make_bars(n=320)
+            return bars
 
         e._load_bars = _lb
         mock_risk = RiskSettings(ensemble_blend_weight=0.5)
@@ -733,6 +735,11 @@ class TestEnsembleBlend:
         assert r.p_long > 0.55
         assert r.direction == 1
         mock_ensemble.predict_row.assert_called_once()
+        # REG-1714: the sequence members get every realised closed-bar log
+        # return, ending at the last closed bar, not the feature row.
+        passed = mock_ensemble.predict_row.call_args.kwargs["recent_returns"]
+        closes = bars["close"].to_numpy(dtype=float)
+        np.testing.assert_allclose(np.asarray(passed), np.log(closes[1:] / closes[:-1]))
 
     @pytest.mark.asyncio
     async def test_bearish_ensemble_can_flip_direction(self):

@@ -756,9 +756,9 @@ class StrategyPortfolioSettings(BaseSettings):
 
     Each *_fraction is an upper bound on the share of book capital that
     strategy may request, enforced independently of Kelly (Kelly is a
-    ceiling, not a target). The enabled fractions are validated to sum to
-    <= 1.0 at bootstrap, so a mis-set config fails at startup rather than
-    at the first fill.
+    ceiling, not a target). They are ceilings, not a partition: they may sum
+    above 1.0 (the capital allocator caps each strategy and renormalises),
+    and a sum below 1.0 is logged as a warning at bootstrap.
 
     Defaults keep only the incumbent model-driven signal engine enabled.
     The v2/v3/v5 strategy families are opt-in per CLAUDE.md's out-of-sample

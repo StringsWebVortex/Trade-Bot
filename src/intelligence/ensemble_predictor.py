@@ -38,7 +38,7 @@ import json
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Final
+from typing import Any, ClassVar, Final
 
 import joblib
 import numpy as np
@@ -145,6 +145,35 @@ def _verify_manifest(path: Path) -> None:
         )
 
 
+def _realised_return_window(
+    recent_returns: pd.Series | np.ndarray | None,
+    need: int,
+    member: str,
+    *,
+    last_only: bool = False,
+) -> np.ndarray:
+    """
+    The realised log returns a sequence member forecasts from, oldest first.
+
+    REG-1714: ARIMA and the LSTM model the return series itself, so their
+    input is the closed-bar return history, never the tabular feature row.
+    Returns every value supplied, or only the last ``need`` with
+    ``last_only``, after checking there are at least ``need`` of them and that
+    every returned value is finite. Anything less raises, so the ensemble
+    excludes the member rather than forecasting from a fabricated sequence.
+    """
+    if recent_returns is None:
+        raise ValueError(f"{member} needs the realised return window; none was supplied")
+    window = np.asarray(recent_returns, dtype=float).ravel()
+    if window.size < need:
+        raise ValueError(f"{member} needs {need} realised returns, got {window.size}")
+    if last_only:
+        window = window[-need:]
+    if not np.all(np.isfinite(window)):
+        raise ValueError(f"{member} return window contains non-finite values")
+    return window
+
+
 @dataclass
 class EnsemblePrediction:
     """
@@ -201,6 +230,10 @@ class PredictionModel(ABC):
         """
         return getattr(self, "model", None) is not None
 
+    #: True for members that forecast from the realised return window
+    #: (``recent_returns``) rather than from the tabular feature row.
+    uses_return_window: ClassVar[bool] = False
+
     @abstractmethod
     def predict(self, features: pd.DataFrame) -> float:
         """Point prediction."""
@@ -224,7 +257,22 @@ class ARIMAPredictor(PredictionModel):
     """
     ARIMA: Autoregressive Integrated Moving Average.
     Good for: Time-series momentum, trend following.
+
+    REG-1714: the forecast is conditioned on the realised return window
+    passed at inference. The fitted parameters are kept and the state is
+    filtered over that window (``apply(window, refit=False)``), so the
+    forecast moves with every new closed bar. Forecasting from the end of the
+    training sample returned the same number on every call until the next
+    retrain. ``append`` is not used: the training sample is the
+    label-filtered ``fm.log_returns`` (time-exit and tail rows dropped), so it
+    is not a contiguous bar series that live returns could continue, and
+    ensembles on non-primary timeframes are not retrained in-session, so their
+    training end soon leaves the live bar window.
     """
+
+    uses_return_window: ClassVar[bool] = True
+    #: Fewest realised returns the state is filtered over before forecasting.
+    min_window: ClassVar[int] = 20
 
     def __init__(self, order: tuple = (1, 1, 1)):
         self.order = order
@@ -241,22 +289,29 @@ class ARIMAPredictor(PredictionModel):
         except ImportError:
             log.warning("statsmodels not installed, ARIMA disabled")
 
-    def predict(self, features: pd.DataFrame) -> float:
+    def predict(
+        self,
+        features: pd.DataFrame,
+        recent_returns: pd.Series | np.ndarray | None = None,
+    ) -> float:
         if self.model is None:
             return 0.0
+        window = _realised_return_window(recent_returns, self.min_window, "arima")
         try:
-            # statsmodels forecast() returns a Series whose index continues from
-            # the training series' length (e.g. label 60 for a 60-row fit), not
-            # from 0 — positional .iloc[0] is required, [0] label-indexes and
-            # raises KeyError on virtually every real call.
-            forecast = self.model.forecast(steps=1).iloc[0]
-            return float(forecast)
+            forecast = self.model.apply(window, refit=False).forecast(steps=1)
+            # A numpy endog gives an ndarray forecast and a pandas one a Series
+            # whose label continues from the sample length; read it by position.
+            return float(np.asarray(forecast, dtype=float).ravel()[0])
         except Exception as e:
             log.error("arima_prediction_failed", error=str(e), exc_info=True)
-            return 0.0
+            raise
 
-    def predict_with_uncertainty(self, features: pd.DataFrame) -> tuple[float, float]:
-        point = self.predict(features)
+    def predict_with_uncertainty(
+        self,
+        features: pd.DataFrame,
+        recent_returns: pd.Series | np.ndarray | None = None,
+    ) -> tuple[float, float]:
+        point = self.predict(features, recent_returns=recent_returns)
         uncertainty = self.rmse if self.rmse != np.inf else 0.1
         return point, uncertainty
 
@@ -324,7 +379,15 @@ class LSTMPredictor(PredictionModel):
     member. torch>=2.4 is now a pinned dependency (requirements.in) and is
     CPU-only here (no CUDA needed for a single-feature, 20-step LSTM at
     this data scale).
+
+    REG-1714: it is trained on ``lookback``-step windows of realised log
+    returns, so inference feeds it the last ``lookback`` realised returns as a
+    (1, lookback, 1) tensor. The tabular feature row is never reshaped into a
+    sequence; with fewer than ``lookback`` finite returns the member raises
+    and the ensemble excludes it.
     """
+
+    uses_return_window: ClassVar[bool] = True
 
     def __init__(self, hidden_dim: int = 64, lookback: int = 20, epochs: int = 30):
         self.hidden_dim = hidden_dim
@@ -395,27 +458,33 @@ class LSTMPredictor(PredictionModel):
         """
         return self.model is not None and _torch_installed()
 
-    def predict(self, features: pd.DataFrame) -> float:
+    def predict(
+        self,
+        features: pd.DataFrame,
+        recent_returns: pd.Series | np.ndarray | None = None,
+    ) -> float:
         if self.model is None or not _torch_installed():
             return 0.0
+        window = _realised_return_window(recent_returns, self.lookback, "lstm", last_only=True)
         runtime = _load_torch_runtime()
         if runtime is None:
             return 0.0
         try:
-            # Reshape for LSTM (assumes timeseries input — same contract
-            # as the original implementation: caller supplies `lookback`
-            # raw sequential values).
-            X_reshaped = np.array(features, dtype=np.float32).reshape(-1, self.lookback, 1)
+            sequence = window.reshape(1, self.lookback, 1)
             self.model.eval()
             with runtime.torch.no_grad():
-                out = self.model(runtime.torch.tensor(X_reshaped, dtype=runtime.torch.float32))
+                out = self.model(runtime.torch.tensor(sequence, dtype=runtime.torch.float32))
             return float(out.numpy().flatten()[0])
         except Exception as e:
             log.error("lstm_prediction_failed", error=str(e), exc_info=True)
-            return 0.0
+            raise
 
-    def predict_with_uncertainty(self, features: pd.DataFrame) -> tuple[float, float]:
-        point = self.predict(features)
+    def predict_with_uncertainty(
+        self,
+        features: pd.DataFrame,
+        recent_returns: pd.Series | np.ndarray | None = None,
+    ) -> tuple[float, float]:
+        point = self.predict(features, recent_returns=recent_returns)
         uncertainty = self.rmse if self.rmse != np.inf else 0.2
         return point, uncertainty
 
@@ -723,13 +792,18 @@ class EnsemblePredictor:
         y_seq = values[lookback:]
         return X_seq.reshape(-1, lookback, 1), y_seq
 
-    def predict_row(self, features: dict[str, float] | pd.Series) -> EnsemblePrediction:
+    def predict_row(
+        self,
+        features: dict[str, float] | pd.Series,
+        recent_returns: pd.Series | np.ndarray | None = None,
+    ) -> EnsemblePrediction:
         """
         Convenience wrapper for live single-row inference.
 
         Builds a 1-row DataFrame with columns in the exact order recorded
         at fit() time, so column-order-sensitive members (XGBoost, GP,
         TreeEnsemble) never silently mispredict on a mismatched order.
+        ``recent_returns`` is passed through to predict().
 
         Raises
         ------
@@ -738,11 +812,22 @@ class EnsemblePredictor:
         if self._feature_cols is None:
             raise RuntimeError("EnsemblePredictor.predict_row() called before fit()")
         row = {col: float(features[col]) for col in self._feature_cols}
-        return self.predict(pd.DataFrame([row], columns=self._feature_cols))
+        return self.predict(
+            pd.DataFrame([row], columns=self._feature_cols), recent_returns=recent_returns
+        )
 
-    def predict(self, features: pd.DataFrame) -> EnsemblePrediction:
+    def predict(
+        self,
+        features: pd.DataFrame,
+        recent_returns: pd.Series | np.ndarray | None = None,
+    ) -> EnsemblePrediction:
         """
         Ensemble prediction with uncertainty quantification.
+
+        ``recent_returns`` are the realised closed-bar log returns up to the
+        last closed bar, oldest first (REG-1714).
+        Sequence members (ARIMA, LSTM) forecast from them; without enough of
+        them those members are excluded, never fed the feature row.
 
         Returns:
             EnsemblePrediction with point + credible interval + uncertainty sources
@@ -760,7 +845,12 @@ class EnsemblePredictor:
                 failed.append(name)
                 continue
             try:
-                point, uncertainty = model.predict_with_uncertainty(features)
+                if getattr(model, "uses_return_window", False):
+                    point, uncertainty = model.predict_with_uncertainty(
+                        features, recent_returns=recent_returns
+                    )
+                else:
+                    point, uncertainty = model.predict_with_uncertainty(features)
             except Exception as e:
                 log.error("ensemble_member_failed", model=name, error=str(e), exc_info=True)
                 failed.append(name)

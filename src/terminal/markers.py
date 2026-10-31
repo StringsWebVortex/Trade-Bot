@@ -19,11 +19,19 @@ cannot grow without limit -- and reports each marker with its absolute stream
 offsets: where it starts (the end of a command's output) and where it ends
 (the start of it).
 
-Registry: TERM-002 (config/quality_registry.json).
+Anything the terminal prints reaches the scanner, including a crafted file a
+command merely ``cat``s. So a scanner built with a nonce accepts only markers
+that carry it, ``133;<nonce>;E;...``, ``133;<nonce>;C`` and
+``133;<nonce>;D;<status>``, and ignores every other 133 sequence. The session
+mints the nonce and hands it to its shell's integration alone, so output cannot
+invent commands or exit codes.
+
+Registry: TERM-002, SEC-0014 (config/quality_registry.json).
 """
 
 from __future__ import annotations
 
+import hmac
 from dataclasses import dataclass
 
 _OSC = b"\x1b]"
@@ -49,7 +57,9 @@ class Marker:
 class MarkerScanner:
     """Feed it every chunk of output, in order; it returns the markers seen."""
 
-    def __init__(self) -> None:
+    def __init__(self, nonce: str | None = None) -> None:
+        # None keeps the unauthenticated form, for streams no session owns.
+        self._prefix = b"133;" if nonce is None else b"133;" + nonce.encode("ascii") + b";"
         self._pending = b""
         self._pending_offset = 0
 
@@ -90,7 +100,12 @@ class MarkerScanner:
                 # marker; dropping it is what bounds memory.
                 break
             terminator, width = min(ends)
-            marker = _parse(data[payload_start:terminator], base + begin, base + terminator + width)
+            marker = _parse(
+                data[payload_start:terminator],
+                self._prefix,
+                base + begin,
+                base + terminator + width,
+            )
             if marker is not None:
                 markers.append(marker)
             position = terminator + width
@@ -101,10 +116,10 @@ class MarkerScanner:
         self._pending_offset = at
 
 
-def _parse(payload: bytes, start: int, end: int) -> Marker | None:
-    if not payload.startswith(b"133;"):
+def _parse(payload: bytes, prefix: bytes, start: int, end: int) -> Marker | None:
+    if not hmac.compare_digest(payload[: len(prefix)], prefix):
         return None
-    body = payload[4:].decode("utf-8", errors="replace")
+    body = payload[len(prefix) :].decode("utf-8", errors="replace")
     if body == "C":
         return Marker("start", start, end)
     if body.startswith("D"):

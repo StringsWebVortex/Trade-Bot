@@ -26,7 +26,9 @@ def _candidate_names(question: str) -> list[str]:
     return [d["name"] for d in cursor]
 
 
-def _subgraph(names: list[str], limit: int) -> list[dict]:
+def subgraph(names: list[str], limit: int) -> list[dict]:
+    """Return at most ``limit`` edges touching ``names``. The single copy of this
+    query: review.retrieval.graph delegates here (REG-1717)."""
     edges_col = get_edges_collection()
     if not names:
         return list(edges_col.find({}, {"_id": 0}).limit(limit))
@@ -39,7 +41,7 @@ def _subgraph(names: list[str], limit: int) -> list[dict]:
 
 def query(question: str) -> dict:
     names = _candidate_names(question)
-    triples = _subgraph(names, KG_MAX_SUBGRAPH_TRIPLES)
+    triples = subgraph(names, KG_MAX_SUBGRAPH_TRIPLES)
 
     serialized = "\n".join(
         f"({t['subject']}) -[{t['predicate']}]-> ({t['object']}) "

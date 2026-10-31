@@ -32,7 +32,9 @@ def test_compare_metric_significant_regression() -> None:
 def test_compare_metric_noise_not_significant() -> None:
     evaluator = ChallengerEvaluator()
     champion = [0.01, 0.02, -0.01, 0.03, -0.02, 0.015, 0.005, -0.005, 0.02, 0.01] * 2
-    challenger = [0.011, 0.021, -0.011, 0.031, -0.021, 0.016, 0.006, -0.006, 0.021, 0.011] * 2
+    # Per-fold differences that cancel out: +1, -1, ..., +2, -1 (x 0.001). The
+    # comparison is paired (REG-1711), so noise means differences around zero.
+    challenger = [0.011, 0.019, -0.009, 0.029, -0.019, 0.014, 0.006, -0.006, 0.022, 0.009] * 2
     comparison = evaluator.compare_metric("oos_sharpe", champion, challenger)
     assert not comparison.significant_improvement
     assert not comparison.significant_regression
