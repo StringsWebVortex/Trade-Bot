@@ -62,6 +62,7 @@ async def test_partial_close_credits_only_filled_share_and_keeps_residual() -> N
         return_value=_filled_order(price=50_000.0, qty=0.04, fee_usd=0)
     )
     ex._storage.update_trade_exit = AsyncMock()
+    ex._storage.record_trade_partial_exit = AsyncMock()
     ex._storage.insert_equity = AsyncMock()
     await ex.close_position("t", exit_price=50_000.0, exit_reason="x")
     assert "t" in ex._positions
@@ -70,6 +71,83 @@ async def test_partial_close_credits_only_filled_share_and_keeps_residual() -> N
     # zero pnl: cash rises by the 40% of notional sold, minus the fallback fee
     assert ex._cash < 95_000.0 + 2_000.0 + 1e-6
     assert ex._cash > 95_000.0 + 1_900.0
+    ex._storage.update_trade_exit.assert_not_awaited()
+    ex._storage.record_trade_partial_exit.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_multiple_partial_fills_persist_then_final_close_accumulates() -> None:
+    ex = _make_executor(cash=95_000.0)
+    ex._positions["t"] = _make_position(
+        trade_id="t", entry_price=50_000.0, quantity=0.1, notional_usd=5_000.0
+    )
+    ex._place_market_order = AsyncMock(
+        side_effect=[
+            _filled_order(price=51_000.0, qty=0.04, fee_usd=1.0),
+            _filled_order(price=52_000.0, qty=0.03, fee_usd=1.0),
+            _filled_order(price=53_000.0, qty=0.03, fee_usd=1.0),
+        ]
+    )
+    ex._storage.record_trade_partial_exit = AsyncMock()
+    ex._storage.update_trade_exit = AsyncMock()
+    ex._storage.insert_equity = AsyncMock()
+
+    await ex.close_position("t", exit_price=51_000.0, exit_reason="scale_out")
+    assert ex._positions["t"].quantity == pytest.approx(0.06)
+    await ex.close_position("t", exit_price=52_000.0, exit_reason="scale_out")
+    assert ex._positions["t"].quantity == pytest.approx(0.03)
+    await ex.close_position("t", exit_price=53_000.0, exit_reason="final")
+
+    assert "t" not in ex._positions
+    assert ex._storage.record_trade_partial_exit.await_count == 2
+    assert ex._storage.update_trade_exit.await_count == 1
+    assert ex._storage.update_trade_exit.await_args.kwargs["fee_usd"] == pytest.approx(1.0)
+
+
+@pytest.mark.asyncio
+async def test_base_asset_exit_fee_reduces_residual_and_is_not_double_charged_to_cash() -> None:
+    ex = _make_executor(cash=95_000.0)
+    ex._positions["t"] = _make_position(
+        trade_id="t", entry_price=50_000.0, quantity=0.1, notional_usd=5_000.0
+    )
+    ex._place_market_order = AsyncMock(
+        return_value={
+            "id": "sell-1",
+            "filled": 0.04,
+            "average": 51_000.0,
+            "fees": [{"currency": "BTC", "cost": 0.0001}],
+        }
+    )
+    ex._storage.record_trade_partial_exit = AsyncMock()
+    ex._storage.update_trade_exit = AsyncMock()
+    ex._storage.insert_equity = AsyncMock()
+
+    await ex.close_position("t", exit_price=51_000.0, exit_reason="scale_out")
+
+    assert ex._positions["t"].quantity == pytest.approx(0.0599)
+    assert ex._storage.record_trade_partial_exit.await_args.kwargs["fee_usd"] == pytest.approx(5.1)
+    # 0.04 BTC was sold; 0.0001 BTC was consumed as fee, not quote cash.
+    assert ex._cash == pytest.approx(95_000.0 + 0.04 * 51_000.0)
+
+
+@pytest.mark.asyncio
+async def test_near_full_fill_keeps_the_unfilled_residual_open() -> None:
+    ex = _make_executor(cash=95_000.0)
+    ex._positions["t"] = _make_position(
+        trade_id="t", entry_price=50_000.0, quantity=0.1, notional_usd=5_000.0
+    )
+    ex._place_market_order = AsyncMock(
+        return_value=_filled_order(price=50_000.0, qty=0.09995, fee_usd=1.0)
+    )
+    ex._storage.record_trade_partial_exit = AsyncMock()
+    ex._storage.update_trade_exit = AsyncMock()
+    ex._storage.insert_equity = AsyncMock()
+
+    await ex.close_position("t", exit_price=50_000.0, exit_reason="near_full")
+
+    assert "t" in ex._positions
+    assert ex._positions["t"].quantity == pytest.approx(0.00005)
+    ex._storage.record_trade_partial_exit.assert_awaited_once()
     ex._storage.update_trade_exit.assert_not_awaited()
 
 
