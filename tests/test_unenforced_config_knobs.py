@@ -206,6 +206,8 @@ async def test_the_proposed_audit_entry_records_the_count() -> None:
     runner._gate = MagicMock()
     runner._shadow_mode = True
     runner._store = MagicMock()
+    runner._watchdog = None
+    runner._probation_detector_factory = None
 
     with patch.object(runner, "_cooldown_active", return_value=(False, "")):
         with pytest.raises(Exception):  # noqa: B017 - evaluate_fn is a stub
