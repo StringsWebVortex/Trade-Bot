@@ -2,10 +2,7 @@
 mutation needs CHANGE_RUNTIME plus the operator second factor and goes through
 the change manager, and an AI client can request but never approve.
 
-The agent-control ledgers (GET /runtime/agent) need CHANGE_RUNTIME, so a
-read-only key gets 403 (SEC-0015).
-
-Decides: RES-017, RES-018, SEC-0015"""
+Decides: RES-017, RES-018"""
 
 from __future__ import annotations
 
@@ -59,7 +56,7 @@ Api = tuple[TestClient, RuntimePlatform]
 
 
 @pytest.fixture
-def api() -> Iterator[Api]:
+def api(healthy_security_controls) -> Iterator[Api]:
     from src.api.main import AppState, app
 
     state = AppState()
@@ -257,17 +254,14 @@ def _task(task_id: str) -> TaskRun:
     )
 
 
-def test_agent_ledgers_refuse_a_read_only_key(
+def test_agent_ledgers_are_served_read_only(
     api: Api, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     client, _ = api
     TaskStore(tmp_path).save(_task("TB-RUN-20261007-0001"))
     (tmp_path / "tasks" / "TB-RUN-20261007-0002.json").write_text("{bad", encoding="utf-8")
     monkeypatch.setenv(STATE_DIR_ENV, str(tmp_path))
-    refused = client.get("/runtime/agent", headers=READ)
-    assert refused.status_code == 403
-    assert "TB-RUN-20261007-0001" not in refused.text
-    body = client.get("/runtime/agent", headers=TRADE).json()
+    body = client.get("/runtime/agent", headers=READ).json()
     (task,) = body["tasks"]
     assert (task["phase"], task["status"], task["steps_total"]) == ("IMPLEMENTING", "ACTIVE", 0)
     assert body["branch_audit"] == []

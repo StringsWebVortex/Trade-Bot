@@ -170,7 +170,7 @@ def test_a_risk_reduction_is_never_undone_on_health(action: A) -> None:
 
 
 def test_the_self_tuning_endpoints_record_the_operators_intent(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, healthy_security_controls
 ) -> None:
     """/self-tuning/pause and /resume change what the loop enforces: the act
     becomes the desired state, so the loop keeps it rather than reverting."""
