@@ -1,0 +1,23 @@
+{
+  "id": "REG-1530",
+  "kind": "regression",
+  "title": "Review context refuses option-shaped refs and provenance refuses escaping names",
+  "statement": "review.build_context._diff_text rejects refs beginning with '-', and write_provenance.verify reports names that escape the bundle.",
+  "criticality": "low",
+  "subsystem": "governance",
+  "status": "verified",
+  "source": "OPS-2026-10-25",
+  "notes": "layer: test-suite",
+  "failure_mode": "A ref was parsed as a git option, and a provenance name could digest a file outside the bundle.",
+  "owning_modules": [
+    "review/build_context.py",
+    "scripts/write_provenance.py"
+  ],
+  "verification": [
+    {
+      "test": "tests/test_low_findings_regressions.py",
+      "test_type": "regression"
+    }
+  ],
+  "depends_on": []
+}
