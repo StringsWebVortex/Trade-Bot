@@ -67,6 +67,7 @@ vi.mock('../src/hooks/useApi.js', () => {
   };
   return {
     API_ORIGIN: 'http://127.0.0.1:8000',
+    setSessionApiKey: vi.fn(),
     apiFetch,
     apiProblem: (code) => ({ status: code, message: `API error ${code}` }),
     postJson: emptyAction,
