@@ -19,7 +19,7 @@ _WRONG_SECRET = "wrong-secret"  # pragma: allowlist secret
 
 
 @pytest.fixture()
-def api_client():
+def api_client(healthy_security_controls):
     os.environ["API_SECRET_KEY"] = "test-key-" + "a" * 32  # pragma: allowlist secret
     os.environ["OPERATOR_SECRET"] = _TEST_SECRET
 
