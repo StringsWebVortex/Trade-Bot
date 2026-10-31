@@ -6212,13 +6212,13 @@
     {
       "id": "SEC-0011",
       "kind": "security_regression",
-      "title": "The frontend lockfile resolves electron, follow-redirects and undici outside their high advisory ranges",
-      "statement": "frontend's npm tree resolves electron >= 44.9.1, follow-redirects >= 1.16.1 and undici >= 7.30.1 (>= 8.12.2 on the 8.x line), so npm audit at --audit-level=high reports no fixable advisory.",
+      "title": "The frontend lockfile resolves dependencies outside their high advisory ranges",
+      "statement": "frontend's npm tree resolves electron >= 44.9.1, follow-redirects >= 1.16.2, joi >= 18.3.1 and undici >= 7.30.1 (>= 8.12.2 on the 8.x line), so npm audit at --audit-level=high reports no fixable advisory.",
       "criticality": "high",
       "subsystem": "security",
       "status": "verified",
       "source": "OPS-2026-10-25",
-      "failure_mode": "Security gate (npm audit) failed on pull requests that do not touch frontend (#498, #499) because main's lockfile resolved electron 44.7.0 (GHSA-jr5w-w6x2-84p9), follow-redirects 1.16.0 (GHSA-q3jh-wrc6-jgq8, GHSA-8r9p-f939-6h3c) and undici 7.30.0 / 8.11.2 (GHSA-4qv8-2p9j-2685, GHSA-f72v-6w45-q472), all with fixAvailable true. Measured with npm audit --json on a copy of frontend/: 3 high before; 0 high after (4 moderate vitest advisories remain, below the gate threshold).",
+      "failure_mode": "Security gate (npm audit) failed on pull requests that do not touch frontend (#498, #499) because the lockfile resolved vulnerable electron, follow-redirects and undici versions, all with fixAvailable true. GHSA-mrwp-f3q8-3g9p affects follow-redirects 1.16.0-1.16.1 and is fixed in 1.16.2. GHSA-4528-x5fx-h6hg affects joi 18.0.0-18.3.0 and is fixed in 18.3.1. The lockfile floors clear these findings; 4 moderate vitest advisories remain below the gate threshold.",
       "owning_modules": [
         "frontend/package.json",
         ".github/workflows/security.yml"
@@ -6230,7 +6230,7 @@
         }
       ],
       "depends_on": [],
-      "notes": "Lockfile refresh via npm install --package-lock-only plus npm update of the three packages; the only manifest change is the electron floor. The gate was not changed. layer: supply-chain"
+      "notes": "Lockfile refresh via npm install --package-lock-only plus npm update of vulnerable transitive packages; the manifest is unchanged. follow-redirects is kept at 1.16.2 for GHSA-mrwp-f3q8-3g9p and joi at 18.3.1 for GHSA-4528-x5fx-h6hg. The gate was not changed. layer: supply-chain"
     },
     {
       "id": "REG-1140",
@@ -6798,6 +6798,94 @@
       "verification": [
         {
           "test": "tests/test_math_strategies_audit_fixes.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1090",
+      "kind": "regression",
+      "title": "BOCPD changepoint probability responds to a mean shift",
+      "statement": "BayesianOnlineChangepointDetector.update reports the relative collapse of the expected run length, which rises well above the hazard rate after a step change in the mean, and the run_length=0 hypothesis always survives pruning.",
+      "criticality": "high",
+      "subsystem": "model",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "With a constant hazard the mass on run_length=0 is identically the hazard rate, so the reported changepoint probability and the ensemble agreement score carried no information; a pruned r=0 hypothesis raised StopIteration.",
+      "owning_modules": [
+        "src/regime/changepoint.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_changepoint.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1091",
+      "kind": "regression",
+      "title": "MVRV is NaN without a chain-wide realised-cap source",
+      "statement": "OnChainFeatureExtractor reports mvrv as NaN; node-wallet listunspent is never used to build a realised cap.",
+      "criticality": "high",
+      "subsystem": "data",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "MVRV was market cap divided by node-wallet BTC times spot, an arbitrary number presented as a bound.",
+      "owning_modules": [
+        "src/features/onchain.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_onchain_no_fabricated_values.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1092",
+      "kind": "regression",
+      "title": "Triple-barrier unresolved tail rows are NaN, not time exits",
+      "statement": "triple_barrier_labels_with_offsets returns NaN label and offset for rows whose holding window extends past the data and that have not hit a barrier.",
+      "criticality": "high",
+      "subsystem": "data",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "Unresolved tail rows were labelled -1 (time exit), inflating time_exit_fraction and selecting tail rows by whether they happened to resolve early.",
+      "owning_modules": [
+        "src/features/pipeline.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_features.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1093",
+      "kind": "regression",
+      "title": "Lookahead intelligence-feature broadcast helper removed",
+      "statement": "src/features/intelligence_features.py exposes no add_intelligence_features helper that broadcasts a current IntelligenceMetrics snapshot onto historical rows.",
+      "criticality": "high",
+      "subsystem": "data",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "The unused helper stamped today's on-chain values on every past bar, a lookahead hazard if used for training.",
+      "owning_modules": [
+        "src/features/intelligence_features.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_intelligence_features_coverage.py",
           "test_type": "regression"
         }
       ],

@@ -590,6 +590,14 @@ def triple_barrier_labels_with_offsets(
         offsets[hit_upper | hit_lower] = float(k)
         resolved |= hit_upper | hit_lower
 
+    # DAT-005: a row whose holding window runs past the end of the data and that
+    # has not hit a barrier is unresolved, not a time exit. Leaving it at -1
+    # counted truncated windows as time exits (and kept resolved tail peers
+    # while dropping unresolved ones). Rows that did hit a barrier keep their label.
+    unresolved_tail = valid_mask & ~resolved & ((np.arange(n) + max_holding) >= n)
+    labels[unresolved_tail] = np.nan
+    offsets[unresolved_tail] = np.nan
+
     label_series = pd.Series(labels, index=close.index, dtype=np.float64).rename(COL_LABEL)
     offset_series = pd.Series(offsets, index=close.index, dtype=np.float64)
     return label_series, offset_series
@@ -737,8 +745,6 @@ def bar_gap_report(index: pd.Index) -> dict[str, float | int]:
         return empty
 
     diffs = pd.Series(index.astype("int64")).diff().dropna()
-    if diffs.empty:
-        return empty
     expected = int(diffs.mode().iloc[0])
     if expected <= 0:
         return empty

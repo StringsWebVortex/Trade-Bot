@@ -248,6 +248,11 @@ class TestTheRegistryHasAPlaceForDefects:
             # REG-1704: audit STR-21 -- carry and arbitrage entries gated on
             # fixed thresholds no cost measurement produced.
             "REG-1704",
+            # DAT-003..DAT-006: changepoint, MVRV, triple-barrier tail, lookahead.
+            "REG-1090",
+            "REG-1091",
+            "REG-1092",
+            "REG-1093",
             # REG-1705: the knowledge-index gate demanded fresh hashes for every
             # file, so any merge broke every other open PR -- ci-gate-design.
             # REG-1706: fail-fast cancelled five shards when one failed, hiding
@@ -594,8 +599,9 @@ class TestTheMetricsCollector:
         # audit regressions -- test-suite.
         # REG-1360..1374 add fifteen phase 5 math/strategy audit regressions
         # no test exercised -- test-suite, 56 -> 71.
+        # REG-1090..1093 add four data-numerics regressions -- test-suite, 75.
         assert metric["value"] == {
-            "test-suite": 71,
+            "test-suite": 75,
             "review": 1,
             "supply-chain": 4,
             "ci-gate-design": 2,

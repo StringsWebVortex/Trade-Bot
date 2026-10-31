@@ -47,11 +47,11 @@ deletion of the thing it points at.
 
 | Status | Entries |
 |---|---|
-| VERIFIED | 266 |
+| VERIFIED | 270 |
 | PARTIAL | 3 |
 | PLANNED | 0 |
 | ACCEPTED GAP | 0 |
-| **Total** | **269** |
+| **Total** | **273** |
 
 ## Summary by subsystem
 
@@ -61,8 +61,8 @@ deletion of the thing it points at.
 | Execution | 13 | 12 |
 | Portfolio | 2 | 2 |
 | Signal and features | 15 | 15 |
-| Models and leakage | 18 | 18 |
-| Data, money and time | 12 | 11 |
+| Models and leakage | 19 | 19 |
+| Data, money and time | 15 | 14 |
 | API and WebSocket | 26 | 26 |
 | Cryptography and secrets | 34 | 34 |
 | Supply chain and artifacts | 7 | 7 |
@@ -758,6 +758,19 @@ Orchestrator._metrics_payload() builds a complete metrics snapshot for every tic
 
 > Pins payload completeness with and without an executor, the method-vs-property fact the bug turned on, and the original TypeError as a negative case. layer: test-suite
 
+#### `REG-1090` — BOCPD changepoint probability responds to a mean shift
+
+**VERIFIED** · high · regression · source: OPS-2026-10-25
+
+BayesianOnlineChangepointDetector.update reports the relative collapse of the expected run length, which rises well above the hazard rate after a step change in the mean, and the run_length=0 hypothesis always survives pruning.
+
+- **If violated:** With a constant hazard the mass on run_length=0 is identically the hazard rate, so the reported changepoint probability and the ensemble agreement score carried no information; a pruned r=0 hypothesis raised StopIteration.
+- **Owned by:** `src/regime/changepoint.py`
+- **Verification:**
+  - `tests/test_changepoint.py` (regression)
+
+> layer: test-suite
+
 #### `REG-1281` — Predictor labels never fabricate a down move for unlabelable tail rows
 
 **VERIFIED** · medium · regression · source: OPS-2026-10-25
@@ -994,6 +1007,45 @@ MarketDataFetcher.initialize() must open each venue independently, record an una
   - `tests/test_fetcher_venue_degradation.py` (regression)
 
 > Observed against Binance answering HTTP 451 'Service unavailable from a restricted location' on both mainnet and testnet from an affected network, which made the backend unstartable however healthy OKX and everything else was. initialize() built both venues and loaded their markets in one unisolated sequence. GET /venues and POST /venues/{venue}/reconnect expose the state and the recovery so neither needs a restart. layer: test-suite
+
+#### `REG-1091` — MVRV is NaN without a chain-wide realised-cap source
+
+**VERIFIED** · high · regression · source: OPS-2026-10-25
+
+OnChainFeatureExtractor reports mvrv as NaN; node-wallet listunspent is never used to build a realised cap.
+
+- **If violated:** MVRV was market cap divided by node-wallet BTC times spot, an arbitrary number presented as a bound.
+- **Owned by:** `src/features/onchain.py`
+- **Verification:**
+  - `tests/test_onchain_no_fabricated_values.py` (regression)
+
+> layer: test-suite
+
+#### `REG-1092` — Triple-barrier unresolved tail rows are NaN, not time exits
+
+**VERIFIED** · high · regression · source: OPS-2026-10-25
+
+triple_barrier_labels_with_offsets returns NaN label and offset for rows whose holding window extends past the data and that have not hit a barrier.
+
+- **If violated:** Unresolved tail rows were labelled -1 (time exit), inflating time_exit_fraction and selecting tail rows by whether they happened to resolve early.
+- **Owned by:** `src/features/pipeline.py`
+- **Verification:**
+  - `tests/test_features.py` (regression)
+
+> layer: test-suite
+
+#### `REG-1093` — Lookahead intelligence-feature broadcast helper removed
+
+**VERIFIED** · high · regression · source: OPS-2026-10-25
+
+src/features/intelligence_features.py exposes no add_intelligence_features helper that broadcasts a current IntelligenceMetrics snapshot onto historical rows.
+
+- **If violated:** The unused helper stamped today's on-chain values on every past bar, a lookahead hazard if used for training.
+- **Owned by:** `src/features/intelligence_features.py`
+- **Verification:**
+  - `tests/test_intelligence_features_coverage.py` (regression)
+
+> layer: test-suite
 
 #### `REG-1280` — Standalone predictor drops the still-forming candle
 
@@ -1742,18 +1794,18 @@ The integrated terminal adds a command-execution surface; nothing reaches it exc
 
 > layer: test-suite
 
-#### `SEC-0011` — The frontend lockfile resolves electron, follow-redirects and undici outside their high advisory ranges
+#### `SEC-0011` — The frontend lockfile resolves dependencies outside their high advisory ranges
 
 **VERIFIED** · high · security_regression · source: OPS-2026-10-25
 
-frontend's npm tree resolves electron >= 44.9.1, follow-redirects >= 1.16.1 and undici >= 7.30.1 (>= 8.12.2 on the 8.x line), so npm audit at --audit-level=high reports no fixable advisory.
+frontend's npm tree resolves electron >= 44.9.1, follow-redirects >= 1.16.2, joi >= 18.3.1 and undici >= 7.30.1 (>= 8.12.2 on the 8.x line), so npm audit at --audit-level=high reports no fixable advisory.
 
-- **If violated:** Security gate (npm audit) failed on pull requests that do not touch frontend (#498, #499) because main's lockfile resolved electron 44.7.0 (GHSA-jr5w-w6x2-84p9), follow-redirects 1.16.0 (GHSA-q3jh-wrc6-jgq8, GHSA-8r9p-f939-6h3c) and undici 7.30.0 / 8.11.2 (GHSA-4qv8-2p9j-2685, GHSA-f72v-6w45-q472), all with fixAvailable true. Measured with npm audit --json on a copy of frontend/: 3 high before; 0 high after (4 moderate vitest advisories remain, below the gate threshold).
+- **If violated:** Security gate (npm audit) failed on pull requests that do not touch frontend (#498, #499) because the lockfile resolved vulnerable electron, follow-redirects and undici versions, all with fixAvailable true. GHSA-mrwp-f3q8-3g9p affects follow-redirects 1.16.0-1.16.1 and is fixed in 1.16.2. GHSA-4528-x5fx-h6hg affects joi 18.0.0-18.3.0 and is fixed in 18.3.1. The lockfile floors clear these findings; 4 moderate vitest advisories remain below the gate threshold.
 - **Owned by:** `frontend/package.json`, `.github/workflows/security.yml`
 - **Verification:**
   - `tests/test_frontend_audit_scope.py` (unit)
 
-> Lockfile refresh via npm install --package-lock-only plus npm update of the three packages; the only manifest change is the electron floor. The gate was not changed. layer: supply-chain
+> Lockfile refresh via npm install --package-lock-only plus npm update of vulnerable transitive packages; the manifest is unchanged. follow-redirects is kept at 1.16.2 for GHSA-mrwp-f3q8-3g9p and joi at 18.3.1 for GHSA-4528-x5fx-h6hg. The gate was not changed. layer: supply-chain
 
 #### `SEC-0012` — The runtime manifest never resolves a vulnerable filelock
 
@@ -3499,4 +3551,4 @@ To add or change an entry, edit the registry and regenerate this file. See
 `docs/quality/TEST_STRATEGY.md` for the taxonomy the `test_type` column draws
 on, and `docs/quality/IMPLEMENTATION_PLAN.md` for what each phase delivers.
 
-Registry version: 1.0.0 — 269 entries.
+Registry version: 1.0.0 — 273 entries.

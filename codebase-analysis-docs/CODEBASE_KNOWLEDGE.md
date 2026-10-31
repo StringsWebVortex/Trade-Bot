@@ -517,7 +517,7 @@ Use these anchors with the matching current hash in codebase-analysis-docs/CHUNK
 - Main trading tick: [[F:src/engine/orchestrator.py#1195-1232#10c49738]]
 - Retraining and model routing: [[F:src/engine/orchestrator.py#1963-2000#10c49738]]
 - Signal computation: [[F:src/engine/signal_engine.py#663-700#c4c078db]]
-- Training features and labels: [[F:src/features/pipeline.py#771-808#32403b07]]
+- Training features and labels: [[F:src/features/pipeline.py#779-816#bcd874ac]]
 - Ordered first-failure risk evaluation: [[F:src/risk/gates.py#669-706#36a7f38f]]
 - Order state machine: [[F:src/execution/order_fsm.py#149-186#14f635a5]]
 - SQLite initialization/migrations: [[F:src/data/storage.py#745-761#b1db7068]]

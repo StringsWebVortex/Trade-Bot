@@ -576,46 +576,46 @@ SHA8 c4c078db; total lines 1898.
 
 ## src/features/pipeline.py
 
-SHA8 32403b07; total lines 1204.
+SHA8 bcd874ac; total lines 1212.
 
-- get_active_feature_columns (function, lines 84-121, slice 1): CHUNK_ID = src/features/pipeline.py#84-121#32403b07 — [[F:src/features/pipeline.py#84-121#32403b07]].
-- get_active_feature_columns (function, lines 122-146, slice 2): CHUNK_ID = src/features/pipeline.py#122-146#32403b07 — [[F:src/features/pipeline.py#122-146#32403b07]].
-- _frac_diff_weights (function, lines 172-198): CHUNK_ID = src/features/pipeline.py#172-198#32403b07 — [[F:src/features/pipeline.py#172-198#32403b07]].
-- fractional_differentiation (function, lines 201-241): CHUNK_ID = src/features/pipeline.py#201-241#32403b07 — [[F:src/features/pipeline.py#201-241#32403b07]].
-- vwap_deviation_zscore (function, lines 249-277): CHUNK_ID = src/features/pipeline.py#249-277#32403b07 — [[F:src/features/pipeline.py#249-277#32403b07]].
-- order_flow_imbalance (function, lines 285-306): CHUNK_ID = src/features/pipeline.py#285-306#32403b07 — [[F:src/features/pipeline.py#285-306#32403b07]].
-- realized_vol_ratio (function, lines 314-339): CHUNK_ID = src/features/pipeline.py#314-339#32403b07 — [[F:src/features/pipeline.py#314-339#32403b07]].
-- atr_momentum (function, lines 347-375): CHUNK_ID = src/features/pipeline.py#347-375#32403b07 — [[F:src/features/pipeline.py#347-375#32403b07]].
-- rolling_sharpe (function, lines 383-401): CHUNK_ID = src/features/pipeline.py#383-401#32403b07 — [[F:src/features/pipeline.py#383-401#32403b07]].
-- volume_zscore (function, lines 409-424): CHUNK_ID = src/features/pipeline.py#409-424#32403b07 — [[F:src/features/pipeline.py#409-424#32403b07]].
-- TripleBarrierResult (class, lines 433-444): CHUNK_ID = src/features/pipeline.py#433-444#32403b07 — [[F:src/features/pipeline.py#433-444#32403b07]].
-- TripleBarrierComposition (class, lines 448-487): CHUNK_ID = src/features/pipeline.py#448-487#32403b07 — [[F:src/features/pipeline.py#448-487#32403b07]].
-- TripleBarrierComposition.total (method, lines 471-472): CHUNK_ID = src/features/pipeline.py#471-472#32403b07 — [[F:src/features/pipeline.py#471-472#32403b07]].
-- TripleBarrierComposition.time_exit_fraction (method, lines 475-477): CHUNK_ID = src/features/pipeline.py#475-477#32403b07 — [[F:src/features/pipeline.py#475-477#32403b07]].
-- TripleBarrierComposition.as_dict (method, lines 479-487): CHUNK_ID = src/features/pipeline.py#479-487#32403b07 — [[F:src/features/pipeline.py#479-487#32403b07]].
-- _compute_daily_vol (function, lines 490-496): CHUNK_ID = src/features/pipeline.py#490-496#32403b07 — [[F:src/features/pipeline.py#490-496#32403b07]].
-- triple_barrier_labels_with_offsets (function, lines 499-536, slice 1): CHUNK_ID = src/features/pipeline.py#499-536#32403b07 — [[F:src/features/pipeline.py#499-536#32403b07]].
-- triple_barrier_labels_with_offsets (function, lines 537-574, slice 2): CHUNK_ID = src/features/pipeline.py#537-574#32403b07 — [[F:src/features/pipeline.py#537-574#32403b07]].
-- triple_barrier_labels_with_offsets (function, lines 575-595, slice 3): CHUNK_ID = src/features/pipeline.py#575-595#32403b07 — [[F:src/features/pipeline.py#575-595#32403b07]].
-- triple_barrier_labels (function, lines 598-615): CHUNK_ID = src/features/pipeline.py#598-615#32403b07 — [[F:src/features/pipeline.py#598-615#32403b07]].
-- summarize_triple_barrier (function, lines 618-636): CHUNK_ID = src/features/pipeline.py#618-636#32403b07 — [[F:src/features/pipeline.py#618-636#32403b07]].
-- meta_labels (function, lines 644-675): CHUNK_ID = src/features/pipeline.py#644-675#32403b07 — [[F:src/features/pipeline.py#644-675#32403b07]].
-- FeatureMatrix (class, lines 684-702): CHUNK_ID = src/features/pipeline.py#684-702#32403b07 — [[F:src/features/pipeline.py#684-702#32403b07]].
-- bar_gap_report (function, lines 710-747, slice 1): CHUNK_ID = src/features/pipeline.py#710-747#32403b07 — [[F:src/features/pipeline.py#710-747#32403b07]].
-- bar_gap_report (function, lines 748-755, slice 2): CHUNK_ID = src/features/pipeline.py#748-755#32403b07 — [[F:src/features/pipeline.py#748-755#32403b07]].
-- _warn_on_bar_gaps (function, lines 758-768): CHUNK_ID = src/features/pipeline.py#758-768#32403b07 — [[F:src/features/pipeline.py#758-768#32403b07]].
-- build_feature_matrix (function, lines 771-808, slice 1): CHUNK_ID = src/features/pipeline.py#771-808#32403b07 — [[F:src/features/pipeline.py#771-808#32403b07]].
-- build_feature_matrix (function, lines 809-846, slice 2): CHUNK_ID = src/features/pipeline.py#809-846#32403b07 — [[F:src/features/pipeline.py#809-846#32403b07]].
-- build_feature_matrix (function, lines 847-884, slice 3): CHUNK_ID = src/features/pipeline.py#847-884#32403b07 — [[F:src/features/pipeline.py#847-884#32403b07]].
-- build_feature_matrix (function, lines 885-922, slice 4): CHUNK_ID = src/features/pipeline.py#885-922#32403b07 — [[F:src/features/pipeline.py#885-922#32403b07]].
-- build_feature_matrix (function, lines 923-960, slice 5): CHUNK_ID = src/features/pipeline.py#923-960#32403b07 — [[F:src/features/pipeline.py#923-960#32403b07]].
-- build_feature_matrix (function, lines 961-985, slice 6): CHUNK_ID = src/features/pipeline.py#961-985#32403b07 — [[F:src/features/pipeline.py#961-985#32403b07]].
-- build_inference_features (function, lines 993-1030, slice 1): CHUNK_ID = src/features/pipeline.py#993-1030#32403b07 — [[F:src/features/pipeline.py#993-1030#32403b07]].
-- build_inference_features (function, lines 1031-1068, slice 2): CHUNK_ID = src/features/pipeline.py#1031-1068#32403b07 — [[F:src/features/pipeline.py#1031-1068#32403b07]].
-- build_inference_features (function, lines 1069-1106, slice 3): CHUNK_ID = src/features/pipeline.py#1069-1106#32403b07 — [[F:src/features/pipeline.py#1069-1106#32403b07]].
-- build_inference_features (function, lines 1107-1131, slice 4): CHUNK_ID = src/features/pipeline.py#1107-1131#32403b07 — [[F:src/features/pipeline.py#1107-1131#32403b07]].
-- _inject_intelligence_features (function, lines 1139-1176, slice 1): CHUNK_ID = src/features/pipeline.py#1139-1176#32403b07 — [[F:src/features/pipeline.py#1139-1176#32403b07]].
-- _inject_intelligence_features (function, lines 1177-1204, slice 2): CHUNK_ID = src/features/pipeline.py#1177-1204#32403b07 — [[F:src/features/pipeline.py#1177-1204#32403b07]].
+- get_active_feature_columns (function, lines 84-121, slice 1): CHUNK_ID = src/features/pipeline.py#84-121#bcd874ac — [[F:src/features/pipeline.py#84-121#bcd874ac]].
+- get_active_feature_columns (function, lines 122-146, slice 2): CHUNK_ID = src/features/pipeline.py#122-146#bcd874ac — [[F:src/features/pipeline.py#122-146#bcd874ac]].
+- _frac_diff_weights (function, lines 172-198): CHUNK_ID = src/features/pipeline.py#172-198#bcd874ac — [[F:src/features/pipeline.py#172-198#bcd874ac]].
+- fractional_differentiation (function, lines 201-241): CHUNK_ID = src/features/pipeline.py#201-241#bcd874ac — [[F:src/features/pipeline.py#201-241#bcd874ac]].
+- vwap_deviation_zscore (function, lines 249-277): CHUNK_ID = src/features/pipeline.py#249-277#bcd874ac — [[F:src/features/pipeline.py#249-277#bcd874ac]].
+- order_flow_imbalance (function, lines 285-306): CHUNK_ID = src/features/pipeline.py#285-306#bcd874ac — [[F:src/features/pipeline.py#285-306#bcd874ac]].
+- realized_vol_ratio (function, lines 314-339): CHUNK_ID = src/features/pipeline.py#314-339#bcd874ac — [[F:src/features/pipeline.py#314-339#bcd874ac]].
+- atr_momentum (function, lines 347-375): CHUNK_ID = src/features/pipeline.py#347-375#bcd874ac — [[F:src/features/pipeline.py#347-375#bcd874ac]].
+- rolling_sharpe (function, lines 383-401): CHUNK_ID = src/features/pipeline.py#383-401#bcd874ac — [[F:src/features/pipeline.py#383-401#bcd874ac]].
+- volume_zscore (function, lines 409-424): CHUNK_ID = src/features/pipeline.py#409-424#bcd874ac — [[F:src/features/pipeline.py#409-424#bcd874ac]].
+- TripleBarrierResult (class, lines 433-444): CHUNK_ID = src/features/pipeline.py#433-444#bcd874ac — [[F:src/features/pipeline.py#433-444#bcd874ac]].
+- TripleBarrierComposition (class, lines 448-487): CHUNK_ID = src/features/pipeline.py#448-487#bcd874ac — [[F:src/features/pipeline.py#448-487#bcd874ac]].
+- TripleBarrierComposition.total (method, lines 471-472): CHUNK_ID = src/features/pipeline.py#471-472#bcd874ac — [[F:src/features/pipeline.py#471-472#bcd874ac]].
+- TripleBarrierComposition.time_exit_fraction (method, lines 475-477): CHUNK_ID = src/features/pipeline.py#475-477#bcd874ac — [[F:src/features/pipeline.py#475-477#bcd874ac]].
+- TripleBarrierComposition.as_dict (method, lines 479-487): CHUNK_ID = src/features/pipeline.py#479-487#bcd874ac — [[F:src/features/pipeline.py#479-487#bcd874ac]].
+- _compute_daily_vol (function, lines 490-496): CHUNK_ID = src/features/pipeline.py#490-496#bcd874ac — [[F:src/features/pipeline.py#490-496#bcd874ac]].
+- triple_barrier_labels_with_offsets (function, lines 499-536, slice 1): CHUNK_ID = src/features/pipeline.py#499-536#bcd874ac — [[F:src/features/pipeline.py#499-536#bcd874ac]].
+- triple_barrier_labels_with_offsets (function, lines 537-574, slice 2): CHUNK_ID = src/features/pipeline.py#537-574#bcd874ac — [[F:src/features/pipeline.py#537-574#bcd874ac]].
+- triple_barrier_labels_with_offsets (function, lines 575-603, slice 3): CHUNK_ID = src/features/pipeline.py#575-603#bcd874ac — [[F:src/features/pipeline.py#575-603#bcd874ac]].
+- triple_barrier_labels (function, lines 606-623): CHUNK_ID = src/features/pipeline.py#606-623#bcd874ac — [[F:src/features/pipeline.py#606-623#bcd874ac]].
+- summarize_triple_barrier (function, lines 626-644): CHUNK_ID = src/features/pipeline.py#626-644#bcd874ac — [[F:src/features/pipeline.py#626-644#bcd874ac]].
+- meta_labels (function, lines 652-683): CHUNK_ID = src/features/pipeline.py#652-683#bcd874ac — [[F:src/features/pipeline.py#652-683#bcd874ac]].
+- FeatureMatrix (class, lines 692-710): CHUNK_ID = src/features/pipeline.py#692-710#bcd874ac — [[F:src/features/pipeline.py#692-710#bcd874ac]].
+- bar_gap_report (function, lines 718-755, slice 1): CHUNK_ID = src/features/pipeline.py#718-755#bcd874ac — [[F:src/features/pipeline.py#718-755#bcd874ac]].
+- bar_gap_report (function, lines 756-763, slice 2): CHUNK_ID = src/features/pipeline.py#756-763#bcd874ac — [[F:src/features/pipeline.py#756-763#bcd874ac]].
+- _warn_on_bar_gaps (function, lines 766-776): CHUNK_ID = src/features/pipeline.py#766-776#bcd874ac — [[F:src/features/pipeline.py#766-776#bcd874ac]].
+- build_feature_matrix (function, lines 779-816, slice 1): CHUNK_ID = src/features/pipeline.py#779-816#bcd874ac — [[F:src/features/pipeline.py#779-816#bcd874ac]].
+- build_feature_matrix (function, lines 817-854, slice 2): CHUNK_ID = src/features/pipeline.py#817-854#bcd874ac — [[F:src/features/pipeline.py#817-854#bcd874ac]].
+- build_feature_matrix (function, lines 855-892, slice 3): CHUNK_ID = src/features/pipeline.py#855-892#bcd874ac — [[F:src/features/pipeline.py#855-892#bcd874ac]].
+- build_feature_matrix (function, lines 893-930, slice 4): CHUNK_ID = src/features/pipeline.py#893-930#bcd874ac — [[F:src/features/pipeline.py#893-930#bcd874ac]].
+- build_feature_matrix (function, lines 931-968, slice 5): CHUNK_ID = src/features/pipeline.py#931-968#bcd874ac — [[F:src/features/pipeline.py#931-968#bcd874ac]].
+- build_feature_matrix (function, lines 969-993, slice 6): CHUNK_ID = src/features/pipeline.py#969-993#bcd874ac — [[F:src/features/pipeline.py#969-993#bcd874ac]].
+- build_inference_features (function, lines 1001-1038, slice 1): CHUNK_ID = src/features/pipeline.py#1001-1038#bcd874ac — [[F:src/features/pipeline.py#1001-1038#bcd874ac]].
+- build_inference_features (function, lines 1039-1076, slice 2): CHUNK_ID = src/features/pipeline.py#1039-1076#bcd874ac — [[F:src/features/pipeline.py#1039-1076#bcd874ac]].
+- build_inference_features (function, lines 1077-1114, slice 3): CHUNK_ID = src/features/pipeline.py#1077-1114#bcd874ac — [[F:src/features/pipeline.py#1077-1114#bcd874ac]].
+- build_inference_features (function, lines 1115-1139, slice 4): CHUNK_ID = src/features/pipeline.py#1115-1139#bcd874ac — [[F:src/features/pipeline.py#1115-1139#bcd874ac]].
+- _inject_intelligence_features (function, lines 1147-1184, slice 1): CHUNK_ID = src/features/pipeline.py#1147-1184#bcd874ac — [[F:src/features/pipeline.py#1147-1184#bcd874ac]].
+- _inject_intelligence_features (function, lines 1185-1210, slice 2): CHUNK_ID = src/features/pipeline.py#1185-1210#bcd874ac — [[F:src/features/pipeline.py#1185-1210#bcd874ac]].
 
 ## src/risk/gates.py
 
