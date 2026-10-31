@@ -91,7 +91,7 @@ def test_log_model_without_params_skips_log_params():
     fake.log_params.assert_not_called()
 
 
-def test_log_model_pytorch_log_failure_is_caught_and_run_id_still_returned():
+def test_log_model_pytorch_failure_does_not_return_a_registerable_run_id():
     reg, fake = _registry_with_client()
     run_ctx = MagicMock()
     run_ctx.info.run_id = "run-789"
@@ -99,7 +99,7 @@ def test_log_model_pytorch_log_failure_is_caught_and_run_id_still_returned():
     fake.pytorch.log_model.side_effect = RuntimeError("boom")
 
     run_id = reg.log_model(model=object(), model_name="m3", horizon_idx=0, metrics={})
-    assert run_id == "run-789"
+    assert run_id is None
 
 
 def test_register_model_returns_none_without_client():
