@@ -6892,6 +6892,95 @@
       "depends_on": []
     },
     {
+      "id": "SEC-1020",
+      "kind": "security_regression",
+      "title": "The auto-resolve job never exposes its PAT to pull-request branch code",
+      "statement": "pr-auto-update's resolve-next job checks out with persist-credentials false and the default token; the PR_AUTOUPDATE_TOKEN is present only in the final push step, which runs no repository file.",
+      "criticality": "high",
+      "subsystem": "security",
+      "status": "verified",
+      "source": "OPS-2026-10-10",
+      "failure_mode": "A same-repo branch edits a script the job runs and exfiltrates the repo-scope PAT, bypassing branch protection.",
+      "owning_modules": [
+        ".github/workflows/pr-auto-update.yml"
+      ],
+      "depends_on": [],
+      "verification": [
+        {
+          "test": "tests/test_pr_auto_update_workflow.py",
+          "test_type": "security"
+        }
+      ],
+      "notes": "layer: test-suite"
+    },
+    {
+      "id": "SEC-1021",
+      "kind": "security_regression",
+      "title": "Deploy dispatch inputs are never interpolated into shell",
+      "statement": "deploy.yml passes inputs.artifact_run_id to run steps only through env and rejects a non-numeric value in preflight.",
+      "criticality": "high",
+      "subsystem": "security",
+      "status": "verified",
+      "source": "OPS-2026-10-10",
+      "failure_mode": "A dispatcher injects shell into jobs holding production environment secrets.",
+      "owning_modules": [
+        ".github/workflows/deploy.yml"
+      ],
+      "depends_on": [],
+      "verification": [
+        {
+          "test": "tests/test_deploy_workflow_inputs.py",
+          "test_type": "security"
+        }
+      ],
+      "notes": "layer: test-suite"
+    },
+    {
+      "id": "SEC-1022",
+      "kind": "security_regression",
+      "title": "The CI patch validator refuses sections without a validated git header",
+      "statement": "apply_ci_patch._validate_patch rejects traditional ---/+++ sections outside a validated diff --git section, before or after one.",
+      "criticality": "high",
+      "subsystem": "security",
+      "status": "verified",
+      "source": "OPS-2026-10-10",
+      "failure_mode": "A header-less section rewrites a protected control-plane file that path validation never saw.",
+      "owning_modules": [
+        "scripts/apply_ci_patch.py"
+      ],
+      "depends_on": [],
+      "verification": [
+        {
+          "test": "tests/test_apply_ci_patch.py",
+          "test_type": "security"
+        }
+      ],
+      "notes": "layer: test-suite"
+    },
+    {
+      "id": "SEC-1023",
+      "kind": "security_regression",
+      "title": "Command output is redacted before it is truncated",
+      "statement": "shell_exec.run masks secrets in the whole raw output before filtering and capping, and an unterminated PEM private key block is masked to the end of the text.",
+      "criticality": "high",
+      "subsystem": "security",
+      "status": "verified",
+      "source": "OPS-2026-10-10",
+      "failure_mode": "A PEM key cut by max_lines or max_bytes no longer matches the redaction pattern and reaches model context verbatim.",
+      "owning_modules": [
+        "common/shell_exec.py",
+        "common/command_schema.py"
+      ],
+      "depends_on": [],
+      "verification": [
+        {
+          "test": "tests/test_shell_exec.py",
+          "test_type": "security"
+        }
+      ],
+      "notes": "layer: test-suite"
+    },
+    {
       "id": "SEC-1120",
       "kind": "security_regression",
       "title": "MLflow registry never promotes and never unpickles without a pinned manifest",

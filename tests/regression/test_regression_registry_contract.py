@@ -322,6 +322,11 @@ class TestTheRegistryHasAPlaceForDefects:
             "SEC-0010",
             "SEC-0011",
             "SEC-0012",
+            # SEC-1020..1023: CI tooling and workflow security findings.
+            "SEC-1020",
+            "SEC-1021",
+            "SEC-1022",
+            "SEC-1023",
             # SEC-1120..1123: model-loading integrity audit findings.
             "SEC-1120",
             "SEC-1121",
@@ -605,9 +610,10 @@ class TestTheMetricsCollector:
         # REG-1360..1374 add fifteen phase 5 math/strategy audit regressions
         # no test exercised -- test-suite, 56 -> 71.
         # REG-1090..1093 add four data-numerics regressions -- test-suite, 75.
-        # SEC-1120..1123 add four model-loading integrity findings -- test-suite, 79.
+        # SEC-1020..1023 add four CI tooling security findings -- test-suite, +4.
+        # SEC-1120..1123 add four model-loading integrity findings -- test-suite, 83.
         assert metric["value"] == {
-            "test-suite": 79,
+            "test-suite": 83,
             "review": 1,
             "supply-chain": 4,
             "ci-gate-design": 2,
