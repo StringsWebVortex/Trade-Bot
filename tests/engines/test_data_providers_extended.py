@@ -112,10 +112,13 @@ class TestMacroProvider:
         from src.data.macro_provider import MacroProvider
 
         mp = MacroProvider(data_root=tmp_path)
+        from datetime import UTC, datetime
+
         macro_dir = tmp_path / "macro"
         macro_dir.mkdir()
-        row = {"date": "2026-08-01", "spx_close": 5000.0, "vix_close": 15.0}
-        pd.DataFrame([row]).to_parquet(macro_dir / "2026-08-01.parquet", index=False)
+        today = datetime.now(UTC).date().isoformat()
+        row = {"date": today, "spx_close": 5000.0, "vix_close": 15.0}
+        pd.DataFrame([row]).to_parquet(macro_dir / f"{today}.parquet", index=False)
         result = mp.latest()
         assert result is not None
         assert result["spx_close"] == 5000.0
