@@ -966,7 +966,10 @@ class TestAwaitThrottleToken:
         ex._throttle_cfg = OrderThrottleSettings(rate=100.0, burst=1, max_wait_s=1.0)
         ex._throttler = OrderThrottler(rate=100.0, burst=1)
         await ex._await_throttle_token("binance")  # drains the single token
+        start = time.monotonic()
         await ex._await_throttle_token("binance")  # must wait, not raise
+        # Held rather than refused: it returned within the max_wait_s budget.
+        assert time.monotonic() - start < ex._throttle_cfg.max_wait_s
 
     @pytest.mark.asyncio
     async def test_long_backlog_refuses_order(self):

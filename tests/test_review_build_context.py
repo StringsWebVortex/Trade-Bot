@@ -93,5 +93,5 @@ def test_the_diff_is_read_with_a_three_dot_range(monkeypatch):
     monkeypatch.setattr(bc, "_diff_text", _REAL_DIFF_TEXT)
 
     assert bc._diff_text("aaa", "bbb") == "diff text"
-    assert seen["cmd"] == ["git", "diff", "aaa...bbb"]
+    assert seen["cmd"] == ["git", "diff", "aaa...bbb", "--"]
     assert seen["kwargs"]["check"] is True

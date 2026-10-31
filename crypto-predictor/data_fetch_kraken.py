@@ -6,6 +6,8 @@ deploying somewhere Binance is accessible — the DataFrame contract stays
 the same either way, so downstream code (indicators/backtester) is unaffected.
 """
 
+import time
+
 import pandas as pd
 import requests
 
@@ -19,9 +21,8 @@ def fetch_ohlcv(pair: str = "XBTUSD", interval: str = "1h") -> pd.DataFrame:
     """
     Fetch real historical candles from Kraken's public API.
     Returns a DataFrame indexed by UTC timestamp with columns:
-    open, high, low, close, volume.
+    open, high, low, close, vwap, volume, trades.
     Kraken returns ~720 most recent candles per call (no arbitrary limit param).
-    The final entry is the still-forming candle and is dropped.
     """
     if interval not in INTERVAL_MINUTES:
         raise ValueError(f"interval must be one of {list(INTERVAL_MINUTES)}")
@@ -35,12 +36,13 @@ def fetch_ohlcv(pair: str = "XBTUSD", interval: str = "1h") -> pd.DataFrame:
         raise RuntimeError(f"Kraken API error: {payload['error']}")
 
     result_key = next(k for k in payload["result"] if k != "last")
-    # The last OHLC entry is not yet committed by Kraken; keeping it would
-    # feed a repainting bar into features and labels.
-    raw = payload["result"][result_key][:-1]
+    raw = payload["result"][result_key]
 
     cols = ["time", "open", "high", "low", "close", "vwap", "volume", "trades"]
     df = pd.DataFrame(raw, columns=cols)
+    # Kraken's last candle is still forming until its interval has elapsed.
+    now = time.time()
+    df = df[df["time"].astype(float) + INTERVAL_MINUTES[interval] * 60 <= now].copy()
     df["timestamp"] = pd.to_datetime(df["time"], unit="s", utc=True)
     for c in ["open", "high", "low", "close", "vwap", "volume"]:
         df[c] = df[c].astype(float)

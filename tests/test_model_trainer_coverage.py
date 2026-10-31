@@ -3,8 +3,6 @@ Coverage for src/models/trainer.py — Debt-005.
 
 Targets predict_direction, predict_meta, TrainingResult, and
 compute_win_loss_stats without running expensive training loops.
-
-Decides: REG-1354
 """
 
 from __future__ import annotations
@@ -602,12 +600,12 @@ class TestBuildCPCVFolds:
 
 
 class TestComputeSampleWeights:
-    def test_weights_mean_one(self):
+    def test_weights_sum_to_one(self):
         from src.models.trainer import compute_sample_weights
 
         returns = pd.Series([0.01, -0.02, 0.005, 0.0, 0.03])
         weights = compute_sample_weights(returns)
-        assert abs(weights.mean() - 1.0) < 1e-9
+        assert abs(weights.sum() - 1.0) < 1e-9
 
     def test_zero_return_gets_floor_weight(self):
         from src.models.trainer import compute_sample_weights
@@ -890,16 +888,7 @@ class TestTrainMetaLabel:
         trainer = _fast_trainer()
         fm = _feature_matrix(n=400)
         dir_result = trainer.train_direction(fm)
-        # Keep the meta target two-class regardless of XGBoost's fitted
-        # decision boundary: half the direction predictions are deliberately
-        # inverted so CPCV exercises both correct and incorrect outcomes.
-        labels = fm.labels.to_numpy(dtype=np.int8)
-        predictions = labels.copy()
-        predictions[::2] = 1 - predictions[::2]
-        p_long = np.where(predictions == 1, 0.9, 0.1)
-        probabilities = np.column_stack([1.0 - p_long, p_long])
-        with patch.object(dir_result.model, "predict_proba", return_value=probabilities):
-            meta_result = trainer.train_meta_label(fm, dir_result.model)
+        meta_result = trainer.train_meta_label(fm, dir_result.model)
         assert isinstance(meta_result, TrainingResult)
         assert isinstance(meta_result.model, XGBClassifier)
 
@@ -1135,29 +1124,6 @@ def test_cached_models_rejected_when_timestamp_or_current_live_gate_is_invalid()
 
 
 def test_cached_models_rejected_when_the_current_live_gate_fails():
-    trainer = _fast_trainer()
-    fm = _feature_matrix(n=400)
-    direction_provenance = _cache_provenance(trainer, "direction", list(FEATURES), oos_sharpe=-10.0)
-    meta_provenance = _cache_provenance(trainer, "meta_label", [*FEATURES, "p_long", "confidence"])
-    direction_model = MagicMock()
-    direction_model.predict_proba.return_value = np.tile([0.25, 0.75], (len(fm.features), 1))
-    with (
-        patch(
-            "src.models.trainer.read_provenance",
-            side_effect=[direction_provenance, meta_provenance],
-        ),
-        patch("src.models.trainer.read_manifest", return_value={"sha256": "a" * 64}),
-        patch("src.models.trainer.code_commit", return_value="test-commit"),
-        patch("src.models.trainer.library_versions", return_value={"xgboost": "test-version"}),
-        patch("src.models.trainer.hash_training_data", return_value="matching-data"),
-        patch("src.models.trainer.hash_feature_schema", return_value="matching-schema"),
-        patch.object(ModelTrainer, "load_direction", return_value=direction_model),
-        patch.object(ModelTrainer, "load_meta", return_value=MagicMock()),
-    ):
-        assert trainer.load_compatible_cached_models(fm, "/tmp/cache") is None
-
-
-def test_cached_models_rejected_when_current_live_gate_fails():
     trainer = _fast_trainer()
     fm = _feature_matrix(n=400)
     direction_provenance = _cache_provenance(trainer, "direction", list(FEATURES), oos_sharpe=-10.0)

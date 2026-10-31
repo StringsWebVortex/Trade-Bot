@@ -20,9 +20,9 @@ control in this repo lives: the agent's own workflow, pre-commit, and CI.
 - **Claude sessions** — the skill auto-activates on any crypto/trading/risk/key
   task from its `description`. `CLAUDE.md` declares it as outranking
   convenience, and points at the gate.
-- **Code review** — `.claude/agents/code-reviewer.md` runs the gate and applies
-  the red-flag table; `.github/workflows/claude-code-review.yml` passes the same
-  instruction to the PR reviewer.
+- **Code review** — the review route is the CI gate plus the red-flag table in
+  the crypto-architect skill. This repository has no `.claude/agents/` directory
+  and no `claude-code-review.yml` workflow.
 - **pre-commit** — `crypto-architect` hook, full-tree scan, triggered by any
   `src/**.py` change.
 - **CI** — `architecture` job in `ci.yml`. Stdlib-only, so it needs no
@@ -41,13 +41,7 @@ ARCH_FAIL_ON=MEDIUM scripts/arch_gate.sh      # tighten the threshold
 ```
 
 The gate fails on HIGH and CRITICAL findings. Suppress a genuine false positive
-with `# arch-ignore[LAW12]: <reason>` on the offending line, naming the rule(s) it
-silences (`[LAW5,LAW12]` for several) and why — never by loosening a pattern. The
-comment silences only the named rules; every other rule still fires on that line.
-A bare `# arch-ignore`, or one without a reason, suppresses nothing and is itself
-reported (MEDIUM). LAW6 secrets cannot be suppressed inline; accept them through the
-baseline below. Suppressed hits are counted in the report summary and in the SARIF
-run properties (`suppressedByArchIgnore`).
+with `# arch-ignore` on the offending line — never by loosening a pattern.
 
 ## The baseline is debt, not approval
 

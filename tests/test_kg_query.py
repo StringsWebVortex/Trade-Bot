@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-from kg.query import _candidate_names, query, subgraph
+from kg.query import _candidate_names, _subgraph, query
 
 
 def test_candidate_names_no_words_returns_empty():
@@ -34,20 +34,20 @@ def test_candidate_names_falls_back_to_regex_when_no_exact_hits():
     regex_cursor.limit.assert_called_once_with(10)
 
 
-def test_subgraph_no_names_returns_unfiltered():
+def test_subgraph_no_names_returns_nothing():
     edges_col = MagicMock()
     edges_col.find.return_value.limit.return_value = [{"subject": "A"}]
     with patch("kg.query.get_edges_collection", return_value=edges_col):
-        result = subgraph([], limit=10)
-    assert result == [{"subject": "A"}]
-    edges_col.find.assert_called_once_with({}, {"_id": 0})
+        result = _subgraph([], limit=10)
+    assert result == []
+    edges_col.find.assert_not_called()
 
 
 def test_subgraph_with_names_filters():
     edges_col = MagicMock()
     edges_col.find.return_value.limit.return_value = [{"subject": "Alice"}]
     with patch("kg.query.get_edges_collection", return_value=edges_col):
-        result = subgraph(["Alice"], limit=5)
+        result = _subgraph(["Alice"], limit=5)
     assert result == [{"subject": "Alice"}]
     call_filter = edges_col.find.call_args[0][0]
     assert call_filter["$or"][0]["subject"]["$in"] == ["Alice"]
@@ -59,7 +59,7 @@ def test_query_end_to_end():
     ]
     with (
         patch("kg.query._candidate_names", return_value=["Alice"]),
-        patch("kg.query.subgraph", return_value=triples),
+        patch("kg.query._subgraph", return_value=triples),
         patch("kg.query.run_claude", return_value={"result": "Alice works with Bob."}) as mock_run,
     ):
         out = query("Who does Alice work with?")
@@ -72,7 +72,7 @@ def test_query_end_to_end():
 def test_query_with_no_triples_found():
     with (
         patch("kg.query._candidate_names", return_value=[]),
-        patch("kg.query.subgraph", return_value=[]),
+        patch("kg.query._subgraph", return_value=[]),
         patch("kg.query.run_claude", return_value={"result": "No data."}),
     ):
         out = query("anything?")
