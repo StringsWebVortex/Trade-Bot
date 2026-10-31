@@ -38,6 +38,8 @@ post_quantum posture (LAW12):
 from __future__ import annotations
 
 import json
+import os
+from collections.abc import Iterable
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
@@ -64,9 +66,9 @@ class Capability(Enum):
 # The capabilities a key may hold. Anything outside this set fails the check.
 PERMITTED: Final[frozenset[Capability]] = frozenset({Capability.READ, Capability.TRADE})
 
-# The capabilities that are withdrawal-equivalent. The check itself rejects
-# everything outside PERMITTED, so adding a new capability to the enum does
-# not silently become permitted; this set documents the worst offenders.
+# Named separately from "everything not permitted" so the refusal message can
+# say which forbidden capability was found, and so adding a new capability to
+# the enum does not silently become permitted.
 FORBIDDEN: Final[frozenset[Capability]] = frozenset({Capability.WITHDRAW, Capability.TRANSFER})
 
 
@@ -87,9 +89,7 @@ class KeyPosture:
     declared_on: str  # ISO date
 
     def forbidden_capabilities(self) -> frozenset[Capability]:
-        # Everything outside PERMITTED (fail closed): margin and futures keys
-        # are refused too, not only withdraw/transfer (API-016).
-        return frozenset(self.capabilities - PERMITTED)
+        return frozenset(self.capabilities & FORBIDDEN)
 
 
 def posture_from_mapping(exchange: str, raw: Any) -> KeyPosture:
@@ -149,16 +149,22 @@ def assert_safe(posture: KeyPosture) -> None:
         raise PostureViolation(f"{posture.exchange}: posture has no attribution")
 
 
-def assert_all_safe(declarations: Any) -> None:
+def assert_all_safe(declarations: Any, required: Iterable[str] = ()) -> None:
     """
     Check every declared exchange, refusing an empty declaration set.
 
     Empty is refused on purpose: a deployment with keys and no declarations
     would otherwise pass this check trivially, which is the one outcome that
     must not be available.
+
+    ``required`` names venues that MUST be declared (SCR-004): one safe
+    declaration must not vouch for a venue whose key posture was never stated.
     """
     if not isinstance(declarations, dict) or not declarations:
         raise PostureViolation("no exchange key postures are declared")
+    for venue in required:
+        if venue not in declarations:
+            raise PostureViolation(f"no key posture declared for {venue}")
     checked = 0
     for exchange, raw in declarations.items():
         if str(exchange).startswith("_"):
@@ -183,6 +189,23 @@ def load_declarations(path: Path | None = None) -> dict[str, Any]:
     return raw
 
 
-def assert_declared_posture_is_safe(path: Path | None = None) -> None:
+def venues_with_credentials() -> tuple[str, ...]:
+    """Venues this process holds keys for: binance always, others when configured."""
+    from src.config import get_settings  # lazy: foundation layer, avoid import cost
+
+    venues = ["binance"]
+    if get_settings().okx.api_key:
+        venues.append("okx")
+    if os.environ.get("BYBIT_API_KEY", "").strip():
+        venues.append("bybit")
+    return tuple(venues)
+
+
+def assert_declared_posture_is_safe(
+    path: Path | None = None, required: Iterable[str] | None = None
+) -> None:
     """Startup check: load the declaration file and refuse an unsafe posture."""
-    assert_all_safe(load_declarations(path))
+    assert_all_safe(
+        load_declarations(path),
+        venues_with_credentials() if required is None else required,
+    )

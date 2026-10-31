@@ -8,129 +8,6 @@
     "warn"
   ],
   "_enforcement_note": "block: refuse the tool call and explain. warn: allow but inject the reason as feedback. There is no agent-controlled off mode; policy controls are security boundaries and can only be changed in repository source under review.",
-  "bounded_output": {
-    "enabled": true,
-    "max_declared_lines": 30,
-    "_note": "Project directive: fetch at most 30 lines per call, then request the next 30. A read command must carry an explicit bound (head -N, tail -N, sed -n 'a,bp', grep -m N, git log -n N, --max-count) with N <= max_declared_lines. When the bound is satisfied the output is returned normally; when it is not, the only thing that leaves the hook is refusal_message.",
-    "bounded_flag_patterns": [
-      "\\|\\s*(head|tail)\\s+(-n\\s*)?-?(?:[1-9]|[12][0-9]|30)\\b",
-      "\\b(head|tail)\\s+(-n\\s*)?-?(?:[1-9]|[12][0-9]|30)\\b",
-      "\\bsed\\s+-n\\s*['\\\"]?\\s*[0-9]+\\s*,\\s*[0-9]+\\s*p",
-      "\\bsed\\s+-n\\s*['\\\"]?\\s*[0-9]+\\s*p",
-      "\\bgrep\\b[^|]*\\s-m\\s*(?:[1-9]|[12][0-9]|30)\\b",
-      "\\bgrep\\b[^|]*--max-count[= ](?:[1-9]|[12][0-9]|30)\\b",
-      "\\b(git\\s+log|git\\s+shortlog)\\b[^|]*\\s-n?\\s*(?:[1-9]|[12][0-9]|30)\\b",
-      "\\b(gh\\s+\\w+)\\b[^|]*\\s(?:-L|--limit)\\s*(?:[1-9]|[12][0-9]|30)\\b",
-      "\\bhead\\s+-c\\s+[0-9]+\\b",
-      "\\bwc\\b",
-      "\\b(ls|find)\\b[^|]*\\|\\s*(head|tail|wc)\\b",
-      "\\bgrep\\b[^|]*\\s-[a-zA-Z]*c\\b"
-    ],
-    "unbounded_commands": [
-      "cat",
-      "less",
-      "more",
-      "bat",
-      "strings",
-      "find",
-      "tree",
-      "env",
-      "printenv",
-      "history",
-      "journalctl",
-      "dmesg"
-    ],
-    "exempt_commands": [
-      "cd",
-      "pwd",
-      "echo",
-      "printf",
-      "true",
-      "false",
-      "test",
-      "which",
-      "command",
-      "mkdir",
-      "touch",
-      "cp",
-      "mv",
-      "python",
-      "python3",
-      "pip",
-      "pip3",
-      "pytest",
-      "ruff",
-      "mypy",
-      "black",
-      "npm",
-      "npx",
-      "node",
-      "make",
-      "git"
-    ],
-    "_exempt_note": "Commands whose output is either trivially small or whose own tooling already bounds it (pytest -q, ruff, git with -n). Exemption applies to the FIRST word of a pipeline segment only; a pipeline that ends in an unbounded reader is still checked.",
-    "bounded_required_subcommands": {
-      "git": [
-        "log",
-        "diff",
-        "show",
-        "blame",
-        "shortlog",
-        "reflog"
-      ],
-      "docker": [
-        "logs"
-      ],
-      "kubectl": [
-        "logs"
-      ],
-      "npm": [
-        "ls"
-      ],
-      "gh": [
-        "run",
-        "api",
-        "cache",
-        "workflow"
-      ]
-    },
-    "_subcommand_note": "Commands that are exempt as a whole but have subcommands whose output is unbounded. `git` is exempt so that `git status` and `git add` are not nagged, but `git log` with no -n can page thousands of commits into context.",
-    "oversized_bound_patterns": [
-      "\\b(?:head|tail)\\s+(?:-n\\s*)?-?(\\d+)\\b",
-      "\\bgrep\\b[^|]*?\\s-m\\s*(\\d+)\\b",
-      "\\bgrep\\b[^|]*?--max-count[= ](\\d+)\\b",
-      "\\b(?:git\\s+\\w+|docker\\s+logs|kubectl\\s+logs)\\b[^|]*?\\s(?:-n|--max-count|--tail)[= ]?(\\d+)\\b",
-      "\\bgh\\s+\\w+\\b[^|]*?\\s(?:-L|--limit)[= ]?(\\d+)\\b"
-    ],
-    "oversized_range_patterns": [
-      "\\bsed\\s+-n\\s*['\\\"]?\\s*(\\d+)\\s*,\\s*(\\d+)\\s*p"
-    ],
-    "_oversized_note": "A bound that is present but large is not a bound. head -100 puts 100 lines in context just as surely as cat does. These patterns extract the declared N and compare it against max_declared_lines; sed ranges are compared by span.",
-    "max_declared_bytes": 2000,
-    "oversized_byte_patterns": [
-      "\\b(?:head|tail)\\s+-c\\s*(\\d+)\\b"
-    ],
-    "_byte_note": "head -c is a legitimate bound for output with no newlines, but a byte bound is still a bound: -c 500000 is unbounded in practice. Compared against max_declared_bytes rather than max_declared_lines.",
-    "_count_note": "grep -c emits a single count line, so it is inherently bounded and must not be treated as an unbounded read just because it follows a reader in the pipeline.",
-    "refusal_message": "only <=30 lines are allowed,run command for minimum line which can make you understand the failure",
-    "_gh_note": "`gh` is not exempt as a whole, but `gh run view --log`, `gh run list` and `gh api .../logs` page an entire CI run into context. They are allowed only behind an explicit bound; `gh pr view/checks/merge` are untouched."
-  },
-  "observation_boundary": {
-    "enabled": true,
-    "max_success_lines": 3,
-    "max_success_chars": 1200,
-    "max_read_lines": 30,
-    "native_read_tools": [
-      "Read"
-    ],
-    "mcp_read_tool_patterns": [
-      "read_file$",
-      "read_process_output$",
-      "read_terminal$"
-    ],
-    "read_refusal_message": "Read operations must declare a bounded range of at most 30 lines. Use a targeted search first, then request the smallest exact range needed. The returned model observation is additionally compacted to at most three useful lines.",
-    "_note": "This is a model-context boundary, not a filesystem access control. PostToolUse compacts every successful tool result; PreToolUse prevents unbounded native source reads and direct CI run-data access."
-  },
   "destructive": {
     "enabled": true,
     "_note": "Destructive commands are refused outright. They are not blocked because they are forbidden -- they are blocked because they must be run through common/shell_exec.run() with classification='destructive' and confirm_destructive=True, which records the authorization. The hook names that path in its refusal.",
@@ -142,6 +19,9 @@
     "_note": "Refuse commands that would print a credential store straight into the transcript, which is how a secret ends up in an LLM context and in the session log.",
     "patterns": [
       "\\bcat\\b[^|]*\\.(env|pem|key|p12|pfx|keystore)\\b",
+      "\\b(head|tail|sed|awk|grep|egrep|rg|less|more|bat|strings|xxd|od|cut|sort|nl|tac|base64)\\b[^|;&]*\\.(env(?!\\.(example|sample|template))|pem|key|p12|pfx|keystore)\\b",
+      "\\b(head|tail|sed|awk|grep|egrep|rg|less|more|bat|strings|xxd|od|cut|sort|nl|tac|base64)\\b[^|;&]*(id_rsa|id_ed25519|\\.netrc|\\.pgpass)\\b",
+      "\\bpython(?:3)?(?:\\.\\d+)?\\b[\\s\\S]*\\bopen\\([^)]*\\.(env(?!\\.(example|sample|template))|pem|key|p12|pfx|keystore)\\b",
       "\\bcat\\b[^|]*(id_rsa|id_ed25519|credentials|\\.netrc|\\.pgpass)\\b",
       "\\becho\\b[^|]*\\$(MONGODB_URI|GITHUB_TOKEN|ANTHROPIC_API_KEY|AWS_SECRET_ACCESS_KEY)\\b",
       "\\b(env|printenv)\\b\\s*$",
@@ -150,63 +30,20 @@
       "\\bgh\\s+auth\\s+token\\b"
     ]
   },
-  "ci_observability": {
-    "enabled": true,
-    "_note": "Permanent, not situational. CI live-monitoring -- following a run, watching checks, or a poll loop -- streams an unbounded and open-ended amount of build output into context, and no per-call line bound can cap something that never ends. Bulk retrieval is no longer a bounded alternative either: see ci_log_access, which refuses it outright.",
-    "message": "CI live monitoring and direct CI run-data retrieval are blocked. Use only ./scripts/prfail --pr <PR_NUMBER> for the finalized filtered report.",
-    "live_patterns": [
-      "\\bgh\\s+run\\s+watch\\b",
-      "\\bgh\\s+(run|pr)\\b[^|]*--watch\\b",
-      "\\bgh\\s+pr\\s+checks\\b[^|]*--watch\\b",
-      "\\btail\\s+(-[a-zA-Z]*f|--follow)\\b",
-      "\\b(docker|kubectl)\\s+logs\\b[^|]*(-f|--follow)\\b",
-      "\\bwhile\\s+(true|:)\\s*;?\\s*do\\b",
-      "\\buntil\\b[^\\n]*\\bdo\\b[^\\n]*\\b(gh|curl)\\b",
-      "\\bwatch\\s+-n\\b",
-      "\\binotifywait\\b[^|]*-m\\b"
-    ],
-    "banned_tools": [
-      "Monitor"
-    ],
-    "_banned_tools_note": "The Monitor tool is a live watch by construction, so it is refused for this project regardless of what it is pointed at."
-  },
   "ci_log_access": {
     "enabled": true,
-    "_note": "The .github/workflows/ci-diagnostics.yml collector publishes the finalized filtered report. Use only ./scripts/prfail --pr <PR_NUMBER>; direct Actions data, annotations, logs, artifacts, check results, local check execution, and legacy PR-comment reads remain blocked.",
-    "message": "THAPPAR \u2014 CI DIAGNOSTIC ACCESS BLOCKED. Use only: ./scripts/prfail --pr <PR_NUMBER>. Direct or alternative diagnostic retrieval is prohibited.",
-    "_hard_deny_note": "Raw check/log reads are denied before the allowlist. Only the exact ./scripts/prfail --pr <positive-decimal> command is exempt; local check wrappers and shell wrappers are not implemented.",
+    "_note": "The sole agent-facing CI route is ./scripts/prfail --pr <PR_NUMBER>. The collector in .github/workflows/ci-diagnostics.yml publishes a filtered Check Run report bound to the current PR head SHA; all direct Actions data, annotations, logs, artifacts, check results, and legacy PR-comment reads are blocked.",
+    "message": "THAPPAR — CI DIAGNOSTIC ACCESS BLOCKED. Use only: ./scripts/prfail --pr <PR_NUMBER>. Direct or alternative diagnostic retrieval is prohibited.",
+    "_hard_deny_note": "Raw check/log reads are denied before the allowlist. Only the exact ./scripts/prfail --pr positive-decimal command is exempt; selectors and shell wrappers are not implemented.",
     "hard_deny_patterns": [
       "\\bgh\\s+(pr|run|repo)\\b[^|]*--json\\b[^|]*\\b(statusCheckRollup|checkRuns|checkSuites|jobs|workflowRuns)\\b",
       "\\bgh\\s+pr\\s+checks\\b"
     ],
-    "_allowed_note": "Exactly one diagnostic route is permitted: ./scripts/prfail --pr followed by a positive decimal PR number.",
+    "_allowed_note": "Exactly one command is permitted: ./scripts/prfail --pr followed by a positive decimal PR number.",
     "allowed_patterns": [
       "^\\s*\\./scripts/prfail\\s+--pr\\s+[1-9][0-9]*\\s*$"
     ],
-    "denied_tool_patterns": [
-      "mcp__*__*workflow*log*",
-      "mcp__*__*workflow*artifact*",
-      "mcp__*__*workflow*job*",
-      "mcp__*__*workflow*run*",
-      "mcp__*__*check*run*",
-      "mcp__*__*check*suite*",
-      "mcp__*__*annotation*",
-      "mcp__*__*artifact*",
-      "mcp__*__*actions*",
-      "mcp__*__*status*check*",
-      "mcp__*__*workflow*step*"
-    ],
-    "denied_command_patterns": [
-      "\\bgh\\s+run\\s+\\w+\\b",
-      "\\bgh\\s+workflow\\s+\\w+\\b",
-      "\\bgh\\s+pr\\s+checks\\b",
-      "\\bgh\\s+api\\b[^|]*(?:actions|check-runs?|check-suites?|annotations|statuses|workflow_runs|artifacts|jobs)",
-      "\\b(?:curl|wget|http|https|xh)\\b[^|]*(?:api\\.github\\.com|github\\.com/)[^|]*(?:actions|check-runs?|check-suites?|annotations|statuses|workflow_runs|artifacts|jobs)",
-      "\\b(?:python(?:3)?(?:\\.\\d+)?|node|ruby|perl|php|go)\\b[^|]*(?:urllib|requests|httpx|fetch\\(|axios|Net::HTTP|curl_easy|github\\.com|api\\.github\\.com)[^|]*(?:actions|check-runs?|check-suites?|annotations|statuses|workflow_runs|artifacts|jobs)",
-      "\\b(?:jq|yq)\\b[^|]*(?:workflow|check_run|check_suite|artifact|annotation|conclusion|statusCheckRollup)",
-      "\\b(?:act|gh-runner|actions-runner)\\b"
-    ],
-    "_banned_note": "Mirrors common.command_schema.CI_LOG_PATTERNS; tests require the shared classifier and JSON fallback to agree. The PreToolUse hook independently fails closed for all unapproved tools and shell commands.",
+    "_banned_note": "Mirrors common.command_schema.CI_LOG_PATTERNS; tests require the shared classifier and JSON fallback to agree.",
     "banned_patterns": [
       "\\bgh\\s+run\\s+(view|list|download|watch|rerun|cancel|delete)\\b",
       "\\bgh\\s+workflow\\s+(run|view|list)\\b",
@@ -219,7 +56,6 @@
       "\\bgh\\s+api\\b[^|]*/statuses/",
       "\\bgh\\s+(pr|run)\\b[^|]*--json\\b[^|]*\\b(statusCheckRollup|checkRuns|jobs|workflowRuns)\\b",
       "\\b(?:curl|wget)\\b[^|]*(?:api\\.github\\.com|github\\.com/)[^|]*(?:actions|check-runs|check-suites|annotations|statuses|workflow_runs)\\b",
-      "\\b(?:https?|xh)\\b[^|]*(?:api\\.github\\.com|github\\.com/)[^|]*(?:actions|check-runs?|check-suites?|annotations|statuses|workflow_runs|artifacts|jobs)\\b",
       "\\bact\\b\\s+-",
       "\\bgh\\s+pr\\s+view\\b[^|]*(?:--comments\\b|--json\\b[^|]*\\bcomments\\b)",
       "\\bgh\\s+issue\\s+view\\b[^|]*(?:--comments\\b|--json\\b[^|]*\\bcomments\\b)",
@@ -235,7 +71,7 @@
       "\\bpython(?:3)?(?:\\.\\d+)?\\s+-m\\s+scripts\\.ci_diagnostics\\b",
       "\\bpython(?:3)?(?:\\.\\d+)?\\s+-c\\b[\\s\\S]*(?:\\bscripts[./](?:ci_diagnostics|ci_verdict|local_checks|prfail)\\b|\\bfrom\\s+scripts\\s+import\\b[\\s\\S]*\\b(?:ci_diagnostics|ci_verdict|local_checks)\\b)",
       "\\bpython(?:3)?(?:\\.\\d+)?\\s+-\\s*<<[\\s\\S]*(?:\\bscripts[./](?:ci_diagnostics|ci_verdict|local_checks|prfail)\\b|\\bfrom\\s+scripts\\s+import\\b[\\s\\S]*\\b(?:ci_diagnostics|ci_verdict|local_checks)\\b)",
-      "\\b(?:python(?:3)?(?:\\.\\d+)?|node|ruby|perl|php|go)\\b[^|]*(?:urllib|requests|httpx|fetch\\(|axios|Net::HTTP|curl_easy|github\\.com|api\\.github\\.com)[^|]*(?:actions|check-runs?|check-suites?|annotations|statuses|workflow_runs|artifacts|jobs)"
+      "\\b(?:python|python3|node)\\b[^|]*(?:urllib|requests|httpx|fetch\\()\\b[^|]*(?:github\\.com|api\\.github\\.com)"
     ]
   },
   "local_checks": {
@@ -278,27 +114,12 @@
     ],
     "github_only": true
   },
-  "duplicate_delivery": {
-    "enabled": false,
-    "threshold": 0.25,
-    "denominator": "proposed-delivery-comparable-content-units",
-    "filename_independent": true,
-    "enforcement": "not enabled as a repository policy until a registry-backed deciding test can verify the host-level enforcement contract; the separate host hook is outside this worktree",
-    "sources": [
-      "accessible Trade-Bot worktrees",
-      "tracked and untracked repository files",
-      "reachable Git refs and history",
-      "available local Claude Trade-Bot conversation records"
-    ],
-    "persistent_index": "host-level index outside branch/worktree",
-    "stale_or_unavailable_index": "block delivery-shaped mutations",
-    "limitations": "Policy is deliberately disabled here: repository CI cannot verify the external host hook or ChatGPT-hosted conversation history."
-  },
-  "_gh_note": "CI run data and arbitrary PR-comment reads are blocked. Use the exact ./scripts/prfail --pr <PR_NUMBER> report command; ordinary PR metadata and comment writes remain separately governed.",
+  "_gh_note": "CI run data and arbitrary PR-comment reads are blocked. The only permitted diagnostic route is the exact ./scripts/prfail --pr <PR_NUMBER> command; ordinary PR metadata and comment writes remain separately governed.",
   "github_route": {
     "contract": ".claude/hooks/_gh_contract.py",
     "_note": "The GitHub tool contract is code-owned. This section is documentary; it cannot widen a route.",
     "ci_notice_route": "./scripts/prfail --pr <PR_NUMBER> (finalized filtered Check Run report)",
     "pr_comment_reads": "deny (pull_request_read method=get_comments is refused)"
-  }
+  },
+  "_removed_sections_note": "SCR-006: bounded_output, observation_boundary and ci_observability had no consumer; the hooks read config/observation_boundary.json (80-line limits). CI live-watch bans live in ci_log_access and common/command_schema.py."
 }

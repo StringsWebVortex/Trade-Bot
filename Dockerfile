@@ -28,11 +28,8 @@
 # enforce them; what it can do is be usable with them, which the health check
 # below exercises.
 
-# python:3.11-slim -- matches .python-version, which is what CI installs.
-# The tag stays beside the digest so a Dependabot update has to name the tag
-# it moves to: with a bare digest it proposed a python 3.15.1 image as a plain
-# digest refresh (#516), and the dependency install failed on it.
-FROM python:3.11-slim@sha256:b7a9e5f6a93d6d4a31f129bbd4bdee69efccb6ded0fb230d78aafaf37af98377 AS build
+# python:3.11-slim -- matches .python-version, which is what CI installs
+FROM python@sha256:bab1b7ef4b450c81002278d035eff85ebe394ae94df904f7a3ba14f7e16e487b AS build
 
 WORKDIR /build
 
@@ -67,7 +64,7 @@ COPY scripts ./scripts
 
 # ---------------------------------------------------------------------------
 
-FROM python:3.11-slim@sha256:b7a9e5f6a93d6d4a31f129bbd4bdee69efccb6ded0fb230d78aafaf37af98377 AS runtime
+FROM python@sha256:bab1b7ef4b450c81002278d035eff85ebe394ae94df904f7a3ba14f7e16e487b AS runtime
 
 # Pin the base, then patch it.
 #
@@ -125,6 +122,11 @@ COPY --from=build --chown=root:root /build/scripts /app/scripts
 RUN python -m pip uninstall --yes pip wheel \
     && rm -rf /usr/local/lib/python3.11/site-packages/pip \
     && rm -rf /root/.cache
+
+# OPS-005: the only writable paths under a read-only root. Created owned by the
+# app user so named volumes mounted here inherit that ownership.
+RUN mkdir -p /app/data /app/logs /app/models \
+    && chown -R 10001:10001 /app/data /app/logs /app/models
 
 # Owned by root, run as tradebot: the running process cannot modify its own
 # code. This is the single most useful property in the file.
