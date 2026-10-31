@@ -5,6 +5,14 @@ from __future__ import annotations
 import asyncio
 
 
+def _isolated_config(tmp_path):
+    """Keep each CryptoIntelligence test's SQLite state inside its tmp_path."""
+    cfg = tmp_path / "i.yaml"
+    checkpoint_dir = (tmp_path / "horizons").as_posix()
+    cfg.write_text(f"checkpoint_dir: '{checkpoint_dir}'\n")
+    return cfg
+
+
 class TestIntelSignal:
     def test_signal_fields(self) -> None:
         from src.intel import IntelSignal
@@ -27,9 +35,10 @@ class TestIntelSignal:
 
 
 class TestCryptoIntelligenceInit:
-    def test_init_with_missing_config_uses_defaults(self, tmp_path) -> None:
+    def test_init_with_missing_config_uses_defaults(self, tmp_path, monkeypatch) -> None:
         from src.intel import CryptoIntelligence
 
+        monkeypatch.chdir(tmp_path)
         cfg = tmp_path / "intelligence.yaml"
         # missing file — should not raise
         intel = CryptoIntelligence(config_path=cfg)
@@ -58,7 +67,7 @@ class TestCryptoIntelligenceLifecycle:
     def test_start_and_close(self, tmp_path) -> None:
         from src.intel import CryptoIntelligence
 
-        cfg = tmp_path / "i.yaml"
+        cfg = _isolated_config(tmp_path)
         intel = CryptoIntelligence(config_path=cfg)
         intel.start()
         assert intel._started
@@ -68,7 +77,7 @@ class TestCryptoIntelligenceLifecycle:
     def test_double_start_idempotent(self, tmp_path) -> None:
         from src.intel import CryptoIntelligence
 
-        cfg = tmp_path / "i.yaml"
+        cfg = _isolated_config(tmp_path)
         intel = CryptoIntelligence(config_path=cfg)
         intel.start()
         intel.start()
@@ -83,7 +92,7 @@ class TestOnBarAsync:
     def test_on_bar_returns_signal_or_none(self, tmp_path) -> None:
         from src.intel import CryptoIntelligence
 
-        cfg = tmp_path / "i.yaml"
+        cfg = _isolated_config(tmp_path)
         intel = CryptoIntelligence(config_path=cfg)
         intel.start()
         ohlcv = {
@@ -101,7 +110,7 @@ class TestOnBarAsync:
     def test_on_bar_auto_starts(self, tmp_path) -> None:
         from src.intel import CryptoIntelligence
 
-        cfg = tmp_path / "i.yaml"
+        cfg = _isolated_config(tmp_path)
         intel = CryptoIntelligence(config_path=cfg)
         assert not intel._started
         ohlcv = {"close": 50000.0, "volume": 10.0}
@@ -112,7 +121,7 @@ class TestOnBarAsync:
     def test_on_bar_with_bids_asks(self, tmp_path) -> None:
         from src.intel import CryptoIntelligence
 
-        cfg = tmp_path / "i.yaml"
+        cfg = _isolated_config(tmp_path)
         intel = CryptoIntelligence(config_path=cfg)
         ohlcv = {"close": 50000.0, "volume": 10.0}
         bids = [[49990.0, 1.0], [49980.0, 2.0]]
@@ -124,7 +133,7 @@ class TestOnBarAsync:
     def test_on_bar_with_derivatives_data(self, tmp_path) -> None:
         from src.intel import CryptoIntelligence
 
-        cfg = tmp_path / "i.yaml"
+        cfg = _isolated_config(tmp_path)
         intel = CryptoIntelligence(config_path=cfg)
         ohlcv = {"close": 50000.0, "volume": 10.0}
         deriv = {"oi_usd": 1e9, "funding_rate": 0.0001, "liquidations_usd": 5e6}
@@ -137,7 +146,7 @@ class TestCollectECC:
     def test_collect_ecc_returns_dict(self, tmp_path) -> None:
         from src.intel import CryptoIntelligence
 
-        cfg = tmp_path / "i.yaml"
+        cfg = _isolated_config(tmp_path)
         intel = CryptoIntelligence(config_path=cfg)
         intel.start()
         result = intel._collect_ecc()
