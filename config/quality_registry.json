@@ -7104,6 +7104,94 @@
         }
       ],
       "notes": "Audit DAT-002, EXR-003. layer: test-suite"
+    },
+    {
+      "id": "REG-1040",
+      "kind": "regression",
+      "title": "Crypto-box Kelly reduction reaches the order size",
+      "statement": "A crypto-box scale below 1 reduces the order quantity and notional, and skips the trade when the reduced size is below exchange minimums.",
+      "criticality": "high",
+      "subsystem": "execution",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "audit finding EXR-006. layer: test-suite",
+      "failure_mode": "Only adjusted_fraction was halved; quantity and notional were untouched so the order went out at full size.",
+      "owning_modules": [
+        "src/engine/orchestrator.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_exec_accounting_fixes.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1041",
+      "kind": "regression",
+      "title": "Partial live close settles only the filled share",
+      "statement": "A partially filled live close credits cash only for the filled share of the notional and keeps the residual position open and tracked.",
+      "criticality": "high",
+      "subsystem": "execution",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "audit finding EXR-007. layer: test-suite",
+      "failure_mode": "The whole position was removed and the full entry notional credited on a partial fill.",
+      "owning_modules": [
+        "src/execution/live.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_exec_accounting_fixes.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1042",
+      "kind": "regression",
+      "title": "Spot live executor refuses short entries",
+      "statement": "LiveExecutor._place_and_record refuses any non-long direction on the spot account without placing an order or touching cash.",
+      "criticality": "high",
+      "subsystem": "execution",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "audit finding EXR-008. layer: test-suite",
+      "failure_mode": "Shorts were sent as spot sells and booked as opened shorts, diverging from the exchange.",
+      "owning_modules": [
+        "src/execution/live.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_exec_accounting_fixes.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1043",
+      "kind": "regression",
+      "title": "Base-asset entry fees reduce tracked position quantity",
+      "statement": "A buy fill whose fee is charged in the base asset records the net quantity and the fee in USD at the fill price.",
+      "criticality": "high",
+      "subsystem": "execution",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "audit finding EXR-012. layer: test-suite",
+      "failure_mode": "Base-currency fees were ignored so the position quantity exceeded holdings and the close oversold.",
+      "owning_modules": [
+        "src/execution/live.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_exec_accounting_fixes.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
     }
   ]
 }

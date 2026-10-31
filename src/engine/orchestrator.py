@@ -251,6 +251,37 @@ def _aggregate_venue_positions(
     ]
 
 
+def _apply_crypto_box_scale(
+    result: Any,
+    scale: float,
+    price: float,
+    precision: dict[str, float],
+) -> Any:
+    """Shrink the sized order (quantity and notional) by the crypto-box scale.
+
+    EXR-006: scaling only ``adjusted_fraction`` never reached the order, which
+    is sized from ``quantity``/``notional_usd``. Shrink-only; a trade that falls
+    below exchange minimums is marked untradeable instead of sent full size.
+    """
+    kelly = result.kelly_result
+    if kelly is None:
+        return result
+    scale = min(scale, 1.0)
+    if scale >= 1.0:
+        return result
+    reduced = apply_size_scalar(
+        kelly,
+        max(scale, 1e-9),
+        price,
+        amount_precision=precision["amount_precision"],
+        min_amount=precision["min_amount"],
+        min_cost=precision["min_cost"],
+    )
+    if reduced is None:
+        return _dc_replace(result, tradeable=False, skip_reason="crypto_box_size_below_minimum")
+    return _dc_replace(result, kelly_result=reduced)
+
+
 class Orchestrator:
     """
     Top-level async coordinator for the trading bot.
@@ -1420,15 +1451,12 @@ class Orchestrator:
                             cb_signal.direction == 0 or cb_signal.direction == result.direction
                         )
                         scale = cb_signal.kelly_multiplier if direction_match else 0.5
-                        new_adj = max(
-                            0.0,
-                            min(
-                                _entry_kelly.adjusted_fraction * scale,
-                                _entry_kelly.adjusted_fraction,
-                            ),
+                        result = _apply_crypto_box_scale(
+                            result,
+                            scale,
+                            spot or _entry_kelly.entry_price,
+                            getattr(self, "_symbol_precision", _DEFAULT_SYMBOL_PRECISION),
                         )
-                        new_kelly = _dc_replace(_entry_kelly, adjusted_fraction=new_adj)
-                        result = _dc_replace(result, kelly_result=new_kelly)
                     try:
                         from src.diagnostics.audit_trail import get_audit_trail
 

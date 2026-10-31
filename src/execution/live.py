@@ -624,44 +624,75 @@ class LiveExecutor(AbstractExecutor):
                     f"Close order for {pos.symbol} ({trade_id}) filled 0; position not closed."
                 )
 
-            if filled_qty < pos.quantity * 0.999:
-                # Booking the whole position closed on a partial fill leaves
-                # untracked residual exposure. Splitting the position is a
-                # larger change than this path can safely make mid-close, so
-                # the discrepancy is surfaced rather than buried.
+            # A base-denominated sell fee also consumes inventory. Track the
+            # actual remaining balance, not just the order's filled field.
+            base_asset = pos.symbol.split("/")[0].upper()
+            base_fee_qty = (
+                self._base_fee_qty(order, base_asset) if pos.direction == 1 else 0.0
+            )
+            fill_tolerance = max(1e-12, pos.quantity * 1e-9)
+            if filled_qty > pos.quantity + fill_tolerance:
+                raise RuntimeError(
+                    f"Close order for {pos.symbol} overfilled tracked quantity: "
+                    f"{filled_qty} > {pos.quantity}"
+                )
+            consumed_qty = filled_qty + base_fee_qty
+            if consumed_qty > pos.quantity + fill_tolerance:
+                raise RuntimeError(
+                    f"Close fill plus base-asset fee exceeds tracked {pos.symbol} "
+                    f"quantity: {consumed_qty} > {pos.quantity}"
+                )
+            consumed_qty = min(pos.quantity, consumed_qty)
+            remaining_qty = max(0.0, pos.quantity - consumed_qty)
+            # Never promote a 99.9%-or-better fill to a full close: any real
+            # residual remains an open position until it is sold or reconciled.
+            is_partial = remaining_qty > fill_tolerance
+            close_frac = consumed_qty / pos.quantity
+            if is_partial:
                 self._log.critical(
-                    "live.close_order_partial_fill_UNTRACKED_RESIDUAL",
+                    "live.close_order_partial_fill_residual_kept_open",
                     trade_id=trade_id,
                     symbol=pos.symbol,
                     requested_qty=pos.quantity,
                     filled_qty=filled_qty,
-                    residual_qty=pos.quantity - filled_qty,
-                    action="position booked closed at the filled size; residual is untracked",
+                    base_fee_qty=base_fee_qty,
+                    residual_qty=remaining_qty,
                 )
-            exchange_fee = self._extract_fee(order, actual_exit_price, filled_qty)
+            closed_notional = pos.notional_usd * close_frac
+            closed_entry_fee = pos.fee_usd * close_frac
+            exchange_fee = self._extract_fee(
+                order, actual_exit_price, filled_qty, base_asset=base_asset
+            )
+            # Base fees are paid in inventory; their cost basis is included
+            # in consumed_qty. Only quote-denominated fees reduce cash again.
+            quote_fee_usd = max(0.0, exchange_fee - base_fee_qty * actual_exit_price)
 
             exit_ts = int(datetime.now(tz=UTC).timestamp() * 1000)
 
             if pos.direction == 1:
-                gross_pnl = (actual_exit_price - pos.entry_price) * filled_qty
+                gross_pnl = (
+                    (actual_exit_price - pos.entry_price) * filled_qty
+                    - pos.entry_price * base_fee_qty
+                )
             else:
                 gross_pnl = (pos.entry_price - actual_exit_price) * filled_qty
 
-            # Both legs. pos.fee_usd is the fee the exchange charged on entry;
-            # leaving it out overstated every recorded trade by half its
-            # round-trip cost, and that number drives compute_win_loss_stats
-            # into Kelly, the Sharpe and Sortino behind capital allocation,
-            # and the out-of-sample bar the live gate checks.
-            total_fee = pos.fee_usd + exchange_fee
-            net_pnl = gross_pnl - total_fee
-            pnl_pct = net_pnl / pos.notional_usd if pos.notional_usd > 0 else 0.0
+            # Entry fees were charged and persisted at entry. Allocate their
+            # realised share to PnL, but persist only the new exit fee here.
+            net_pnl = gross_pnl - closed_entry_fee - quote_fee_usd
+            pnl_pct = net_pnl / closed_notional if closed_notional > 0 else 0.0
 
             async with self._lock:
-                self._positions.pop(trade_id, None)
-                # Not net_pnl: the entry fee already left the balance at open
-                # (self._cash -= notional + entry_fee), so charging it again
-                # here would double-count it and drain equity over time.
-                self._cash += pos.notional_usd + gross_pnl - exchange_fee
+                if is_partial:
+                    pos.quantity = remaining_qty
+                    pos.notional_usd -= closed_notional
+                    pos.fee_usd -= closed_entry_fee
+                    pos.mark(actual_exit_price)
+                else:
+                    self._positions.pop(trade_id, None)
+                # Credit only actual quote proceeds. The base fee has already
+                # been accounted for by consuming that quantity from inventory.
+                self._cash += closed_notional + gross_pnl - quote_fee_usd
                 equity = self._equity_usd()
                 self._peak_equity = max(self._peak_equity, equity)
                 self._drawdown_tracker.update(equity)
@@ -674,16 +705,23 @@ class LiveExecutor(AbstractExecutor):
                 snap_dd_pct = self._drawdown_tracker.drawdown_from_peak_pct
                 snap_peak = self._peak_equity
 
-            await self._storage.update_trade_exit(
-                trade_id=trade_id,
-                exit_price=actual_exit_price,
-                exit_ts=exit_ts,
-                pnl_usd=round(net_pnl, 8),
-                pnl_pct=round(pnl_pct, 8),
-                exit_reason=exit_reason,
-                # Both legs, matching pnl_usd above.
-                fee_usd=round(total_fee, 8),
-            )
+            if is_partial:
+                await self._storage.record_trade_partial_exit(
+                    trade_id=trade_id,
+                    exit_price=actual_exit_price,
+                    pnl_usd=round(net_pnl, 8),
+                    fee_usd=round(exchange_fee, 8),
+                )
+            else:
+                await self._storage.update_trade_exit(
+                    trade_id=trade_id,
+                    exit_price=actual_exit_price,
+                    exit_ts=exit_ts,
+                    pnl_usd=round(net_pnl, 8),
+                    pnl_pct=round(pnl_pct, 8),
+                    exit_reason=exit_reason,
+                    fee_usd=round(exchange_fee, 8),
+                )
             await self._snapshot_equity_with_values(
                 equity=snap_equity,
                 cash=snap_cash,
@@ -931,6 +969,18 @@ class LiveExecutor(AbstractExecutor):
         Serialized by _trade_semaphore so concurrent signals cannot both
         pass the cash pre-check against the same balance (VUL-009).
         """
+        if direction != 1:
+            # EXR-008: this executor trades a spot account (fetcher
+            # defaultType "spot"). Spot has no borrowing, so a "sell" entry
+            # either fails or sells base asset already held, while the book
+            # would record a short and debit cash. Refuse rather than diverge
+            # from the exchange.
+            self._log.warning(
+                "live.short_entry_rejected_spot_account",
+                symbol=symbol,
+                direction=direction,
+            )
+            return None
         async with self._trade_semaphore:
             # Pre-check and reserve cash BEFORE placing the order (fix #9)
             notional_estimate = kelly_result.notional_usd
@@ -981,7 +1031,14 @@ class LiveExecutor(AbstractExecutor):
             _filled_raw = order.get("filled")
             filled_qty = float(kelly_result.quantity) if _filled_raw is None else float(_filled_raw)
             exchange_order_id = str(order.get("id", ""))
-            entry_fee = self._extract_fee(order, actual_price, filled_qty)
+            # EXR-012: a spot buy's fee may be charged in the base asset, so
+            # the account holds less than the gross fill. Track the net
+            # quantity (what a later close can actually sell) and book the
+            # fee in USD at the fill price.
+            _base = symbol.split("/")[0].upper()
+            if side == "buy":
+                filled_qty = max(0.0, filled_qty - self._base_fee_qty(order, _base))
+            entry_fee = self._extract_fee(order, actual_price, filled_qty, base_asset=_base)
 
             if actual_price <= 0.0 or filled_qty <= 0.0:
                 # Restore reserved cash — fill data unusable
@@ -1469,7 +1526,27 @@ class LiveExecutor(AbstractExecutor):
         """
         return self._order_fsm_registry.get(order_id)
 
-    def _extract_fee(self, order: dict, price: float, qty: float) -> float:
+    @staticmethod
+    def _order_fees(order: dict) -> list[dict]:
+        fees: list[dict] = order.get("fees") or []
+        if not fees:
+            single = order.get("fee")
+            if isinstance(single, dict):
+                fees = [single]
+        return fees
+
+    def _base_fee_qty(self, order: dict, base_asset: str) -> float:
+        """Total fee charged in the base asset (units of base, not USD)."""
+        total = 0.0
+        for f in self._order_fees(order):
+            if str(f.get("currency", "")).upper() == base_asset and f.get("cost") is not None:
+                with contextlib.suppress(TypeError, ValueError):
+                    total += float(f["cost"])
+        return total
+
+    def _extract_fee(
+        self, order: dict, price: float, qty: float, base_asset: str | None = None
+    ) -> float:
         """Extract exchange fee from a ccxt order dict.
 
         ccxt returns fees as a list of dicts with 'cost' (amount) and
@@ -1480,15 +1557,16 @@ class LiveExecutor(AbstractExecutor):
         Ref: ccxt unified order structure — order['fees'] (list) or
              order['fee'] (single dict, older exchange responses).
         """
-        fees: list[dict] = order.get("fees") or []
-        if not fees:
-            single = order.get("fee")
-            if isinstance(single, dict):
-                fees = [single]
+        fees = self._order_fees(order)
         total = 0.0
         for f in fees:
             cost = f.get("cost")
             currency = str(f.get("currency", "")).upper()
+            if base_asset and currency == base_asset and cost is not None:
+                # Base-asset fee: convert to USD at the fill price.
+                with contextlib.suppress(TypeError, ValueError):
+                    total += float(cost) * price
+                continue
             if cost is not None and currency in {"USDT", "USDC", "BUSD", "USD", ""}:
                 with contextlib.suppress(TypeError, ValueError):
                     total += float(cost)
