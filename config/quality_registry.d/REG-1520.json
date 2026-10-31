@@ -1,0 +1,22 @@
+{
+  "id": "REG-1520",
+  "kind": "regression",
+  "title": "RAG re-ingest replaces a source's chunks instead of duplicating them",
+  "statement": "rag_mongo.ingest.ingest_text deletes existing chunks for the source after embedding and before insert, and leaves them intact if embedding fails.",
+  "criticality": "low",
+  "subsystem": "data",
+  "status": "verified",
+  "source": "OPS-2026-10-25",
+  "notes": "layer: test-suite",
+  "failure_mode": "Each re-ingest appended a second copy of every chunk, skewing vector and hybrid retrieval.",
+  "owning_modules": [
+    "rag_mongo/ingest.py"
+  ],
+  "verification": [
+    {
+      "test": "tests/test_low_findings_regressions.py",
+      "test_type": "regression"
+    }
+  ],
+  "depends_on": []
+}
