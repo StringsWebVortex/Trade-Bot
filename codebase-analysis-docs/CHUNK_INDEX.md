@@ -615,7 +615,7 @@ SHA8 bcd874ac; total lines 1212.
 - build_inference_features (function, lines 1077-1114, slice 3): CHUNK_ID = src/features/pipeline.py#1077-1114#bcd874ac — [[F:src/features/pipeline.py#1077-1114#bcd874ac]].
 - build_inference_features (function, lines 1115-1139, slice 4): CHUNK_ID = src/features/pipeline.py#1115-1139#bcd874ac — [[F:src/features/pipeline.py#1115-1139#bcd874ac]].
 - _inject_intelligence_features (function, lines 1147-1184, slice 1): CHUNK_ID = src/features/pipeline.py#1147-1184#bcd874ac — [[F:src/features/pipeline.py#1147-1184#bcd874ac]].
-- _inject_intelligence_features (function, lines 1185-1212, slice 2): CHUNK_ID = src/features/pipeline.py#1185-1212#bcd874ac — [[F:src/features/pipeline.py#1185-1212#bcd874ac]].
+- _inject_intelligence_features (function, lines 1185-1210, slice 2): CHUNK_ID = src/features/pipeline.py#1185-1210#bcd874ac — [[F:src/features/pipeline.py#1185-1210#bcd874ac]].
 
 ## src/risk/gates.py
 
