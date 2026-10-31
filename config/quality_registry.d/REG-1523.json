@@ -1,0 +1,22 @@
+{
+  "id": "REG-1523",
+  "kind": "regression",
+  "title": "Coverage floor check fails when the report measures zero files",
+  "statement": "scripts/check_coverage_floors.main returns 1 when the coverage JSON has no files.",
+  "criticality": "low",
+  "subsystem": "governance",
+  "status": "verified",
+  "source": "OPS-2026-10-25",
+  "notes": "layer: test-suite",
+  "failure_mode": "An empty report printed 'All 0 measured files' and passed the per-file floor.",
+  "owning_modules": [
+    "scripts/check_coverage_floors.py"
+  ],
+  "verification": [
+    {
+      "test": "tests/test_low_findings_regressions.py",
+      "test_type": "regression"
+    }
+  ],
+  "depends_on": []
+}
