@@ -1,0 +1,22 @@
+{
+  "id": "REG-1527",
+  "kind": "regression",
+  "title": "Ruleset drift check compares rule parameters the file sets",
+  "statement": "scripts/apply_repo_ruleset.compare reports a rule parameter that differs from GitHub, and ignores GitHub default echoes.",
+  "criticality": "low",
+  "subsystem": "governance",
+  "status": "verified",
+  "source": "OPS-2026-10-25",
+  "notes": "layer: test-suite",
+  "failure_mode": "A weakened approval count or thread-resolution setting passed --check.",
+  "owning_modules": [
+    "scripts/apply_repo_ruleset.py"
+  ],
+  "verification": [
+    {
+      "test": "tests/test_low_findings_regressions.py",
+      "test_type": "regression"
+    }
+  ],
+  "depends_on": []
+}
