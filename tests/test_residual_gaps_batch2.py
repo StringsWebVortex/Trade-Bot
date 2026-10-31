@@ -135,11 +135,16 @@ class TestE09Retrain:
 
 
 class TestCpuPinning:
-    def test_pinning_is_skipped_without_a_pid(self):
-        from src.workers.orchestrator import WorkerOrchestrator
+    def test_pinning_is_skipped_without_a_pid(self, monkeypatch):
+        from src.workers import orchestrator as mod
 
-        orch = WorkerOrchestrator.__new__(WorkerOrchestrator)
+        pinned: list[tuple] = []
+        monkeypatch.setattr(mod.os, "sched_setaffinity", lambda *a: pinned.append(a), raising=False)
+
+        orch = mod.WorkerOrchestrator.__new__(mod.WorkerOrchestrator)
         orch._pin_cpu(None, 0)  # returns quietly
+
+        assert pinned == []
 
     def test_a_platform_without_sched_setaffinity_is_tolerated(self, monkeypatch):
         from src.workers import orchestrator as mod
