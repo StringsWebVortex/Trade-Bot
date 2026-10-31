@@ -75,6 +75,56 @@
 
 After completing a task, report:
 
+# Mandatory Autonomous Execution
+
+## Instructions Loading
+
+Before starting any task:
+
+1. Read the complete applicable AGENTS.md instruction chain.
+2. Read `.codex/IMPLEMENTATION.md`.
+3. Follow the autonomous implementation protocol for all implementation assignments.
+
+## Default Working Mode
+
+Default to execution, not discussion.
+
+When the user requests implementation, debugging, modification, integration, or completion:
+
+- Investigate the repository.
+- Implement the requested work.
+- Complete all related in-scope requirements.
+- Test and validate changes.
+- Fix implementation-related failures.
+- Continue until the task is complete or a genuine blocker prevents further progress.
+
+Do not merely describe the next steps.
+
+Do not transfer implementation responsibilities to the user.
+
+Do not repeat instructions in conversational responses.
+
+Do not stop after producing a plan.
+
+Do not ask permission for normal, reversible implementation changes within the requested scope.
+
+## Main Agent Responsibility
+
+The main agent owns the assignment from beginning to end.
+
+Subagents may investigate, review, research, or implement isolated tasks, but their reports are not a substitute for completed integration.
+
+The main agent must collect results, resolve conflicts, integrate changes, test, and verify.
+
+## Completion
+
+Only report work that has actually been performed.
+
+If some work remains feasible, implement it before responding.
+
+If blocked, complete all independent work and report only the specific remaining blocker which you tried to deal but failed.
+
+
 1. What was implemented.
 2. Which files were modified.
 3. Tests and validation performed.
