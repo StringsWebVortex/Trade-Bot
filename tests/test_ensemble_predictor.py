@@ -163,14 +163,14 @@ class TestXGBoostPredictor:
             p.fit(X, y)
         assert p.model is None
 
-    def test_predict_exception_returns_zero(self):
+    def test_predict_exception_is_exposed_to_ensemble(self):
         p = XGBoostPredictor()
         X = _make_features(80)
         y = pd.Series(X["a"] + X["b"])
         p.fit(X, y)
         with patch.object(p.model, "predict", side_effect=RuntimeError("boom")):
-            result = p.predict(X.iloc[:1])
-        assert result == 0.0
+            with pytest.raises(RuntimeError, match="boom"):
+                p.predict(X.iloc[:1])
 
 
 # ---------------------------------------------------------------------------
@@ -330,16 +330,15 @@ class TestGaussianProcessPredictor:
         # (unfitted) instance; rmse never gets updated past the exception.
         assert p.rmse == np.inf
 
-    def test_predict_with_uncertainty_exception_returns_fallback(self):
+    def test_predict_with_uncertainty_exception_is_exposed_to_ensemble(self):
         p = GaussianProcessPredictor()
         X = _make_features(20)
         y = pd.Series(X["a"] * 1.5)
         p.fit(X, y)
         assert p.model is not None
         with patch.object(p.model, "predict", side_effect=RuntimeError("boom")):
-            point, unc = p.predict_with_uncertainty(X.iloc[:1])
-        assert point == 0.0
-        assert unc == 0.2
+            with pytest.raises(RuntimeError, match="boom"):
+                p.predict_with_uncertainty(X.iloc[:1])
 
     def test_fit_subsamples_to_max_train_samples(self):
         """Exact GP inference is O(n^3) -- large live-retrain sample counts
@@ -420,14 +419,14 @@ class TestTreeEnsemblePredictor:
         assert p.rmse == np.inf
         assert p._bootstrap_models == []
 
-    def test_predict_exception_returns_zero(self):
+    def test_predict_exception_is_exposed_to_ensemble(self):
         p = TreeEnsemblePredictor(n_estimators=10, n_bootstrap=2)
         X = _make_features(80)
         y = pd.Series(X["a"] + X["b"])
         p.fit(X, y)
         with patch.object(p.model, "predict", side_effect=RuntimeError("boom")):
-            result = p.predict(X.iloc[:1])
-        assert result == 0.0
+            with pytest.raises(RuntimeError, match="boom"):
+                p.predict(X.iloc[:1])
 
     def test_predict_with_uncertainty_exception_falls_back_to_rmse(self):
         p = TreeEnsemblePredictor(n_estimators=10, n_bootstrap=2)
@@ -501,7 +500,8 @@ class TestEnsemblePredictor:
             ep.fit(X, y)
         result = ep.predict(X.iloc[:1], recent_returns=y.to_numpy())
         assert isinstance(result, EnsemblePrediction)
-        assert len(result.individual_predictions) == 5
+        assert len(result.individual_predictions) == 4
+        assert "lstm" in result.failed_models
 
     def test_build_lstm_sequences_insufficient(self):
         y = pd.Series([1.0, 2.0, 3.0])
