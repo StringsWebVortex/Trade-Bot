@@ -52,6 +52,7 @@ from src.features.pipeline import (
 from src.models.trainer import (
     _FEATURE_COLUMNS_ATTR,
     ModelTrainer,
+    evaluation_returns,
     oos_sharpe_and_drawdown,
 )
 from src.regime.garch import rolling_garch_forecast
@@ -395,7 +396,6 @@ def run_feature_window_backtest(
     challenger_window: int,
     direction_model: XGBClassifier,
     features_cfg: FeatureSettings | None = None,
-    oos_start_ms: int | None = None,
 ) -> list[MetricComparison]:
     """
     Recalibrate one of the rolling-window feature parameters (Phase 8
@@ -415,12 +415,6 @@ def run_feature_window_backtest(
     ahead strategy return -- the same simplification
     ModelTrainer._run_cpcv's own OOS Sharpe already uses (no meta-label
     gate, no triple-barrier P&L simulation).
-
-    `oos_start_ms` is the Unix-ms instant the frozen model finished training.
-    Only bars strictly after it are scored: the deployed model has seen
-    everything earlier, so scoring those bars is in-sample and favours the
-    window it was trained with (STR-06). Production callers must pass it;
-    None scores every bar and is in-sample.
     """
     if field_name not in _FEATURE_WINDOW_RECOMPUTERS:
         raise UnknownFeatureWindowFieldError(
@@ -450,11 +444,10 @@ def run_feature_window_backtest(
     # list(...) rather than the constant directly: .loc reads a tuple key as a
     # MultiIndex lookup rather than a column selection, so this stays correct
     # whichever sequence type FEATURE_COLUMNS is.
-    if oos_start_ms is not None:
-        valid = valid & (idx > oos_start_ms)
     champion_features = champion_features.loc[valid, list(FEATURE_COLUMNS)]
     challenger_features = challenger_features.loc[valid, list(FEATURE_COLUMNS)]
-    log_ret = baseline.log_returns.reindex(idx).loc[valid].to_numpy(dtype=np.float64)
+    scored = pd.Series(evaluation_returns(baseline), index=idx)
+    log_ret = scored.loc[valid].to_numpy(dtype=np.float64)
 
     champion_pred = _predict_direction_batch(direction_model, champion_features)
     challenger_pred = _predict_direction_batch(direction_model, challenger_features)
