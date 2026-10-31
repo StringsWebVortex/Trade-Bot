@@ -201,6 +201,7 @@ class PerformanceDriftDetector:
         self._total_live_wins: int = 0
         self._max_live_drawdown_pct: float = 0.0
         self._live_equity_peak: float = 0.0
+        self._live_equity_start: float = 0.0
 
     @property
     def baseline(self) -> PerformanceBaseline:
@@ -219,7 +220,7 @@ class PerformanceDriftDetector:
     def record_trade_outcome(
         self,
         pnl_usd: float,
-        predicted_prob: float,
+        predicted_prob: float | None,
         actual_direction: int,
         current_equity: float,
         starting_equity: float,
@@ -241,11 +242,15 @@ class PerformanceDriftDetector:
         is_win = pnl_usd > 0
         self._live_wins_window.append(is_win)
 
-        # Record prediction accuracy
-        # Model direction: 1 if prob > 0.5 else -1
-        model_direction = 1 if predicted_prob > 0.5 else -1
-        is_correct = model_direction == actual_direction
-        self._live_predictions.append((predicted_prob, 1 if is_correct else 0))
+        # Record prediction accuracy. EXR-004: a caller with no real entry
+        # P(long) (None / non-finite) must NOT be scored: a placeholder 0.5
+        # maps to model_direction -1, which books every long as a wrong call.
+        # Skip the accuracy sample; PnL/win-rate/drawdown are still recorded.
+        if predicted_prob is not None and math.isfinite(predicted_prob):
+            # Model direction: 1 if prob > 0.5 else -1
+            model_direction = 1 if predicted_prob > 0.5 else -1
+            is_correct = model_direction == actual_direction
+            self._live_predictions.append((predicted_prob, 1 if is_correct else 0))
 
         # Update cumulative stats
         self._total_live_trades += 1
@@ -255,6 +260,9 @@ class PerformanceDriftDetector:
         # Update drawdown tracking
         if current_equity > self._live_equity_peak:
             self._live_equity_peak = current_equity
+
+        if self._live_equity_start == 0:
+            self._live_equity_start = starting_equity
 
         # UI-008: starting_equity <= 0 (bad snapshot / uninitialized caller)
         # previously raised ZeroDivisionError here, which propagates

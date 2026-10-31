@@ -9,8 +9,16 @@ somebody typed a percentage where a fraction was expected.
 
 None of those raise. All of them are checkable in the first two seconds.
 
-So this runs before the bot is allowed to trade, and **any** failure blocks
-live mode. Not a warning, not a degraded start: the conditions below are the
+So this is designed to run before the bot is allowed to trade, and **any**
+failure should block live mode.
+**Wiring status (AGT-010): NOT enforced in the live path:** No module under
+src/ calls assert_ready_for_live(); only tests and scripts/check_static_invariants.py import it.
+The behaviour described here is what the module does *when called*, not a
+claim that the running bot calls it. Live halts today come from the risk
+gates (src/risk/gates.py) and the capital-preservation floor.
+
+(Applies to behavioural_guard, recovery_objectives and performance_baseline too.)
+ Not a warning, not a degraded start: the conditions below are the
 ones where continuing means trading with an assumption that has already been
 shown to be false.
 

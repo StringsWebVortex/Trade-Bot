@@ -104,7 +104,7 @@ class StrategyKillSwitchManager:
             # accumulates evidence over time rather than reacting to a
             # single window, so it flags persistent structural decay
             # distinctly from this class's transient drift-triggered halts.
-            decay_detector=CusumDecayDetector(baseline_mean=baseline.sharpe_baseline_per_trade),
+            decay_detector=CusumDecayDetector(baseline_mean=baseline.oos_sharpe),
         )
         log.info("strategy_kill_switch.registered", strategy_id=strategy_id)
 
@@ -112,7 +112,7 @@ class StrategyKillSwitchManager:
         self,
         strategy_id: str,
         pnl_usd: float,
-        predicted_prob: float,
+        predicted_prob: float | None,
         actual_direction: int,
         current_equity: float,
         starting_equity: float,

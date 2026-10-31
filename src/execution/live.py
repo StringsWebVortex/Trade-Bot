@@ -793,12 +793,8 @@ class LiveExecutor(AbstractExecutor):
         return [req.to_dict() for req in self._approval_queue.values() if not req.resolved]
 
     def pending_approvals(self) -> list[dict[str, object]]:
-        """Unresolved approval requests as dicts (read-only; never prunes).
-
-        Pruning of stale resolved entries mutates ``_approval_queue`` and is
-        left to the lock-holding path (``_pending_approvals_unsafe``).
-        """
-        return [req.to_dict() for req in list(self._approval_queue.values()) if not req.resolved]
+        """Public interface — delegates to unsafe variant (sync callers only)."""
+        return self._pending_approvals_unsafe()
 
     async def open_positions_safe(self) -> list[dict[str, object]]:
         """Thread-safe snapshot of open positions for WS heartbeat (VUL-035)."""
@@ -837,6 +833,7 @@ class LiveExecutor(AbstractExecutor):
                 else 0.0,
                 "peak_unrealized_pct": round(p.peak_unrealized_pct, 3),
                 "regime_at_entry": p.regime_at_entry,
+                "raw_signal": p.raw_signal,
                 "strategy_id": p.strategy_id,
                 "entry_ts": p.entry_ts,
             }
