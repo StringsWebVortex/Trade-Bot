@@ -2602,7 +2602,7 @@
       "id": "GOV-013",
       "kind": "requirement",
       "title": "CI diagnostics are collected autonomously and never require log polling",
-      "statement": "When any workflow completes for a pull request, an autonomous GitHub Actions collector finds every workflow run GitHub started for the exact PR head SHA (no fixed workflow list), waits until every run and job is terminal, then publishes one SHA-bound Check Run report. The collector never cancels sibling workflows, and agents never poll workflow logs: they read the report through ./scripts/prfail.",
+      "statement": "When a watched pull-request workflow completes, an autonomous GitHub Actions collector waits until every applicable workflow, job, and step reaches a terminal state for the exact PR head SHA, then publishes a filtered, SHA-bound Check Run report. The collector never cancels sibling workflows, and agents retrieve diagnostics only through ./scripts/prfail --pr <PR_NUMBER>.",
       "criticality": "medium",
       "subsystem": "governance",
       "status": "verified",
@@ -2810,8 +2810,8 @@
     {
       "id": "GOV-020",
       "kind": "requirement",
-      "title": "One SHA-bound report carries the exact failure lines of every non-green run",
-      "statement": "After every pull-request run for a PR head has terminated, one finalized Check Run manifest and its integrity-verified pages carry, for each non-green job of each non-green run, the exact log lines that name an error, failure, skip or cancellation, bound to their workflow run, job and line number. Green runs and green jobs contribute nothing.",
+      "title": "One SHA-bound report carries filtered diagnostics and exact source locations",
+      "statement": "After all applicable watched workflows terminate for a PR head, one finalized Check Run manifest and its integrity-verified pages contain structured non-success outcomes and filtered diagnostics. Records include workflow/job/step identity and exact path, line, and column when supplied by the source evidence. Ordinary successful output is discarded, and the report is retrieved only by the canonical PR-number command.",
       "criticality": "high",
       "subsystem": "governance",
       "status": "verified",
@@ -3423,7 +3423,7 @@
       "id": "REG-0018",
       "kind": "regression",
       "title": "CI diagnostics wait for terminal outcomes without cancelling sibling workflows",
-      "statement": "The autonomous collector waits for every pull-request workflow run and job to terminate on the same PR head SHA before it publishes. Runs still going leave the report waiting, never finalized with partial results. The collector does not cancel source runs or publish PR comments.",
+      "statement": "The autonomous collector waits for every applicable watched workflow, job, and step to terminate on the same PR head SHA. Failure, cancellation, timeout, neutral, action_required, stale, and skipped outcomes are retained. The collector does not cancel source runs or publish PR comments; incomplete collection never becomes a finalized report.",
       "criticality": "medium",
       "subsystem": "release",
       "status": "verified",
@@ -3511,8 +3511,8 @@
     {
       "id": "REG-0020",
       "kind": "regression",
-      "title": "The collector extracts failure lines server-side and discards everything else",
-      "statement": "The collector reads job logs on its GitHub-hosted runner, only for jobs that are not green, and keeps only lines containing error, failed, failure, skipped, cancelled or canceled. It discards every other line, redacts common credentials, and does not send raw workflow logs to the agent.",
+      "title": "The collector extracts diagnostics server-side and discards ordinary success noise",
+      "statement": "The collector scans completed job logs on its GitHub-hosted runner and retains recognized error/warning formats, source-attributed diagnostics, and structured non-success outcomes. It discards ordinary successful output, redacts common credentials, and does not send raw workflow logs to the agent.",
       "criticality": "medium",
       "subsystem": "release",
       "status": "verified",
@@ -3525,10 +3525,6 @@
         {
           "test": "tests/test_ci_diagnostics.py",
           "test_type": "unit"
-        },
-        {
-          "test": "tests/test_prfail_exact_lines.py",
-          "test_type": "regression"
         }
       ],
       "depends_on": [],
@@ -4241,8 +4237,8 @@
     {
       "id": "REG-0023",
       "kind": "regression",
-      "title": "A failure line is copied exactly, so the location it names is kept",
-      "statement": "Each failure line is copied as logged, with only GitHub's per-line timestamp removed, so a file, line and column the tool printed stay exactly as printed. The collector never adds or invents a location.",
+      "title": "A source diagnostic retains its exact file, line, and column when provided",
+      "statement": "GitHub annotations and recognized compiler, pytest, and Python traceback formats retain their source path and reported line/column. The collector never invents a location; workflow, infrastructure, and cancellation failures remain actionable structured records even when no source location exists.",
       "criticality": "medium",
       "subsystem": "release",
       "status": "verified",
@@ -4255,10 +4251,6 @@
         {
           "test": "tests/test_ci_diagnostics.py",
           "test_type": "unit"
-        },
-        {
-          "test": "tests/test_prfail_exact_lines.py",
-          "test_type": "regression"
         }
       ],
       "notes": "The crash lines rank above the summary line deliberately. When a run produces both, the crash is the one that explains the rest, and the summary is still reachable from the run itself. layer: test-suite"
@@ -4605,7 +4597,7 @@
       "id": "GOV-066",
       "kind": "requirement",
       "title": "Codebase knowledge indexes have a deterministic integrity checker",
-      "statement": "The knowledge-index utility gates pull requests on structure (every FILE_INDEX path is tracked, every CHUNK_INDEX and CODEBASE_KNOWLEDGE anchor names an existing file and an in-range span, every API_REFERENCE route matches by method, path and handler) and, with --strict, verifies full FILE_INDEX metadata, anchor source hashes and route line numbers; it offers a safe refresh operation that preserves existing notes/priorities without rewriting semantic anchor ranges.",
+      "statement": "The knowledge-index utility checks complete tracked-file coverage and current FILE_INDEX metadata, validates CHUNK_INDEX and CODEBASE_KNOWLEDGE source hashes and line ranges, verifies API_REFERENCE method/path/handler/line rows against AST-derived routes, and offers a safe refresh operation that preserves existing notes/priorities without rewriting semantic anchor ranges.",
       "criticality": "medium",
       "subsystem": "governance",
       "status": "partial",
@@ -5819,7 +5811,7 @@
       "id": "REG-1609",
       "kind": "regression",
       "title": "One unavailable job log no longer fails the whole diagnostics report",
-      "statement": "The collector retries the signed job-log download and names the final cause; a green job whose log cannot be fetched adds nothing, and a failed job's gets one line saying its log is unavailable, so the report still finalizes and says which failure lines are missing.",
+      "statement": "The collector retries the signed job-log download and names the final cause; a green job whose log cannot be fetched adds nothing, and a failed job's gets a log_unavailable record, so the report still finalizes and says which failure lines are missing.",
       "criticality": "medium",
       "subsystem": "governance",
       "status": "verified",
@@ -8603,6 +8595,1177 @@
         }
       ],
       "notes": "audit finding FE-09. layer: test-suite"
+    },
+    {
+      "id": "REG-1050",
+      "kind": "regression",
+      "title": "Open positions are rebuilt from storage on restart",
+      "statement": "On initialize(), both executors rebuild their open positions from stored trades with exit_ts NULL, so they are marked, stopped out and closed after a restart.",
+      "criticality": "high",
+      "subsystem": "execution",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "After a restart positions were empty while cash had open notional removed, so trades stayed open forever and equity was understated (EXR-009).",
+      "owning_modules": [
+        "src/execution/paper.py",
+        "src/execution/live.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_restart_persistence.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1051",
+      "kind": "regression",
+      "title": "Daily drawdown baseline and peak survive a restart",
+      "statement": "After initialize() the drawdown tracker's daily start is today's first stored equity (or the latest) and its peak is the stored peak, not the configured starting capital.",
+      "criticality": "high",
+      "subsystem": "execution",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "The daily baseline reset to starting capital, so the daily drawdown halt could not fire on a profitable account until UTC midnight (EXR-010).",
+      "owning_modules": [
+        "src/execution/paper.py",
+        "src/execution/live.py",
+        "src/risk/gates.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_restart_persistence.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1052",
+      "kind": "regression",
+      "title": "Capital-floor halt and kill switches survive a restart",
+      "statement": "A tripped capital-preservation floor (halted, peak, reauthorization) and disabled strategy kill switches are persisted atomically and restored at startup; an unreadable state file fails closed.",
+      "criticality": "high",
+      "subsystem": "risk",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "A process restart silently cleared the whole-book halt and re-enabled disabled strategies (EXR-013).",
+      "owning_modules": [
+        "src/risk/capital_preservation_floor.py",
+        "src/risk/strategy_kill_switch.py",
+        "src/risk/state_persistence.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_restart_persistence.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1110",
+      "kind": "regression",
+      "title": "Watchdog rollback restores the live registry and the runner starts probation",
+      "statement": "After a live promotion the runner starts post-promotion probation; a watchdog rollback restores the rolled-back value in the parameter registry that live_overrides reads, and the runner refuses new attempts on a watchdog-locked parameter.",
+      "criticality": "high",
+      "subsystem": "risk",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "start_probation was never called, and a rollback only appended to the version store, so the bad promoted value kept driving live trading until restart.",
+      "owning_modules": [
+        "src/tuning/watchdog.py",
+        "src/tuning/runner.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_tuning_promotion_rollback_wiring.py",
+          "test_type": "regression"
+        }
+      ],
+      "notes": "audit finding STR-04. layer: test-suite"
+    },
+    {
+      "id": "REG-1111",
+      "kind": "regression",
+      "title": "Promotion gate deflates for the number of prior attempts",
+      "statement": "The promotion gate rejects a primary-metric improvement that fails the deflated Sharpe ratio (or the Bonferroni-adjusted p-value when no samples exist) for the count of PROPOSED attempts on the parameter.",
+      "criticality": "high",
+      "subsystem": "model",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "Hourly attempts each tested at nominal alpha 0.05 against the same data, so a false promotion became near certain over time.",
+      "owning_modules": [
+        "src/tuning/gate.py",
+        "src/tuning/runner.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_tuning_gate_multiple_testing.py",
+          "test_type": "regression"
+        }
+      ],
+      "notes": "audit finding STR-05. layer: test-suite"
+    },
+    {
+      "id": "REG-1112",
+      "kind": "regression",
+      "title": "Feature-window backtest excludes training bars",
+      "statement": "run_feature_window_backtest scores only bars after oos_start_ms (the frozen model's training end) and the scheduler passes the model artifact's training time, so the reported oos_sharpe is out-of-sample.",
+      "criticality": "high",
+      "subsystem": "model",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "The deployed model was scored on bars it was trained on, so the OOS Sharpe was in-sample and biased toward the champion window.",
+      "owning_modules": [
+        "src/tuning/backtest_harness.py",
+        "src/tuning/scheduler.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_tuning_feature_window_oos.py",
+          "test_type": "regression"
+        }
+      ],
+      "notes": "audit finding STR-06. layer: test-suite"
+    },
+    {
+      "id": "REG-1113",
+      "kind": "regression",
+      "title": "Optuna walk-forward is embargoed and prunes failed folds",
+      "statement": "WalkForwardStudy leaves an embargo gap between train and test, keeps remainder rows, annualises with a configurable periods_per_year, rejects too-short data and prunes the trial when a fold fails instead of scoring -999.",
+      "criticality": "high",
+      "subsystem": "model",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "Labels leaked across the train/test boundary, sqrt(252) misstated crypto Sharpe, and one transient fold error injected -999 into the TPE objective.",
+      "owning_modules": [
+        "src/upgrade/optuna_wf.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_upgrade_optuna_wf_leakage.py",
+          "test_type": "regression"
+        }
+      ],
+      "notes": "audit finding MTH-009. layer: test-suite"
+    },
+    {
+      "id": "REG-1114",
+      "kind": "regression",
+      "title": "Shadow deployment promotes only on a significant paired improvement",
+      "statement": "ShadowDeployer promotes only with at least min_samples paired returns, a Sharpe margin and a one-sided paired t-test below alpha; record_return requires both predictions.",
+      "criticality": "high",
+      "subsystem": "model",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "An absolute 0.05 Sharpe margin on about 5 samples promoted noise, and defaulted predictions recorded zero returns for both arms.",
+      "owning_modules": [
+        "src/upgrade/shadow_deploy.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_upgrade_shadow_deploy_significance.py",
+          "test_type": "regression"
+        }
+      ],
+      "notes": "audit finding MTH-010. layer: test-suite"
+    },
+    {
+      "id": "REG-1115",
+      "kind": "regression",
+      "title": "ModelRegistry promotion needs paired windows and a minimum improvement",
+      "statement": "ModelRegistry.evaluate_shadow requires equal-length shadow and live windows and an accuracy gain of at least min_improvement, and promote_shadow re-runs the evaluation and refuses otherwise.",
+      "criticality": "high",
+      "subsystem": "model",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "Any accuracy difference, including against an empty live window scored 0.0, made a shadow ready, and promote_shadow did not re-check.",
+      "owning_modules": [
+        "src/models/model_registry.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_model_registry_promotion_gate.py",
+          "test_type": "regression"
+        }
+      ],
+      "notes": "audit finding INT-024. layer: test-suite"
+    },
+    {
+      "id": "REG-1260",
+      "kind": "regression",
+      "title": "A placeholder deployment cannot report success",
+      "statement": "The deploy canary job fails closed while the canary, promotion, halt-trigger and rollback steps are placeholders, so the Deploy gate cannot go green without a real deployment.",
+      "criticality": "medium",
+      "subsystem": "release",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "The Deploy gate reported green on echo-only steps, including a halt-trigger check that always passed.",
+      "owning_modules": [
+        ".github/workflows/deploy.yml"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_phase4_ci_infra_fixes.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": [],
+      "notes": "audit findings: OPS-003. layer: test-suite"
+    },
+    {
+      "id": "SEC-1261",
+      "kind": "security_regression",
+      "title": "main requires an approving code-owner review",
+      "statement": "The main ruleset requires at least one approving review and code-owner review so CODEOWNERS paths cannot change on a green PR alone.",
+      "criticality": "medium",
+      "subsystem": "governance",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "A green PR could change workflows, hooks or risk config with no human review.",
+      "owning_modules": [
+        ".github/rulesets/main-protection.json"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_phase4_ci_infra_fixes.py",
+          "test_type": "security"
+        }
+      ],
+      "depends_on": [],
+      "notes": "audit findings: OPS-004. layer: test-suite"
+    },
+    {
+      "id": "SEC-1262",
+      "kind": "security_regression",
+      "title": "Compose services are hardened and ship no default DB password",
+      "statement": "The api and worker services run read-only with all capabilities dropped, no-new-privileges and a tmpfs /tmp, and the database password comes from POSTGRES_PASSWORD with no shipped default.",
+      "criticality": "medium",
+      "subsystem": "security",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "Containers ran with default privileges and a fixed, public database password that .env could not change.",
+      "owning_modules": [
+        "docker-compose.yml",
+        "Dockerfile",
+        ".env.example"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_phase4_ci_infra_fixes.py",
+          "test_type": "security"
+        }
+      ],
+      "depends_on": [],
+      "notes": "audit findings: OPS-005, OPS-006. layer: test-suite"
+    },
+    {
+      "id": "REG-1263",
+      "kind": "regression",
+      "title": "Risk limits agree between risk.yaml and .env.example",
+      "statement": "The consecutive-loss halt and drawdown limits in config/risk.yaml and .env.example agree, using the stricter value where they differed.",
+      "criticality": "high",
+      "subsystem": "risk",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "Conflicting layers made it ambiguous which limit applied; a 30% drawdown halt sat beside a 10% floor.",
+      "owning_modules": [
+        "config/risk.yaml",
+        ".env.example"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_phase4_ci_infra_fixes.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": [],
+      "notes": "audit findings: OPS-007. layer: test-suite"
+    },
+    {
+      "id": "SEC-1264",
+      "kind": "security_regression",
+      "title": "The supply-chain gate analyses secrets and permissions per job",
+      "statement": "SUP-001 inspects job-level permissions and real justification comments for the widened sensitive scopes; SUP-003 judges fork guards per job and step and flags stored tokens persisted on untrusted refs in any workflow.",
+      "criticality": "medium",
+      "subsystem": "supply_chain",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "One guard string anywhere exempted every secret in a file, and push or workflow_run workflows were never checked.",
+      "owning_modules": [
+        "scripts/check_supply_chain.py",
+        ".github/workflows/ci-diagnostics.yml"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_phase4_ci_infra_fixes.py",
+          "test_type": "security"
+        }
+      ],
+      "depends_on": [],
+      "notes": "audit findings: OPS-016, SCR-002. layer: test-suite"
+    },
+    {
+      "id": "SEC-1265",
+      "kind": "security_regression",
+      "title": "Diagnostics reports must come from the collector workflow run",
+      "statement": "A check run is accepted as a diagnostics report only if its details_url resolves to a workflow_run run of ci-diagnostics.yml in this repository, and retrieved reports are labelled untrusted data.",
+      "criticality": "medium",
+      "subsystem": "security",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "Any job with checks: write could publish a forged finalized report that fed the agent patch path.",
+      "owning_modules": [
+        "scripts/ci_diagnostics.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_phase4_ci_infra_fixes.py",
+          "test_type": "security"
+        }
+      ],
+      "depends_on": [],
+      "notes": "audit findings: OPS-017. layer: test-suite"
+    },
+    {
+      "id": "REG-1266",
+      "kind": "regression",
+      "title": "Horizon-gated ordering defaults to off",
+      "statement": "INTEL_ENABLED defaults to false in the orchestrator, the API and .env.example, and compose does not enable it.",
+      "criticality": "high",
+      "subsystem": "execution",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "REG-0030 is only partially verified, so enabling the horizon order gate by default would run it unverified.",
+      "owning_modules": [
+        "src/engine/orchestrator.py",
+        "src/api/main.py",
+        ".env.example"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_phase4_ci_infra_fixes.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": [],
+      "notes": "audit findings: OPS-019. layer: test-suite"
+    },
+    {
+      "id": "SEC-1267",
+      "kind": "security_regression",
+      "title": "Every credentialed venue needs a key-posture declaration",
+      "statement": "Startup refuses live trading when a venue with configured credentials has no declared key posture, even if another venue's declaration is safe.",
+      "criticality": "high",
+      "subsystem": "security",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "assert_all_safe passed when any declared exchange was safe, so an undeclared OKX or Bybit key could trade live.",
+      "owning_modules": [
+        "src/security/exchange_key_posture.py",
+        "config/exchange_key_posture.json"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_phase4_ci_infra_fixes.py",
+          "test_type": "security"
+        }
+      ],
+      "depends_on": [],
+      "notes": "audit findings: SCR-004. layer: test-suite"
+    },
+    {
+      "id": "REG-1268",
+      "kind": "regression",
+      "title": "Mutation scores are read from the pinned mutmut cache",
+      "statement": "The mutation score script pins mutmut, checks its exit status, clears the cache per subsystem and reads outcomes from the cache rather than parsing results text.",
+      "criticality": "medium",
+      "subsystem": "governance",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "Counts parsed to zero, so the nightly job failed every night while measuring nothing.",
+      "owning_modules": [
+        "scripts/check_mutation_score.py",
+        ".github/workflows/nightly-quality.yml"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_phase4_ci_infra_fixes.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": [],
+      "notes": "audit findings: SCR-003. layer: test-suite"
+    },
+    {
+      "id": "REG-1269",
+      "kind": "regression",
+      "title": "math_registry consumer rows are real imports",
+      "statement": "Every consumer wiring row in config/math_registry.json names a module that references its owner.",
+      "criticality": "low",
+      "subsystem": "governance",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "Generated docs showed wiring that did not exist.",
+      "owning_modules": [
+        "config/math_registry.json"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_phase4_ci_infra_fixes.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": [],
+      "notes": "audit findings: SCR-005. layer: test-suite"
+    },
+    {
+      "id": "SEC-1270",
+      "kind": "security_regression",
+      "title": "command_policy has no dead sections and guards all .env readers",
+      "statement": "config/command_policy.json carries no unenforced limit sections, and secret_echo blocks head, sed, grep, python and similar readers of .env, key and certificate files.",
+      "criticality": "medium",
+      "subsystem": "security",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "The policy advertised limits nothing enforced, and only cat and echo were blocked from printing .env.",
+      "owning_modules": [
+        "config/command_policy.json"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_phase4_ci_infra_fixes.py",
+          "test_type": "security"
+        }
+      ],
+      "depends_on": [],
+      "notes": "audit findings: SCR-006. layer: test-suite"
+    },
+    {
+      "id": "REG-1271",
+      "kind": "regression",
+      "title": "Execution and risk arch-baseline findings are tracked in the registry",
+      "statement": "Every baselined LAW1, LAW2, LAW9, LAW10 and LAW13 finding maps to an ARCH accepted_gap entry with a waiver and review date.",
+      "criticality": "medium",
+      "subsystem": "governance",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "Core trading-path findings lived only in the baseline, which fails only on new findings, so they could never fail CI.",
+      "owning_modules": [
+        "config/arch_baseline.json"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_phase4_ci_infra_fixes.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": [],
+      "notes": "audit findings: OPS-018. layer: test-suite"
+    },
+    {
+      "id": "ARCH-001",
+      "kind": "requirement",
+      "title": "Wash trade detection is absent from the order path",
+      "statement": "Orders can self-match because order_manager and router do not detect wash trades. Tracked from config/arch_baseline.json until a fix and a deciding test land.",
+      "criticality": "high",
+      "subsystem": "execution",
+      "status": "accepted_gap",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "The finding sat only in the arch baseline, which fails only on new findings.",
+      "owning_modules": [
+        "src/execution/order_manager.py",
+        "src/execution/router.py"
+      ],
+      "waiver": {
+        "reason": "Baselined by the arch gate; tracked here so it has an owner and a review date instead of living only in the baseline.",
+        "accepted_by": "zulqarnain106612-cpu",
+        "review_by": "2027-01-31"
+      },
+      "depends_on": [],
+      "notes": "audit findings: OPS-018"
+    },
+    {
+      "id": "ARCH-002",
+      "kind": "requirement",
+      "title": "Flash crash and market halt handling is not independently verified",
+      "statement": "Flash-crash and halt handling references in the risk and engine paths are baselined without a deciding test. Tracked from config/arch_baseline.json until a fix and a deciding test land.",
+      "criticality": "high",
+      "subsystem": "risk",
+      "status": "accepted_gap",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "The finding sat only in the arch baseline, which fails only on new findings.",
+      "owning_modules": [
+        "src/risk/gate.py",
+        "src/risk/gates.py",
+        "src/risk/strategy_kill_switch.py",
+        "src/engine/orchestrator.py",
+        "src/engines/consensus.py",
+        "src/engines/orchestrator.py",
+        "src/engines/signal_gate.py",
+        "src/intel.py"
+      ],
+      "waiver": {
+        "reason": "Baselined by the arch gate; tracked here so it has an owner and a review date instead of living only in the baseline.",
+        "accepted_by": "zulqarnain106612-cpu",
+        "review_by": "2027-01-31"
+      },
+      "depends_on": [],
+      "notes": "audit findings: OPS-018"
+    },
+    {
+      "id": "ARCH-003",
+      "kind": "requirement",
+      "title": "Risk score computation has no VaR/CVaR term",
+      "statement": "cognitive_engine._compute_risk_score does not compute VaR or CVaR. Tracked from config/arch_baseline.json until a fix and a deciding test land.",
+      "criticality": "high",
+      "subsystem": "risk",
+      "status": "accepted_gap",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "The finding sat only in the arch baseline, which fails only on new findings.",
+      "owning_modules": [
+        "src/risk/cognitive_engine.py",
+        "src/risk/gates.py"
+      ],
+      "waiver": {
+        "reason": "Baselined by the arch gate; tracked here so it has an owner and a review date instead of living only in the baseline.",
+        "accepted_by": "zulqarnain106612-cpu",
+        "review_by": "2027-01-31"
+      },
+      "depends_on": [],
+      "notes": "audit findings: OPS-018"
+    },
+    {
+      "id": "ARCH-004",
+      "kind": "requirement",
+      "title": "Model predictions are used without a confidence check",
+      "statement": "Predictions in the ensemble, trainer, regime detector, backtest harness and shadow deploy are consumed without a confidence check. Tracked from config/arch_baseline.json until a fix and a deciding test land.",
+      "criticality": "medium",
+      "subsystem": "model",
+      "status": "accepted_gap",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "The finding sat only in the arch baseline, which fails only on new findings.",
+      "owning_modules": [
+        "src/intelligence/ensemble_predictor.py",
+        "src/models/trainer.py",
+        "src/regime/detector.py",
+        "src/tuning/backtest_harness.py",
+        "src/upgrade/shadow_deploy.py"
+      ],
+      "waiver": {
+        "reason": "Baselined by the arch gate; tracked here so it has an owner and a review date instead of living only in the baseline.",
+        "accepted_by": "zulqarnain106612-cpu",
+        "review_by": "2027-01-31"
+      },
+      "depends_on": [],
+      "notes": "audit findings: OPS-018"
+    },
+    {
+      "id": "ARCH-005",
+      "kind": "requirement",
+      "title": "Module-global singletons are mutated",
+      "statement": "Nine module-level globals are mutated, which hides state from tests and concurrency review. Tracked from config/arch_baseline.json until a fix and a deciding test land.",
+      "criticality": "medium",
+      "subsystem": "governance",
+      "status": "accepted_gap",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "The finding sat only in the arch baseline, which fails only on new findings.",
+      "owning_modules": [
+        "src/intelligence/providers/aggregator.py",
+        "src/tuning/meta_allocator.py",
+        "src/diagnostics/signal_debugger.py",
+        "src/intelligence/providers/binance_provider.py",
+        "src/intelligence/providers/blockchain_provider.py",
+        "src/intelligence/providers/bybit_provider.py",
+        "src/intelligence/providers/coingecko_provider.py",
+        "src/intelligence/providers/okx_provider.py",
+        "src/engine/strategy_portfolio.py"
+      ],
+      "waiver": {
+        "reason": "Baselined by the arch gate; tracked here so it has an owner and a review date instead of living only in the baseline.",
+        "accepted_by": "zulqarnain106612-cpu",
+        "review_by": "2027-01-31"
+      },
+      "depends_on": [],
+      "notes": "audit findings: OPS-018"
+    },
+    {
+      "id": "REG-1100",
+      "kind": "regression",
+      "title": "OOS Sharpe and drawdown are scored on the forward label return",
+      "statement": "build_feature_matrix carries forward_returns (log return from entry to the barrier exit) and ModelTrainer scores every CPCV prediction on it, never on the concurrent bar return.",
+      "criticality": "high",
+      "subsystem": "model",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "The live gate scored a prediction made at bar t on the t-1 to t move, which the features already contain, inflating Sharpe and deflating drawdown (INT-001).",
+      "owning_modules": [
+        "src/features/pipeline.py",
+        "src/models/trainer.py",
+        "src/tuning/backtest_harness.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_model_eval_leakage.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1101",
+      "kind": "regression",
+      "title": "The ensemble regresses on the forward label return",
+      "statement": "train_ensemble fits EnsemblePredictor on fm.forward_returns and passes the label horizon so validation is purged.",
+      "criticality": "high",
+      "subsystem": "model",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "Members learned to reconstruct the concurrent bar return from features and the nowcast was blended into live p_long as a forecast (INT-002).",
+      "owning_modules": [
+        "src/models/trainer.py",
+        "src/intelligence/ensemble_predictor.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_model_eval_leakage.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1102",
+      "kind": "regression",
+      "title": "Meta-labels are built from out-of-fold primary predictions",
+      "statement": "train_meta_label and the cache-provenance path derive p_long, confidence and meta-labels from purged k-fold out-of-fold predictions, never from the final direction model's in-sample output.",
+      "criticality": "high",
+      "subsystem": "model",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "The meta model learned to bet on optimistic in-sample confidence that does not hold out of sample (INT-003).",
+      "owning_modules": [
+        "src/models/trainer.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_model_eval_leakage.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1103",
+      "kind": "regression",
+      "title": "CPCV purges and embargoes every contiguous test block",
+      "statement": "build_cpcv_folds removes training samples within purge_gap before and embargo after each contiguous block of test groups, including non-adjacent groups.",
+      "criticality": "high",
+      "subsystem": "model",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "Purge and embargo were measured from the min and max of all test groups, leaving the boundaries of interior test blocks unprotected so labels leaked (INT-004).",
+      "owning_modules": [
+        "src/models/trainer.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_model_eval_leakage.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1104",
+      "kind": "regression",
+      "title": "CPCV counts each test sample once",
+      "statement": "OOS Sharpe, drawdown and n_trades are computed over unique test samples (majority-voted) with a fixed per-timeframe annualisation factor, not over the concatenation of all folds.",
+      "criticality": "high",
+      "subsystem": "model",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "Each sample appeared in about 9 folds, so n_trades passed min_trades_live_gate by a large overcount and the Sharpe scaled with the duplicated sample count (INT-005).",
+      "owning_modules": [
+        "src/models/trainer.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_model_eval_leakage.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1105",
+      "kind": "regression",
+      "title": "Ensemble member weights and uncertainty come from out-of-sample error",
+      "statement": "EnsemblePredictor.fit scores members on a purged chronological holdout; members without a holdout score keep rmse=inf and receive zero weight.",
+      "criticality": "high",
+      "subsystem": "model",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "Inverse in-sample RMSE gave most weight to the member that overfit most and produced intervals that were too narrow (INT-007).",
+      "owning_modules": [
+        "src/intelligence/ensemble_predictor.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_model_eval_leakage.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "SEC-1220",
+      "kind": "security_regression",
+      "title": "Attested CI evidence only counts with a prfail verdict",
+      "statement": "A CI_NOTICE evidence record satisfies a required validation only when the reliability store holds a green prfail verdict for that exact HEAD.",
+      "criticality": "high",
+      "subsystem": "governance",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "The gated agent could record_ci --state success with any SHA and satisfy completion by attesting to it.",
+      "owning_modules": [
+        "src/agent_control/completion.py",
+        "src/agent_control/reliability.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/agent_control/test_completion.py",
+          "test_type": "security"
+        },
+        {
+          "test": "tests/agent_control/test_reliability.py",
+          "test_type": "security"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1221",
+      "kind": "regression",
+      "title": "Dead-task scan observes watched tasks",
+      "statement": "RuntimeMonitor reports a watched asyncio task that ends with an exception and ignores cancelled or clean ones.",
+      "criticality": "medium",
+      "subsystem": "resilience",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "asyncio.all_tasks() never returns finished tasks, so the dead-task probe could not fire.",
+      "owning_modules": [
+        "src/diagnostics/runtime_monitor.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_runtime_monitor_coverage.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1222",
+      "kind": "regression",
+      "title": "ECC worker thread stops and never blocks on a full queue",
+      "statement": "The ECC worker exits when its stop event is set and drops a result instead of blocking when the output queue is full.",
+      "criticality": "medium",
+      "subsystem": "resilience",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "The loop was while True with an unbounded put, so shutdown always timed out and the thread leaked.",
+      "owning_modules": [
+        "src/workers/orchestrator.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_workers_orchestrator_coverage.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1223",
+      "kind": "regression",
+      "title": "scale() counts the ECC slot and stops the exact process",
+      "statement": "scale(n) targets n-1 model workers, spawns the difference, stops popped processes directly, and shutdown terminates any survivor.",
+      "criticality": "medium",
+      "subsystem": "resilience",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "scale compared n with model workers only (spawned none after start(n)) and sentinels on a shared queue left popped processes alive and untracked.",
+      "owning_modules": [
+        "src/workers/orchestrator.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_workers_orchestrator_coverage.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "SEC-1224",
+      "kind": "security_regression",
+      "title": "Terminal daemon and PTYs get an allowlisted environment",
+      "statement": "The terminal daemon and session shells inherit only allowlisted variables and never names that look secret.",
+      "criticality": "high",
+      "subsystem": "terminal",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "The daemon inherited the caller's full environment, handing exchange keys and OPERATOR_SECRET to every terminal session.",
+      "owning_modules": [
+        "src/terminal/config.py",
+        "src/terminal/cli.py",
+        "src/terminal/sessions.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/terminal/test_terminal_cli.py",
+          "test_type": "security"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "SEC-1225",
+      "kind": "security_regression",
+      "title": "Orchestrator workers default to read-only tools",
+      "statement": "WORKER_ALLOWED_TOOLS defaults to Read,Grep,Glob; shell access is an explicit opt-in.",
+      "criticality": "high",
+      "subsystem": "security",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "LLM-authored subtasks ran with pre-approved Bash, so injected content became shell execution.",
+      "owning_modules": [
+        "orchestrator/config.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_orchestrator_pkg_run.py",
+          "test_type": "security"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1226",
+      "kind": "regression",
+      "title": "Orchestrator survives a failing worker and prose-wrapped plans",
+      "statement": "A failing worker becomes an error digest without discarding the others, concurrency is capped, and the planner uses a JSON schema with a lenient fallback.",
+      "criticality": "medium",
+      "subsystem": "governance",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "fut.result() raised and discarded every other digest; planner json.loads failed on fence or prose variants.",
+      "owning_modules": [
+        "orchestrator/run.py",
+        "orchestrator/planner.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_orchestrator_pkg_run.py",
+          "test_type": "regression"
+        },
+        {
+          "test": "tests/test_orchestrator_pkg_planner.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1227",
+      "kind": "regression",
+      "title": "prfail report is not truncated to three lines",
+      "statement": "The observation gate applies the larger diagnostic budget to the exact ./scripts/prfail --pr N command.",
+      "criticality": "medium",
+      "subsystem": "governance",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "All Bash output was cut to 3 lines, hiding most CI diagnostics.",
+      "owning_modules": [
+        ".claude/hooks/observation_gate.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_observation_gate.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "SEC-1228",
+      "kind": "security_regression",
+      "title": "Arch baseline bounds suppression by count",
+      "statement": "A baselined fingerprint suppresses at most its recorded number of findings, so a new instance in an already-baselined file fails the gate.",
+      "criticality": "high",
+      "subsystem": "governance",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "Fingerprints have no line or evidence, so any new instance of a baselined check in that file was silently suppressed.",
+      "owning_modules": [
+        ".claude/skills/crypto-architect/scripts/validate_arch.py",
+        "config/arch_baseline.json"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_crypto_architect_skill.py",
+          "test_type": "security"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "SEC-1130",
+      "kind": "security_regression",
+      "title": "The git guard sees nested, aliased and repeated guarded operations",
+      "statement": "Guarded Git operations are detected inside backtick substitutions, xargs, find -exec/-execdir, inline -c alias.* and configured aliases, and every occurrence of an operation spends its own single-use authorization; the guard applies only while a task is active (the irreversible forms stay refused by common.command_schema regardless).",
+      "criticality": "high",
+      "subsystem": "governance",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "An agent runs checkout, reset, clean or a force push through a shell form the guard does not parse, or chains the same operation behind one authorization, losing uncommitted work without the recorded reason and checkpoint.",
+      "owning_modules": [
+        "src/agent_control/git_safety.py",
+        "src/agent_control/workspace.py"
+      ],
+      "depends_on": [
+        "GOV-061"
+      ],
+      "verification": [
+        {
+          "test": "tests/agent_control/test_git_safety.py",
+          "test_type": "security"
+        },
+        {
+          "test": "tests/agent_control/test_hooks.py",
+          "test_type": "security"
+        }
+      ],
+      "notes": "layer: test-suite"
+    },
+    {
+      "id": "SEC-1131",
+      "kind": "security_regression",
+      "title": "The PreToolUse hook fails closed when its guards cannot load or run",
+      "statement": "If common.command_schema cannot be imported the PreToolUse hook denies the call instead of running on stub patterns, and a failure inside the git guard denies the git command instead of allowing it.",
+      "criticality": "high",
+      "subsystem": "governance",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "An import or guard error silently disables the CI-log, local-check and git guards, and the fallback patterns (double-escaped) never matched anything.",
+      "owning_modules": [
+        ".claude/hooks/pre_tool_use.py"
+      ],
+      "depends_on": [
+        "GOV-061"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_pre_tool_use_hook.py",
+          "test_type": "security"
+        }
+      ],
+      "notes": "layer: test-suite"
+    },
+    {
+      "id": "REG-1030",
+      "kind": "regression",
+      "title": "A venue-confirmed no-fill releases the order idempotency key so exit retries place an order",
+      "statement": "When an order ends cancelled, expired or rejected with no fill, or its confirmation times out and the cancel/read-back proves no fill, OrderManager releases the idempotency key and the retried order is sent with a fresh client order id; a stop-loss close is never refused as a duplicate for the key TTL.",
+      "criticality": "critical",
+      "subsystem": "execution",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "The key was marked COMPLETED when the order was created, so a cancelled close was refused as a duplicate on every 5s retry for up to 3600s and the position could not be exited.",
+      "owning_modules": [
+        "src/execution/order_manager.py",
+        "src/execution/idempotency.py",
+        "src/execution/live.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_exec_idempotency_fills.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1031",
+      "kind": "regression",
+      "title": "Entry timeout and partial cancel are reconciled, booked, or block new entries",
+      "statement": "On confirmation timeout the order is cancelled and read back and any fill is returned for booking; a terminal cancelled/expired order with a partial fill is returned, not discarded; a placement network error is reconciled by client order id; if the outcome cannot be established the key stays claimed and LiveExecutor blocks new entries until acknowledge_recovery.",
+      "criticality": "critical",
+      "subsystem": "execution",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "A confirmation timeout or partial-fill cancel was treated as a failed order, cash was restored and the live fill was never tracked or protected by a stop-loss.",
+      "owning_modules": [
+        "src/execution/order_manager.py",
+        "src/execution/idempotency.py",
+        "src/execution/live.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_exec_idempotency_fills.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1080",
+      "kind": "regression",
+      "title": "E-10 emits spot, not the S2F level, as predicted_price",
+      "statement": "E10Supply.run emits predicted_price equal to spot and keeps the S2F fair value in metadata only.",
+      "criticality": "critical",
+      "subsystem": "signal",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "The S2F model price (hundreds of thousands of USD) was averaged into consensus price, so the trade signal came from the S2F artefact.",
+      "owning_modules": [
+        "src/engines/e10_supply.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_engine_signal_plumbing_fixes.py",
+          "test_type": "regression"
+        }
+      ],
+      "notes": "audit finding STR-01. layer: test-suite"
+    },
+    {
+      "id": "REG-1081",
+      "kind": "regression",
+      "title": "Meta-engines receive prior engine outputs",
+      "statement": "EngineOrchestrator.run runs E-08, E-09 and E-15 after the other engines and passes engine_outputs and e07_direction in their data.",
+      "criticality": "high",
+      "subsystem": "signal",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "engine_outputs was set after gather and discarded, so E-08/E-09/E-15 ran on empty inputs and were constant functions of nothing.",
+      "owning_modules": [
+        "src/engines/orchestrator.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_engine_signal_plumbing_fixes.py",
+          "test_type": "regression"
+        }
+      ],
+      "notes": "audit finding STR-02. layer: test-suite"
+    },
+    {
+      "id": "REG-1082",
+      "kind": "regression",
+      "title": "TTL hysteresis holds state in the mid band",
+      "statement": "TtlManager.compute returns the same TTL for repeated mid-band entropy values and switches only past the outer thresholds.",
+      "criticality": "high",
+      "subsystem": "signal",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "Inverted hysteresis thresholds flipped the signal TTL between 1h and 24h on every call for entropy in (0.35, 0.65).",
+      "owning_modules": [
+        "src/engines/consensus.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_engine_signal_plumbing_fixes.py",
+          "test_type": "regression"
+        }
+      ],
+      "notes": "audit finding STR-03. layer: test-suite"
+    },
+    {
+      "id": "REG-1083",
+      "kind": "regression",
+      "title": "Ensemble members that error are excluded, not voted as 0.0",
+      "statement": "Ensemble member predict raises on error so EnsemblePredictor lists the member in failed_models and excludes it from the estimate.",
+      "criticality": "high",
+      "subsystem": "model",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "Members swallowed exceptions and returned 0.0, which entered the weighted mean and disagreement as a real forecast.",
+      "owning_modules": [
+        "src/intelligence/ensemble_predictor.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_engine_signal_plumbing_fixes.py",
+          "test_type": "regression"
+        }
+      ],
+      "notes": "audit finding INT-006. layer: test-suite"
+    },
+    {
+      "id": "REG-1084",
+      "kind": "regression",
+      "title": "IntelligenceAdapter persists the fused decision when no signal is sized",
+      "statement": "When CryptoIntelligence.on_bar returns None, IntelligenceAdapter persists the last fused decision with zero direction and size.",
+      "criticality": "high",
+      "subsystem": "model",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "on_bar returned None without a risk_context so nothing was ever persisted to intelligence_features_history.",
+      "owning_modules": [
+        "src/intelligence/intelligence_adapter.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_engine_signal_plumbing_fixes.py",
+          "test_type": "regression"
+        }
+      ],
+      "notes": "audit finding INT-008. layer: test-suite"
+    },
+    {
+      "id": "REG-1085",
+      "kind": "regression",
+      "title": "Nonce scanner skips the 0x21 push opcode before the pubkey",
+      "statement": "extract_ecdsa_signatures finds a signature whose sighash byte is followed by a 0x21 push and a compressed pubkey.",
+      "criticality": "high",
+      "subsystem": "signal",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "The pubkey offset landed on 0x21 so real P2PKH/P2WPKH transactions yielded no signatures and nonce-reuse detection never fired.",
+      "owning_modules": [
+        "src/ecc/ecdsa_scan.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_engine_signal_plumbing_fixes.py",
+          "test_type": "regression"
+        }
+      ],
+      "notes": "audit finding MTH-001. layer: test-suite"
     }
   ]
 }
