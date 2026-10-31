@@ -120,6 +120,21 @@ class OKXSettings(BaseSettings):
     rate_limit_per_second: int = Field(default=10, ge=1)
 
 
+class PaperQualificationSettings(BaseSettings):
+    """Secret that authenticates the paper-qualification record (EXR-020).
+
+    Deliberately not a field of ``Settings`` and never cached: the live gate
+    reads it fresh on every call so a rotated or removed key takes effect at
+    once, and the qualification module needs no direct environment access.
+    """
+
+    model_config = SettingsConfigDict(
+        env_prefix="PAPER_QUALIFICATION_", env_file=".env", extra="ignore"
+    )
+
+    hmac_key: str = Field(default="", description="HMAC key signing the qualification record")
+
+
 # ---------------------------------------------------------------------------
 # Risk constants — López de Prado (2018) AFML + Kelly (1956)
 # ---------------------------------------------------------------------------
@@ -193,7 +208,7 @@ class RiskSettings(BaseSettings):
     approval_timeout_s: float = Field(
         default=30.0,
         ge=1.0,
-        description="Seconds to wait for manual approval before auto-skip in RESTRICTED mode",
+        description="Seconds to wait for manual approval before auto-skip (RESTRICTED and MANUAL modes)",
     )
 
     # GAP-001 — Almgren-Chriss slippage / market-impact model
@@ -756,9 +771,9 @@ class StrategyPortfolioSettings(BaseSettings):
 
     Each *_fraction is an upper bound on the share of book capital that
     strategy may request, enforced independently of Kelly (Kelly is a
-    ceiling, not a target). They are ceilings, not a partition: they may sum
-    above 1.0 (the capital allocator caps each strategy and renormalises),
-    and a sum below 1.0 is logged as a warning at bootstrap.
+    ceiling, not a target). The enabled fractions are validated to sum to
+    <= 1.0 at bootstrap, so a mis-set config fails at startup rather than
+    at the first fill.
 
     Defaults keep only the incumbent model-driven signal engine enabled.
     The v2/v3/v5 strategy families are opt-in per CLAUDE.md's out-of-sample

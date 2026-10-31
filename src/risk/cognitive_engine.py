@@ -635,15 +635,16 @@ class RegimeValidator:
         # 5c. Hurst exponent filter (Peters 1994)
         metrics["hurst_exponent"] = round(ctx.hurst_exponent, 4)
         if ctx.hurst_exponent < self.HURST_TRENDING_MIN:
-            direction = "long" if ctx.p_long > 0.5 else "short"
-            if direction in ("long", "short"):  # momentum trade on mean-reverting series
-                return ValidatorResult(
-                    self.NAME,
-                    ValidatorStatus.VETO,
-                    f"Hurst exponent {ctx.hurst_exponent:.3f} < {self.HURST_TRENDING_MIN} "
-                    f"— series is mean-reverting, momentum signal unreliable",
-                    metrics,
-                )
+            # EXR-019: advisory only. The context carries no strategy type, so
+            # a mean-reverting series cannot be said to contradict the signal
+            # (mean-reversion strategies want H < 0.5); WARN shrinks size.
+            return ValidatorResult(
+                self.NAME,
+                ValidatorStatus.WARN,
+                f"Hurst exponent {ctx.hurst_exponent:.3f} < {self.HURST_TRENDING_MIN} "
+                f"— series is mean-reverting, momentum signal less reliable",
+                metrics,
+            )
 
         # 5d. Entropy warning zone
         if norm_entropy > self.ENTROPY_WARN_THRESHOLD:
