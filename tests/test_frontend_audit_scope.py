@@ -157,11 +157,12 @@ def test_concurrently_is_not_downgraded_to_dodge_the_advisory(manifest: dict) ->
 
 # SEC-0011: floors that clear the high advisories npm audit reported on main.
 # electron GHSA-jr5w-w6x2-84p9 (44.0.0-alpha.1 - 44.9.0), follow-redirects
-# GHSA-q3jh-wrc6-jgq8 / GHSA-8r9p-f939-6h3c (1.16.0), undici
+# GHSA-q3jh-wrc6-jgq8 / GHSA-8r9p-f939-6h3c (1.16.0) and
+# GHSA-mrwp-f3q8-3g9p (1.16.0-1.16.1; fixed in 1.16.2), undici
 # GHSA-4qv8-2p9j-2685 / GHSA-f72v-6w45-q472 (7.0.0 - 7.30.0, 8.0.0 - 8.12.1).
 PATCHED_FLOORS = {
     "electron": (44, 9, 1),
-    "follow-redirects": (1, 16, 1),
+    "follow-redirects": (1, 16, 2),
     "undici": (7, 30, 1),
 }
 

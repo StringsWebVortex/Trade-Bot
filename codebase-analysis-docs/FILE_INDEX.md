@@ -24,7 +24,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 9 | P0 | config/command_policy.json | JSON | 304 | a0f8c0c7 | Tool command and CI observation policy |
 | 10 | P0 | config/horizons.yaml | YAML | 53 | 2ede87ec | Auxiliary prediction horizon definitions |
 | 11 | P0 | config/math_registry.json | JSON | 1903 | 8fa18ffc | Mathematical object registry |
-| 12 | P0 | config/quality_registry.json | JSON | 6895 | c3dcf05c | Requirements, regressions and deciding tests |
+| 12 | P0 | config/quality_registry.json | JSON | 6895 | 17d810ae | Requirements, regressions and deciding tests |
 | 13 | P0 | config/risk.yaml | YAML | 26 | dd4766f8 | Horizon/intelligence risk, distinct from core Settings |
 | 14 | P0 | docker-compose.yml | YAML | 82 | 80ec3eca | API/Timescale/optional-worker composition |
 | 15 | P0 | docs/quality/CI_GATE_ARCHITECTURE.md | Markdown | 255 | 62e800fb | CI gates |
@@ -78,7 +78,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 8 | P0 | config/command_policy.json | JSON | 304 | a0f8c0c7 | Tool command and CI observation policy |
 | 9 | P0 | config/horizons.yaml | YAML | 53 | 2ede87ec | Auxiliary prediction horizon definitions |
 | 10 | P0 | config/math_registry.json | JSON | 1903 | 8fa18ffc | Mathematical object registry |
-| 11 | P0 | config/quality_registry.json | JSON | 6895 | c3dcf05c | Requirements, regressions and deciding tests |
+| 11 | P0 | config/quality_registry.json | JSON | 6895 | 17d810ae | Requirements, regressions and deciding tests |
 | 12 | P0 | config/risk.yaml | YAML | 26 | dd4766f8 | Horizon/intelligence risk, distinct from core Settings |
 | 13 | P0 | docker-compose.yml | YAML | 82 | 80ec3eca | API/Timescale/optional-worker composition |
 | 14 | P0 | docs/quality/CI_GATE_ARCHITECTURE.md | Markdown | 255 | 62e800fb | CI gates |
@@ -185,7 +185,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 115 | P1 | docs/quality/QUALITY_BASELINE.md | Markdown | 125 | bbc75e22 |  |
 | 116 | P1 | docs/quality/QUALITY_METRICS.md | Markdown | 122 | 386b71a5 |  |
 | 117 | P1 | docs/quality/QUALITY_POLICY.md | Markdown | 232 | 8c4629b8 |  |
-| 118 | P1 | docs/quality/REQUIREMENTS_TRACEABILITY.md | Markdown | 3577 | c18fe14d |  |
+| 118 | P1 | docs/quality/REQUIREMENTS_TRACEABILITY.md | Markdown | 3554 | c58b61ec |  |
 | 119 | P1 | docs/quality/ROOT_CAUSE_TEMPLATE.md | Markdown | 84 | a55b20e9 |  |
 | 120 | P1 | docs/quality/TEST_STRATEGY.md | Markdown | 252 | efbde1ba |  |
 | 121 | P1 | docs/runtime/IMPLEMENTATION_MATRIX.md | Markdown | 79 | 7e5cd563 |  |
@@ -914,7 +914,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 844 | P1 | tests/test_fetcher_symbol_precision.py | Python | 94 | fef0ec91 |  |
 | 845 | P1 | tests/test_fetcher_venue_degradation.py | Python | 195 | 505ce832 |  |
 | 846 | P1 | tests/test_folklore_gate.py | Python | 213 | 3c91b2db |  |
-| 847 | P1 | tests/test_frontend_audit_scope.py | Python | 187 | 2c082658 |  |
+| 847 | P1 | tests/test_frontend_audit_scope.py | Python | 188 | 81d698ad |  |
 | 848 | P1 | tests/test_funding_carry.py | Python | 101 | cc7256d7 |  |
 | 849 | P1 | tests/test_gap015_backfill.py | Python | 394 | 1b36ebf2 |  |
 | 850 | P1 | tests/test_gap015_intelligence_training.py | Python | 150 | 5f0a0cbc |  |
@@ -1268,7 +1268,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 1198 | P2 | frontend/electron/terminalBridge.cjs | CommonJS | 221 | df9b68c6 |  |
 | 1199 | P2 | frontend/index.html | HTML | 14 | 937890f7 |  |
 | 1200 | P2 | frontend/linux/tradebot-dashboard.desktop | Desktop-entry config | 9 | d8c53c4f |  |
-| 1201 | P2 | frontend/package-lock.json | JSON | 4856 | f95a718c |  |
+| 1201 | P2 | frontend/package-lock.json | JSON | 4837 | 53f50bf8 |  |
 | 1202 | P2 | frontend/postcss.config.js | JavaScript | 7 | ad943233 |  |
 | 1203 | P2 | frontend/public/icon.svg | Vector asset | 15 | 9a6da623 |  |
 | 1204 | P2 | frontend/scripts/build-icons.mjs | ES module | 36 | 4489c079 |  |
