@@ -12,10 +12,9 @@ import math
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from conftest import settings_double
 from test_orchestrator_extra_coverage import _make_executor, _make_orch, _make_skip_result
 
-from src.config import Timeframe
+from src.config import RiskSettings, Timeframe
 from src.risk.gates import GateStatus, check_daily_drawdown, stricter_daily_pnl
 
 
@@ -33,7 +32,7 @@ def test_the_worse_of_realised_and_marked_is_used(
 def test_a_non_finite_input_halts(realised: float, marked: float) -> None:
     pnl = stricter_daily_pnl(realised, marked)
     assert math.isnan(pnl)
-    assert check_daily_drawdown(pnl, 100_000.0, settings_double().risk).status == (
+    assert check_daily_drawdown(pnl, 100_000.0, RiskSettings(_env_file=None)).status == (
         GateStatus.HALT_DRAWDOWN
     )
 
