@@ -117,6 +117,18 @@ def _shannon_entropy(p_ranging: float, p_trending: float, p_volatile: float) -> 
     return max(0.0, min(1.0, raw / max_entropy))
 
 
+def bars_per_day(timeframe: str) -> float:
+    """Bars per 24h for a ``<n><m|h|d|w>`` timeframe string such as ``15m``."""
+    unit_seconds = {"m": 60, "h": 3600, "d": 86400, "w": 604800}
+    try:
+        seconds = int(timeframe[:-1]) * unit_seconds[timeframe[-1]]
+    except (ValueError, KeyError, IndexError):
+        raise ValueError(f"unrecognised timeframe {timeframe!r}") from None
+    if seconds <= 0:
+        raise ValueError(f"unrecognised timeframe {timeframe!r}")
+    return 86400.0 / seconds
+
+
 class AutoTuningScheduler:
     """Runs one propose/evaluate/gate attempt per registered hmm-entropy
     parameter on a fixed wall-clock interval. TuningRunner's own cooldown
@@ -613,7 +625,11 @@ class AutoTuningScheduler:
             if reference_price <= 0.0:
                 continue
             history = bars[:-1] if len(bars) > 1 else bars
-            adv_20d = sum(b.volume for b in history) / len(history)
+            # Mean per-bar volume x bars per day = average *daily* volume, the
+            # unit the Almgren-Chriss coefficient is defined against (STR-14).
+            adv_20d = (sum(b.volume for b in history) / len(history)) * bars_per_day(
+                self._timeframe
+            )
             if adv_20d <= 0.0:
                 continue
             samples.append(

@@ -24,6 +24,7 @@ Risk/sizing module — actual professional formulas, not placeholders.
 
 import numpy as np
 from sklearn.calibration import CalibratedClassifierCV
+from sklearn.model_selection import TimeSeriesSplit
 
 
 def calibrate_probabilities(model, X_train, y_train, X_test, method: str = "isotonic"):
@@ -31,7 +32,9 @@ def calibrate_probabilities(model, X_train, y_train, X_test, method: str = "isot
     Wraps a fitted model with probability calibration.
     method: 'isotonic' (non-parametric, needs more data) or 'sigmoid' (Platt scaling).
     """
-    calibrated = CalibratedClassifierCV(model, method=method, cv=3)
+    # Time-ordered folds: a plain cv=3 is an unshuffled KFold, which would fit
+    # the calibrator on later rows and score it on earlier ones.
+    calibrated = CalibratedClassifierCV(model, method=method, cv=TimeSeriesSplit(n_splits=3))
     calibrated.fit(X_train, y_train)
     calibrated_probs = calibrated.predict_proba(X_test)[:, 1]
     return calibrated_probs, calibrated
@@ -88,8 +91,8 @@ if __name__ == "__main__":
     avg_loss = 0.016  # 1.6% average loss
     f = kelly_fraction(p, avg_win, avg_loss, kelly_multiplier=0.25)
     print(f"Calibrated p_win: {p}")
-    print(f"Full Kelly fraction: {((avg_win/avg_loss)*p - (1-p)) / (avg_win/avg_loss):.4f}")
-    print(f"Quarter-Kelly (actually used): {f:.4f} → risk {f*100:.2f}% of capital per trade")
+    print(f"Full Kelly fraction: {((avg_win / avg_loss) * p - (1 - p)) / (avg_win / avg_loss):.4f}")
+    print(f"Quarter-Kelly (actually used): {f:.4f} → risk {f * 100:.2f}% of capital per trade")
 
     mean_p, lo, hi = confidence_interval_from_ensemble([0.58, 0.54, 0.61, 0.52])
     print(f"\nEnsemble mean probability: {mean_p:.3f}, 90% CI: [{lo:.3f}, {hi:.3f}]")

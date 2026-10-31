@@ -1292,44 +1292,45 @@ SHA8 5ef08896; total lines 143.
 
 ## src/tuning/scheduler.py
 
-SHA8 3e03669b; total lines 661.
+SHA8 8811eaa0; total lines 677.
 
-- _shannon_entropy (function, lines 106-117): CHUNK_ID = src/tuning/scheduler.py#106-117#3e03669b — [[F:src/tuning/scheduler.py#106-117#3e03669b]].
-- AutoTuningScheduler (class, lines 120-157, slice 1): CHUNK_ID = src/tuning/scheduler.py#120-157#3e03669b — [[F:src/tuning/scheduler.py#120-157#3e03669b]].
-- AutoTuningScheduler (class, lines 158-195, slice 2): CHUNK_ID = src/tuning/scheduler.py#158-195#3e03669b — [[F:src/tuning/scheduler.py#158-195#3e03669b]].
-- AutoTuningScheduler (class, lines 196-233, slice 3): CHUNK_ID = src/tuning/scheduler.py#196-233#3e03669b — [[F:src/tuning/scheduler.py#196-233#3e03669b]].
-- AutoTuningScheduler (class, lines 234-271, slice 4): CHUNK_ID = src/tuning/scheduler.py#234-271#3e03669b — [[F:src/tuning/scheduler.py#234-271#3e03669b]].
-- AutoTuningScheduler (class, lines 272-309, slice 5): CHUNK_ID = src/tuning/scheduler.py#272-309#3e03669b — [[F:src/tuning/scheduler.py#272-309#3e03669b]].
-- AutoTuningScheduler (class, lines 310-347, slice 6): CHUNK_ID = src/tuning/scheduler.py#310-347#3e03669b — [[F:src/tuning/scheduler.py#310-347#3e03669b]].
-- AutoTuningScheduler (class, lines 348-385, slice 7): CHUNK_ID = src/tuning/scheduler.py#348-385#3e03669b — [[F:src/tuning/scheduler.py#348-385#3e03669b]].
-- AutoTuningScheduler (class, lines 386-423, slice 8): CHUNK_ID = src/tuning/scheduler.py#386-423#3e03669b — [[F:src/tuning/scheduler.py#386-423#3e03669b]].
-- AutoTuningScheduler (class, lines 424-461, slice 9): CHUNK_ID = src/tuning/scheduler.py#424-461#3e03669b — [[F:src/tuning/scheduler.py#424-461#3e03669b]].
-- AutoTuningScheduler (class, lines 462-499, slice 10): CHUNK_ID = src/tuning/scheduler.py#462-499#3e03669b — [[F:src/tuning/scheduler.py#462-499#3e03669b]].
-- AutoTuningScheduler (class, lines 500-537, slice 11): CHUNK_ID = src/tuning/scheduler.py#500-537#3e03669b — [[F:src/tuning/scheduler.py#500-537#3e03669b]].
-- AutoTuningScheduler (class, lines 538-575, slice 12): CHUNK_ID = src/tuning/scheduler.py#538-575#3e03669b — [[F:src/tuning/scheduler.py#538-575#3e03669b]].
-- AutoTuningScheduler (class, lines 576-613, slice 13): CHUNK_ID = src/tuning/scheduler.py#576-613#3e03669b — [[F:src/tuning/scheduler.py#576-613#3e03669b]].
-- AutoTuningScheduler (class, lines 614-651, slice 14): CHUNK_ID = src/tuning/scheduler.py#614-651#3e03669b — [[F:src/tuning/scheduler.py#614-651#3e03669b]].
-- AutoTuningScheduler (class, lines 652-661, slice 15): CHUNK_ID = src/tuning/scheduler.py#652-661#3e03669b — [[F:src/tuning/scheduler.py#652-661#3e03669b]].
-- AutoTuningScheduler.__init__ (method, lines 125-159): CHUNK_ID = src/tuning/scheduler.py#125-159#3e03669b — [[F:src/tuning/scheduler.py#125-159#3e03669b]].
-- AutoTuningScheduler.start (method, lines 161-192): CHUNK_ID = src/tuning/scheduler.py#161-192#3e03669b — [[F:src/tuning/scheduler.py#161-192#3e03669b]].
-- AutoTuningScheduler.stop (method, lines 194-197): CHUNK_ID = src/tuning/scheduler.py#194-197#3e03669b — [[F:src/tuning/scheduler.py#194-197#3e03669b]].
-- AutoTuningScheduler._loop (method, lines 199-221): CHUNK_ID = src/tuning/scheduler.py#199-221#3e03669b — [[F:src/tuning/scheduler.py#199-221#3e03669b]].
-- AutoTuningScheduler._check_redteam_due (method, lines 223-240): CHUNK_ID = src/tuning/scheduler.py#223-240#3e03669b — [[F:src/tuning/scheduler.py#223-240#3e03669b]].
-- AutoTuningScheduler._attempt_all (method, lines 242-279, slice 1): CHUNK_ID = src/tuning/scheduler.py#242-279#3e03669b — [[F:src/tuning/scheduler.py#242-279#3e03669b]].
-- AutoTuningScheduler._attempt_all (method, lines 280-317, slice 2): CHUNK_ID = src/tuning/scheduler.py#280-317#3e03669b — [[F:src/tuning/scheduler.py#280-317#3e03669b]].
-- AutoTuningScheduler._attempt_all (method, lines 318-355, slice 3): CHUNK_ID = src/tuning/scheduler.py#318-355#3e03669b — [[F:src/tuning/scheduler.py#318-355#3e03669b]].
-- AutoTuningScheduler._attempt_all (method, lines 356-393, slice 4): CHUNK_ID = src/tuning/scheduler.py#356-393#3e03669b — [[F:src/tuning/scheduler.py#356-393#3e03669b]].
-- AutoTuningScheduler._attempt_all (method, lines 394-431, slice 5): CHUNK_ID = src/tuning/scheduler.py#394-431#3e03669b — [[F:src/tuning/scheduler.py#394-431#3e03669b]].
-- AutoTuningScheduler._attempt_all (method, lines 432-469, slice 6): CHUNK_ID = src/tuning/scheduler.py#432-469#3e03669b — [[F:src/tuning/scheduler.py#432-469#3e03669b]].
-- AutoTuningScheduler._attempt_all (method, lines 470-507, slice 7): CHUNK_ID = src/tuning/scheduler.py#470-507#3e03669b — [[F:src/tuning/scheduler.py#470-507#3e03669b]].
-- AutoTuningScheduler._attempt_all (method, lines 508-526, slice 8): CHUNK_ID = src/tuning/scheduler.py#508-526#3e03669b — [[F:src/tuning/scheduler.py#508-526#3e03669b]].
-- AutoTuningScheduler._maybe_retrain_e09 (method, lines 528-546): CHUNK_ID = src/tuning/scheduler.py#528-546#3e03669b — [[F:src/tuning/scheduler.py#528-546#3e03669b]].
-- AutoTuningScheduler._load_direction_model (method, lines 548-554): CHUNK_ID = src/tuning/scheduler.py#548-554#3e03669b — [[F:src/tuning/scheduler.py#548-554#3e03669b]].
-- AutoTuningScheduler._build_feature_bars_df (method, lines 556-574): CHUNK_ID = src/tuning/scheduler.py#556-574#3e03669b — [[F:src/tuning/scheduler.py#556-574#3e03669b]].
-- AutoTuningScheduler._closed_trade_count (method, lines 576-594): CHUNK_ID = src/tuning/scheduler.py#576-594#3e03669b — [[F:src/tuning/scheduler.py#576-594#3e03669b]].
-- AutoTuningScheduler._build_slippage_samples (method, lines 596-630): CHUNK_ID = src/tuning/scheduler.py#596-630#3e03669b — [[F:src/tuning/scheduler.py#596-630#3e03669b]].
-- AutoTuningScheduler._build_ensemble_blend_samples (method, lines 632-638): CHUNK_ID = src/tuning/scheduler.py#632-638#3e03669b — [[F:src/tuning/scheduler.py#632-638#3e03669b]].
-- AutoTuningScheduler._build_trade_samples (method, lines 640-661): CHUNK_ID = src/tuning/scheduler.py#640-661#3e03669b — [[F:src/tuning/scheduler.py#640-661#3e03669b]].
+- _shannon_entropy (function, lines 106-117): CHUNK_ID = src/tuning/scheduler.py#106-117#8811eaa0 — [[F:src/tuning/scheduler.py#106-117#8811eaa0]].
+- bars_per_day (function, lines 120-129): CHUNK_ID = src/tuning/scheduler.py#120-129#8811eaa0 — [[F:src/tuning/scheduler.py#120-129#8811eaa0]].
+- AutoTuningScheduler (class, lines 132-169, slice 1): CHUNK_ID = src/tuning/scheduler.py#132-169#8811eaa0 — [[F:src/tuning/scheduler.py#132-169#8811eaa0]].
+- AutoTuningScheduler (class, lines 170-207, slice 2): CHUNK_ID = src/tuning/scheduler.py#170-207#8811eaa0 — [[F:src/tuning/scheduler.py#170-207#8811eaa0]].
+- AutoTuningScheduler (class, lines 208-245, slice 3): CHUNK_ID = src/tuning/scheduler.py#208-245#8811eaa0 — [[F:src/tuning/scheduler.py#208-245#8811eaa0]].
+- AutoTuningScheduler (class, lines 246-283, slice 4): CHUNK_ID = src/tuning/scheduler.py#246-283#8811eaa0 — [[F:src/tuning/scheduler.py#246-283#8811eaa0]].
+- AutoTuningScheduler (class, lines 284-321, slice 5): CHUNK_ID = src/tuning/scheduler.py#284-321#8811eaa0 — [[F:src/tuning/scheduler.py#284-321#8811eaa0]].
+- AutoTuningScheduler (class, lines 322-359, slice 6): CHUNK_ID = src/tuning/scheduler.py#322-359#8811eaa0 — [[F:src/tuning/scheduler.py#322-359#8811eaa0]].
+- AutoTuningScheduler (class, lines 360-397, slice 7): CHUNK_ID = src/tuning/scheduler.py#360-397#8811eaa0 — [[F:src/tuning/scheduler.py#360-397#8811eaa0]].
+- AutoTuningScheduler (class, lines 398-435, slice 8): CHUNK_ID = src/tuning/scheduler.py#398-435#8811eaa0 — [[F:src/tuning/scheduler.py#398-435#8811eaa0]].
+- AutoTuningScheduler (class, lines 436-473, slice 9): CHUNK_ID = src/tuning/scheduler.py#436-473#8811eaa0 — [[F:src/tuning/scheduler.py#436-473#8811eaa0]].
+- AutoTuningScheduler (class, lines 474-511, slice 10): CHUNK_ID = src/tuning/scheduler.py#474-511#8811eaa0 — [[F:src/tuning/scheduler.py#474-511#8811eaa0]].
+- AutoTuningScheduler (class, lines 512-549, slice 11): CHUNK_ID = src/tuning/scheduler.py#512-549#8811eaa0 — [[F:src/tuning/scheduler.py#512-549#8811eaa0]].
+- AutoTuningScheduler (class, lines 550-587, slice 12): CHUNK_ID = src/tuning/scheduler.py#550-587#8811eaa0 — [[F:src/tuning/scheduler.py#550-587#8811eaa0]].
+- AutoTuningScheduler (class, lines 588-625, slice 13): CHUNK_ID = src/tuning/scheduler.py#588-625#8811eaa0 — [[F:src/tuning/scheduler.py#588-625#8811eaa0]].
+- AutoTuningScheduler (class, lines 626-663, slice 14): CHUNK_ID = src/tuning/scheduler.py#626-663#8811eaa0 — [[F:src/tuning/scheduler.py#626-663#8811eaa0]].
+- AutoTuningScheduler (class, lines 664-677, slice 15): CHUNK_ID = src/tuning/scheduler.py#664-677#8811eaa0 — [[F:src/tuning/scheduler.py#664-677#8811eaa0]].
+- AutoTuningScheduler.__init__ (method, lines 137-171): CHUNK_ID = src/tuning/scheduler.py#137-171#8811eaa0 — [[F:src/tuning/scheduler.py#137-171#8811eaa0]].
+- AutoTuningScheduler.start (method, lines 173-204): CHUNK_ID = src/tuning/scheduler.py#173-204#8811eaa0 — [[F:src/tuning/scheduler.py#173-204#8811eaa0]].
+- AutoTuningScheduler.stop (method, lines 206-209): CHUNK_ID = src/tuning/scheduler.py#206-209#8811eaa0 — [[F:src/tuning/scheduler.py#206-209#8811eaa0]].
+- AutoTuningScheduler._loop (method, lines 211-233): CHUNK_ID = src/tuning/scheduler.py#211-233#8811eaa0 — [[F:src/tuning/scheduler.py#211-233#8811eaa0]].
+- AutoTuningScheduler._check_redteam_due (method, lines 235-252): CHUNK_ID = src/tuning/scheduler.py#235-252#8811eaa0 — [[F:src/tuning/scheduler.py#235-252#8811eaa0]].
+- AutoTuningScheduler._attempt_all (method, lines 254-291, slice 1): CHUNK_ID = src/tuning/scheduler.py#254-291#8811eaa0 — [[F:src/tuning/scheduler.py#254-291#8811eaa0]].
+- AutoTuningScheduler._attempt_all (method, lines 292-329, slice 2): CHUNK_ID = src/tuning/scheduler.py#292-329#8811eaa0 — [[F:src/tuning/scheduler.py#292-329#8811eaa0]].
+- AutoTuningScheduler._attempt_all (method, lines 330-367, slice 3): CHUNK_ID = src/tuning/scheduler.py#330-367#8811eaa0 — [[F:src/tuning/scheduler.py#330-367#8811eaa0]].
+- AutoTuningScheduler._attempt_all (method, lines 368-405, slice 4): CHUNK_ID = src/tuning/scheduler.py#368-405#8811eaa0 — [[F:src/tuning/scheduler.py#368-405#8811eaa0]].
+- AutoTuningScheduler._attempt_all (method, lines 406-443, slice 5): CHUNK_ID = src/tuning/scheduler.py#406-443#8811eaa0 — [[F:src/tuning/scheduler.py#406-443#8811eaa0]].
+- AutoTuningScheduler._attempt_all (method, lines 444-481, slice 6): CHUNK_ID = src/tuning/scheduler.py#444-481#8811eaa0 — [[F:src/tuning/scheduler.py#444-481#8811eaa0]].
+- AutoTuningScheduler._attempt_all (method, lines 482-519, slice 7): CHUNK_ID = src/tuning/scheduler.py#482-519#8811eaa0 — [[F:src/tuning/scheduler.py#482-519#8811eaa0]].
+- AutoTuningScheduler._attempt_all (method, lines 520-538, slice 8): CHUNK_ID = src/tuning/scheduler.py#520-538#8811eaa0 — [[F:src/tuning/scheduler.py#520-538#8811eaa0]].
+- AutoTuningScheduler._maybe_retrain_e09 (method, lines 540-558): CHUNK_ID = src/tuning/scheduler.py#540-558#8811eaa0 — [[F:src/tuning/scheduler.py#540-558#8811eaa0]].
+- AutoTuningScheduler._load_direction_model (method, lines 560-566): CHUNK_ID = src/tuning/scheduler.py#560-566#8811eaa0 — [[F:src/tuning/scheduler.py#560-566#8811eaa0]].
+- AutoTuningScheduler._build_feature_bars_df (method, lines 568-586): CHUNK_ID = src/tuning/scheduler.py#568-586#8811eaa0 — [[F:src/tuning/scheduler.py#568-586#8811eaa0]].
+- AutoTuningScheduler._closed_trade_count (method, lines 588-606): CHUNK_ID = src/tuning/scheduler.py#588-606#8811eaa0 — [[F:src/tuning/scheduler.py#588-606#8811eaa0]].
+- AutoTuningScheduler._build_slippage_samples (method, lines 608-646): CHUNK_ID = src/tuning/scheduler.py#608-646#8811eaa0 — [[F:src/tuning/scheduler.py#608-646#8811eaa0]].
+- AutoTuningScheduler._build_ensemble_blend_samples (method, lines 648-654): CHUNK_ID = src/tuning/scheduler.py#648-654#8811eaa0 — [[F:src/tuning/scheduler.py#648-654#8811eaa0]].
+- AutoTuningScheduler._build_trade_samples (method, lines 656-677): CHUNK_ID = src/tuning/scheduler.py#656-677#8811eaa0 — [[F:src/tuning/scheduler.py#656-677#8811eaa0]].
 
 ## src/runtime/contracts.py
 
@@ -1649,41 +1650,41 @@ SHA8 687738d8; total lines 138.
 
 ## src/workers/orchestrator.py
 
-SHA8 a2efe8f2; total lines 805.
+SHA8 a4f5750a; total lines 807.
 
-- WorkerTask (class, lines 42-54): CHUNK_ID = src/workers/orchestrator.py#42-54#a2efe8f2 — [[F:src/workers/orchestrator.py#42-54#a2efe8f2]].
-- WorkerResult (class, lines 58-88): CHUNK_ID = src/workers/orchestrator.py#58-88#a2efe8f2 — [[F:src/workers/orchestrator.py#58-88#a2efe8f2]].
-- _handle_worker_sigterm (function, lines 91-93): CHUNK_ID = src/workers/orchestrator.py#91-93#a2efe8f2 — [[F:src/workers/orchestrator.py#91-93#a2efe8f2]].
-- _model_worker (function, lines 96-135): CHUNK_ID = src/workers/orchestrator.py#96-135#a2efe8f2 — [[F:src/workers/orchestrator.py#96-135#a2efe8f2]].
-- _run_horizon_inference (function, lines 138-175, slice 1): CHUNK_ID = src/workers/orchestrator.py#138-175#a2efe8f2 — [[F:src/workers/orchestrator.py#138-175#a2efe8f2]].
-- _run_horizon_inference (function, lines 176-213, slice 2): CHUNK_ID = src/workers/orchestrator.py#176-213#a2efe8f2 — [[F:src/workers/orchestrator.py#176-213#a2efe8f2]].
-- _run_horizon_inference (function, lines 214-251, slice 3): CHUNK_ID = src/workers/orchestrator.py#214-251#a2efe8f2 — [[F:src/workers/orchestrator.py#214-251#a2efe8f2]].
-- _run_horizon_inference (function, lines 252-289, slice 4): CHUNK_ID = src/workers/orchestrator.py#252-289#a2efe8f2 — [[F:src/workers/orchestrator.py#252-289#a2efe8f2]].
-- _run_horizon_inference (function, lines 290-327, slice 5): CHUNK_ID = src/workers/orchestrator.py#290-327#a2efe8f2 — [[F:src/workers/orchestrator.py#290-327#a2efe8f2]].
-- _run_horizon_inference (function, lines 328-365, slice 6): CHUNK_ID = src/workers/orchestrator.py#328-365#a2efe8f2 — [[F:src/workers/orchestrator.py#328-365#a2efe8f2]].
-- _run_horizon_inference (function, lines 366-397, slice 7): CHUNK_ID = src/workers/orchestrator.py#366-397#a2efe8f2 — [[F:src/workers/orchestrator.py#366-397#a2efe8f2]].
-- _utxos_with_ages (function, lines 439-456): CHUNK_ID = src/workers/orchestrator.py#439-456#a2efe8f2 — [[F:src/workers/orchestrator.py#439-456#a2efe8f2]].
-- _fetch_recent_block_transactions (function, lines 459-487): CHUNK_ID = src/workers/orchestrator.py#459-487#a2efe8f2 — [[F:src/workers/orchestrator.py#459-487#a2efe8f2]].
-- _ecc_worker (function, lines 490-528): CHUNK_ID = src/workers/orchestrator.py#490-528#a2efe8f2 — [[F:src/workers/orchestrator.py#490-528#a2efe8f2]].
-- _run_ecc_cycle (function, lines 531-568, slice 1): CHUNK_ID = src/workers/orchestrator.py#531-568#a2efe8f2 — [[F:src/workers/orchestrator.py#531-568#a2efe8f2]].
-- _run_ecc_cycle (function, lines 569-606, slice 2): CHUNK_ID = src/workers/orchestrator.py#569-606#a2efe8f2 — [[F:src/workers/orchestrator.py#569-606#a2efe8f2]].
-- _run_ecc_cycle (function, lines 607-642, slice 3): CHUNK_ID = src/workers/orchestrator.py#607-642#a2efe8f2 — [[F:src/workers/orchestrator.py#607-642#a2efe8f2]].
-- WorkerOrchestrator (class, lines 645-682, slice 1): CHUNK_ID = src/workers/orchestrator.py#645-682#a2efe8f2 — [[F:src/workers/orchestrator.py#645-682#a2efe8f2]].
-- WorkerOrchestrator (class, lines 683-720, slice 2): CHUNK_ID = src/workers/orchestrator.py#683-720#a2efe8f2 — [[F:src/workers/orchestrator.py#683-720#a2efe8f2]].
-- WorkerOrchestrator (class, lines 721-758, slice 3): CHUNK_ID = src/workers/orchestrator.py#721-758#a2efe8f2 — [[F:src/workers/orchestrator.py#721-758#a2efe8f2]].
-- WorkerOrchestrator (class, lines 759-796, slice 4): CHUNK_ID = src/workers/orchestrator.py#759-796#a2efe8f2 — [[F:src/workers/orchestrator.py#759-796#a2efe8f2]].
-- WorkerOrchestrator (class, lines 797-805, slice 5): CHUNK_ID = src/workers/orchestrator.py#797-805#a2efe8f2 — [[F:src/workers/orchestrator.py#797-805#a2efe8f2]].
-- WorkerOrchestrator.__init__ (method, lines 658-680): CHUNK_ID = src/workers/orchestrator.py#658-680#a2efe8f2 — [[F:src/workers/orchestrator.py#658-680#a2efe8f2]].
-- WorkerOrchestrator.start (method, lines 682-688): CHUNK_ID = src/workers/orchestrator.py#682-688#a2efe8f2 — [[F:src/workers/orchestrator.py#682-688#a2efe8f2]].
-- WorkerOrchestrator._spawn (method, lines 690-714): CHUNK_ID = src/workers/orchestrator.py#690-714#a2efe8f2 — [[F:src/workers/orchestrator.py#690-714#a2efe8f2]].
-- WorkerOrchestrator._pin_cpu (method, lines 716-724): CHUNK_ID = src/workers/orchestrator.py#716-724#a2efe8f2 — [[F:src/workers/orchestrator.py#716-724#a2efe8f2]].
-- WorkerOrchestrator.submit (method, lines 726-744): CHUNK_ID = src/workers/orchestrator.py#726-744#a2efe8f2 — [[F:src/workers/orchestrator.py#726-744#a2efe8f2]].
-- WorkerOrchestrator.collect (method, lines 746-751): CHUNK_ID = src/workers/orchestrator.py#746-751#a2efe8f2 — [[F:src/workers/orchestrator.py#746-751#a2efe8f2]].
-- WorkerOrchestrator.scale (method, lines 753-765): CHUNK_ID = src/workers/orchestrator.py#753-765#a2efe8f2 — [[F:src/workers/orchestrator.py#753-765#a2efe8f2]].
-- WorkerOrchestrator.shutdown (method, lines 767-777): CHUNK_ID = src/workers/orchestrator.py#767-777#a2efe8f2 — [[F:src/workers/orchestrator.py#767-777#a2efe8f2]].
-- WorkerOrchestrator.worker_count (method, lines 780-781): CHUNK_ID = src/workers/orchestrator.py#780-781#a2efe8f2 — [[F:src/workers/orchestrator.py#780-781#a2efe8f2]].
-- WorkerOrchestrator.dropped_tasks (method, lines 784-785): CHUNK_ID = src/workers/orchestrator.py#784-785#a2efe8f2 — [[F:src/workers/orchestrator.py#784-785#a2efe8f2]].
-- WorkerOrchestrator.health_snapshot (method, lines 787-805): CHUNK_ID = src/workers/orchestrator.py#787-805#a2efe8f2 — [[F:src/workers/orchestrator.py#787-805#a2efe8f2]].
+- WorkerTask (class, lines 42-54): CHUNK_ID = src/workers/orchestrator.py#42-54#a4f5750a — [[F:src/workers/orchestrator.py#42-54#a4f5750a]].
+- WorkerResult (class, lines 58-88): CHUNK_ID = src/workers/orchestrator.py#58-88#a4f5750a — [[F:src/workers/orchestrator.py#58-88#a4f5750a]].
+- _handle_worker_sigterm (function, lines 91-93): CHUNK_ID = src/workers/orchestrator.py#91-93#a4f5750a — [[F:src/workers/orchestrator.py#91-93#a4f5750a]].
+- _model_worker (function, lines 96-135): CHUNK_ID = src/workers/orchestrator.py#96-135#a4f5750a — [[F:src/workers/orchestrator.py#96-135#a4f5750a]].
+- _run_horizon_inference (function, lines 138-175, slice 1): CHUNK_ID = src/workers/orchestrator.py#138-175#a4f5750a — [[F:src/workers/orchestrator.py#138-175#a4f5750a]].
+- _run_horizon_inference (function, lines 176-213, slice 2): CHUNK_ID = src/workers/orchestrator.py#176-213#a4f5750a — [[F:src/workers/orchestrator.py#176-213#a4f5750a]].
+- _run_horizon_inference (function, lines 214-251, slice 3): CHUNK_ID = src/workers/orchestrator.py#214-251#a4f5750a — [[F:src/workers/orchestrator.py#214-251#a4f5750a]].
+- _run_horizon_inference (function, lines 252-289, slice 4): CHUNK_ID = src/workers/orchestrator.py#252-289#a4f5750a — [[F:src/workers/orchestrator.py#252-289#a4f5750a]].
+- _run_horizon_inference (function, lines 290-327, slice 5): CHUNK_ID = src/workers/orchestrator.py#290-327#a4f5750a — [[F:src/workers/orchestrator.py#290-327#a4f5750a]].
+- _run_horizon_inference (function, lines 328-365, slice 6): CHUNK_ID = src/workers/orchestrator.py#328-365#a4f5750a — [[F:src/workers/orchestrator.py#328-365#a4f5750a]].
+- _run_horizon_inference (function, lines 366-397, slice 7): CHUNK_ID = src/workers/orchestrator.py#366-397#a4f5750a — [[F:src/workers/orchestrator.py#366-397#a4f5750a]].
+- _utxos_with_ages (function, lines 439-456): CHUNK_ID = src/workers/orchestrator.py#439-456#a4f5750a — [[F:src/workers/orchestrator.py#439-456#a4f5750a]].
+- _fetch_recent_block_transactions (function, lines 459-487): CHUNK_ID = src/workers/orchestrator.py#459-487#a4f5750a — [[F:src/workers/orchestrator.py#459-487#a4f5750a]].
+- _ecc_worker (function, lines 490-528): CHUNK_ID = src/workers/orchestrator.py#490-528#a4f5750a — [[F:src/workers/orchestrator.py#490-528#a4f5750a]].
+- _run_ecc_cycle (function, lines 531-568, slice 1): CHUNK_ID = src/workers/orchestrator.py#531-568#a4f5750a — [[F:src/workers/orchestrator.py#531-568#a4f5750a]].
+- _run_ecc_cycle (function, lines 569-606, slice 2): CHUNK_ID = src/workers/orchestrator.py#569-606#a4f5750a — [[F:src/workers/orchestrator.py#569-606#a4f5750a]].
+- _run_ecc_cycle (function, lines 607-644, slice 3): CHUNK_ID = src/workers/orchestrator.py#607-644#a4f5750a — [[F:src/workers/orchestrator.py#607-644#a4f5750a]].
+- WorkerOrchestrator (class, lines 647-684, slice 1): CHUNK_ID = src/workers/orchestrator.py#647-684#a4f5750a — [[F:src/workers/orchestrator.py#647-684#a4f5750a]].
+- WorkerOrchestrator (class, lines 685-722, slice 2): CHUNK_ID = src/workers/orchestrator.py#685-722#a4f5750a — [[F:src/workers/orchestrator.py#685-722#a4f5750a]].
+- WorkerOrchestrator (class, lines 723-760, slice 3): CHUNK_ID = src/workers/orchestrator.py#723-760#a4f5750a — [[F:src/workers/orchestrator.py#723-760#a4f5750a]].
+- WorkerOrchestrator (class, lines 761-798, slice 4): CHUNK_ID = src/workers/orchestrator.py#761-798#a4f5750a — [[F:src/workers/orchestrator.py#761-798#a4f5750a]].
+- WorkerOrchestrator (class, lines 799-807, slice 5): CHUNK_ID = src/workers/orchestrator.py#799-807#a4f5750a — [[F:src/workers/orchestrator.py#799-807#a4f5750a]].
+- WorkerOrchestrator.__init__ (method, lines 660-682): CHUNK_ID = src/workers/orchestrator.py#660-682#a4f5750a — [[F:src/workers/orchestrator.py#660-682#a4f5750a]].
+- WorkerOrchestrator.start (method, lines 684-690): CHUNK_ID = src/workers/orchestrator.py#684-690#a4f5750a — [[F:src/workers/orchestrator.py#684-690#a4f5750a]].
+- WorkerOrchestrator._spawn (method, lines 692-716): CHUNK_ID = src/workers/orchestrator.py#692-716#a4f5750a — [[F:src/workers/orchestrator.py#692-716#a4f5750a]].
+- WorkerOrchestrator._pin_cpu (method, lines 718-726): CHUNK_ID = src/workers/orchestrator.py#718-726#a4f5750a — [[F:src/workers/orchestrator.py#718-726#a4f5750a]].
+- WorkerOrchestrator.submit (method, lines 728-746): CHUNK_ID = src/workers/orchestrator.py#728-746#a4f5750a — [[F:src/workers/orchestrator.py#728-746#a4f5750a]].
+- WorkerOrchestrator.collect (method, lines 748-753): CHUNK_ID = src/workers/orchestrator.py#748-753#a4f5750a — [[F:src/workers/orchestrator.py#748-753#a4f5750a]].
+- WorkerOrchestrator.scale (method, lines 755-767): CHUNK_ID = src/workers/orchestrator.py#755-767#a4f5750a — [[F:src/workers/orchestrator.py#755-767#a4f5750a]].
+- WorkerOrchestrator.shutdown (method, lines 769-779): CHUNK_ID = src/workers/orchestrator.py#769-779#a4f5750a — [[F:src/workers/orchestrator.py#769-779#a4f5750a]].
+- WorkerOrchestrator.worker_count (method, lines 782-783): CHUNK_ID = src/workers/orchestrator.py#782-783#a4f5750a — [[F:src/workers/orchestrator.py#782-783#a4f5750a]].
+- WorkerOrchestrator.dropped_tasks (method, lines 786-787): CHUNK_ID = src/workers/orchestrator.py#786-787#a4f5750a — [[F:src/workers/orchestrator.py#786-787#a4f5750a]].
+- WorkerOrchestrator.health_snapshot (method, lines 789-807): CHUNK_ID = src/workers/orchestrator.py#789-807#a4f5750a — [[F:src/workers/orchestrator.py#789-807#a4f5750a]].
 
 ## src/intelligence/client.py
 
@@ -1793,35 +1794,35 @@ SHA8 cc45e7b8; total lines 464.
 
 ## src/engines/orchestrator.py
 
-SHA8 10e2649d; total lines 457.
+SHA8 5384b7a9; total lines 458.
 
-- _describe_failure (function, lines 103-108): CHUNK_ID = src/engines/orchestrator.py#103-108#10e2649d — [[F:src/engines/orchestrator.py#103-108#10e2649d]].
-- _engine_row (function, lines 111-123): CHUNK_ID = src/engines/orchestrator.py#111-123#10e2649d — [[F:src/engines/orchestrator.py#111-123#10e2649d]].
-- _publish_cycle (function, lines 126-169): CHUNK_ID = src/engines/orchestrator.py#126-169#10e2649d — [[F:src/engines/orchestrator.py#126-169#10e2649d]].
-- EngineRunStats (class, lines 173-209): CHUNK_ID = src/engines/orchestrator.py#173-209#10e2649d — [[F:src/engines/orchestrator.py#173-209#10e2649d]].
-- EngineRunStats.record (method, lines 188-198): CHUNK_ID = src/engines/orchestrator.py#188-198#10e2649d — [[F:src/engines/orchestrator.py#188-198#10e2649d]].
-- EngineRunStats.snapshot (method, lines 200-209): CHUNK_ID = src/engines/orchestrator.py#200-209#10e2649d — [[F:src/engines/orchestrator.py#200-209#10e2649d]].
-- OrchestratorResult (class, lines 213-220): CHUNK_ID = src/engines/orchestrator.py#213-220#10e2649d — [[F:src/engines/orchestrator.py#213-220#10e2649d]].
-- EngineOrchestrator (class, lines 223-260, slice 1): CHUNK_ID = src/engines/orchestrator.py#223-260#10e2649d — [[F:src/engines/orchestrator.py#223-260#10e2649d]].
-- EngineOrchestrator (class, lines 261-298, slice 2): CHUNK_ID = src/engines/orchestrator.py#261-298#10e2649d — [[F:src/engines/orchestrator.py#261-298#10e2649d]].
-- EngineOrchestrator (class, lines 299-336, slice 3): CHUNK_ID = src/engines/orchestrator.py#299-336#10e2649d — [[F:src/engines/orchestrator.py#299-336#10e2649d]].
-- EngineOrchestrator (class, lines 337-374, slice 4): CHUNK_ID = src/engines/orchestrator.py#337-374#10e2649d — [[F:src/engines/orchestrator.py#337-374#10e2649d]].
-- EngineOrchestrator (class, lines 375-412, slice 5): CHUNK_ID = src/engines/orchestrator.py#375-412#10e2649d — [[F:src/engines/orchestrator.py#375-412#10e2649d]].
-- EngineOrchestrator (class, lines 413-450, slice 6): CHUNK_ID = src/engines/orchestrator.py#413-450#10e2649d — [[F:src/engines/orchestrator.py#413-450#10e2649d]].
-- EngineOrchestrator (class, lines 451-457, slice 7): CHUNK_ID = src/engines/orchestrator.py#451-457#10e2649d — [[F:src/engines/orchestrator.py#451-457#10e2649d]].
-- EngineOrchestrator.__init__ (method, lines 224-250): CHUNK_ID = src/engines/orchestrator.py#224-250#10e2649d — [[F:src/engines/orchestrator.py#224-250#10e2649d]].
-- EngineOrchestrator.engine_roster (method, lines 252-257): CHUNK_ID = src/engines/orchestrator.py#252-257#10e2649d — [[F:src/engines/orchestrator.py#252-257#10e2649d]].
-- EngineOrchestrator.stage_roster (method, lines 259-269): CHUNK_ID = src/engines/orchestrator.py#259-269#10e2649d — [[F:src/engines/orchestrator.py#259-269#10e2649d]].
-- EngineOrchestrator.cache_inputs (method, lines 272-274): CHUNK_ID = src/engines/orchestrator.py#272-274#10e2649d — [[F:src/engines/orchestrator.py#272-274#10e2649d]].
-- EngineOrchestrator.stage_inputs (method, lines 277-279): CHUNK_ID = src/engines/orchestrator.py#277-279#10e2649d — [[F:src/engines/orchestrator.py#277-279#10e2649d]].
-- EngineOrchestrator.engine_health (method, lines 281-283): CHUNK_ID = src/engines/orchestrator.py#281-283#10e2649d — [[F:src/engines/orchestrator.py#281-283#10e2649d]].
-- EngineOrchestrator._timed (method, lines 286-293): CHUNK_ID = src/engines/orchestrator.py#286-293#10e2649d — [[F:src/engines/orchestrator.py#286-293#10e2649d]].
-- EngineOrchestrator._stage (method, lines 295-306): CHUNK_ID = src/engines/orchestrator.py#295-306#10e2649d — [[F:src/engines/orchestrator.py#295-306#10e2649d]].
-- EngineOrchestrator.run (method, lines 308-345, slice 1): CHUNK_ID = src/engines/orchestrator.py#308-345#10e2649d — [[F:src/engines/orchestrator.py#308-345#10e2649d]].
-- EngineOrchestrator.run (method, lines 346-383, slice 2): CHUNK_ID = src/engines/orchestrator.py#346-383#10e2649d — [[F:src/engines/orchestrator.py#346-383#10e2649d]].
-- EngineOrchestrator.run (method, lines 384-421, slice 3): CHUNK_ID = src/engines/orchestrator.py#384-421#10e2649d — [[F:src/engines/orchestrator.py#384-421#10e2649d]].
-- EngineOrchestrator.run (method, lines 422-428, slice 4): CHUNK_ID = src/engines/orchestrator.py#422-428#10e2649d — [[F:src/engines/orchestrator.py#422-428#10e2649d]].
-- EngineOrchestrator._log_engine_outputs (method, lines 430-457): CHUNK_ID = src/engines/orchestrator.py#430-457#10e2649d — [[F:src/engines/orchestrator.py#430-457#10e2649d]].
+- _describe_failure (function, lines 103-108): CHUNK_ID = src/engines/orchestrator.py#103-108#5384b7a9 — [[F:src/engines/orchestrator.py#103-108#5384b7a9]].
+- _engine_row (function, lines 111-123): CHUNK_ID = src/engines/orchestrator.py#111-123#5384b7a9 — [[F:src/engines/orchestrator.py#111-123#5384b7a9]].
+- _publish_cycle (function, lines 126-169): CHUNK_ID = src/engines/orchestrator.py#126-169#5384b7a9 — [[F:src/engines/orchestrator.py#126-169#5384b7a9]].
+- EngineRunStats (class, lines 173-209): CHUNK_ID = src/engines/orchestrator.py#173-209#5384b7a9 — [[F:src/engines/orchestrator.py#173-209#5384b7a9]].
+- EngineRunStats.record (method, lines 188-198): CHUNK_ID = src/engines/orchestrator.py#188-198#5384b7a9 — [[F:src/engines/orchestrator.py#188-198#5384b7a9]].
+- EngineRunStats.snapshot (method, lines 200-209): CHUNK_ID = src/engines/orchestrator.py#200-209#5384b7a9 — [[F:src/engines/orchestrator.py#200-209#5384b7a9]].
+- OrchestratorResult (class, lines 213-220): CHUNK_ID = src/engines/orchestrator.py#213-220#5384b7a9 — [[F:src/engines/orchestrator.py#213-220#5384b7a9]].
+- EngineOrchestrator (class, lines 223-260, slice 1): CHUNK_ID = src/engines/orchestrator.py#223-260#5384b7a9 — [[F:src/engines/orchestrator.py#223-260#5384b7a9]].
+- EngineOrchestrator (class, lines 261-298, slice 2): CHUNK_ID = src/engines/orchestrator.py#261-298#5384b7a9 — [[F:src/engines/orchestrator.py#261-298#5384b7a9]].
+- EngineOrchestrator (class, lines 299-336, slice 3): CHUNK_ID = src/engines/orchestrator.py#299-336#5384b7a9 — [[F:src/engines/orchestrator.py#299-336#5384b7a9]].
+- EngineOrchestrator (class, lines 337-374, slice 4): CHUNK_ID = src/engines/orchestrator.py#337-374#5384b7a9 — [[F:src/engines/orchestrator.py#337-374#5384b7a9]].
+- EngineOrchestrator (class, lines 375-412, slice 5): CHUNK_ID = src/engines/orchestrator.py#375-412#5384b7a9 — [[F:src/engines/orchestrator.py#375-412#5384b7a9]].
+- EngineOrchestrator (class, lines 413-450, slice 6): CHUNK_ID = src/engines/orchestrator.py#413-450#5384b7a9 — [[F:src/engines/orchestrator.py#413-450#5384b7a9]].
+- EngineOrchestrator (class, lines 451-458, slice 7): CHUNK_ID = src/engines/orchestrator.py#451-458#5384b7a9 — [[F:src/engines/orchestrator.py#451-458#5384b7a9]].
+- EngineOrchestrator.__init__ (method, lines 224-250): CHUNK_ID = src/engines/orchestrator.py#224-250#5384b7a9 — [[F:src/engines/orchestrator.py#224-250#5384b7a9]].
+- EngineOrchestrator.engine_roster (method, lines 252-257): CHUNK_ID = src/engines/orchestrator.py#252-257#5384b7a9 — [[F:src/engines/orchestrator.py#252-257#5384b7a9]].
+- EngineOrchestrator.stage_roster (method, lines 259-269): CHUNK_ID = src/engines/orchestrator.py#259-269#5384b7a9 — [[F:src/engines/orchestrator.py#259-269#5384b7a9]].
+- EngineOrchestrator.cache_inputs (method, lines 272-274): CHUNK_ID = src/engines/orchestrator.py#272-274#5384b7a9 — [[F:src/engines/orchestrator.py#272-274#5384b7a9]].
+- EngineOrchestrator.stage_inputs (method, lines 277-279): CHUNK_ID = src/engines/orchestrator.py#277-279#5384b7a9 — [[F:src/engines/orchestrator.py#277-279#5384b7a9]].
+- EngineOrchestrator.engine_health (method, lines 281-283): CHUNK_ID = src/engines/orchestrator.py#281-283#5384b7a9 — [[F:src/engines/orchestrator.py#281-283#5384b7a9]].
+- EngineOrchestrator._timed (method, lines 286-293): CHUNK_ID = src/engines/orchestrator.py#286-293#5384b7a9 — [[F:src/engines/orchestrator.py#286-293#5384b7a9]].
+- EngineOrchestrator._stage (method, lines 295-306): CHUNK_ID = src/engines/orchestrator.py#295-306#5384b7a9 — [[F:src/engines/orchestrator.py#295-306#5384b7a9]].
+- EngineOrchestrator.run (method, lines 308-345, slice 1): CHUNK_ID = src/engines/orchestrator.py#308-345#5384b7a9 — [[F:src/engines/orchestrator.py#308-345#5384b7a9]].
+- EngineOrchestrator.run (method, lines 346-383, slice 2): CHUNK_ID = src/engines/orchestrator.py#346-383#5384b7a9 — [[F:src/engines/orchestrator.py#346-383#5384b7a9]].
+- EngineOrchestrator.run (method, lines 384-421, slice 3): CHUNK_ID = src/engines/orchestrator.py#384-421#5384b7a9 — [[F:src/engines/orchestrator.py#384-421#5384b7a9]].
+- EngineOrchestrator.run (method, lines 422-429, slice 4): CHUNK_ID = src/engines/orchestrator.py#422-429#5384b7a9 — [[F:src/engines/orchestrator.py#422-429#5384b7a9]].
+- EngineOrchestrator._log_engine_outputs (method, lines 431-458): CHUNK_ID = src/engines/orchestrator.py#431-458#5384b7a9 — [[F:src/engines/orchestrator.py#431-458#5384b7a9]].
 
 ## frontend/src/App.jsx
 

@@ -16,6 +16,7 @@ open_timescale_storage context manager.
 from __future__ import annotations
 
 import asyncio
+import json
 from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -66,6 +67,8 @@ def _mock_pool() -> MagicMock:
 
     pool.acquire = _acquire
     pool.close = AsyncMock()
+    # Exposed so write tests can assert the SQL and bound arguments sent to it.
+    pool.conn = conn
     return pool
 
 
@@ -395,6 +398,16 @@ class TestTrades:
         b = _make_backend()
         trade = _make_trade()
         await b.insert_trade(trade)
+        b._pool.conn.execute.assert_awaited_once()
+        sql, *args = b._pool.conn.execute.await_args.args
+        args = tuple(args)
+        assert "INSERT INTO trades" in sql
+        assert args[0] == "trade-001"
+        assert args[5] == "long"  # direction
+        assert args[6] == 30000.0  # entry_price
+        assert args[12] == 100.0  # pnl_usd persisted, not dropped
+        assert args[14] == 5.0  # fee_usd
+        assert args[18] == "tp"  # exit_reason
 
     @pytest.mark.asyncio
     async def test_insert_trade_duplicate_raises(self):
@@ -427,6 +440,12 @@ class TestTrades:
             exit_reason="tp",
             fee_usd=5.0,
         )
+        sql, *args = b._pool.conn.execute.await_args.args
+        args = tuple(args)
+        assert "UPDATE trades" in sql
+        assert "exit_ts IS NULL" in sql  # guards against double exit writes
+        assert "fee_usd=fee_usd+$6" in sql  # exit fee accumulates on entry fee
+        assert args == (31000.0, 1_700_003_600_000, 100.0, 3.33, "tp", 5.0, "trade-001")
 
 
 # ---------------------------------------------------------------------------
@@ -510,6 +529,11 @@ class TestRegime:
             prob_volatile=0.2,
         )
         await b.upsert_regime_snapshot(snap)
+        sql, *args = b._pool.conn.execute.await_args.args
+        args = tuple(args)
+        assert "ON CONFLICT (symbol, timeframe, ts)" in sql
+        assert args[:4] == ("BTC/USDT", "1h", 1_700_000_000_000, 1)
+        assert args[4:7] == (0.1, 0.7, 0.2)
 
     @pytest.mark.asyncio
     async def test_latest_regime_none(self):
@@ -541,6 +565,12 @@ class TestModelMetrics:
             live_gate_pass=True,
         )
         await b.insert_model_metrics(metrics)
+        sql, *args = b._pool.conn.execute.await_args.args
+        args = tuple(args)
+        assert "ON CONFLICT (model_name, timeframe, version)" in sql
+        assert args[0:3] == ("direction", "1h", "v1")
+        assert args[3] == 1.2  # oos_sharpe, the value the live gate reads
+        assert args[-1] == 1  # live_gate_pass stored as an integer flag
 
     @pytest.mark.asyncio
     async def test_latest_model_metrics_none(self):
@@ -576,6 +606,10 @@ class TestEquity:
             drawdown_pct=0.0,
         )
         await b.insert_equity(rec)
+        sql, *args = b._pool.conn.execute.await_args.args
+        args = tuple(args)
+        assert "ON CONFLICT (ts, trading_mode)" in sql
+        assert args == (1_700_000_000_000, "paper", 10000.0, 10000.0, 0.0, 0.0, 0.0, 10000.0, 0.0)
 
     @pytest.mark.asyncio
     async def test_fetch_equity_curve_empty(self):
@@ -606,14 +640,18 @@ class TestValidateSymbol:
     async def test_valid_symbol_no_raise(self):
         b = _make_backend()
 
+        conn = AsyncMock()
+        conn.fetchval = AsyncMock(return_value=5)
+
         @asynccontextmanager
         async def _acquire():
-            conn = AsyncMock()
-            conn.fetchval = AsyncMock(return_value=5)
             yield conn
 
         b._pool.acquire = _acquire
         await b.validate_symbol("BTC/USDT")
+        sql, symbol = conn.fetchval.await_args.args
+        assert "FROM bars" in sql
+        assert symbol == "BTC/USDT"
 
     @pytest.mark.asyncio
     async def test_no_bars_raises(self):
@@ -644,6 +682,11 @@ class TestAuditEvent:
             operator="system",
             details={"key": "value"},
         )
+        sql, *args = b._pool.conn.execute.await_args.args
+        args = tuple(args)
+        assert "INSERT INTO audit_log" in sql
+        assert args[:2] == ("test", "system")
+        assert json.loads(args[2]) == {"key": "value"}
 
 
 # ---------------------------------------------------------------------------
@@ -669,6 +712,14 @@ class TestMissedTrades:
             notional_usd=3000.0,
         )
         await b.insert_missed_trade(rec)
+        sql, *args = b._pool.conn.execute.await_args.args
+        args = tuple(args)
+        assert "INSERT INTO missed_trades" in sql
+        assert "ON CONFLICT (id) DO NOTHING" in sql
+        assert args[0] == "missed-001"
+        assert args[3] == 1  # direction
+        assert args[9] == 3000.0  # notional_usd
+        assert args[10] == 1_700_000_000_000  # ts
 
     @pytest.mark.asyncio
     async def test_fetch_missed_trades_empty(self):
@@ -743,10 +794,16 @@ class TestIntelligenceFeatures:
             symbol="BTC/USDT",
             timeframe="1h",
             bar_ts=1_700_000_000_000,
-            features={"vol_ratio": 1.2, "rsi_14": 55.0},
+            features={"intelligence_mvrv_z_score": 1.2, "intelligence_sopr": 55.0},
             confidence=0.85,
             source="live",
         )
+        sql, *args = b._pool.conn.execute.await_args.args
+        args = tuple(args)
+        assert "INSERT INTO intelligence_features_history" in sql
+        assert args[:3] == ("BTC/USDT", "1h", 1_700_000_000_000)
+        assert 1.2 in args and 55.0 in args  # feature values reach the query
+        assert args[-2:] == (0.85, "live")  # confidence and source
 
     @pytest.mark.asyncio
     async def test_fetch_intelligence_features_empty(self):
