@@ -6890,6 +6890,95 @@
         }
       ],
       "depends_on": []
+    },
+    {
+      "id": "SEC-1120",
+      "kind": "security_regression",
+      "title": "MLflow registry never promotes and never unpickles without a pinned manifest",
+      "statement": "ModelRegistry.register_model requires an artifact SHA-256, stores it as a version tag and never transitions a stage; load_model refuses without a pinned hash and loads only a downloaded artifact whose hash matches (INT/MTH-006).",
+      "criticality": "high",
+      "subsystem": "model",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "Anyone able to write the MLflow server or artifact store got code execution via pickle, and every registered model silently became Production.",
+      "owning_modules": [
+        "src/upgrade/registry.py"
+      ],
+      "depends_on": [],
+      "verification": [
+        {
+          "test": "tests/test_upgrade_registry.py",
+          "test_type": "security"
+        }
+      ],
+      "notes": "layer: test-suite"
+    },
+    {
+      "id": "SEC-1121",
+      "kind": "security_regression",
+      "title": "OnlineTrainer persists and loads models only through an atomic, manifest-verified path",
+      "statement": "OnlineTrainer.save writes each model atomically with a SHA-256 manifest and _try_load deserializes only the verified bytes; a missing or mismatched manifest yields fresh models, never an unpickled file (INT-009).",
+      "criticality": "high",
+      "subsystem": "model",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "joblib.load on an unverified pickle in the model directory gave code execution; torn writes were silently accepted.",
+      "owning_modules": [
+        "src/models/online_trainer.py"
+      ],
+      "depends_on": [],
+      "verification": [
+        {
+          "test": "tests/test_model_loading_integrity.py",
+          "test_type": "security"
+        }
+      ],
+      "notes": "layer: test-suite"
+    },
+    {
+      "id": "SEC-1122",
+      "kind": "security_regression",
+      "title": "HorizonMLPExpert deserializes exactly the bytes it hashed",
+      "statement": "HorizonMLPExpert.load passes the hashed payload to joblib via BytesIO, and activate_candidate copies bytes re-verified against the evaluated version (INT-010).",
+      "criticality": "high",
+      "subsystem": "model",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "A file swap between the hash read and the joblib read bypassed the integrity check.",
+      "owning_modules": [
+        "src/models/horizon_mlp.py",
+        "src/models/horizon_learning.py"
+      ],
+      "depends_on": [],
+      "verification": [
+        {
+          "test": "tests/test_model_loading_integrity.py",
+          "test_type": "security"
+        }
+      ],
+      "notes": "layer: test-suite"
+    },
+    {
+      "id": "SEC-1123",
+      "kind": "security_regression",
+      "title": "EnsemblePredictor save is atomic and load deserializes only verified bytes",
+      "statement": "EnsemblePredictor.save writes artifact and manifest via temp-file plus os.replace, and load unpickles the single buffer returned by manifest verification (INT-011).",
+      "criticality": "high",
+      "subsystem": "model",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "Hash-then-reread TOCTOU and non-atomic writes let a swapped or torn file be loaded.",
+      "owning_modules": [
+        "src/intelligence/ensemble_predictor.py"
+      ],
+      "depends_on": [],
+      "verification": [
+        {
+          "test": "tests/test_model_loading_integrity.py",
+          "test_type": "security"
+        }
+      ],
+      "notes": "layer: test-suite"
     }
   ]
 }

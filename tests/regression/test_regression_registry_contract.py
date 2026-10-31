@@ -322,6 +322,11 @@ class TestTheRegistryHasAPlaceForDefects:
             "SEC-0010",
             "SEC-0011",
             "SEC-0012",
+            # SEC-1120..1123: model-loading integrity audit findings.
+            "SEC-1120",
+            "SEC-1121",
+            "SEC-1122",
+            "SEC-1123",
         }
 
     def test_every_filed_defect_names_a_permanent_test(self, registry):
@@ -600,8 +605,9 @@ class TestTheMetricsCollector:
         # REG-1360..1374 add fifteen phase 5 math/strategy audit regressions
         # no test exercised -- test-suite, 56 -> 71.
         # REG-1090..1093 add four data-numerics regressions -- test-suite, 75.
+        # SEC-1120..1123 add four model-loading integrity findings -- test-suite, 79.
         assert metric["value"] == {
-            "test-suite": 75,
+            "test-suite": 79,
             "review": 1,
             "supply-chain": 4,
             "ci-gate-design": 2,
