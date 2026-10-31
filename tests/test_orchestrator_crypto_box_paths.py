@@ -23,7 +23,7 @@ def _kelly(adjusted: float = 0.04) -> KellyResult:
     return KellyResult(
         kelly_fraction=0.05,
         adjusted_fraction=adjusted,
-        capital_usd=10_000.0,
+        capital_usd=10_500.0,
         entry_price=42_000.0,
         quantity=0.01,
         notional_usd=420.0,
