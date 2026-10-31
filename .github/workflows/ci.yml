@@ -234,6 +234,10 @@ jobs:
           include-hidden-files: true
           if-no-files-found: error
           retention-days: 7
+          # A rerun of a failed shard must replace its earlier data file;
+          # otherwise the aggregator can combine stale coverage from the
+          # failed attempt even after the shard succeeds.
+          overwrite: true
 
       # ---------------------------------------------------------------
       # Refreshing .test_durations.
