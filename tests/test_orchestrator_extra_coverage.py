@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+from types import SimpleNamespace
 from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 import pytest
@@ -493,6 +494,9 @@ class TestStartupLiveModeAndDriftDetector:
         async def _fake_train(tf):
             orch._trainers[tf.value] = trainer
             orch._detectors[tf.value] = MagicMock()
+            orch._training_results[tf.value] = SimpleNamespace(
+                oos_sharpe=1.5, accuracy=0.58, max_drawdown=10.0, n_trades=400
+            )
 
         orch._train_models = _fake_train
 
