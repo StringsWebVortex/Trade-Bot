@@ -1420,34 +1420,6 @@ class StorageBackend:
             direction=trade.direction,
         )
 
-    async def record_trade_partial_exit(
-        self,
-        trade_id: str,
-        exit_price: float,
-        pnl_usd: float,
-        fee_usd: float,
-    ) -> None:
-        """Accumulate a realised partial close without marking the trade closed."""
-        conn = self._require_conn()
-        async with self._write_ctx():
-            cursor = await conn.execute(
-                """
-                UPDATE trades
-                SET exit_price=?,
-                    pnl_usd=COALESCE(pnl_usd, 0.0)+?,
-                    pnl_pct=(COALESCE(pnl_usd, 0.0)+?)/notional_usd,
-                    fee_usd=fee_usd+?
-                WHERE id=? AND exit_ts IS NULL
-                """,
-                (exit_price, pnl_usd, pnl_usd, fee_usd, trade_id),
-            )
-            await conn.commit()
-        if cursor.rowcount == 0:
-            raise ValueError(
-                f"No open trade found with id={trade_id!r} (already closed or id not found)"
-            )
-        self._log.info("trade.partial_exit_recorded", trade_id=trade_id, pnl_usd=pnl_usd)
-
     async def update_trade_exit(
         self,
         trade_id: str,
@@ -1458,21 +1430,21 @@ class StorageBackend:
         exit_reason: str,
         fee_usd: float,
     ) -> None:
-        """Patch final exit fields, accumulating any earlier partial closes."""
+        """Patch exit fields on an existing trade row."""
         conn = self._require_conn()
         async with self._write_ctx():
             cursor = await conn.execute(
                 """
                 UPDATE trades
-                SET exit_price=?, exit_ts=?,
-                    pnl_usd=COALESCE(pnl_usd, 0.0)+?,
-                    pnl_pct=(COALESCE(pnl_usd, 0.0)+?)/notional_usd,
+                SET exit_price=?, exit_ts=?, pnl_usd=?, pnl_pct=?,
                     exit_reason=?, fee_usd=fee_usd+?
                 WHERE id=? AND exit_ts IS NULL
                 """,
-                # Entry fees are already stored on insert; fee_usd here is
-                # strictly the incremental exit fee for this execution.
-                (exit_price, exit_ts, pnl_usd, pnl_usd, exit_reason, fee_usd, trade_id),
+                # SCAN2-002: fee_usd+? intentionally accumulates entry_fee (stored at
+                # insert_trade) + exit_fee_usd (passed here). The parameter is named
+                # exit_fee_usd at the call site to prevent misreading as total fee.
+                # AND exit_ts IS NULL prevents double-exit writes on the same trade.
+                (exit_price, exit_ts, pnl_usd, pnl_pct, exit_reason, fee_usd, trade_id),
             )
             await conn.commit()
         if cursor.rowcount == 0:
