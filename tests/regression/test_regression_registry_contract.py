@@ -248,6 +248,10 @@ class TestTheRegistryHasAPlaceForDefects:
             # REG-1704: audit STR-21 -- carry and arbitrage entries gated on
             # fixed thresholds no cost measurement produced.
             "REG-1704",
+            # REG-1070/1071: live inference scored a stale row; forming candles
+            # were persisted.
+            "REG-1070",
+            "REG-1071",
             # DAT-003..DAT-006: changepoint, MVRV, triple-barrier tail, lookahead.
             "REG-1090",
             "REG-1091",
@@ -612,8 +616,9 @@ class TestTheMetricsCollector:
         # REG-1090..1093 add four data-numerics regressions -- test-suite, 75.
         # SEC-1020..1023 add four CI tooling security findings -- test-suite, +4.
         # SEC-1120..1123 add four model-loading integrity findings -- test-suite, 83.
+        # REG-1070/1071 add two closed-bar regressions -- test-suite, 85.
         assert metric["value"] == {
-            "test-suite": 83,
+            "test-suite": 85,
             "review": 1,
             "supply-chain": 4,
             "ci-gate-design": 2,

@@ -7068,6 +7068,42 @@
         }
       ],
       "notes": "layer: test-suite"
+    },
+    {
+      "id": "REG-1070",
+      "kind": "regression",
+      "title": "Live inference scores the latest closed bar",
+      "statement": "Live inference scores the feature row of the newest closed bar (label-independent), refuses a matrix whose last row is not the last bar, and the engine slices off a forming bar rather than skipping the tick",
+      "criticality": "critical",
+      "subsystem": "signal",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "Live path scored an older, lookahead-selected labelled row; HMM fed a gapped series",
+      "verification": [
+        {
+          "test": "tests/features/test_closed_bar_inference.py",
+          "test_type": "regression"
+        }
+      ],
+      "notes": "Audit DAT-001, EXR-003. layer: test-suite"
+    },
+    {
+      "id": "REG-1071",
+      "kind": "regression",
+      "title": "Forming candles are never persisted",
+      "statement": "The fetcher drops rows whose ts + timeframe exceeds now, so an unfinished candle is never stored",
+      "criticality": "critical",
+      "subsystem": "data",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "Partial candle stored permanently (insert-only storage, gap_fill resumes after it)",
+      "verification": [
+        {
+          "test": "tests/features/test_closed_bar_inference.py",
+          "test_type": "regression"
+        }
+      ],
+      "notes": "Audit DAT-002, EXR-003. layer: test-suite"
     }
   ]
 }

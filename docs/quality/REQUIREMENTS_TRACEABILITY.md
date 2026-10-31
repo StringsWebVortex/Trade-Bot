@@ -47,11 +47,11 @@ deletion of the thing it points at.
 
 | Status | Entries |
 |---|---|
-| VERIFIED | 278 |
+| VERIFIED | 280 |
 | PARTIAL | 3 |
 | PLANNED | 0 |
 | ACCEPTED GAP | 0 |
-| **Total** | **281** |
+| **Total** | **283** |
 
 ## Summary by subsystem
 
@@ -60,9 +60,9 @@ deletion of the thing it points at.
 | Risk | 12 | 12 |
 | Execution | 13 | 12 |
 | Portfolio | 2 | 2 |
-| Signal and features | 15 | 15 |
+| Signal and features | 16 | 16 |
 | Models and leakage | 23 | 23 |
-| Data, money and time | 15 | 14 |
+| Data, money and time | 16 | 15 |
 | API and WebSocket | 26 | 26 |
 | Cryptography and secrets | 38 | 38 |
 | Supply chain and artifacts | 7 | 7 |
@@ -511,6 +511,18 @@ SOPR, NVT and MVRV are either genuinely computed or NaN; no on-chain metric retu
 
 > Escaped to production: the constant reached the live feature dict in src/intel.py and was persisted to intelligence_features_history beside measured columns. The test suite could not catch it because the test that existed asserted the placeholder (== 1.0) rather than the requirement, so the layer that should have caught it is the review that accepted a return of a bare literal from a metric together with a docstring describing a computation the body never performed. layer: review
 
+#### `REG-1070` — Live inference scores the latest closed bar
+
+**VERIFIED** · critical · regression · source: OPS-2026-10-25
+
+Live inference scores the feature row of the newest closed bar (label-independent), refuses a matrix whose last row is not the last bar, and the engine slices off a forming bar rather than skipping the tick
+
+- **If violated:** Live path scored an older, lookahead-selected labelled row; HMM fed a gapped series
+- **Verification:**
+  - `tests/features/test_closed_bar_inference.py` (regression)
+
+> Audit DAT-001, EXR-003. layer: test-suite
+
 #### `REG-1362` — Cluster flow score is flagged unavailable when no flow data exists
 
 **VERIFIED** · medium · regression · source: OPS-2026-10-25
@@ -877,58 +889,6 @@ lll_reduce_with_transform updates the Gram-Schmidt coefficients in place after a
 
 > Audit MTH-020. The tests pin the results to the old algorithm and the direct exponent, so a faster wrong answer fails. layer: test-suite
 
-#### `SEC-1020` — The auto-resolve job never exposes its PAT to pull-request branch code
-
-**VERIFIED** · high · security_regression · source: OPS-2026-10-10
-
-pr-auto-update's resolve-next job checks out with persist-credentials false and the default token; the PR_AUTOUPDATE_TOKEN is present only in the final push step, which runs no repository file.
-
-- **If violated:** A same-repo branch edits a script the job runs and exfiltrates the repo-scope PAT, bypassing branch protection.
-- **Owned by:** `.github/workflows/pr-auto-update.yml`
-- **Verification:**
-  - `tests/test_pr_auto_update_workflow.py` (security)
-
-> layer: test-suite
-
-#### `SEC-1021` — Deploy dispatch inputs are never interpolated into shell
-
-**VERIFIED** · high · security_regression · source: OPS-2026-10-10
-
-deploy.yml passes inputs.artifact_run_id to run steps only through env and rejects a non-numeric value in preflight.
-
-- **If violated:** A dispatcher injects shell into jobs holding production environment secrets.
-- **Owned by:** `.github/workflows/deploy.yml`
-- **Verification:**
-  - `tests/test_deploy_workflow_inputs.py` (security)
-
-> layer: test-suite
-
-#### `SEC-1022` — The CI patch validator refuses sections without a validated git header
-
-**VERIFIED** · high · security_regression · source: OPS-2026-10-10
-
-apply_ci_patch._validate_patch rejects traditional ---/+++ sections outside a validated diff --git section, before or after one.
-
-- **If violated:** A header-less section rewrites a protected control-plane file that path validation never saw.
-- **Owned by:** `scripts/apply_ci_patch.py`
-- **Verification:**
-  - `tests/test_apply_ci_patch.py` (security)
-
-> layer: test-suite
-
-#### `SEC-1023` — Command output is redacted before it is truncated
-
-**VERIFIED** · high · security_regression · source: OPS-2026-10-10
-
-shell_exec.run masks secrets in the whole raw output before filtering and capping, and an unterminated PEM private key block is masked to the end of the text.
-
-- **If violated:** A PEM key cut by max_lines or max_bytes no longer matches the redaction pattern and reaches model context verbatim.
-- **Owned by:** `common/shell_exec.py`, `common/command_schema.py`
-- **Verification:**
-  - `tests/test_shell_exec.py` (security)
-
-> layer: test-suite
-
 #### `SEC-1120` — MLflow registry never promotes and never unpickles without a pinned manifest
 
 **VERIFIED** · high · security_regression · source: OPS-2026-10-25
@@ -1111,6 +1071,18 @@ MarketDataFetcher.initialize() must open each venue independently, record an una
   - `tests/test_fetcher_venue_degradation.py` (regression)
 
 > Observed against Binance answering HTTP 451 'Service unavailable from a restricted location' on both mainnet and testnet from an affected network, which made the backend unstartable however healthy OKX and everything else was. initialize() built both venues and loaded their markets in one unisolated sequence. GET /venues and POST /venues/{venue}/reconnect expose the state and the recovery so neither needs a restart. layer: test-suite
+
+#### `REG-1071` — Forming candles are never persisted
+
+**VERIFIED** · critical · regression · source: OPS-2026-10-25
+
+The fetcher drops rows whose ts + timeframe exceeds now, so an unfinished candle is never stored
+
+- **If violated:** Partial candle stored permanently (insert-only storage, gap_fill resumes after it)
+- **Verification:**
+  - `tests/features/test_closed_bar_inference.py` (regression)
+
+> Audit DAT-002, EXR-003. layer: test-suite
 
 #### `REG-1091` — MVRV is NaN without a chain-wide realised-cap source
 
@@ -1923,6 +1895,58 @@ requirements.txt declares filelock>=4.2.1, and every Dockerfile install into the
   - `tests/security/test_filelock_cve_floor.py` (security)
 
 > The advisory was published against a release nobody here chose, so no commit or review could have seen it arrive. layer: supply-chain
+
+#### `SEC-1020` — The auto-resolve job never exposes its PAT to pull-request branch code
+
+**VERIFIED** · high · security_regression · source: OPS-2026-10-10
+
+pr-auto-update's resolve-next job checks out with persist-credentials false and the default token; the PR_AUTOUPDATE_TOKEN is present only in the final push step, which runs no repository file.
+
+- **If violated:** A same-repo branch edits a script the job runs and exfiltrates the repo-scope PAT, bypassing branch protection.
+- **Owned by:** `.github/workflows/pr-auto-update.yml`
+- **Verification:**
+  - `tests/test_pr_auto_update_workflow.py` (security)
+
+> layer: test-suite
+
+#### `SEC-1021` — Deploy dispatch inputs are never interpolated into shell
+
+**VERIFIED** · high · security_regression · source: OPS-2026-10-10
+
+deploy.yml passes inputs.artifact_run_id to run steps only through env and rejects a non-numeric value in preflight.
+
+- **If violated:** A dispatcher injects shell into jobs holding production environment secrets.
+- **Owned by:** `.github/workflows/deploy.yml`
+- **Verification:**
+  - `tests/test_deploy_workflow_inputs.py` (security)
+
+> layer: test-suite
+
+#### `SEC-1022` — The CI patch validator refuses sections without a validated git header
+
+**VERIFIED** · high · security_regression · source: OPS-2026-10-10
+
+apply_ci_patch._validate_patch rejects traditional ---/+++ sections outside a validated diff --git section, before or after one.
+
+- **If violated:** A header-less section rewrites a protected control-plane file that path validation never saw.
+- **Owned by:** `scripts/apply_ci_patch.py`
+- **Verification:**
+  - `tests/test_apply_ci_patch.py` (security)
+
+> layer: test-suite
+
+#### `SEC-1023` — Command output is redacted before it is truncated
+
+**VERIFIED** · high · security_regression · source: OPS-2026-10-10
+
+shell_exec.run masks secrets in the whole raw output before filtering and capping, and an unterminated PEM private key block is masked to the end of the text.
+
+- **If violated:** A PEM key cut by max_lines or max_bytes no longer matches the redaction pattern and reaches model context verbatim.
+- **Owned by:** `common/shell_exec.py`, `common/command_schema.py`
+- **Verification:**
+  - `tests/test_shell_exec.py` (security)
+
+> layer: test-suite
 
 ## Supply chain and artifacts
 
@@ -3655,4 +3679,4 @@ To add or change an entry, edit the registry and regenerate this file. See
 `docs/quality/TEST_STRATEGY.md` for the taxonomy the `test_type` column draws
 on, and `docs/quality/IMPLEMENTATION_PLAN.md` for what each phase delivers.
 
-Registry version: 1.0.0 — 281 entries.
+Registry version: 1.0.0 — 283 entries.
