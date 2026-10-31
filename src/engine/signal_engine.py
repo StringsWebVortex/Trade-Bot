@@ -83,6 +83,7 @@ from src.risk.macro_exposure_budget import (
     apply_macro_budget_to_kelly_fraction,
 )
 from src.risk.slippage import SlippageModel
+from src.risk.state_persistence import state_file
 from src.strategies.filters import apply_all_strategy_filters, ewm_trend_signal, mtf_trend_aligned
 from src.strategies.position_sizing import (
     CARVER_FORECAST_SCALAR,
@@ -298,13 +299,6 @@ class SignalEngine:
         # same resolved bar would be learned repeatedly and the SGD model
         # would overweight whichever bar happened to sit at the boundary.
         self._last_online_learn_ts: int | None = None
-        # EXR-016/017: exchange filters, injected by the orchestrator once
-        # loaded. Defaults match compute_position_size's own.
-        self._symbol_precision: dict[str, float] = {
-            "amount_precision": 8.0,
-            "min_amount": 0.0,
-            "min_cost": 0.0,
-        }
         # Column order the online learner was fitted on. The live inference
         # vector carries extra intelligence columns that the historical
         # feature matrix does not, so blending has to project onto this list
@@ -331,7 +325,8 @@ class SignalEngine:
         # recovery. One instance per engine, driven by this engine's own
         # capital_usd stream each tick — see tick() gate 0.
         self._capital_floor = CapitalPreservationFloor(
-            max_drawdown_pct=self._cfg.risk.capital_preservation_max_drawdown_pct
+            max_drawdown_pct=self._cfg.risk.capital_preservation_max_drawdown_pct,
+            state_path=state_file(f"capital_floor_{symbol}_{timeframe.value}"),
         )
         # v4 shadow-mode promotion. One registry per engine, i.e. per
         # (symbol, timeframe) — deliberately not model_registry's process-wide
@@ -666,12 +661,6 @@ class SignalEngine:
     # ------------------------------------------------------------------
     # Main tick — called by orchestrator on every bar close
     # ------------------------------------------------------------------
-
-    def set_symbol_precision(self, precision: dict[str, float]) -> None:
-        """Install the exchange filters used by every sizing/rescale call (EXR-016)."""
-        for key in self._symbol_precision:
-            if precision.get(key) is not None:
-                self._symbol_precision[key] = float(precision[key])
 
     async def tick(
         self,
@@ -1160,7 +1149,6 @@ class SignalEngine:
             correlation_scalar=combined_scalar,
             garch_vol_scalar=_garch_vol_scalar,
             notional_cap_usd=_notional_cap_usd,
-            **self._symbol_precision,
         )
 
         notional = kelly_result.notional_usd if kelly_result is not None else 0.0
@@ -1364,7 +1352,6 @@ class SignalEngine:
                 kelly_result,
                 gate_result.size_scalar,
                 kelly_result.entry_price,
-                **self._symbol_precision,
             )
             if _scaled is None:
                 _emit_audit("skipped", "advisory_scalar_below_minimum", kelly_result, gate_result)
@@ -1593,24 +1580,27 @@ class SignalEngine:
             )
         # Apply cognitive engine's adjusted size (may be reduced by WARN results)
         if _cog_decision.adjusted_size_fraction < kelly_result.adjusted_fraction:
-            # EXR-017: requantise to the exchange step and re-check minimums.
-            _cog_scaled = apply_size_scalar(
+            from dataclasses import replace as _dc_replace2
+
+            kelly_result = _dc_replace2(
                 kelly_result,
-                max(
-                    min(
+                notional_usd=round(
+                    kelly_result.notional_usd
+                    * (
                         _cog_decision.adjusted_size_fraction
-                        / max(kelly_result.adjusted_fraction, 1e-9),
-                        1.0,
+                        / max(kelly_result.adjusted_fraction, 1e-9)
                     ),
-                    1e-9,
+                    4,
                 ),
-                kelly_result.entry_price,
-                **self._symbol_precision,
+                quantity=round(
+                    kelly_result.quantity
+                    * (
+                        _cog_decision.adjusted_size_fraction
+                        / max(kelly_result.adjusted_fraction, 1e-9)
+                    ),
+                    8,
+                ),
             )
-            if _cog_scaled is None:
-                _emit_audit("skipped", "cognitive_scalar_below_minimum", kelly_result, gate_result)
-                return self._skip("cognitive_scalar_below_minimum")
-            kelly_result = _cog_scaled
         # ─────────────────────────────────────────────────────────────────────
 
         _emit_audit("opened", "", kelly_result, gate_result)
