@@ -139,7 +139,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 69 | P1 | .github/workflows/codex-pr-handoff.yml | YAML | 76 | 7810b996 |  |
 | 70 | P1 | .github/workflows/deploy.yml | YAML | 187 | e32b046a |  |
 | 71 | P1 | .github/workflows/nightly-quality.yml | YAML | 141 | 08f2db1b |  |
-| 72 | P1 | .github/workflows/pr-auto-update.yml | YAML | 328 | c6032fae |  |
+| 72 | P1 | .github/workflows/pr-auto-update.yml | YAML | 363 | f42bf9fa |  |
 | 73 | P1 | .github/workflows/rag-ingest.yml | YAML | 54 | 3ef87ddd |  |
 | 74 | P1 | .github/workflows/release.yml | YAML | 133 | b595cd54 |  |
 | 75 | P1 | .github/workflows/security.yml | YAML | 490 | 0d555204 |  |
@@ -185,7 +185,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 115 | P1 | docs/quality/QUALITY_BASELINE.md | Markdown | 125 | bbc75e22 |  |
 | 116 | P1 | docs/quality/QUALITY_METRICS.md | Markdown | 122 | 386b71a5 |  |
 | 117 | P1 | docs/quality/QUALITY_POLICY.md | Markdown | 232 | 8c4629b8 |  |
-| 118 | P1 | docs/quality/REQUIREMENTS_TRACEABILITY.md | Markdown | 3707 | 5b42073c |  |
+| 118 | P1 | docs/quality/REQUIREMENTS_TRACEABILITY.md | Markdown | 3682 | 9bb7c9c2 |  |
 | 119 | P1 | docs/quality/ROOT_CAUSE_TEMPLATE.md | Markdown | 84 | a55b20e9 |  |
 | 120 | P1 | docs/quality/TEST_STRATEGY.md | Markdown | 252 | efbde1ba |  |
 | 121 | P1 | docs/runtime/IMPLEMENTATION_MATRIX.md | Markdown | 79 | 7e5cd563 |  |
@@ -713,7 +713,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 643 | P1 | tests/regression/__init__.py | Python | 0 | e3b0c442 |  |
 | 644 | P1 | tests/regression/test_ci_failure_locks.py | Python | 67 | 6c0933bb |  |
 | 645 | P1 | tests/regression/test_metrics_payload.py | Python | 120 | 094976c7 |  |
-| 646 | P1 | tests/regression/test_regression_registry_contract.py | Python | 736 | 5941bcfd |  |
+| 646 | P1 | tests/regression/test_regression_registry_contract.py | Python | 430 | 43711c2d |  |
 | 647 | P1 | tests/regression/unraisable.py | Python | 19 | 8f8b1064 |  |
 | 648 | P1 | tests/required_import.py | Python | 22 | 14788dee |  |
 | 649 | P1 | tests/risk/__init__.py | Python | 0 | e3b0c442 |  |

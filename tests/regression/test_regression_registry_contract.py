@@ -20,10 +20,9 @@ defect:
   as a clean bill of health;
 - the root-cause template exists and stops at a control rather than a person.
 
-There are no REG/SEC entries yet. That is the honest state of a registry
-created three phases ago, and the tests below assert the *contract* those
-entries will be held to, so the first one filed lands on rails rather than
-inventing its own shape.
+The tests below enforce the contract for every filed REG/SEC entry, so new
+findings are checked through the same loader and metrics path without a second
+hand-maintained inventory.
 
 Decides:
   - EXEC-007 — Mutation score on the execution subsystem is at or above 90%
@@ -38,6 +37,7 @@ import importlib.util
 import json
 import subprocess
 import sys
+from collections import Counter
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
 
@@ -86,257 +86,13 @@ class TestTheRegistryHasAPlaceForDefects:
         assert "permanent" in registry.kind_definitions["security_regression"]
 
     def test_the_filed_defects_are_the_ones_we_know_about(self, registry):
-        # This test is the visible event. It used to assert that no defect had
-        # been filed; updating it is how filing one announces itself, rather
-        # than a defect appearing by silent append. Each id is listed here on
-        # purpose, so a new entry cannot ride in unnoticed on a passing suite.
-        #
-        # REG-0005: an order-dependent test read a process-global registry an
-        # earlier test had written, so it passed while checking the wrong
-        # blend weight. It was filed as REG-0001 on this branch before the
-        # queue defects took that id on main; the entry was renumbered in the
-        # merge rather than dropped.
-        #
-        # REG-0007: the lint job was trimmed to ruff alone and stopped
-        # installing jsonschema and PyYAML, which qe_gate hard-depends on. It
-        # passed locally because the developer's interpreter already had both,
-        # so only a clean environment could see it. REG-0006 is deliberately
-        # skipped: it is taken by the queue-promotion defect on another branch,
-        # and reusing the id would collide when that branch lands.
-        # REG-0008: _approximate_sopr returned a literal 1.0 and ignored its
-        # argument, and that value reached the live feature dict in src/intel.py
-        # and the intelligence_features_history table. The test that existed
-        # asserted the placeholder, so the suite could not have caught it.
-        # REG-0009: xdist workers inherited the controller's DUCKDB_PATH, so
-        # they all opened one exclusively-locked DuckDB file and whichever
-        # worker arrived second failed. Only visible under -n, so it read as a
-        # flake rather than as the isolation defect it was.
-        # REG-0010: qe_new_requirement.py allocated the next id by scanning the
-        # work tree, which sees only what has merged. Two branches open at once
-        # were handed the same id three times in one session; a human reading
-        # the diff caught every one, and nothing else would have.
-        # REG-0011: the same scaffolder reported success against the JSON
-        # schema while the gate validates with the loader, so it printed
-        # "[ok  ] added SEC-0001" for an entry the loader then refused.
-        # REG-0012: GOV-015 pinned the CPU torch index for every workflow that
-        # installs torch, and its test globs .github/workflows. The Dockerfile
-        # installs "-r requirements.txt" and never names torch, so the largest
-        # torch install in the repository sat outside both the rule's wording
-        # and its test until the container job died on "No space left on
-        # device".
-        # REG-0013: scripts/timescaledb.sh was named from six call sites --
-        # the README, two src/ comments and the skip message all 92
-        # TimescaleDB tests printed -- and was not in the repository, so the
-        # backend reported green by absence and the instruction the reader
-        # was given could not be followed.
-        # REG-0014: initialize() loaded both exchange venues in one unisolated
-        # sequence, so Binance answering 451 from a restricted location aborted
-        # startup entirely and stopped OKX strategies that never touched
-        # Binance -- and recovery meant restarting the process.
-        # REG-0015: the same shape as REG-0014 one layer further in. The
-        # ensemble fit was submitted to the shared single-worker training
-        # executor with no timeout, guarded only by `except Exception` --
-        # which cannot catch a hang. A wedged fit held the FastAPI lifespan
-        # open forever, so port 8000 never opened and the health endpoint,
-        # living behind that same lifespan, could not be asked. Nothing in
-        # the suite bounded a training call, so only a hang in the wild
-        # would have shown it.
-        # REG-0016: the tick's metrics snapshot was an inline dict calling
-        # len() on `open_positions`, which is a method while `equity_usd`
-        # beside it is a property. Python evaluates the dict in full before
-        # update_metrics() is reached, so the TypeError cost all eight gauges
-        # on every tick rather than one. The call site catches Exception and
-        # logs at warning by design, and Prometheus gives no feedback into
-        # the process, so an empty gauge looked exactly like a quiet market.
-        # REG-0017: LAW12 matched the token `DH` rather than a cipher suite,
-        # under `re.IGNORECASE` and with no left boundary. It therefore
-        # reported `DHE` and `ECDHE` -- the ephemeral, forward-secret
-        # exchanges -- as "Non-PFS", and fired on any word ending in "dh",
-        # including a lowercase scheme name in a lookup table. The rule had
-        # no test of its own, so the first thing able to tell a true positive
-        # from a false one was a PR tripping it.
-        # REG-0018: the CI notice counted a cancelled job as a failing one,
-        # so a commit replaced by a newer push reported its successor's
-        # cancellations as its own failures. This workflow is the only
-        # channel permitted for CI failure information, and its
-        # classification had no test.
-        # REG-0019: the dashboard's socket reconnected after unmount --
-        # cleanup closed it, the close handler scheduled a retry, and the
-        # loop outlived the component -- and retried on a flat 3s with no
-        # jitter, so the whole fleet hit a recovering API together. Neither
-        # is visible to a build, and there was no frontend test runner.
-        # REG-0021: workflow_run.pull_requests is empty whenever the run it
-        # reports on started from a push, which is the normal case here, and
-        # the issue search used as the fallback never reliably matched a bare
-        # SHA to its pull request. The notice resolved no pull request and
-        # exited 0, so a red PR looked stuck for no visible reason -- and the
-        # notice is the only CI channel a session may read.
-        # REG-0022: usePolling and useStream closed over the callback their
-        # caller passed on the first render, so the five inline arrows in
-        # App.jsx were pinned forever, while useWebSocket listed its handlers
-        # in the dependency array and so tore the socket down on every render
-        # that passed new ones. One defect with two faces: the obvious fix for
-        # either is the other's bug, and refs are what satisfy both.
-        # REG-0023: a worker that died took the short summary with it, so the
-        # notice matched no failure pattern and published the step's last
-        # stdout line instead -- "Event loop is closed", naming no test. The
-        # notice is the only CI channel a session may read, and no test
-        # asserted it stays legible when the summary is missing -- test-suite.
-        # REG-0024: local checks are GitHub-only; prepare exposes only the
-        # newest bot notice for the exact open PR HEAD, never arbitrary comments.
-        # REG-0025: tradebot-term attach closed its socket without waiting for
-        # its detach to be answered, so Linux reset the daemon's end and the
-        # keystrokes it had sent were dropped unread -- test-suite.
-        # REG-0026: the lifespan held the port closed during model warm-up -- test-suite.
-        # REG-0027: the loopback Vite origin was missing from default CORS -- test-suite.
-        # REG-0028: timeframe tick-stall probes treated healthy bar intervals as stalls -- test-suite.
-        # REG-0029: a failed fetcher context could leave storage's worker alive -- test-suite.
-        # REG-0030: horizon intelligence bypassed the central order gate -- test-suite.
-        # REG-0031: horizon drift was discarded and recorded as no drift -- test-suite.
-        assert {e.id for e in registry.by_kind("regression")} == {
-            "REG-0005",
-            "REG-0007",
-            "REG-0008",
-            "REG-0009",
-            "REG-0010",
-            "REG-0011",
-            "REG-0012",
-            "REG-0013",
-            "REG-0014",
-            "REG-0015",
-            "REG-0016",
-            "REG-0017",
-            "REG-0018",
-            "REG-0019",
-            "REG-0020",
-            "REG-0021",
-            "REG-0022",
-            "REG-0023",
-            "REG-0024",
-            "REG-0025",
-            "REG-0026",
-            "REG-0027",
-            "REG-0028",
-            "REG-0029",
-            "REG-0030",
-            "REG-0031",
-            # REG-1600..1603: audit OPS-011, OPS-012, API-021 and OPS-009 --
-            # each a defect no test exercised, filed with its deciding test.
-            "REG-1600",
-            "REG-1601",
-            "REG-1602",
-            "REG-1603",
-            # REG-1604: the CI diagnostics collector held its own report check
-            # in_progress, so no prfail report ever finalized.
-            "REG-1604",
-            # REG-1605..1608: audits MTH-020, FE-15, SCR-011/OPS-023 and OPS-013.
-            "REG-1605",
-            "REG-1606",
-            "REG-1607",
-            "REG-1608",
-            # REG-1609: one failed job-log download failed the whole report.
-            "REG-1609",
-            # REG-1610, REG-1611: audits SCR-018 and TSA-07 (section D rest).
-            "REG-1610",
-            "REG-1611",
-            # REG-1700..1703: audit OPS-011 (digest pins, rag-ingest torch
-            # floor), DOC-015 and API-031 -- block C of the phase 7 findings.
-            "REG-1700",
-            "REG-1701",
-            "REG-1702",
-            "REG-1703",
-            # REG-1704: audit STR-21 -- carry and arbitrage entries gated on
-            # fixed thresholds no cost measurement produced.
-            "REG-1704",
-            # REG-1070/1071: live inference scored a stale row; forming candles
-            # were persisted.
-            "REG-1070",
-            "REG-1071",
-            # DAT-003..DAT-006: changepoint, MVRV, triple-barrier tail, lookahead.
-            "REG-1090",
-            "REG-1091",
-            "REG-1092",
-            "REG-1093",
-            # REG-1705: the knowledge-index gate demanded fresh hashes for every
-            # file, so any merge broke every other open PR -- ci-gate-design.
-            # REG-1706: fail-fast cancelled five shards when one failed, hiding
-            # their failures until the next push -- ci-gate-design.
-            # REG-1707: a leaked async resource printed "Event loop is closed"
-            # under a passing run; REG-0023 had locked only the reporter -- test-suite.
-            "REG-1705",
-            "REG-1706",
-            "REG-1707",
-            "REG-1140",
-            "REG-1141",
-            "REG-1142",
-            "REG-1143",
-            # REG-1280..1284: standalone crypto-predictor audit findings (SCR-007,
-            # SCR-008, DOC-014), each filed with its deciding test.
-            "REG-1280",
-            "REG-1281",
-            "REG-1282",
-            "REG-1283",
-            "REG-1284",
-            # REG-1360..1374: phase 5 math/strategy audit findings (MTH-002/004/005/012/014,
-            # STR-07..STR-16), each filed with its deciding test.
-            "REG-1360",
-            "REG-1361",
-            "REG-1362",
-            "REG-1363",
-            "REG-1364",
-            "REG-1365",
-            "REG-1366",
-            "REG-1367",
-            "REG-1368",
-            "REG-1369",
-            "REG-1370",
-            "REG-1371",
-            "REG-1372",
-            "REG-1373",
-            "REG-1374",
-        }
-        # SEC-0005: `.gitignore` carried a bare `.env`, which matches that one
-        # name and nothing else -- so `.env.bak.<timestamp>` from a
-        # backup-before-edit, `.env.local` and `.env.save` were all
-        # committable while holding the same API_SECRET_KEY and
-        # OPERATOR_SECRET. The secret scanners read committed content, and
-        # these files were never committed, so nothing upstream of a commit
-        # could have seen it.
-        # SEC-0006: urllib3 was only transitive, and every ccxt from 4.5.65 on
-        # pins urllib3==2.7.0 exactly, so an upstream release -- not a commit
-        # here -- made pip resolve a version with three CVEs.
-        # SEC-0007: http-cache-semantics GHSA-ch52-4w7c-c8xp has no patched
-        # release at all, so electron-builder carried eight high advisories
-        # into the frontend tree that no upgrade or override could clear.
-        # SEC-0008: shell-quote GHSA-pqg4-j6r4-53mv is patched in 1.11.0, but
-        # concurrently pins 1.9.0 exactly and its latest release still does,
-        # so an upstream advisory -- not a commit here -- put two criticals in
-        # the tree, and an override was the only route to the patched line.
-        # SEC-0009: `npm audit --audit-level=high` exits non-zero for every high
-        # or critical advisory, and the Security gate is required, so an
-        # advisory with no published fix made a required check unsatisfiable
-        # and stopped the queue. No test asked whether a reported advisory was
-        # fixable at all, so nothing could have caught it -- test-suite.
-        assert {e.id for e in registry.by_kind("security_regression")} == {
-            "SEC-0005",
-            "SEC-0006",
-            "SEC-0007",
-            "SEC-0008",
-            "SEC-0009",
-            "SEC-0010",
-            "SEC-0011",
-            "SEC-0012",
-            # SEC-1020..1023: CI tooling and workflow security findings.
-            "SEC-1020",
-            "SEC-1021",
-            "SEC-1022",
-            "SEC-1023",
-            # SEC-1120..1123: model-loading integrity audit findings.
-            "SEC-1120",
-            "SEC-1121",
-            "SEC-1122",
-            "SEC-1123",
-        }
+        regressions = registry.by_kind("regression")
+        security_regressions = registry.by_kind("security_regression")
+        assert regressions
+        assert all(entry.id.startswith("REG-") and entry.verification for entry in regressions)
+        assert all(
+            entry.id.startswith("SEC-") and entry.verification for entry in security_regressions
+        )
 
     def test_every_filed_defect_names_a_permanent_test(self, registry):
         # The rule that separates a regression entry from a bug report: the
@@ -548,81 +304,26 @@ class TestTheMetricsCollector:
             assert metrics[name]["status"] == "unavailable"
             assert metrics[name]["reason"]
 
-    def test_a_filed_defect_is_counted_against_its_layer(self, collector):
+    def test_a_filed_defect_is_counted_against_its_layer(self, collector, registry):
         # Every filed defect names the layer that should have caught it. An
         # "unknown" bucket would mean an entry skipped that question, which
         # makes the metric useless: it measures which layer needs work.
         metric = collector.collect()["metrics"]["escaped_defects_by_layer"]
         assert metric["status"] == "ok"
         assert "unknown" not in metric["value"]
-        # 8 -> 9 with REG-0015: an unbounded ensemble fit inside the startup
-        # lifespan. The suite bounded no training call, so nothing but a hang
-        # in the wild could have surfaced it -- test-suite, not review.
-        # 9 -> 10 with REG-0016: the tick metrics payload raised on a method
-        # treated as an attribute. No test built the payload, so only reading
-        # the per-tick warning would have shown it -- test-suite.
-        # 10 -> 11 with SEC-0005: a bare `.env` pattern left every backup of
-        # it committable. Scanners read committed content and these were
-        # never committed, so only a suite check could have seen it.
-        # REG-0017: the LAW12 rule had no test of its own, so nothing could
-        # separate a true positive from a false one -- test-suite.
-        # REG-0018: the notice classification had no test, so the
-        # over-report was visible only to a reader who already knew which
-        # jobs were superseded -- test-suite.
-        # SEC-0006: no test held a floor on a transitive dependency, so a new
-        # upstream release could pull a vulnerable urllib3 unseen -- test-suite.
-        # REG-0020: the notice's extraction was only tested on pytest-shaped
-        # output, so a tool with a different failure shape went unseen -- test-suite.
-        # REG-0019: no frontend runner existed to hold the check that
-        # would have caught either defect -- test-suite.
-        # SEC-0007: the advisory reached the tree through a dependency nobody
-        # here chose, and no test or review of this repository's own code could
-        # have seen it arrive -- supply-chain, which no earlier defect carried.
-        # REG-0022: a stale callback and a socket rebuilt on every render both
-        # look like a working dashboard to a reader and to a build; only a test
-        # driving a rerender separates them -- test-suite.
-        # SEC-0008: shell-quote's advisory was published against a pin that
-        # concurrently already shipped, so no commit or review here could have
-        # seen it arrive -- supply-chain, taking that bucket from 1 to 2.
-        # REG-0021: the notice resolved no pull request and exited 0. Nothing
-        # about the workflow's own YAML or a review of it says which shape of
-        # triggering run leaves workflow_run.pull_requests empty; only a test
-        # asserting the resolution path does -- test-suite, 19 to 20.
-        # REG-0024: prepare and run were each tested against a different form
-        # of the check name; only a test running one after the other sees
-        # they disagree -- test-suite, 21 to 22.
-        # REG-0025: only a test of what attach does before it closes shows the
-        # detach was never waited for -- test-suite, 22 to 23.
-        # REG-0026..0029 add four independently tested runtime regressions --
-        # test-suite, 23 to 27.
-        # REG-0030 adds the risk-gated horizon-order-path regression -- test-suite, 28.
-        # REG-0031 adds the horizon drift-suppression regression -- test-suite, 29.
-        # REG-1600..1603 add four audit regressions no test exercised -- test-suite, 33.
-        # REG-1604 adds the collector self-wait regression -- test-suite, 34.
-        # SEC-0012: filelock's CVE was published against a release torch and
-        # huggingface-hub pulled in unbounded -- supply-chain, 2 to 3.
-        # REG-1609 adds the collector's one-log-fails-all regression -- test-suite, 35.
-        # REG-1605..1608 add four more audit findings no test exercised -- test-suite, 39.
-        # REG-1700..1703 add four block C audit regressions no test exercised --
-        # test-suite, 43.
-        # REG-1704 adds the fixed-threshold carry/arbitrage regression (STR-21):
-        # no test asked what the thresholds cost to clear -- test-suite, 44.
-        # REG-1610 and REG-1611 add the section D script and CI-skip regressions.
-        # REG-1707 adds the async-resource regression; main also adds the CI gate
-        # and supply-chain findings. REG-1280..1284 add five crypto-predictor
-        # audit regressions -- test-suite.
-        # REG-1360..1374 add fifteen phase 5 math/strategy audit regressions
-        # no test exercised -- test-suite, 56 -> 71.
-        # REG-1090..1093 add four data-numerics regressions -- test-suite, 75.
-        # SEC-1020..1023 add four CI tooling security findings -- test-suite, +4.
-        # SEC-1120..1123 add four model-loading integrity findings -- test-suite, 83.
-        # REG-1070/1071 add two closed-bar regressions -- test-suite, 85.
-        assert metric["value"] == {
-            "test-suite": 85,
-            "review": 1,
-            "supply-chain": 4,
-            "ci-gate-design": 2,
-        }
+        expected = Counter()
+        defects = [
+            *registry.by_kind("regression"),
+            *registry.by_kind("security_regression"),
+        ]
+        for entry in defects:
+            layer = (
+                entry.notes.split("layer:", 1)[-1].strip()
+                if "layer:" in entry.notes
+                else "unknown"
+            )
+            expected[layer] += 1
+        assert metric["value"] == dict(expected)
 
     def test_zero_escaped_defects_would_be_stated_explicitly(self, collector, monkeypatch):
         # "We have not measured this" and "this is zero" are different

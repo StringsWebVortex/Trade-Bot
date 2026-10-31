@@ -160,9 +160,9 @@ jobs:
           HAS_TOKEN: ${{ secrets.PR_AUTOUPDATE_TOKEN != '' && '1' || '' }}
 
   # Resolving a merge conflict is a person's job, and this does not pretend
-  # otherwise. It resolves exactly one shape of conflict: the one where every
-  # conflicted path is a **generated** file, so a script produces the correct
-  # answer and no judgement is being exercised. Anything else is left alone.
+  # otherwise. It resolves generated outputs and the legacy registry-contract
+  # pins only when a script can produce the correct answer without discarding
+  # behavioral changes. Anything else is left alone.
   #
   # That shape is not a corner case here. `docs/quality/REQUIREMENTS_TRACEABILITY.md`
   # is generated from `config/quality_registry.json`, and every pull request
@@ -219,11 +219,12 @@ jobs:
 
           before="$(git rev-parse HEAD)"
 
-          if git merge --no-edit origin/main; then
+          if git merge --no-commit --no-ff origin/main; then
             # GitHub said `dirty`, git disagrees. Mergeability is computed
             # asynchronously and can be stale. A clean merge is still worth
             # pushing; an empty one is worth nothing.
-            if [ "${before}" = "$(git rev-parse HEAD)" ]; then
+            if [ "${before}" = "$(git rev-parse HEAD)" ] \
+              && ! git rev-parse -q --verify MERGE_HEAD >/dev/null; then
               echo "::notice::#${PR} was already up to date. Nothing pushed."
               exit 0
             fi
@@ -242,6 +243,7 @@ jobs:
               [ -n "${path}" ] || continue
               case "${path}" in
                 docs/quality/REQUIREMENTS_TRACEABILITY.md|docs/MATH_FOUNDATIONS.md) ;;
+                codebase-analysis-docs/FILE_INDEX.md|tests/regression/test_regression_registry_contract.py) ;;
                 # Not generated, but mergeable by meaning: two branches that
                 # each register an entry collide on the array's tail although
                 # their ids differ. Resolved per entry id below, where a real
@@ -254,6 +256,28 @@ jobs:
                   ;;
               esac
             done <<< "${conflicted}"
+
+            # FILE_INDEX is generated from the merged tracked tree. Use main's
+            # clean document as the metadata template, then refresh it after
+            # all paths are resolved so files from both branches are included.
+            if grep -qx 'codebase-analysis-docs/FILE_INDEX.md' <<< "${conflicted}"; then
+              git checkout --theirs -- codebase-analysis-docs/FILE_INDEX.md
+              git add -- codebase-analysis-docs/FILE_INDEX.md
+            fi
+
+            # This older test duplicated registry ids and layer totals in
+            # literals, forcing every registry PR to edit the same lines. The
+            # current test derives these expectations from the registry. Keep
+            # main's dynamic assertions only if the PR-side changes are limited
+            # to additive legacy pins; the resolver refuses any behavioral edit.
+            if grep -qx 'tests/regression/test_regression_registry_contract.py' <<< "${conflicted}"; then
+              if ! python3 scripts/resolve_registry_contract_merge.py; then
+                git merge --abort
+                echo "::notice::#${PR} changed registry-contract test behavior beyond legacy pins. Leaving it for a person."
+                exit 0
+              fi
+              git add -- tests/regression/test_regression_registry_contract.py
+            fi
 
             if grep -qx 'config/quality_registry.json' <<< "${conflicted}"; then
               if ! python3 scripts/resolve_registry_merge.py config/quality_registry.json; then
@@ -278,6 +302,8 @@ jobs:
                   python3 scripts/generate_quality_docs.py ;;
                 docs/MATH_FOUNDATIONS.md)
                   python3 scripts/generate_math_docs.py ;;
+                codebase-analysis-docs/FILE_INDEX.md) ;;
+                tests/regression/test_regression_registry_contract.py) ;;
                 config/quality_registry.json) ;;
               esac
               git add -- "${path}"
@@ -288,8 +314,15 @@ jobs:
               exit 1
             fi
 
-            git commit --no-edit
           fi
+
+          # Both generated documents derive from the merged tree. They can be
+          # stale even when Git merged their text without a conflict, so refresh
+          # them on every branch update before running the gate.
+          python3 scripts/generate_quality_docs.py
+          git add -- docs/quality/REQUIREMENTS_TRACEABILITY.md
+          python3 scripts/codebase_knowledge_index.py --refresh-file-index
+          git add -- codebase-analysis-docs/FILE_INDEX.md
 
           # The gate, on both paths, before any push. A conflict is not the
           # only way a merge goes wrong here -- `config/quality_registry.json`
@@ -303,6 +336,8 @@ jobs:
             echo "::error::#${PR} merged with main but the quality gate refuses the result. A bad registry auto-merge is the usual cause, and duplicate ids the usual form of it. Nothing pushed."
             exit 1
           fi
+
+          git commit --no-edit
 
           echo "push=true" >> "${GITHUB_OUTPUT}"
 
