@@ -1,0 +1,22 @@
+{
+  "id": "REG-1526",
+  "kind": "regression",
+  "title": "Mutation floor fails closed on timeout and clears the shared cache per subsystem",
+  "statement": "scripts/check_mutation_score.run_subsystem clears mutmut's cache before each subsystem and scores a timeout as a failed floor.",
+  "criticality": "low",
+  "subsystem": "governance",
+  "status": "verified",
+  "source": "OPS-2026-10-25",
+  "notes": "layer: test-suite",
+  "failure_mode": "Subsystem scores shared mutants with earlier subsystems, and a timeout raised an uncaught traceback instead of a verdict.",
+  "owning_modules": [
+    "scripts/check_mutation_score.py"
+  ],
+  "verification": [
+    {
+      "test": "tests/test_low_findings_regressions.py",
+      "test_type": "regression"
+    }
+  ],
+  "depends_on": []
+}
