@@ -4,6 +4,7 @@
 const { app, BrowserWindow, Tray, Menu, nativeImage, shell, ipcMain } = require("electron");
 const path = require("path");
 const { TerminalBridge } = require("./terminalBridge.cjs");
+const { isSafeExternalUrl, isAppUrl, apiKeyHeaderHook } = require("./security.cjs");
 
 const isDev = !app.isPackaged;
 // frontend/electron -> repository root: where the terminal service's Python
@@ -62,9 +63,25 @@ function createWindow() {
 
   // Open external links (if any) in the OS browser, not inside the app window.
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url);
+    if (isSafeExternalUrl(url)) shell.openExternal(url);
     return { action: "deny" };
   });
+
+  // FE-07: the preload exposes a shell bridge, so the window must never leave
+  // the app origin. Block every in-window navigation elsewhere.
+  mainWindow.webContents.on("will-navigate", (event, url) => {
+    if (!isAppUrl(url, DEV_URL)) event.preventDefault();
+  });
+
+  // FE-01: the API key is held here, not in the renderer bundle.
+  const desktopKey = process.env.TRADEBOT_DESKTOP_API_KEY || "";
+  if (desktopKey) {
+    const apiOrigin = process.env.VITE_API_URL || "http://localhost:8000";
+    mainWindow.webContents.session.webRequest.onBeforeSendHeaders(
+      { urls: [`${apiOrigin.replace(/\/$/, "")}/*`] },
+      apiKeyHeaderHook(apiOrigin.replace(/\/$/, ""), desktopKey),
+    );
+  }
 
   // Closing the window hides it to the tray instead of quitting — mirrors
   // typical trading-terminal behavior so the bot keeps monitoring in the tray.

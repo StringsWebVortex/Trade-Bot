@@ -27,7 +27,6 @@ import structlog
 from fastapi import HTTPException, WebSocket, status
 
 from src.api.access_control import Role
-from src.api.fail_closed import CONTROL_HEALTH, SecurityControl
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
@@ -110,14 +109,11 @@ def verify_api_key(api_key: str | None) -> Role:
         readonly = _get_readonly_key()
     except RuntimeError as exc:
         log.critical("auth.key_not_configured", error=str(exc), exc_info=True)
-        # API-008: an unusable key configuration closes the trading gate.
-        CONTROL_HEALTH.mark_degraded(SecurityControl.AUTHENTICATION, "key configuration unusable")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Server authentication not configured.",
         ) from exc
 
-    CONTROL_HEALTH.mark_healthy(SecurityControl.AUTHENTICATION)
     if api_key is not None:
         supplied = api_key.encode("utf-8")
         is_primary = hmac.compare_digest(supplied, expected.encode("utf-8"))
@@ -137,12 +133,27 @@ def verify_api_key(api_key: str | None) -> Role:
     )
 
 
+WS_SUBPROTOCOL = "tradebot.v1"
+_WS_KEY_PREFIX = "apikey."
+
+
+def key_from_subprotocols(header: str) -> str:
+    """Extract the API key a browser offered as ``apikey.<hex>``, or ''."""
+    for item in (part.strip() for part in header.split(",")):
+        if item.startswith(_WS_KEY_PREFIX):
+            try:
+                return bytes.fromhex(item[len(_WS_KEY_PREFIX) :]).decode("utf-8")
+            except ValueError:
+                return ""
+    return ""
+
+
 async def verify_ws_key(ws: WebSocket) -> Role:
     """
     Validate API key on a WebSocket upgrade request.
 
-    Reads X-Api-Key from the headers, falling back to an ``api_key`` query
-    parameter for browser clients, which cannot set upgrade headers. Closes
+    Reads X-Api-Key from the headers, falling back to an ``apikey.<hex>``
+    WebSocket subprotocol for browser clients, which cannot set upgrade headers. Closes
     the socket with 4401 if missing or invalid. The socket is a broadcast-only status stream, so a read-only
     key is accepted here — the returned Role is what callers must consult
     before honouring anything a client sends back over the socket.
@@ -154,19 +165,15 @@ async def verify_ws_key(ws: WebSocket) -> Role:
         await ws.close(code=4503)
         raise
 
-    # Header first, query parameter second. Browsers cannot set headers on a
-    # WebSocket upgrade -- the API is fixed by the WHATWG spec -- so the
-    # dashboard has always sent the key as ?api_key=..., while this function
-    # read only the header. Every browser connection was closed 4401, which
-    # is invisible in practice because the REST polling that populates most
-    # of the UI does set the header and keeps working.
-    #
-    # The query form is accepted only as a fallback, and it is genuinely
-    # weaker: query strings routinely appear in proxy and access logs where
-    # headers do not. Clients that CAN set a header still get the stronger
-    # path, and the server binds loopback unless an operator overrides
-    # API_HOST (see main.py's lifespan check).
-    client_key = ws.headers.get(_HEADER_NAME, "") or ws.query_params.get("api_key", "")
+    # Header first, subprotocol second. Browsers cannot set headers on a
+    # WebSocket upgrade, but they can offer subprotocols, which travel in the
+    # Sec-WebSocket-Protocol header and are NOT part of the request URL. The
+    # key used to ride the query string (?api_key=...), which uvicorn writes
+    # to its own log for every handshake in cleartext (API-005); that fallback
+    # is gone. The key is hex-encoded so it is always a legal subprotocol token.
+    client_key = ws.headers.get(_HEADER_NAME, "") or key_from_subprotocols(
+        ws.headers.get("sec-websocket-protocol", "")
+    )
     if client_key:
         supplied = client_key.encode("utf-8")
         is_primary = hmac.compare_digest(supplied, expected.encode("utf-8"))

@@ -4,192 +4,188 @@ Index version 1.0.1. Anchor format: [[F:path#line-range#hash8]]. Hash8 covers th
 
 ## src/api/main.py
 
-SHA8 90d92734; total lines 4074.
+SHA8 58a7b930; total lines 3954.
 
-- _validate_operator (function, lines 178-181): CHUNK_ID = src/api/main.py#178-181#90d92734 — [[F:src/api/main.py#178-181#90d92734]].
-- _terminal_job_reporter (function, lines 184-197): CHUNK_ID = src/api/main.py#184-197#90d92734 — [[F:src/api/main.py#184-197#90d92734]].
-- _job_error (function, lines 203-205): CHUNK_ID = src/api/main.py#203-205#90d92734 — [[F:src/api/main.py#203-205#90d92734]].
-- AppState (class, lines 219-256, slice 1): CHUNK_ID = src/api/main.py#219-256#90d92734 — [[F:src/api/main.py#219-256#90d92734]].
-- AppState (class, lines 257-294, slice 2): CHUNK_ID = src/api/main.py#257-294#90d92734 — [[F:src/api/main.py#257-294#90d92734]].
-- AppState (class, lines 295-332, slice 3): CHUNK_ID = src/api/main.py#295-332#90d92734 — [[F:src/api/main.py#295-332#90d92734]].
-- AppState (class, lines 333-370, slice 4): CHUNK_ID = src/api/main.py#333-370#90d92734 — [[F:src/api/main.py#333-370#90d92734]].
-- AppState (class, lines 371-408, slice 5): CHUNK_ID = src/api/main.py#371-408#90d92734 — [[F:src/api/main.py#371-408#90d92734]].
-- AppState (class, lines 409-446, slice 6): CHUNK_ID = src/api/main.py#409-446#90d92734 — [[F:src/api/main.py#409-446#90d92734]].
-- AppState (class, lines 447-479, slice 7): CHUNK_ID = src/api/main.py#447-479#90d92734 — [[F:src/api/main.py#447-479#90d92734]].
-- AppState.__init__ (method, lines 237-281): CHUNK_ID = src/api/main.py#237-281#90d92734 — [[F:src/api/main.py#237-281#90d92734]].
-- AppState.ws_clients (method, lines 284-286): CHUNK_ID = src/api/main.py#284-286#90d92734 — [[F:src/api/main.py#284-286#90d92734]].
-- AppState.add_ws_client (method, lines 288-300): CHUNK_ID = src/api/main.py#288-300#90d92734 — [[F:src/api/main.py#288-300#90d92734]].
-- AppState.remove_ws_client (method, lines 302-307): CHUNK_ID = src/api/main.py#302-307#90d92734 — [[F:src/api/main.py#302-307#90d92734]].
-- AppState.set_ws_topics (method, lines 309-312): CHUNK_ID = src/api/main.py#309-312#90d92734 — [[F:src/api/main.py#309-312#90d92734]].
-- AppState.permitted_topics (method, lines 314-326): CHUNK_ID = src/api/main.py#314-326#90d92734 — [[F:src/api/main.py#314-326#90d92734]].
-- AppState._send_one (method, lines 332-337): CHUNK_ID = src/api/main.py#332-337#90d92734 — [[F:src/api/main.py#332-337#90d92734]].
-- AppState.broadcast (method, lines 339-376, slice 1): CHUNK_ID = src/api/main.py#339-376#90d92734 — [[F:src/api/main.py#339-376#90d92734]].
-- AppState.broadcast (method, lines 377-414, slice 2): CHUNK_ID = src/api/main.py#377-414#90d92734 — [[F:src/api/main.py#377-414#90d92734]].
-- AppState.broadcast (method, lines 415-426, slice 3): CHUNK_ID = src/api/main.py#415-426#90d92734 — [[F:src/api/main.py#415-426#90d92734]].
-- AppState.check_endpoint_rate_limit (method, lines 428-460): CHUNK_ID = src/api/main.py#428-460#90d92734 — [[F:src/api/main.py#428-460#90d92734]].
-- AppState.check_mode_change_rate_limit (method, lines 462-479): CHUNK_ID = src/api/main.py#462-479#90d92734 — [[F:src/api/main.py#462-479#90d92734]].
-- _release_after_failed_startup (function, lines 489-507): CHUNK_ID = src/api/main.py#489-507#90d92734 — [[F:src/api/main.py#489-507#90d92734]].
-- _StartupGuard (class, lines 510-547, slice 1): CHUNK_ID = src/api/main.py#510-547#90d92734 — [[F:src/api/main.py#510-547#90d92734]].
-- _StartupGuard (class, lines 548-585, slice 2): CHUNK_ID = src/api/main.py#548-585#90d92734 — [[F:src/api/main.py#548-585#90d92734]].
-- _StartupGuard (class, lines 586-616, slice 3): CHUNK_ID = src/api/main.py#586-616#90d92734 — [[F:src/api/main.py#586-616#90d92734]].
-- _StartupGuard.__init__ (method, lines 519-528): CHUNK_ID = src/api/main.py#519-528#90d92734 — [[F:src/api/main.py#519-528#90d92734]].
-- _StartupGuard.__aenter__ (method, lines 530-531): CHUNK_ID = src/api/main.py#530-531#90d92734 — [[F:src/api/main.py#530-531#90d92734]].
-- _StartupGuard.__aexit__ (method, lines 533-536): CHUNK_ID = src/api/main.py#533-536#90d92734 — [[F:src/api/main.py#533-536#90d92734]].
-- _StartupGuard._cleanup (method, lines 538-575, slice 1): CHUNK_ID = src/api/main.py#538-575#90d92734 — [[F:src/api/main.py#538-575#90d92734]].
-- _StartupGuard._cleanup (method, lines 576-613, slice 2): CHUNK_ID = src/api/main.py#576-613#90d92734 — [[F:src/api/main.py#576-613#90d92734]].
-- _StartupGuard._cleanup (method, lines 614-616, slice 3): CHUNK_ID = src/api/main.py#614-616#90d92734 — [[F:src/api/main.py#614-616#90d92734]].
-- lifespan (function, lines 620-657, slice 1): CHUNK_ID = src/api/main.py#620-657#90d92734 — [[F:src/api/main.py#620-657#90d92734]].
-- lifespan (function, lines 658-695, slice 2): CHUNK_ID = src/api/main.py#658-695#90d92734 — [[F:src/api/main.py#658-695#90d92734]].
-- lifespan (function, lines 696-733, slice 3): CHUNK_ID = src/api/main.py#696-733#90d92734 — [[F:src/api/main.py#696-733#90d92734]].
-- lifespan (function, lines 734-771, slice 4): CHUNK_ID = src/api/main.py#734-771#90d92734 — [[F:src/api/main.py#734-771#90d92734]].
-- lifespan (function, lines 772-809, slice 5): CHUNK_ID = src/api/main.py#772-809#90d92734 — [[F:src/api/main.py#772-809#90d92734]].
-- lifespan (function, lines 810-833, slice 6): CHUNK_ID = src/api/main.py#810-833#90d92734 — [[F:src/api/main.py#810-833#90d92734]].
-- api_key_header (function, lines 873-875): CHUNK_ID = src/api/main.py#873-875#90d92734 — [[F:src/api/main.py#873-875#90d92734]].
-- resolve_role (function, lines 878-887): CHUNK_ID = src/api/main.py#878-887#90d92734 — [[F:src/api/main.py#878-887#90d92734]].
-- requires (function, lines 890-917): CHUNK_ID = src/api/main.py#890-917#90d92734 — [[F:src/api/main.py#890-917#90d92734]].
-- require_healthy_security_controls (function, lines 920-932): CHUNK_ID = src/api/main.py#920-932#90d92734 — [[F:src/api/main.py#920-932#90d92734]].
-- _audit_event (function, lines 935-949): CHUNK_ID = src/api/main.py#935-949#90d92734 — [[F:src/api/main.py#935-949#90d92734]].
-- require_ready (function, lines 952-955): CHUNK_ID = src/api/main.py#952-955#90d92734 — [[F:src/api/main.py#952-955#90d92734]].
-- require_orchestrator (function, lines 958-975): CHUNK_ID = src/api/main.py#958-975#90d92734 — [[F:src/api/main.py#958-975#90d92734]].
-- ResolveApprovalRequest (class, lines 983-998): CHUNK_ID = src/api/main.py#983-998#90d92734 — [[F:src/api/main.py#983-998#90d92734]].
-- ResolveApprovalRequest.validate_operator (method, lines 997-998): CHUNK_ID = src/api/main.py#997-998#90d92734 — [[F:src/api/main.py#997-998#90d92734]].
-- SetExecutionModeRequest (class, lines 1001-1013): CHUNK_ID = src/api/main.py#1001-1013#90d92734 — [[F:src/api/main.py#1001-1013#90d92734]].
-- SetExecutionModeRequest.validate_operator (method, lines 1012-1013): CHUNK_ID = src/api/main.py#1012-1013#90d92734 — [[F:src/api/main.py#1012-1013#90d92734]].
-- SetRiskControlsRequest (class, lines 1016-1048): CHUNK_ID = src/api/main.py#1016-1048#90d92734 — [[F:src/api/main.py#1016-1048#90d92734]].
-- SetRiskControlsRequest.validate_operator (method, lines 1047-1048): CHUNK_ID = src/api/main.py#1047-1048#90d92734 — [[F:src/api/main.py#1047-1048#90d92734]].
-- SelfTuningPauseRequest (class, lines 1051-1067): CHUNK_ID = src/api/main.py#1051-1067#90d92734 — [[F:src/api/main.py#1051-1067#90d92734]].
-- SelfTuningPauseRequest.validate_operator (method, lines 1066-1067): CHUNK_ID = src/api/main.py#1066-1067#90d92734 — [[F:src/api/main.py#1066-1067#90d92734]].
-- RetrainRequest (class, lines 1070-1085): CHUNK_ID = src/api/main.py#1070-1085#90d92734 — [[F:src/api/main.py#1070-1085#90d92734]].
-- RetrainRequest.validate_operator (method, lines 1084-1085): CHUNK_ID = src/api/main.py#1084-1085#90d92734 — [[F:src/api/main.py#1084-1085#90d92734]].
-- BackfillRequest (class, lines 1088-1098): CHUNK_ID = src/api/main.py#1088-1098#90d92734 — [[F:src/api/main.py#1088-1098#90d92734]].
-- CapitalFloorReAuthorizeRequest (class, lines 1101-1119): CHUNK_ID = src/api/main.py#1101-1119#90d92734 — [[F:src/api/main.py#1101-1119#90d92734]].
-- CapitalFloorReAuthorizeRequest.validate_operator (method, lines 1118-1119): CHUNK_ID = src/api/main.py#1118-1119#90d92734 — [[F:src/api/main.py#1118-1119#90d92734]].
-- RecoveryAcknowledgeRequest (class, lines 1122-1141): CHUNK_ID = src/api/main.py#1122-1141#90d92734 — [[F:src/api/main.py#1122-1141#90d92734]].
-- RecoveryAcknowledgeRequest.validate_operator (method, lines 1140-1141): CHUNK_ID = src/api/main.py#1140-1141#90d92734 — [[F:src/api/main.py#1140-1141#90d92734]].
-- StrategyReEnableRequest (class, lines 1144-1165): CHUNK_ID = src/api/main.py#1144-1165#90d92734 — [[F:src/api/main.py#1144-1165#90d92734]].
-- StrategyReEnableRequest.validate_operator (method, lines 1164-1165): CHUNK_ID = src/api/main.py#1164-1165#90d92734 — [[F:src/api/main.py#1164-1165#90d92734]].
-- SelfTuningRollbackRequest (class, lines 1168-1184): CHUNK_ID = src/api/main.py#1168-1184#90d92734 — [[F:src/api/main.py#1168-1184#90d92734]].
-- SelfTuningRollbackRequest.validate_operator (method, lines 1183-1184): CHUNK_ID = src/api/main.py#1183-1184#90d92734 — [[F:src/api/main.py#1183-1184#90d92734]].
-- _verify_operator_secret (function, lines 1187-1196): CHUNK_ID = src/api/main.py#1187-1196#90d92734 — [[F:src/api/main.py#1187-1196#90d92734]].
-- livez (function, lines 1205-1211): CHUNK_ID = src/api/main.py#1205-1211#90d92734 — [[F:src/api/main.py#1205-1211#90d92734]].
-- readyz (function, lines 1215-1231): CHUNK_ID = src/api/main.py#1215-1231#90d92734 — [[F:src/api/main.py#1215-1231#90d92734]].
-- health (function, lines 1235-1244): CHUNK_ID = src/api/main.py#1235-1244#90d92734 — [[F:src/api/main.py#1235-1244#90d92734]].
-- prometheus_metrics (function, lines 1248-1253): CHUNK_ID = src/api/main.py#1248-1253#90d92734 — [[F:src/api/main.py#1248-1253#90d92734]].
-- status (function, lines 1257-1294, slice 1): CHUNK_ID = src/api/main.py#1257-1294#90d92734 — [[F:src/api/main.py#1257-1294#90d92734]].
-- status (function, lines 1295-1323, slice 2): CHUNK_ID = src/api/main.py#1295-1323#90d92734 — [[F:src/api/main.py#1295-1323#90d92734]].
-- trades (function, lines 1327-1364, slice 1): CHUNK_ID = src/api/main.py#1327-1364#90d92734 — [[F:src/api/main.py#1327-1364#90d92734]].
-- trades (function, lines 1365-1375, slice 2): CHUNK_ID = src/api/main.py#1365-1375#90d92734 — [[F:src/api/main.py#1365-1375#90d92734]].
-- missed_trades (function, lines 1379-1412): CHUNK_ID = src/api/main.py#1379-1412#90d92734 — [[F:src/api/main.py#1379-1412#90d92734]].
-- equity_curve (function, lines 1416-1438): CHUNK_ID = src/api/main.py#1416-1438#90d92734 — [[F:src/api/main.py#1416-1438#90d92734]].
-- regime (function, lines 1449-1473): CHUNK_ID = src/api/main.py#1449-1473#90d92734 — [[F:src/api/main.py#1449-1473#90d92734]].
-- _get_crypto_box_adapter (function, lines 1477-1489): CHUNK_ID = src/api/main.py#1477-1489#90d92734 — [[F:src/api/main.py#1477-1489#90d92734]].
-- crypto_box_status (function, lines 1493-1511): CHUNK_ID = src/api/main.py#1493-1511#90d92734 — [[F:src/api/main.py#1493-1511#90d92734]].
-- approvals (function, lines 1522-1528): CHUNK_ID = src/api/main.py#1522-1528#90d92734 — [[F:src/api/main.py#1522-1528#90d92734]].
-- resolve_approval (function, lines 1543-1587): CHUNK_ID = src/api/main.py#1543-1587#90d92734 — [[F:src/api/main.py#1543-1587#90d92734]].
-- set_execution_mode (function, lines 1602-1639, slice 1): CHUNK_ID = src/api/main.py#1602-1639#90d92734 — [[F:src/api/main.py#1602-1639#90d92734]].
-- set_execution_mode (function, lines 1640-1660, slice 2): CHUNK_ID = src/api/main.py#1640-1660#90d92734 — [[F:src/api/main.py#1640-1660#90d92734]].
-- get_risk_controls (function, lines 1664-1673): CHUNK_ID = src/api/main.py#1664-1673#90d92734 — [[F:src/api/main.py#1664-1673#90d92734]].
-- set_risk_controls (function, lines 1689-1726, slice 1): CHUNK_ID = src/api/main.py#1689-1726#90d92734 — [[F:src/api/main.py#1689-1726#90d92734]].
-- set_risk_controls (function, lines 1727-1746, slice 2): CHUNK_ID = src/api/main.py#1727-1746#90d92734 — [[F:src/api/main.py#1727-1746#90d92734]].
-- model_metrics (function, lines 1754-1790): CHUNK_ID = src/api/main.py#1754-1790#90d92734 — [[F:src/api/main.py#1754-1790#90d92734]].
-- self_tuning_status (function, lines 1804-1846): CHUNK_ID = src/api/main.py#1804-1846#90d92734 — [[F:src/api/main.py#1804-1846#90d92734]].
-- self_tuning_pause (function, lines 1861-1876): CHUNK_ID = src/api/main.py#1861-1876#90d92734 — [[F:src/api/main.py#1861-1876#90d92734]].
-- self_tuning_resume (function, lines 1891-1902): CHUNK_ID = src/api/main.py#1891-1902#90d92734 — [[F:src/api/main.py#1891-1902#90d92734]].
-- self_tuning_rollback (function, lines 1918-1943): CHUNK_ID = src/api/main.py#1918-1943#90d92734 — [[F:src/api/main.py#1918-1943#90d92734]].
-- _build_tick_snapshot (function, lines 1951-1988, slice 1): CHUNK_ID = src/api/main.py#1951-1988#90d92734 — [[F:src/api/main.py#1951-1988#90d92734]].
-- _build_tick_snapshot (function, lines 1989-2000, slice 2): CHUNK_ID = src/api/main.py#1989-2000#90d92734 — [[F:src/api/main.py#1989-2000#90d92734]].
-- _heartbeat_loop (function, lines 2003-2028): CHUNK_ID = src/api/main.py#2003-2028#90d92734 — [[F:src/api/main.py#2003-2028#90d92734]].
-- _event_fanout_loop (function, lines 2031-2071): CHUNK_ID = src/api/main.py#2031-2071#90d92734 — [[F:src/api/main.py#2031-2071#90d92734]].
-- websocket_endpoint (function, lines 2075-2112, slice 1): CHUNK_ID = src/api/main.py#2075-2112#90d92734 — [[F:src/api/main.py#2075-2112#90d92734]].
-- websocket_endpoint (function, lines 2113-2147, slice 2): CHUNK_ID = src/api/main.py#2113-2147#90d92734 — [[F:src/api/main.py#2113-2147#90d92734]].
-- _handle_ws_command (function, lines 2150-2187, slice 1): CHUNK_ID = src/api/main.py#2150-2187#90d92734 — [[F:src/api/main.py#2150-2187#90d92734]].
-- _handle_ws_command (function, lines 2188-2199, slice 2): CHUNK_ID = src/api/main.py#2188-2199#90d92734 — [[F:src/api/main.py#2188-2199#90d92734]].
-- _send_ws_error (function, lines 2202-2213): CHUNK_ID = src/api/main.py#2202-2213#90d92734 — [[F:src/api/main.py#2202-2213#90d92734]].
-- _guarded_ws_reader (function, lines 2216-2245): CHUNK_ID = src/api/main.py#2216-2245#90d92734 — [[F:src/api/main.py#2216-2245#90d92734]].
-- debug_health (function, lines 2254-2261): CHUNK_ID = src/api/main.py#2254-2261#90d92734 — [[F:src/api/main.py#2254-2261#90d92734]].
-- debug_audit (function, lines 2265-2276): CHUNK_ID = src/api/main.py#2265-2276#90d92734 — [[F:src/api/main.py#2265-2276#90d92734]].
-- audit_chain_integrity (function, lines 2280-2317, slice 1): CHUNK_ID = src/api/main.py#2280-2317#90d92734 — [[F:src/api/main.py#2280-2317#90d92734]].
-- audit_chain_integrity (function, lines 2318-2339, slice 2): CHUNK_ID = src/api/main.py#2318-2339#90d92734 — [[F:src/api/main.py#2318-2339#90d92734]].
-- debug_drift (function, lines 2343-2365): CHUNK_ID = src/api/main.py#2343-2365#90d92734 — [[F:src/api/main.py#2343-2365#90d92734]].
-- _fetch_all_open_trades (function, lines 2372-2394): CHUNK_ID = src/api/main.py#2372-2394#90d92734 — [[F:src/api/main.py#2372-2394#90d92734]].
-- _net_by_symbol (function, lines 2397-2402): CHUNK_ID = src/api/main.py#2397-2402#90d92734 — [[F:src/api/main.py#2397-2402#90d92734]].
-- debug_reconcile (function, lines 2409-2446, slice 1): CHUNK_ID = src/api/main.py#2409-2446#90d92734 — [[F:src/api/main.py#2409-2446#90d92734]].
-- debug_reconcile (function, lines 2447-2473, slice 2): CHUNK_ID = src/api/main.py#2447-2473#90d92734 — [[F:src/api/main.py#2447-2473#90d92734]].
-- debug_selftest (function, lines 2486-2517): CHUNK_ID = src/api/main.py#2486-2517#90d92734 — [[F:src/api/main.py#2486-2517#90d92734]].
-- get_order_status (function, lines 2521-2558, slice 1): CHUNK_ID = src/api/main.py#2521-2558#90d92734 — [[F:src/api/main.py#2521-2558#90d92734]].
-- get_order_status (function, lines 2559-2587, slice 2): CHUNK_ID = src/api/main.py#2559-2587#90d92734 — [[F:src/api/main.py#2559-2587#90d92734]].
-- get_unified_ledger_snapshot (function, lines 2591-2630): CHUNK_ID = src/api/main.py#2591-2630#90d92734 — [[F:src/api/main.py#2591-2630#90d92734]].
-- _live_executor_or_none (function, lines 2633-2641): CHUNK_ID = src/api/main.py#2633-2641#90d92734 — [[F:src/api/main.py#2633-2641#90d92734]].
-- recovery_status (function, lines 2645-2673): CHUNK_ID = src/api/main.py#2645-2673#90d92734 — [[F:src/api/main.py#2645-2673#90d92734]].
-- recovery_acknowledge (function, lines 2690-2728): CHUNK_ID = src/api/main.py#2690-2728#90d92734 — [[F:src/api/main.py#2690-2728#90d92734]].
-- _parse_timeframe_or_400 (function, lines 2731-2740): CHUNK_ID = src/api/main.py#2731-2740#90d92734 — [[F:src/api/main.py#2731-2740#90d92734]].
-- models_status (function, lines 2748-2769): CHUNK_ID = src/api/main.py#2748-2769#90d92734 — [[F:src/api/main.py#2748-2769#90d92734]].
-- trigger_retrain (function, lines 2787-2812): CHUNK_ID = src/api/main.py#2787-2812#90d92734 — [[F:src/api/main.py#2787-2812#90d92734]].
-- _report_retrain (function, lines 2815-2831): CHUNK_ID = src/api/main.py#2815-2831#90d92734 — [[F:src/api/main.py#2815-2831#90d92734]].
-- trigger_backfill (function, lines 2847-2874): CHUNK_ID = src/api/main.py#2847-2874#90d92734 — [[F:src/api/main.py#2847-2874#90d92734]].
-- horizons (function, lines 2878-2919): CHUNK_ID = src/api/main.py#2878-2919#90d92734 — [[F:src/api/main.py#2878-2919#90d92734]].
-- capital_floor (function, lines 2927-2930): CHUNK_ID = src/api/main.py#2927-2930#90d92734 — [[F:src/api/main.py#2927-2930#90d92734]].
-- capital_floor_re_authorize (function, lines 2948-2990): CHUNK_ID = src/api/main.py#2948-2990#90d92734 — [[F:src/api/main.py#2948-2990#90d92734]].
-- get_strategy_attribution (function, lines 2994-3016): CHUNK_ID = src/api/main.py#2994-3016#90d92734 — [[F:src/api/main.py#2994-3016#90d92734]].
-- get_strategy_gauntlet (function, lines 3024-3061, slice 1): CHUNK_ID = src/api/main.py#3024-3061#90d92734 — [[F:src/api/main.py#3024-3061#90d92734]].
-- get_strategy_gauntlet (function, lines 3062-3077, slice 2): CHUNK_ID = src/api/main.py#3062-3077#90d92734 — [[F:src/api/main.py#3062-3077#90d92734]].
-- get_strategy_allocation (function, lines 3081-3118, slice 1): CHUNK_ID = src/api/main.py#3081-3118#90d92734 — [[F:src/api/main.py#3081-3118#90d92734]].
-- get_strategy_allocation (function, lines 3119-3132, slice 2): CHUNK_ID = src/api/main.py#3119-3132#90d92734 — [[F:src/api/main.py#3119-3132#90d92734]].
-- re_enable_strategy (function, lines 3150-3187, slice 1): CHUNK_ID = src/api/main.py#3150-3187#90d92734 — [[F:src/api/main.py#3150-3187#90d92734]].
-- re_enable_strategy (function, lines 3188-3216, slice 2): CHUNK_ID = src/api/main.py#3188-3216#90d92734 — [[F:src/api/main.py#3188-3216#90d92734]].
-- get_strategy_portfolio (function, lines 3220-3257, slice 1): CHUNK_ID = src/api/main.py#3220-3257#90d92734 — [[F:src/api/main.py#3220-3257#90d92734]].
-- get_strategy_portfolio (function, lines 3258-3277, slice 2): CHUNK_ID = src/api/main.py#3258-3277#90d92734 — [[F:src/api/main.py#3258-3277#90d92734]].
-- get_allocation_stress_test (function, lines 3281-3318, slice 1): CHUNK_ID = src/api/main.py#3281-3318#90d92734 — [[F:src/api/main.py#3281-3318#90d92734]].
-- get_allocation_stress_test (function, lines 3319-3356, slice 2): CHUNK_ID = src/api/main.py#3319-3356#90d92734 — [[F:src/api/main.py#3319-3356#90d92734]].
-- get_allocation_stress_test (function, lines 3357-3367, slice 3): CHUNK_ID = src/api/main.py#3357-3367#90d92734 — [[F:src/api/main.py#3357-3367#90d92734]].
-- get_performance_drift (function, lines 3371-3409): CHUNK_ID = src/api/main.py#3371-3409#90d92734 — [[F:src/api/main.py#3371-3409#90d92734]].
-- get_intelligence_coverage (function, lines 3413-3450): CHUNK_ID = src/api/main.py#3413-3450#90d92734 — [[F:src/api/main.py#3413-3450#90d92734]].
-- get_intelligence_providers (function, lines 3454-3491, slice 1): CHUNK_ID = src/api/main.py#3454-3491#90d92734 — [[F:src/api/main.py#3454-3491#90d92734]].
-- get_intelligence_providers (function, lines 3492-3506, slice 2): CHUNK_ID = src/api/main.py#3492-3506#90d92734 — [[F:src/api/main.py#3492-3506#90d92734]].
-- SizeCheckRequest (class, lines 3514-3531): CHUNK_ID = src/api/main.py#3514-3531#90d92734 — [[F:src/api/main.py#3514-3531#90d92734]].
-- risk_size_check (function, lines 3535-3572, slice 1): CHUNK_ID = src/api/main.py#3535-3572#90d92734 — [[F:src/api/main.py#3535-3572#90d92734]].
-- risk_size_check (function, lines 3573-3602, slice 2): CHUNK_ID = src/api/main.py#3573-3602#90d92734 — [[F:src/api/main.py#3573-3602#90d92734]].
-- VenueReconnectRequest (class, lines 3614-3623): CHUNK_ID = src/api/main.py#3614-3623#90d92734 — [[F:src/api/main.py#3614-3623#90d92734]].
-- VenueReconnectRequest.validate_operator (method, lines 3622-3623): CHUNK_ID = src/api/main.py#3622-3623#90d92734 — [[F:src/api/main.py#3622-3623#90d92734]].
-- _known_venue_or_404 (function, lines 3638-3641): CHUNK_ID = src/api/main.py#3638-3641#90d92734 — [[F:src/api/main.py#3638-3641#90d92734]].
-- _venue_action_recorded (function, lines 3644-3664): CHUNK_ID = src/api/main.py#3644-3664#90d92734 — [[F:src/api/main.py#3644-3664#90d92734]].
-- venues_status (function, lines 3668-3684): CHUNK_ID = src/api/main.py#3668-3684#90d92734 — [[F:src/api/main.py#3668-3684#90d92734]].
-- reconnect_venue (function, lines 3688-3708): CHUNK_ID = src/api/main.py#3688-3708#90d92734 — [[F:src/api/main.py#3688-3708#90d92734]].
-- connect_venue (function, lines 3712-3732): CHUNK_ID = src/api/main.py#3712-3732#90d92734 — [[F:src/api/main.py#3712-3732#90d92734]].
-- disconnect_venue (function, lines 3736-3758): CHUNK_ID = src/api/main.py#3736-3758#90d92734 — [[F:src/api/main.py#3736-3758#90d92734]].
-- verify_venue_account (function, lines 3762-3774): CHUNK_ID = src/api/main.py#3762-3774#90d92734 — [[F:src/api/main.py#3762-3774#90d92734]].
-- control_surface (function, lines 3778-3788): CHUNK_ID = src/api/main.py#3778-3788#90d92734 — [[F:src/api/main.py#3778-3788#90d92734]].
-- SetControlRequest (class, lines 3791-3801): CHUNK_ID = src/api/main.py#3791-3801#90d92734 — [[F:src/api/main.py#3791-3801#90d92734]].
-- SetControlRequest._operator_ok (method, lines 3800-3801): CHUNK_ID = src/api/main.py#3800-3801#90d92734 — [[F:src/api/main.py#3800-3801#90d92734]].
-- set_control (function, lines 3805-3839): CHUNK_ID = src/api/main.py#3805-3839#90d92734 — [[F:src/api/main.py#3805-3839#90d92734]].
-- start_runtime_platform (function, lines 3852-3890): CHUNK_ID = src/api/main.py#3852-3890#90d92734 — [[F:src/api/main.py#3852-3890#90d92734]].
-- runtime_sources (function, lines 3893-3915): CHUNK_ID = src/api/main.py#3893-3915#90d92734 — [[F:src/api/main.py#3893-3915#90d92734]].
-- _note_runtime_intent (function, lines 3921-3935): CHUNK_ID = src/api/main.py#3921-3935#90d92734 — [[F:src/api/main.py#3921-3935#90d92734]].
-- require_runtime (function, lines 3938-3941): CHUNK_ID = src/api/main.py#3938-3941#90d92734 — [[F:src/api/main.py#3938-3941#90d92734]].
-- _runtime_call (function, lines 3950-3954): CHUNK_ID = src/api/main.py#3950-3954#90d92734 — [[F:src/api/main.py#3950-3954#90d92734]].
-- runtime_overview (function, lines 3966-3968): CHUNK_ID = src/api/main.py#3966-3968#90d92734 — [[F:src/api/main.py#3966-3968#90d92734]].
-- runtime_components (function, lines 3972-3981): CHUNK_ID = src/api/main.py#3972-3981#90d92734 — [[F:src/api/main.py#3972-3981#90d92734]].
-- runtime_component (function, lines 3985-3988): CHUNK_ID = src/api/main.py#3985-3988#90d92734 — [[F:src/api/main.py#3985-3988#90d92734]].
-- runtime_dependencies (function, lines 3992-3993): CHUNK_ID = src/api/main.py#3992-3993#90d92734 — [[F:src/api/main.py#3992-3993#90d92734]].
-- runtime_changes (function, lines 3997-3998): CHUNK_ID = src/api/main.py#3997-3998#90d92734 — [[F:src/api/main.py#3997-3998#90d92734]].
-- runtime_change (function, lines 4002-4006): CHUNK_ID = src/api/main.py#4002-4006#90d92734 — [[F:src/api/main.py#4002-4006#90d92734]].
-- runtime_traces (function, lines 4010-4011): CHUNK_ID = src/api/main.py#4010-4011#90d92734 — [[F:src/api/main.py#4010-4011#90d92734]].
-- runtime_trace (function, lines 4015-4017): CHUNK_ID = src/api/main.py#4015-4017#90d92734 — [[F:src/api/main.py#4015-4017#90d92734]].
-- runtime_agent_ledgers (function, lines 4021-4023): CHUNK_ID = src/api/main.py#4021-4023#90d92734 — [[F:src/api/main.py#4021-4023#90d92734]].
-- runtime_submit_change (function, lines 4027-4032): CHUNK_ID = src/api/main.py#4027-4032#90d92734 — [[F:src/api/main.py#4027-4032#90d92734]].
-- runtime_decide (function, lines 4036-4043): CHUNK_ID = src/api/main.py#4036-4043#90d92734 — [[F:src/api/main.py#4036-4043#90d92734]].
-- runtime_component_action (function, lines 4047-4056): CHUNK_ID = src/api/main.py#4047-4056#90d92734 — [[F:src/api/main.py#4047-4056#90d92734]].
-- runtime_set_desired (function, lines 4060-4065): CHUNK_ID = src/api/main.py#4060-4065#90d92734 — [[F:src/api/main.py#4060-4065#90d92734]].
-- runtime_reconcile (function, lines 4069-4074): CHUNK_ID = src/api/main.py#4069-4074#90d92734 — [[F:src/api/main.py#4069-4074#90d92734]].
+- _validate_operator (function, lines 180-183): CHUNK_ID = src/api/main.py#180-183#58a7b930 — [[F:src/api/main.py#180-183#58a7b930]].
+- _terminal_job_reporter (function, lines 186-199): CHUNK_ID = src/api/main.py#186-199#58a7b930 — [[F:src/api/main.py#186-199#58a7b930]].
+- _job_error (function, lines 205-207): CHUNK_ID = src/api/main.py#205-207#58a7b930 — [[F:src/api/main.py#205-207#58a7b930]].
+- AppState (class, lines 221-258, slice 1): CHUNK_ID = src/api/main.py#221-258#58a7b930 — [[F:src/api/main.py#221-258#58a7b930]].
+- AppState (class, lines 259-296, slice 2): CHUNK_ID = src/api/main.py#259-296#58a7b930 — [[F:src/api/main.py#259-296#58a7b930]].
+- AppState (class, lines 297-334, slice 3): CHUNK_ID = src/api/main.py#297-334#58a7b930 — [[F:src/api/main.py#297-334#58a7b930]].
+- AppState (class, lines 335-372, slice 4): CHUNK_ID = src/api/main.py#335-372#58a7b930 — [[F:src/api/main.py#335-372#58a7b930]].
+- AppState (class, lines 373-410, slice 5): CHUNK_ID = src/api/main.py#373-410#58a7b930 — [[F:src/api/main.py#373-410#58a7b930]].
+- AppState (class, lines 411-447, slice 6): CHUNK_ID = src/api/main.py#411-447#58a7b930 — [[F:src/api/main.py#411-447#58a7b930]].
+- AppState.__init__ (method, lines 239-283): CHUNK_ID = src/api/main.py#239-283#58a7b930 — [[F:src/api/main.py#239-283#58a7b930]].
+- AppState.ws_clients (method, lines 286-288): CHUNK_ID = src/api/main.py#286-288#58a7b930 — [[F:src/api/main.py#286-288#58a7b930]].
+- AppState.add_ws_client (method, lines 290-302): CHUNK_ID = src/api/main.py#290-302#58a7b930 — [[F:src/api/main.py#290-302#58a7b930]].
+- AppState.remove_ws_client (method, lines 304-309): CHUNK_ID = src/api/main.py#304-309#58a7b930 — [[F:src/api/main.py#304-309#58a7b930]].
+- AppState.set_ws_topics (method, lines 311-314): CHUNK_ID = src/api/main.py#311-314#58a7b930 — [[F:src/api/main.py#311-314#58a7b930]].
+- AppState.permitted_topics (method, lines 316-328): CHUNK_ID = src/api/main.py#316-328#58a7b930 — [[F:src/api/main.py#316-328#58a7b930]].
+- AppState.broadcast (method, lines 330-367, slice 1): CHUNK_ID = src/api/main.py#330-367#58a7b930 — [[F:src/api/main.py#330-367#58a7b930]].
+- AppState.broadcast (method, lines 368-398, slice 2): CHUNK_ID = src/api/main.py#368-398#58a7b930 — [[F:src/api/main.py#368-398#58a7b930]].
+- AppState.check_endpoint_rate_limit (method, lines 400-428): CHUNK_ID = src/api/main.py#400-428#58a7b930 — [[F:src/api/main.py#400-428#58a7b930]].
+- AppState.check_mode_change_rate_limit (method, lines 430-447): CHUNK_ID = src/api/main.py#430-447#58a7b930 — [[F:src/api/main.py#430-447#58a7b930]].
+- _release_after_failed_startup (function, lines 457-475): CHUNK_ID = src/api/main.py#457-475#58a7b930 — [[F:src/api/main.py#457-475#58a7b930]].
+- _StartupGuard (class, lines 478-515, slice 1): CHUNK_ID = src/api/main.py#478-515#58a7b930 — [[F:src/api/main.py#478-515#58a7b930]].
+- _StartupGuard (class, lines 516-553, slice 2): CHUNK_ID = src/api/main.py#516-553#58a7b930 — [[F:src/api/main.py#516-553#58a7b930]].
+- _StartupGuard (class, lines 554-584, slice 3): CHUNK_ID = src/api/main.py#554-584#58a7b930 — [[F:src/api/main.py#554-584#58a7b930]].
+- _StartupGuard.__init__ (method, lines 487-496): CHUNK_ID = src/api/main.py#487-496#58a7b930 — [[F:src/api/main.py#487-496#58a7b930]].
+- _StartupGuard.__aenter__ (method, lines 498-499): CHUNK_ID = src/api/main.py#498-499#58a7b930 — [[F:src/api/main.py#498-499#58a7b930]].
+- _StartupGuard.__aexit__ (method, lines 501-504): CHUNK_ID = src/api/main.py#501-504#58a7b930 — [[F:src/api/main.py#501-504#58a7b930]].
+- _StartupGuard._cleanup (method, lines 506-543, slice 1): CHUNK_ID = src/api/main.py#506-543#58a7b930 — [[F:src/api/main.py#506-543#58a7b930]].
+- _StartupGuard._cleanup (method, lines 544-581, slice 2): CHUNK_ID = src/api/main.py#544-581#58a7b930 — [[F:src/api/main.py#544-581#58a7b930]].
+- _StartupGuard._cleanup (method, lines 582-584, slice 3): CHUNK_ID = src/api/main.py#582-584#58a7b930 — [[F:src/api/main.py#582-584#58a7b930]].
+- lifespan (function, lines 588-625, slice 1): CHUNK_ID = src/api/main.py#588-625#58a7b930 — [[F:src/api/main.py#588-625#58a7b930]].
+- lifespan (function, lines 626-663, slice 2): CHUNK_ID = src/api/main.py#626-663#58a7b930 — [[F:src/api/main.py#626-663#58a7b930]].
+- lifespan (function, lines 664-701, slice 3): CHUNK_ID = src/api/main.py#664-701#58a7b930 — [[F:src/api/main.py#664-701#58a7b930]].
+- lifespan (function, lines 702-739, slice 4): CHUNK_ID = src/api/main.py#702-739#58a7b930 — [[F:src/api/main.py#702-739#58a7b930]].
+- lifespan (function, lines 740-777, slice 5): CHUNK_ID = src/api/main.py#740-777#58a7b930 — [[F:src/api/main.py#740-777#58a7b930]].
+- lifespan (function, lines 778-806, slice 6): CHUNK_ID = src/api/main.py#778-806#58a7b930 — [[F:src/api/main.py#778-806#58a7b930]].
+- api_key_header (function, lines 846-848): CHUNK_ID = src/api/main.py#846-848#58a7b930 — [[F:src/api/main.py#846-848#58a7b930]].
+- resolve_role (function, lines 851-860): CHUNK_ID = src/api/main.py#851-860#58a7b930 — [[F:src/api/main.py#851-860#58a7b930]].
+- requires (function, lines 863-890): CHUNK_ID = src/api/main.py#863-890#58a7b930 — [[F:src/api/main.py#863-890#58a7b930]].
+- require_healthy_security_controls (function, lines 893-905): CHUNK_ID = src/api/main.py#893-905#58a7b930 — [[F:src/api/main.py#893-905#58a7b930]].
+- require_ready (function, lines 908-911): CHUNK_ID = src/api/main.py#908-911#58a7b930 — [[F:src/api/main.py#908-911#58a7b930]].
+- require_orchestrator (function, lines 914-931): CHUNK_ID = src/api/main.py#914-931#58a7b930 — [[F:src/api/main.py#914-931#58a7b930]].
+- ResolveApprovalRequest (class, lines 939-954): CHUNK_ID = src/api/main.py#939-954#58a7b930 — [[F:src/api/main.py#939-954#58a7b930]].
+- ResolveApprovalRequest.validate_operator (method, lines 953-954): CHUNK_ID = src/api/main.py#953-954#58a7b930 — [[F:src/api/main.py#953-954#58a7b930]].
+- SetExecutionModeRequest (class, lines 957-969): CHUNK_ID = src/api/main.py#957-969#58a7b930 — [[F:src/api/main.py#957-969#58a7b930]].
+- SetExecutionModeRequest.validate_operator (method, lines 968-969): CHUNK_ID = src/api/main.py#968-969#58a7b930 — [[F:src/api/main.py#968-969#58a7b930]].
+- SetRiskControlsRequest (class, lines 972-1004): CHUNK_ID = src/api/main.py#972-1004#58a7b930 — [[F:src/api/main.py#972-1004#58a7b930]].
+- SetRiskControlsRequest.validate_operator (method, lines 1003-1004): CHUNK_ID = src/api/main.py#1003-1004#58a7b930 — [[F:src/api/main.py#1003-1004#58a7b930]].
+- SelfTuningPauseRequest (class, lines 1007-1023): CHUNK_ID = src/api/main.py#1007-1023#58a7b930 — [[F:src/api/main.py#1007-1023#58a7b930]].
+- SelfTuningPauseRequest.validate_operator (method, lines 1022-1023): CHUNK_ID = src/api/main.py#1022-1023#58a7b930 — [[F:src/api/main.py#1022-1023#58a7b930]].
+- RetrainRequest (class, lines 1026-1041): CHUNK_ID = src/api/main.py#1026-1041#58a7b930 — [[F:src/api/main.py#1026-1041#58a7b930]].
+- RetrainRequest.validate_operator (method, lines 1040-1041): CHUNK_ID = src/api/main.py#1040-1041#58a7b930 — [[F:src/api/main.py#1040-1041#58a7b930]].
+- BackfillRequest (class, lines 1044-1054): CHUNK_ID = src/api/main.py#1044-1054#58a7b930 — [[F:src/api/main.py#1044-1054#58a7b930]].
+- CapitalFloorReAuthorizeRequest (class, lines 1057-1075): CHUNK_ID = src/api/main.py#1057-1075#58a7b930 — [[F:src/api/main.py#1057-1075#58a7b930]].
+- CapitalFloorReAuthorizeRequest.validate_operator (method, lines 1074-1075): CHUNK_ID = src/api/main.py#1074-1075#58a7b930 — [[F:src/api/main.py#1074-1075#58a7b930]].
+- RecoveryAcknowledgeRequest (class, lines 1078-1097): CHUNK_ID = src/api/main.py#1078-1097#58a7b930 — [[F:src/api/main.py#1078-1097#58a7b930]].
+- RecoveryAcknowledgeRequest.validate_operator (method, lines 1096-1097): CHUNK_ID = src/api/main.py#1096-1097#58a7b930 — [[F:src/api/main.py#1096-1097#58a7b930]].
+- StrategyReEnableRequest (class, lines 1100-1121): CHUNK_ID = src/api/main.py#1100-1121#58a7b930 — [[F:src/api/main.py#1100-1121#58a7b930]].
+- StrategyReEnableRequest.validate_operator (method, lines 1120-1121): CHUNK_ID = src/api/main.py#1120-1121#58a7b930 — [[F:src/api/main.py#1120-1121#58a7b930]].
+- SelfTuningRollbackRequest (class, lines 1124-1140): CHUNK_ID = src/api/main.py#1124-1140#58a7b930 — [[F:src/api/main.py#1124-1140#58a7b930]].
+- SelfTuningRollbackRequest.validate_operator (method, lines 1139-1140): CHUNK_ID = src/api/main.py#1139-1140#58a7b930 — [[F:src/api/main.py#1139-1140#58a7b930]].
+- _verify_operator_secret (function, lines 1143-1149): CHUNK_ID = src/api/main.py#1143-1149#58a7b930 — [[F:src/api/main.py#1143-1149#58a7b930]].
+- livez (function, lines 1158-1164): CHUNK_ID = src/api/main.py#1158-1164#58a7b930 — [[F:src/api/main.py#1158-1164#58a7b930]].
+- readyz (function, lines 1168-1184): CHUNK_ID = src/api/main.py#1168-1184#58a7b930 — [[F:src/api/main.py#1168-1184#58a7b930]].
+- health (function, lines 1188-1197): CHUNK_ID = src/api/main.py#1188-1197#58a7b930 — [[F:src/api/main.py#1188-1197#58a7b930]].
+- prometheus_metrics (function, lines 1201-1206): CHUNK_ID = src/api/main.py#1201-1206#58a7b930 — [[F:src/api/main.py#1201-1206#58a7b930]].
+- status (function, lines 1210-1247, slice 1): CHUNK_ID = src/api/main.py#1210-1247#58a7b930 — [[F:src/api/main.py#1210-1247#58a7b930]].
+- status (function, lines 1248-1273, slice 2): CHUNK_ID = src/api/main.py#1248-1273#58a7b930 — [[F:src/api/main.py#1248-1273#58a7b930]].
+- trades (function, lines 1277-1314, slice 1): CHUNK_ID = src/api/main.py#1277-1314#58a7b930 — [[F:src/api/main.py#1277-1314#58a7b930]].
+- trades (function, lines 1315-1325, slice 2): CHUNK_ID = src/api/main.py#1315-1325#58a7b930 — [[F:src/api/main.py#1315-1325#58a7b930]].
+- missed_trades (function, lines 1329-1362): CHUNK_ID = src/api/main.py#1329-1362#58a7b930 — [[F:src/api/main.py#1329-1362#58a7b930]].
+- equity_curve (function, lines 1366-1388): CHUNK_ID = src/api/main.py#1366-1388#58a7b930 — [[F:src/api/main.py#1366-1388#58a7b930]].
+- regime (function, lines 1399-1423): CHUNK_ID = src/api/main.py#1399-1423#58a7b930 — [[F:src/api/main.py#1399-1423#58a7b930]].
+- _get_crypto_box_adapter (function, lines 1427-1439): CHUNK_ID = src/api/main.py#1427-1439#58a7b930 — [[F:src/api/main.py#1427-1439#58a7b930]].
+- crypto_box_status (function, lines 1443-1461): CHUNK_ID = src/api/main.py#1443-1461#58a7b930 — [[F:src/api/main.py#1443-1461#58a7b930]].
+- approvals (function, lines 1465-1471): CHUNK_ID = src/api/main.py#1465-1471#58a7b930 — [[F:src/api/main.py#1465-1471#58a7b930]].
+- resolve_approval (function, lines 1486-1519): CHUNK_ID = src/api/main.py#1486-1519#58a7b930 — [[F:src/api/main.py#1486-1519#58a7b930]].
+- _change_execution_mode (function, lines 1522-1553): CHUNK_ID = src/api/main.py#1522-1553#58a7b930 — [[F:src/api/main.py#1522-1553#58a7b930]].
+- set_execution_mode (function, lines 1568-1593): CHUNK_ID = src/api/main.py#1568-1593#58a7b930 — [[F:src/api/main.py#1568-1593#58a7b930]].
+- get_risk_controls (function, lines 1597-1606): CHUNK_ID = src/api/main.py#1597-1606#58a7b930 — [[F:src/api/main.py#1597-1606#58a7b930]].
+- set_risk_controls (function, lines 1622-1659, slice 1): CHUNK_ID = src/api/main.py#1622-1659#58a7b930 — [[F:src/api/main.py#1622-1659#58a7b930]].
+- set_risk_controls (function, lines 1660-1667, slice 2): CHUNK_ID = src/api/main.py#1660-1667#58a7b930 — [[F:src/api/main.py#1660-1667#58a7b930]].
+- model_metrics (function, lines 1675-1711): CHUNK_ID = src/api/main.py#1675-1711#58a7b930 — [[F:src/api/main.py#1675-1711#58a7b930]].
+- self_tuning_status (function, lines 1725-1767): CHUNK_ID = src/api/main.py#1725-1767#58a7b930 — [[F:src/api/main.py#1725-1767#58a7b930]].
+- self_tuning_pause (function, lines 1781-1796): CHUNK_ID = src/api/main.py#1781-1796#58a7b930 — [[F:src/api/main.py#1781-1796#58a7b930]].
+- self_tuning_resume (function, lines 1810-1821): CHUNK_ID = src/api/main.py#1810-1821#58a7b930 — [[F:src/api/main.py#1810-1821#58a7b930]].
+- self_tuning_rollback (function, lines 1836-1861): CHUNK_ID = src/api/main.py#1836-1861#58a7b930 — [[F:src/api/main.py#1836-1861#58a7b930]].
+- _build_tick_snapshot (function, lines 1869-1906, slice 1): CHUNK_ID = src/api/main.py#1869-1906#58a7b930 — [[F:src/api/main.py#1869-1906#58a7b930]].
+- _build_tick_snapshot (function, lines 1907-1918, slice 2): CHUNK_ID = src/api/main.py#1907-1918#58a7b930 — [[F:src/api/main.py#1907-1918#58a7b930]].
+- _heartbeat_loop (function, lines 1921-1946): CHUNK_ID = src/api/main.py#1921-1946#58a7b930 — [[F:src/api/main.py#1921-1946#58a7b930]].
+- _event_fanout_loop (function, lines 1949-1989): CHUNK_ID = src/api/main.py#1949-1989#58a7b930 — [[F:src/api/main.py#1949-1989#58a7b930]].
+- websocket_endpoint (function, lines 1993-2030, slice 1): CHUNK_ID = src/api/main.py#1993-2030#58a7b930 — [[F:src/api/main.py#1993-2030#58a7b930]].
+- websocket_endpoint (function, lines 2031-2065, slice 2): CHUNK_ID = src/api/main.py#2031-2065#58a7b930 — [[F:src/api/main.py#2031-2065#58a7b930]].
+- _handle_ws_command (function, lines 2068-2105, slice 1): CHUNK_ID = src/api/main.py#2068-2105#58a7b930 — [[F:src/api/main.py#2068-2105#58a7b930]].
+- _handle_ws_command (function, lines 2106-2117, slice 2): CHUNK_ID = src/api/main.py#2106-2117#58a7b930 — [[F:src/api/main.py#2106-2117#58a7b930]].
+- _send_ws_error (function, lines 2120-2131): CHUNK_ID = src/api/main.py#2120-2131#58a7b930 — [[F:src/api/main.py#2120-2131#58a7b930]].
+- _guarded_ws_reader (function, lines 2134-2163): CHUNK_ID = src/api/main.py#2134-2163#58a7b930 — [[F:src/api/main.py#2134-2163#58a7b930]].
+- debug_health (function, lines 2172-2179): CHUNK_ID = src/api/main.py#2172-2179#58a7b930 — [[F:src/api/main.py#2172-2179#58a7b930]].
+- debug_audit (function, lines 2183-2194): CHUNK_ID = src/api/main.py#2183-2194#58a7b930 — [[F:src/api/main.py#2183-2194#58a7b930]].
+- audit_chain_integrity (function, lines 2198-2235, slice 1): CHUNK_ID = src/api/main.py#2198-2235#58a7b930 — [[F:src/api/main.py#2198-2235#58a7b930]].
+- audit_chain_integrity (function, lines 2236-2257, slice 2): CHUNK_ID = src/api/main.py#2236-2257#58a7b930 — [[F:src/api/main.py#2236-2257#58a7b930]].
+- debug_drift (function, lines 2261-2283): CHUNK_ID = src/api/main.py#2261-2283#58a7b930 — [[F:src/api/main.py#2261-2283#58a7b930]].
+- _fetch_all_open_trades (function, lines 2290-2312): CHUNK_ID = src/api/main.py#2290-2312#58a7b930 — [[F:src/api/main.py#2290-2312#58a7b930]].
+- _net_by_symbol (function, lines 2315-2320): CHUNK_ID = src/api/main.py#2315-2320#58a7b930 — [[F:src/api/main.py#2315-2320#58a7b930]].
+- debug_reconcile (function, lines 2327-2364, slice 1): CHUNK_ID = src/api/main.py#2327-2364#58a7b930 — [[F:src/api/main.py#2327-2364#58a7b930]].
+- debug_reconcile (function, lines 2365-2391, slice 2): CHUNK_ID = src/api/main.py#2365-2391#58a7b930 — [[F:src/api/main.py#2365-2391#58a7b930]].
+- debug_selftest (function, lines 2399-2423): CHUNK_ID = src/api/main.py#2399-2423#58a7b930 — [[F:src/api/main.py#2399-2423#58a7b930]].
+- get_order_status (function, lines 2427-2464, slice 1): CHUNK_ID = src/api/main.py#2427-2464#58a7b930 — [[F:src/api/main.py#2427-2464#58a7b930]].
+- get_order_status (function, lines 2465-2493, slice 2): CHUNK_ID = src/api/main.py#2465-2493#58a7b930 — [[F:src/api/main.py#2465-2493#58a7b930]].
+- get_unified_ledger_snapshot (function, lines 2497-2536): CHUNK_ID = src/api/main.py#2497-2536#58a7b930 — [[F:src/api/main.py#2497-2536#58a7b930]].
+- _live_executor_or_none (function, lines 2539-2547): CHUNK_ID = src/api/main.py#2539-2547#58a7b930 — [[F:src/api/main.py#2539-2547#58a7b930]].
+- recovery_status (function, lines 2551-2579): CHUNK_ID = src/api/main.py#2551-2579#58a7b930 — [[F:src/api/main.py#2551-2579#58a7b930]].
+- recovery_acknowledge (function, lines 2595-2632): CHUNK_ID = src/api/main.py#2595-2632#58a7b930 — [[F:src/api/main.py#2595-2632#58a7b930]].
+- _parse_timeframe_or_400 (function, lines 2635-2644): CHUNK_ID = src/api/main.py#2635-2644#58a7b930 — [[F:src/api/main.py#2635-2644#58a7b930]].
+- models_status (function, lines 2652-2673): CHUNK_ID = src/api/main.py#2652-2673#58a7b930 — [[F:src/api/main.py#2652-2673#58a7b930]].
+- trigger_retrain (function, lines 2690-2714): CHUNK_ID = src/api/main.py#2690-2714#58a7b930 — [[F:src/api/main.py#2690-2714#58a7b930]].
+- _report_retrain (function, lines 2717-2733): CHUNK_ID = src/api/main.py#2717-2733#58a7b930 — [[F:src/api/main.py#2717-2733#58a7b930]].
+- trigger_backfill (function, lines 2748-2775): CHUNK_ID = src/api/main.py#2748-2775#58a7b930 — [[F:src/api/main.py#2748-2775#58a7b930]].
+- horizons (function, lines 2779-2820): CHUNK_ID = src/api/main.py#2779-2820#58a7b930 — [[F:src/api/main.py#2779-2820#58a7b930]].
+- capital_floor (function, lines 2828-2831): CHUNK_ID = src/api/main.py#2828-2831#58a7b930 — [[F:src/api/main.py#2828-2831#58a7b930]].
+- capital_floor_re_authorize (function, lines 2848-2889): CHUNK_ID = src/api/main.py#2848-2889#58a7b930 — [[F:src/api/main.py#2848-2889#58a7b930]].
+- get_strategy_attribution (function, lines 2893-2915): CHUNK_ID = src/api/main.py#2893-2915#58a7b930 — [[F:src/api/main.py#2893-2915#58a7b930]].
+- get_strategy_gauntlet (function, lines 2923-2960, slice 1): CHUNK_ID = src/api/main.py#2923-2960#58a7b930 — [[F:src/api/main.py#2923-2960#58a7b930]].
+- get_strategy_gauntlet (function, lines 2961-2976, slice 2): CHUNK_ID = src/api/main.py#2961-2976#58a7b930 — [[F:src/api/main.py#2961-2976#58a7b930]].
+- get_strategy_allocation (function, lines 2980-3017, slice 1): CHUNK_ID = src/api/main.py#2980-3017#58a7b930 — [[F:src/api/main.py#2980-3017#58a7b930]].
+- get_strategy_allocation (function, lines 3018-3031, slice 2): CHUNK_ID = src/api/main.py#3018-3031#58a7b930 — [[F:src/api/main.py#3018-3031#58a7b930]].
+- re_enable_strategy (function, lines 3049-3086, slice 1): CHUNK_ID = src/api/main.py#3049-3086#58a7b930 — [[F:src/api/main.py#3049-3086#58a7b930]].
+- re_enable_strategy (function, lines 3087-3114, slice 2): CHUNK_ID = src/api/main.py#3087-3114#58a7b930 — [[F:src/api/main.py#3087-3114#58a7b930]].
+- get_strategy_portfolio (function, lines 3118-3155, slice 1): CHUNK_ID = src/api/main.py#3118-3155#58a7b930 — [[F:src/api/main.py#3118-3155#58a7b930]].
+- get_strategy_portfolio (function, lines 3156-3175, slice 2): CHUNK_ID = src/api/main.py#3156-3175#58a7b930 — [[F:src/api/main.py#3156-3175#58a7b930]].
+- get_allocation_stress_test (function, lines 3179-3216, slice 1): CHUNK_ID = src/api/main.py#3179-3216#58a7b930 — [[F:src/api/main.py#3179-3216#58a7b930]].
+- get_allocation_stress_test (function, lines 3217-3254, slice 2): CHUNK_ID = src/api/main.py#3217-3254#58a7b930 — [[F:src/api/main.py#3217-3254#58a7b930]].
+- get_allocation_stress_test (function, lines 3255-3265, slice 3): CHUNK_ID = src/api/main.py#3255-3265#58a7b930 — [[F:src/api/main.py#3255-3265#58a7b930]].
+- get_performance_drift (function, lines 3269-3305): CHUNK_ID = src/api/main.py#3269-3305#58a7b930 — [[F:src/api/main.py#3269-3305#58a7b930]].
+- get_intelligence_coverage (function, lines 3309-3342): CHUNK_ID = src/api/main.py#3309-3342#58a7b930 — [[F:src/api/main.py#3309-3342#58a7b930]].
+- get_intelligence_providers (function, lines 3346-3383, slice 1): CHUNK_ID = src/api/main.py#3346-3383#58a7b930 — [[F:src/api/main.py#3346-3383#58a7b930]].
+- get_intelligence_providers (function, lines 3384-3394, slice 2): CHUNK_ID = src/api/main.py#3384-3394#58a7b930 — [[F:src/api/main.py#3384-3394#58a7b930]].
+- SizeCheckRequest (class, lines 3402-3419): CHUNK_ID = src/api/main.py#3402-3419#58a7b930 — [[F:src/api/main.py#3402-3419#58a7b930]].
+- risk_size_check (function, lines 3423-3460, slice 1): CHUNK_ID = src/api/main.py#3423-3460#58a7b930 — [[F:src/api/main.py#3423-3460#58a7b930]].
+- risk_size_check (function, lines 3461-3490, slice 2): CHUNK_ID = src/api/main.py#3461-3490#58a7b930 — [[F:src/api/main.py#3461-3490#58a7b930]].
+- VenueReconnectRequest (class, lines 3502-3511): CHUNK_ID = src/api/main.py#3502-3511#58a7b930 — [[F:src/api/main.py#3502-3511#58a7b930]].
+- VenueReconnectRequest.validate_operator (method, lines 3510-3511): CHUNK_ID = src/api/main.py#3510-3511#58a7b930 — [[F:src/api/main.py#3510-3511#58a7b930]].
+- _known_venue_or_404 (function, lines 3522-3525): CHUNK_ID = src/api/main.py#3522-3525#58a7b930 — [[F:src/api/main.py#3522-3525#58a7b930]].
+- _venue_action_recorded (function, lines 3528-3548): CHUNK_ID = src/api/main.py#3528-3548#58a7b930 — [[F:src/api/main.py#3528-3548#58a7b930]].
+- venues_status (function, lines 3552-3568): CHUNK_ID = src/api/main.py#3552-3568#58a7b930 — [[F:src/api/main.py#3552-3568#58a7b930]].
+- reconnect_venue (function, lines 3572-3592): CHUNK_ID = src/api/main.py#3572-3592#58a7b930 — [[F:src/api/main.py#3572-3592#58a7b930]].
+- connect_venue (function, lines 3596-3616): CHUNK_ID = src/api/main.py#3596-3616#58a7b930 — [[F:src/api/main.py#3596-3616#58a7b930]].
+- disconnect_venue (function, lines 3620-3642): CHUNK_ID = src/api/main.py#3620-3642#58a7b930 — [[F:src/api/main.py#3620-3642#58a7b930]].
+- verify_venue_account (function, lines 3646-3658): CHUNK_ID = src/api/main.py#3646-3658#58a7b930 — [[F:src/api/main.py#3646-3658#58a7b930]].
+- control_surface (function, lines 3662-3672): CHUNK_ID = src/api/main.py#3662-3672#58a7b930 — [[F:src/api/main.py#3662-3672#58a7b930]].
+- SetControlRequest (class, lines 3675-3680): CHUNK_ID = src/api/main.py#3675-3680#58a7b930 — [[F:src/api/main.py#3675-3680#58a7b930]].
+- set_control (function, lines 3690-3730): CHUNK_ID = src/api/main.py#3690-3730#58a7b930 — [[F:src/api/main.py#3690-3730#58a7b930]].
+- start_runtime_platform (function, lines 3743-3781): CHUNK_ID = src/api/main.py#3743-3781#58a7b930 — [[F:src/api/main.py#3743-3781#58a7b930]].
+- runtime_sources (function, lines 3784-3806): CHUNK_ID = src/api/main.py#3784-3806#58a7b930 — [[F:src/api/main.py#3784-3806#58a7b930]].
+- _note_runtime_intent (function, lines 3812-3826): CHUNK_ID = src/api/main.py#3812-3826#58a7b930 — [[F:src/api/main.py#3812-3826#58a7b930]].
+- require_runtime (function, lines 3829-3832): CHUNK_ID = src/api/main.py#3829-3832#58a7b930 — [[F:src/api/main.py#3829-3832#58a7b930]].
+- _runtime_call (function, lines 3835-3839): CHUNK_ID = src/api/main.py#3835-3839#58a7b930 — [[F:src/api/main.py#3835-3839#58a7b930]].
+- runtime_overview (function, lines 3850-3852): CHUNK_ID = src/api/main.py#3850-3852#58a7b930 — [[F:src/api/main.py#3850-3852#58a7b930]].
+- runtime_components (function, lines 3856-3865): CHUNK_ID = src/api/main.py#3856-3865#58a7b930 — [[F:src/api/main.py#3856-3865#58a7b930]].
+- runtime_component (function, lines 3869-3872): CHUNK_ID = src/api/main.py#3869-3872#58a7b930 — [[F:src/api/main.py#3869-3872#58a7b930]].
+- runtime_dependencies (function, lines 3876-3877): CHUNK_ID = src/api/main.py#3876-3877#58a7b930 — [[F:src/api/main.py#3876-3877#58a7b930]].
+- runtime_changes (function, lines 3881-3882): CHUNK_ID = src/api/main.py#3881-3882#58a7b930 — [[F:src/api/main.py#3881-3882#58a7b930]].
+- runtime_change (function, lines 3886-3888): CHUNK_ID = src/api/main.py#3886-3888#58a7b930 — [[F:src/api/main.py#3886-3888#58a7b930]].
+- runtime_traces (function, lines 3892-3893): CHUNK_ID = src/api/main.py#3892-3893#58a7b930 — [[F:src/api/main.py#3892-3893#58a7b930]].
+- runtime_trace (function, lines 3897-3899): CHUNK_ID = src/api/main.py#3897-3899#58a7b930 — [[F:src/api/main.py#3897-3899#58a7b930]].
+- runtime_agent_ledgers (function, lines 3903-3905): CHUNK_ID = src/api/main.py#3903-3905#58a7b930 — [[F:src/api/main.py#3903-3905#58a7b930]].
+- runtime_submit_change (function, lines 3909-3914): CHUNK_ID = src/api/main.py#3909-3914#58a7b930 — [[F:src/api/main.py#3909-3914#58a7b930]].
+- runtime_decide (function, lines 3918-3925): CHUNK_ID = src/api/main.py#3918-3925#58a7b930 — [[F:src/api/main.py#3918-3925#58a7b930]].
+- runtime_component_action (function, lines 3929-3936): CHUNK_ID = src/api/main.py#3929-3936#58a7b930 — [[F:src/api/main.py#3929-3936#58a7b930]].
+- runtime_set_desired (function, lines 3940-3945): CHUNK_ID = src/api/main.py#3940-3945#58a7b930 — [[F:src/api/main.py#3940-3945#58a7b930]].
+- runtime_reconcile (function, lines 3949-3954): CHUNK_ID = src/api/main.py#3949-3954#58a7b930 — [[F:src/api/main.py#3949-3954#58a7b930]].
 
 ## src/api/auth.py
 
-SHA8 49ad08ee; total lines 183.
+SHA8 7b3169c1; total lines 190.
 
-- _get_configured_key (function, lines 43-65): CHUNK_ID = src/api/auth.py#43-65#49ad08ee — [[F:src/api/auth.py#43-65#49ad08ee]].
-- _get_readonly_key (function, lines 68-92): CHUNK_ID = src/api/auth.py#68-92#49ad08ee — [[F:src/api/auth.py#68-92#49ad08ee]].
-- verify_api_key (function, lines 95-137): CHUNK_ID = src/api/auth.py#95-137#49ad08ee — [[F:src/api/auth.py#95-137#49ad08ee]].
-- verify_ws_key (function, lines 140-183): CHUNK_ID = src/api/auth.py#140-183#49ad08ee — [[F:src/api/auth.py#140-183#49ad08ee]].
+- _get_configured_key (function, lines 42-64): CHUNK_ID = src/api/auth.py#42-64#7b3169c1 — [[F:src/api/auth.py#42-64#7b3169c1]].
+- _get_readonly_key (function, lines 67-91): CHUNK_ID = src/api/auth.py#67-91#7b3169c1 — [[F:src/api/auth.py#67-91#7b3169c1]].
+- verify_api_key (function, lines 94-133): CHUNK_ID = src/api/auth.py#94-133#7b3169c1 — [[F:src/api/auth.py#94-133#7b3169c1]].
+- key_from_subprotocols (function, lines 140-148): CHUNK_ID = src/api/auth.py#140-148#7b3169c1 — [[F:src/api/auth.py#140-148#7b3169c1]].
+- verify_ws_key (function, lines 151-190): CHUNK_ID = src/api/auth.py#151-190#7b3169c1 — [[F:src/api/auth.py#151-190#7b3169c1]].
 
 ## src/config.py
 
@@ -1434,67 +1430,66 @@ SHA8 c2307736; total lines 537.
 
 ## src/runtime/changes.py
 
-SHA8 054b9f1f; total lines 799.
+SHA8 310891d5; total lines 783.
 
-- ActorKind (class, lines 67-70): CHUNK_ID = src/runtime/changes.py#67-70#054b9f1f — [[F:src/runtime/changes.py#67-70#054b9f1f]].
-- Actor (class, lines 74-80): CHUNK_ID = src/runtime/changes.py#74-80#054b9f1f — [[F:src/runtime/changes.py#74-80#054b9f1f]].
-- Actor.to_dict (method, lines 79-80): CHUNK_ID = src/runtime/changes.py#79-80#054b9f1f — [[F:src/runtime/changes.py#79-80#054b9f1f]].
-- ChangeStatus (class, lines 87-97): CHUNK_ID = src/runtime/changes.py#87-97#054b9f1f — [[F:src/runtime/changes.py#87-97#054b9f1f]].
-- ChangeError (class, lines 131-132): CHUNK_ID = src/runtime/changes.py#131-132#054b9f1f — [[F:src/runtime/changes.py#131-132#054b9f1f]].
-- RuntimeLifecycleUnavailableError (class, lines 135-136): CHUNK_ID = src/runtime/changes.py#135-136#054b9f1f — [[F:src/runtime/changes.py#135-136#054b9f1f]].
-- UnauthorizedError (class, lines 139-140): CHUNK_ID = src/runtime/changes.py#139-140#054b9f1f — [[F:src/runtime/changes.py#139-140#054b9f1f]].
-- ChangeRequest (class, lines 144-162): CHUNK_ID = src/runtime/changes.py#144-162#054b9f1f — [[F:src/runtime/changes.py#144-162#054b9f1f]].
-- ChangeRequest.to_dict (method, lines 153-162): CHUNK_ID = src/runtime/changes.py#153-162#054b9f1f — [[F:src/runtime/changes.py#153-162#054b9f1f]].
-- StageResult (class, lines 166-171): CHUNK_ID = src/runtime/changes.py#166-171#054b9f1f — [[F:src/runtime/changes.py#166-171#054b9f1f]].
-- ChangeRecord (class, lines 175-212): CHUNK_ID = src/runtime/changes.py#175-212#054b9f1f — [[F:src/runtime/changes.py#175-212#054b9f1f]].
-- ChangeRecord.change_id (method, lines 191-192): CHUNK_ID = src/runtime/changes.py#191-192#054b9f1f — [[F:src/runtime/changes.py#191-192#054b9f1f]].
-- ChangeRecord.to_dict (method, lines 194-212): CHUNK_ID = src/runtime/changes.py#194-212#054b9f1f — [[F:src/runtime/changes.py#194-212#054b9f1f]].
-- AuditEntry (class, lines 216-232): CHUNK_ID = src/runtime/changes.py#216-232#054b9f1f — [[F:src/runtime/changes.py#216-232#054b9f1f]].
-- AuditEntry.to_dict (method, lines 224-232): CHUNK_ID = src/runtime/changes.py#224-232#054b9f1f — [[F:src/runtime/changes.py#224-232#054b9f1f]].
-- _utc_now (function, lines 238-239): CHUNK_ID = src/runtime/changes.py#238-239#054b9f1f — [[F:src/runtime/changes.py#238-239#054b9f1f]].
-- ChangeManager (class, lines 251-288, slice 1): CHUNK_ID = src/runtime/changes.py#251-288#054b9f1f — [[F:src/runtime/changes.py#251-288#054b9f1f]].
-- ChangeManager (class, lines 289-326, slice 2): CHUNK_ID = src/runtime/changes.py#289-326#054b9f1f — [[F:src/runtime/changes.py#289-326#054b9f1f]].
-- ChangeManager (class, lines 327-364, slice 3): CHUNK_ID = src/runtime/changes.py#327-364#054b9f1f — [[F:src/runtime/changes.py#327-364#054b9f1f]].
-- ChangeManager (class, lines 365-402, slice 4): CHUNK_ID = src/runtime/changes.py#365-402#054b9f1f — [[F:src/runtime/changes.py#365-402#054b9f1f]].
-- ChangeManager (class, lines 403-440, slice 5): CHUNK_ID = src/runtime/changes.py#403-440#054b9f1f — [[F:src/runtime/changes.py#403-440#054b9f1f]].
-- ChangeManager (class, lines 441-478, slice 6): CHUNK_ID = src/runtime/changes.py#441-478#054b9f1f — [[F:src/runtime/changes.py#441-478#054b9f1f]].
-- ChangeManager (class, lines 479-516, slice 7): CHUNK_ID = src/runtime/changes.py#479-516#054b9f1f — [[F:src/runtime/changes.py#479-516#054b9f1f]].
-- ChangeManager (class, lines 517-554, slice 8): CHUNK_ID = src/runtime/changes.py#517-554#054b9f1f — [[F:src/runtime/changes.py#517-554#054b9f1f]].
-- ChangeManager (class, lines 555-592, slice 9): CHUNK_ID = src/runtime/changes.py#555-592#054b9f1f — [[F:src/runtime/changes.py#555-592#054b9f1f]].
-- ChangeManager (class, lines 593-630, slice 10): CHUNK_ID = src/runtime/changes.py#593-630#054b9f1f — [[F:src/runtime/changes.py#593-630#054b9f1f]].
-- ChangeManager (class, lines 631-668, slice 11): CHUNK_ID = src/runtime/changes.py#631-668#054b9f1f — [[F:src/runtime/changes.py#631-668#054b9f1f]].
-- ChangeManager (class, lines 669-706, slice 12): CHUNK_ID = src/runtime/changes.py#669-706#054b9f1f — [[F:src/runtime/changes.py#669-706#054b9f1f]].
-- ChangeManager (class, lines 707-744, slice 13): CHUNK_ID = src/runtime/changes.py#707-744#054b9f1f — [[F:src/runtime/changes.py#707-744#054b9f1f]].
-- ChangeManager (class, lines 745-782, slice 14): CHUNK_ID = src/runtime/changes.py#745-782#054b9f1f — [[F:src/runtime/changes.py#745-782#054b9f1f]].
-- ChangeManager (class, lines 783-799, slice 15): CHUNK_ID = src/runtime/changes.py#783-799#054b9f1f — [[F:src/runtime/changes.py#783-799#054b9f1f]].
-- ChangeManager.__init__ (method, lines 252-270): CHUNK_ID = src/runtime/changes.py#252-270#054b9f1f — [[F:src/runtime/changes.py#252-270#054b9f1f]].
-- ChangeManager.get (method, lines 274-279): CHUNK_ID = src/runtime/changes.py#274-279#054b9f1f — [[F:src/runtime/changes.py#274-279#054b9f1f]].
-- ChangeManager.changes (method, lines 281-287): CHUNK_ID = src/runtime/changes.py#281-287#054b9f1f — [[F:src/runtime/changes.py#281-287#054b9f1f]].
-- ChangeManager.audit_log (method, lines 289-291): CHUNK_ID = src/runtime/changes.py#289-291#054b9f1f — [[F:src/runtime/changes.py#289-291#054b9f1f]].
-- ChangeManager.open_change (method, lines 293-298): CHUNK_ID = src/runtime/changes.py#293-298#054b9f1f — [[F:src/runtime/changes.py#293-298#054b9f1f]].
-- ChangeManager.submit (method, lines 302-339, slice 1): CHUNK_ID = src/runtime/changes.py#302-339#054b9f1f — [[F:src/runtime/changes.py#302-339#054b9f1f]].
-- ChangeManager.submit (method, lines 340-377, slice 2): CHUNK_ID = src/runtime/changes.py#340-377#054b9f1f — [[F:src/runtime/changes.py#340-377#054b9f1f]].
-- ChangeManager.submit (method, lines 378-379, slice 3): CHUNK_ID = src/runtime/changes.py#378-379#054b9f1f — [[F:src/runtime/changes.py#378-379#054b9f1f]].
-- ChangeManager._precheck (method, lines 381-394): CHUNK_ID = src/runtime/changes.py#381-394#054b9f1f — [[F:src/runtime/changes.py#381-394#054b9f1f]].
-- ChangeManager.request_desired (method, lines 396-427): CHUNK_ID = src/runtime/changes.py#396-427#054b9f1f — [[F:src/runtime/changes.py#396-427#054b9f1f]].
-- ChangeManager.approve (method, lines 429-440): CHUNK_ID = src/runtime/changes.py#429-440#054b9f1f — [[F:src/runtime/changes.py#429-440#054b9f1f]].
-- ChangeManager.record_stage (method, lines 442-476): CHUNK_ID = src/runtime/changes.py#442-476#054b9f1f — [[F:src/runtime/changes.py#442-476#054b9f1f]].
-- ChangeManager.execute (method, lines 478-515, slice 1): CHUNK_ID = src/runtime/changes.py#478-515#054b9f1f — [[F:src/runtime/changes.py#478-515#054b9f1f]].
-- ChangeManager.execute (method, lines 516-540, slice 2): CHUNK_ID = src/runtime/changes.py#516-540#054b9f1f — [[F:src/runtime/changes.py#516-540#054b9f1f]].
-- ChangeManager.promote (method, lines 542-551): CHUNK_ID = src/runtime/changes.py#542-551#054b9f1f — [[F:src/runtime/changes.py#542-551#054b9f1f]].
-- ChangeManager.decide_lifecycle (method, lines 553-590, slice 1): CHUNK_ID = src/runtime/changes.py#553-590#054b9f1f — [[F:src/runtime/changes.py#553-590#054b9f1f]].
-- ChangeManager.decide_lifecycle (method, lines 591-628, slice 2): CHUNK_ID = src/runtime/changes.py#591-628#054b9f1f — [[F:src/runtime/changes.py#591-628#054b9f1f]].
-- ChangeManager.decide_lifecycle (method, lines 629-641, slice 3): CHUNK_ID = src/runtime/changes.py#629-641#054b9f1f — [[F:src/runtime/changes.py#629-641#054b9f1f]].
-- ChangeManager.rollback (method, lines 643-648): CHUNK_ID = src/runtime/changes.py#643-648#054b9f1f — [[F:src/runtime/changes.py#643-648#054b9f1f]].
-- ChangeManager.cancel (method, lines 650-657): CHUNK_ID = src/runtime/changes.py#650-657#054b9f1f — [[F:src/runtime/changes.py#650-657#054b9f1f]].
-- ChangeManager._observe (method, lines 661-678): CHUNK_ID = src/runtime/changes.py#661-678#054b9f1f — [[F:src/runtime/changes.py#661-678#054b9f1f]].
-- ChangeManager._rollback (method, lines 680-718): CHUNK_ID = src/runtime/changes.py#680-718#054b9f1f — [[F:src/runtime/changes.py#680-718#054b9f1f]].
-- ChangeManager._expect (method, lines 720-724): CHUNK_ID = src/runtime/changes.py#720-724#054b9f1f — [[F:src/runtime/changes.py#720-724#054b9f1f]].
-- ChangeManager._new (method, lines 726-754): CHUNK_ID = src/runtime/changes.py#726-754#054b9f1f — [[F:src/runtime/changes.py#726-754#054b9f1f]].
-- ChangeManager._move (method, lines 756-764): CHUNK_ID = src/runtime/changes.py#756-764#054b9f1f — [[F:src/runtime/changes.py#756-764#054b9f1f]].
-- ChangeManager._forget_unexecuted (method, lines 766-771): CHUNK_ID = src/runtime/changes.py#766-771#054b9f1f — [[F:src/runtime/changes.py#766-771#054b9f1f]].
-- ChangeManager._audit_entry (method, lines 773-774): CHUNK_ID = src/runtime/changes.py#773-774#054b9f1f — [[F:src/runtime/changes.py#773-774#054b9f1f]].
-- ChangeManager._append_audit (method, lines 776-799): CHUNK_ID = src/runtime/changes.py#776-799#054b9f1f — [[F:src/runtime/changes.py#776-799#054b9f1f]].
+- ActorKind (class, lines 67-70): CHUNK_ID = src/runtime/changes.py#67-70#310891d5 — [[F:src/runtime/changes.py#67-70#310891d5]].
+- Actor (class, lines 74-80): CHUNK_ID = src/runtime/changes.py#74-80#310891d5 — [[F:src/runtime/changes.py#74-80#310891d5]].
+- Actor.to_dict (method, lines 79-80): CHUNK_ID = src/runtime/changes.py#79-80#310891d5 — [[F:src/runtime/changes.py#79-80#310891d5]].
+- ChangeStatus (class, lines 87-97): CHUNK_ID = src/runtime/changes.py#87-97#310891d5 — [[F:src/runtime/changes.py#87-97#310891d5]].
+- ChangeError (class, lines 131-132): CHUNK_ID = src/runtime/changes.py#131-132#310891d5 — [[F:src/runtime/changes.py#131-132#310891d5]].
+- RuntimeLifecycleUnavailableError (class, lines 135-136): CHUNK_ID = src/runtime/changes.py#135-136#310891d5 — [[F:src/runtime/changes.py#135-136#310891d5]].
+- UnauthorizedError (class, lines 139-140): CHUNK_ID = src/runtime/changes.py#139-140#310891d5 — [[F:src/runtime/changes.py#139-140#310891d5]].
+- ChangeRequest (class, lines 144-162): CHUNK_ID = src/runtime/changes.py#144-162#310891d5 — [[F:src/runtime/changes.py#144-162#310891d5]].
+- ChangeRequest.to_dict (method, lines 153-162): CHUNK_ID = src/runtime/changes.py#153-162#310891d5 — [[F:src/runtime/changes.py#153-162#310891d5]].
+- StageResult (class, lines 166-171): CHUNK_ID = src/runtime/changes.py#166-171#310891d5 — [[F:src/runtime/changes.py#166-171#310891d5]].
+- ChangeRecord (class, lines 175-212): CHUNK_ID = src/runtime/changes.py#175-212#310891d5 — [[F:src/runtime/changes.py#175-212#310891d5]].
+- ChangeRecord.change_id (method, lines 191-192): CHUNK_ID = src/runtime/changes.py#191-192#310891d5 — [[F:src/runtime/changes.py#191-192#310891d5]].
+- ChangeRecord.to_dict (method, lines 194-212): CHUNK_ID = src/runtime/changes.py#194-212#310891d5 — [[F:src/runtime/changes.py#194-212#310891d5]].
+- AuditEntry (class, lines 216-232): CHUNK_ID = src/runtime/changes.py#216-232#310891d5 — [[F:src/runtime/changes.py#216-232#310891d5]].
+- AuditEntry.to_dict (method, lines 224-232): CHUNK_ID = src/runtime/changes.py#224-232#310891d5 — [[F:src/runtime/changes.py#224-232#310891d5]].
+- _utc_now (function, lines 238-239): CHUNK_ID = src/runtime/changes.py#238-239#310891d5 — [[F:src/runtime/changes.py#238-239#310891d5]].
+- ChangeManager (class, lines 251-288, slice 1): CHUNK_ID = src/runtime/changes.py#251-288#310891d5 — [[F:src/runtime/changes.py#251-288#310891d5]].
+- ChangeManager (class, lines 289-326, slice 2): CHUNK_ID = src/runtime/changes.py#289-326#310891d5 — [[F:src/runtime/changes.py#289-326#310891d5]].
+- ChangeManager (class, lines 327-364, slice 3): CHUNK_ID = src/runtime/changes.py#327-364#310891d5 — [[F:src/runtime/changes.py#327-364#310891d5]].
+- ChangeManager (class, lines 365-402, slice 4): CHUNK_ID = src/runtime/changes.py#365-402#310891d5 — [[F:src/runtime/changes.py#365-402#310891d5]].
+- ChangeManager (class, lines 403-440, slice 5): CHUNK_ID = src/runtime/changes.py#403-440#310891d5 — [[F:src/runtime/changes.py#403-440#310891d5]].
+- ChangeManager (class, lines 441-478, slice 6): CHUNK_ID = src/runtime/changes.py#441-478#310891d5 — [[F:src/runtime/changes.py#441-478#310891d5]].
+- ChangeManager (class, lines 479-516, slice 7): CHUNK_ID = src/runtime/changes.py#479-516#310891d5 — [[F:src/runtime/changes.py#479-516#310891d5]].
+- ChangeManager (class, lines 517-554, slice 8): CHUNK_ID = src/runtime/changes.py#517-554#310891d5 — [[F:src/runtime/changes.py#517-554#310891d5]].
+- ChangeManager (class, lines 555-592, slice 9): CHUNK_ID = src/runtime/changes.py#555-592#310891d5 — [[F:src/runtime/changes.py#555-592#310891d5]].
+- ChangeManager (class, lines 593-630, slice 10): CHUNK_ID = src/runtime/changes.py#593-630#310891d5 — [[F:src/runtime/changes.py#593-630#310891d5]].
+- ChangeManager (class, lines 631-668, slice 11): CHUNK_ID = src/runtime/changes.py#631-668#310891d5 — [[F:src/runtime/changes.py#631-668#310891d5]].
+- ChangeManager (class, lines 669-706, slice 12): CHUNK_ID = src/runtime/changes.py#669-706#310891d5 — [[F:src/runtime/changes.py#669-706#310891d5]].
+- ChangeManager (class, lines 707-744, slice 13): CHUNK_ID = src/runtime/changes.py#707-744#310891d5 — [[F:src/runtime/changes.py#707-744#310891d5]].
+- ChangeManager (class, lines 745-782, slice 14): CHUNK_ID = src/runtime/changes.py#745-782#310891d5 — [[F:src/runtime/changes.py#745-782#310891d5]].
+- ChangeManager (class, lines 783-783, slice 15): CHUNK_ID = src/runtime/changes.py#783-783#310891d5 — [[F:src/runtime/changes.py#783-783#310891d5]].
+- ChangeManager.__init__ (method, lines 252-270): CHUNK_ID = src/runtime/changes.py#252-270#310891d5 — [[F:src/runtime/changes.py#252-270#310891d5]].
+- ChangeManager.get (method, lines 274-279): CHUNK_ID = src/runtime/changes.py#274-279#310891d5 — [[F:src/runtime/changes.py#274-279#310891d5]].
+- ChangeManager.changes (method, lines 281-287): CHUNK_ID = src/runtime/changes.py#281-287#310891d5 — [[F:src/runtime/changes.py#281-287#310891d5]].
+- ChangeManager.audit_log (method, lines 289-291): CHUNK_ID = src/runtime/changes.py#289-291#310891d5 — [[F:src/runtime/changes.py#289-291#310891d5]].
+- ChangeManager.open_change (method, lines 293-298): CHUNK_ID = src/runtime/changes.py#293-298#310891d5 — [[F:src/runtime/changes.py#293-298#310891d5]].
+- ChangeManager.submit (method, lines 302-339, slice 1): CHUNK_ID = src/runtime/changes.py#302-339#310891d5 — [[F:src/runtime/changes.py#302-339#310891d5]].
+- ChangeManager.submit (method, lines 340-377, slice 2): CHUNK_ID = src/runtime/changes.py#340-377#310891d5 — [[F:src/runtime/changes.py#340-377#310891d5]].
+- ChangeManager.submit (method, lines 378-379, slice 3): CHUNK_ID = src/runtime/changes.py#378-379#310891d5 — [[F:src/runtime/changes.py#378-379#310891d5]].
+- ChangeManager._precheck (method, lines 381-394): CHUNK_ID = src/runtime/changes.py#381-394#310891d5 — [[F:src/runtime/changes.py#381-394#310891d5]].
+- ChangeManager.request_desired (method, lines 396-427): CHUNK_ID = src/runtime/changes.py#396-427#310891d5 — [[F:src/runtime/changes.py#396-427#310891d5]].
+- ChangeManager.approve (method, lines 429-440): CHUNK_ID = src/runtime/changes.py#429-440#310891d5 — [[F:src/runtime/changes.py#429-440#310891d5]].
+- ChangeManager.record_stage (method, lines 442-476): CHUNK_ID = src/runtime/changes.py#442-476#310891d5 — [[F:src/runtime/changes.py#442-476#310891d5]].
+- ChangeManager.execute (method, lines 478-515, slice 1): CHUNK_ID = src/runtime/changes.py#478-515#310891d5 — [[F:src/runtime/changes.py#478-515#310891d5]].
+- ChangeManager.execute (method, lines 516-540, slice 2): CHUNK_ID = src/runtime/changes.py#516-540#310891d5 — [[F:src/runtime/changes.py#516-540#310891d5]].
+- ChangeManager.promote (method, lines 542-551): CHUNK_ID = src/runtime/changes.py#542-551#310891d5 — [[F:src/runtime/changes.py#542-551#310891d5]].
+- ChangeManager.decide_lifecycle (method, lines 553-590, slice 1): CHUNK_ID = src/runtime/changes.py#553-590#310891d5 — [[F:src/runtime/changes.py#553-590#310891d5]].
+- ChangeManager.decide_lifecycle (method, lines 591-625, slice 2): CHUNK_ID = src/runtime/changes.py#591-625#310891d5 — [[F:src/runtime/changes.py#591-625#310891d5]].
+- ChangeManager.rollback (method, lines 627-632): CHUNK_ID = src/runtime/changes.py#627-632#310891d5 — [[F:src/runtime/changes.py#627-632#310891d5]].
+- ChangeManager.cancel (method, lines 634-641): CHUNK_ID = src/runtime/changes.py#634-641#310891d5 — [[F:src/runtime/changes.py#634-641#310891d5]].
+- ChangeManager._observe (method, lines 645-662): CHUNK_ID = src/runtime/changes.py#645-662#310891d5 — [[F:src/runtime/changes.py#645-662#310891d5]].
+- ChangeManager._rollback (method, lines 664-702): CHUNK_ID = src/runtime/changes.py#664-702#310891d5 — [[F:src/runtime/changes.py#664-702#310891d5]].
+- ChangeManager._expect (method, lines 704-708): CHUNK_ID = src/runtime/changes.py#704-708#310891d5 — [[F:src/runtime/changes.py#704-708#310891d5]].
+- ChangeManager._new (method, lines 710-738): CHUNK_ID = src/runtime/changes.py#710-738#310891d5 — [[F:src/runtime/changes.py#710-738#310891d5]].
+- ChangeManager._move (method, lines 740-748): CHUNK_ID = src/runtime/changes.py#740-748#310891d5 — [[F:src/runtime/changes.py#740-748#310891d5]].
+- ChangeManager._forget_unexecuted (method, lines 750-755): CHUNK_ID = src/runtime/changes.py#750-755#310891d5 — [[F:src/runtime/changes.py#750-755#310891d5]].
+- ChangeManager._audit_entry (method, lines 757-758): CHUNK_ID = src/runtime/changes.py#757-758#310891d5 — [[F:src/runtime/changes.py#757-758#310891d5]].
+- ChangeManager._append_audit (method, lines 760-783): CHUNK_ID = src/runtime/changes.py#760-783#310891d5 — [[F:src/runtime/changes.py#760-783#310891d5]].
 
 ## src/runtime/reconcile.py
 
@@ -1519,35 +1514,35 @@ SHA8 e3ebc015; total lines 303.
 
 ## src/runtime/production.py
 
-SHA8 3ece1420; total lines 421.
+SHA8 55696d76; total lines 418.
 
-- _OrchestratorView (class, lines 107-119): CHUNK_ID = src/runtime/production.py#107-119#3ece1420 — [[F:src/runtime/production.py#107-119#3ece1420]].
-- _OrchestratorView.crypto_box (method, lines 111-111): CHUNK_ID = src/runtime/production.py#111-111#3ece1420 — [[F:src/runtime/production.py#111-111#3ece1420]].
-- _OrchestratorView.signal_engines (method, lines 113-113): CHUNK_ID = src/runtime/production.py#113-113#3ece1420 — [[F:src/runtime/production.py#113-113#3ece1420]].
-- _OrchestratorView.background_tasks (method, lines 115-115): CHUNK_ID = src/runtime/production.py#115-115#3ece1420 — [[F:src/runtime/production.py#115-115#3ece1420]].
-- _OrchestratorView.provider_tasks (method, lines 117-117): CHUNK_ID = src/runtime/production.py#117-117#3ece1420 — [[F:src/runtime/production.py#117-117#3ece1420]].
-- _OrchestratorView.worker_pools (method, lines 119-119): CHUNK_ID = src/runtime/production.py#119-119#3ece1420 — [[F:src/runtime/production.py#119-119#3ece1420]].
-- _PauseSwitch (class, lines 122-126): CHUNK_ID = src/runtime/production.py#122-126#3ece1420 — [[F:src/runtime/production.py#122-126#3ece1420]].
-- _PauseSwitch.paused (method, lines 124-124): CHUNK_ID = src/runtime/production.py#124-124#3ece1420 — [[F:src/runtime/production.py#124-124#3ece1420]].
-- _PauseSwitch.set_paused_now (method, lines 126-126): CHUNK_ID = src/runtime/production.py#126-126#3ece1420 — [[F:src/runtime/production.py#126-126#3ece1420]].
-- _utc_ms (function, lines 129-130): CHUNK_ID = src/runtime/production.py#129-130#3ece1420 — [[F:src/runtime/production.py#129-130#3ece1420]].
-- ProductionSources (class, lines 134-150): CHUNK_ID = src/runtime/production.py#134-150#3ece1420 — [[F:src/runtime/production.py#134-150#3ece1420]].
-- _impl (function, lines 153-155): CHUNK_ID = src/runtime/production.py#153-155#3ece1420 — [[F:src/runtime/production.py#153-155#3ece1420]].
-- _orchestrator_task_dependencies (function, lines 158-180): CHUNK_ID = src/runtime/production.py#158-180#3ece1420 — [[F:src/runtime/production.py#158-180#3ece1420]].
-- production_discoveries (function, lines 183-225): CHUNK_ID = src/runtime/production.py#183-225#3ece1420 — [[F:src/runtime/production.py#183-225#3ece1420]].
-- production_controllers (function, lines 228-256): CHUNK_ID = src/runtime/production.py#228-256#3ece1420 — [[F:src/runtime/production.py#228-256#3ece1420]].
-- SyncReport (class, lines 260-263): CHUNK_ID = src/runtime/production.py#260-263#3ece1420 — [[F:src/runtime/production.py#260-263#3ece1420]].
-- RuntimeLoop (class, lines 266-303, slice 1): CHUNK_ID = src/runtime/production.py#266-303#3ece1420 — [[F:src/runtime/production.py#266-303#3ece1420]].
-- RuntimeLoop (class, lines 304-341, slice 2): CHUNK_ID = src/runtime/production.py#304-341#3ece1420 — [[F:src/runtime/production.py#304-341#3ece1420]].
-- RuntimeLoop (class, lines 342-375, slice 3): CHUNK_ID = src/runtime/production.py#342-375#3ece1420 — [[F:src/runtime/production.py#342-375#3ece1420]].
-- RuntimeLoop.__init__ (method, lines 272-299): CHUNK_ID = src/runtime/production.py#272-299#3ece1420 — [[F:src/runtime/production.py#272-299#3ece1420]].
-- RuntimeLoop.sync_once (method, lines 301-339): CHUNK_ID = src/runtime/production.py#301-339#3ece1420 — [[F:src/runtime/production.py#301-339#3ece1420]].
-- RuntimeLoop.step (method, lines 341-350): CHUNK_ID = src/runtime/production.py#341-350#3ece1420 — [[F:src/runtime/production.py#341-350#3ece1420]].
-- RuntimeLoop.run (method, lines 352-375): CHUNK_ID = src/runtime/production.py#352-375#3ece1420 — [[F:src/runtime/production.py#352-375#3ece1420]].
-- UpgradeListing (class, lines 378-421): CHUNK_ID = src/runtime/production.py#378-421#3ece1420 — [[F:src/runtime/production.py#378-421#3ece1420]].
-- UpgradeListing.__init__ (method, lines 387-391): CHUNK_ID = src/runtime/production.py#387-391#3ece1420 — [[F:src/runtime/production.py#387-391#3ece1420]].
-- UpgradeListing.refresh (method, lines 393-417): CHUNK_ID = src/runtime/production.py#393-417#3ece1420 — [[F:src/runtime/production.py#393-417#3ece1420]].
-- UpgradeListing.close (method, lines 419-421): CHUNK_ID = src/runtime/production.py#419-421#3ece1420 — [[F:src/runtime/production.py#419-421#3ece1420]].
+- _OrchestratorView (class, lines 107-119): CHUNK_ID = src/runtime/production.py#107-119#55696d76 — [[F:src/runtime/production.py#107-119#55696d76]].
+- _OrchestratorView.crypto_box (method, lines 111-111): CHUNK_ID = src/runtime/production.py#111-111#55696d76 — [[F:src/runtime/production.py#111-111#55696d76]].
+- _OrchestratorView.signal_engines (method, lines 113-113): CHUNK_ID = src/runtime/production.py#113-113#55696d76 — [[F:src/runtime/production.py#113-113#55696d76]].
+- _OrchestratorView.background_tasks (method, lines 115-115): CHUNK_ID = src/runtime/production.py#115-115#55696d76 — [[F:src/runtime/production.py#115-115#55696d76]].
+- _OrchestratorView.provider_tasks (method, lines 117-117): CHUNK_ID = src/runtime/production.py#117-117#55696d76 — [[F:src/runtime/production.py#117-117#55696d76]].
+- _OrchestratorView.worker_pools (method, lines 119-119): CHUNK_ID = src/runtime/production.py#119-119#55696d76 — [[F:src/runtime/production.py#119-119#55696d76]].
+- _PauseSwitch (class, lines 122-126): CHUNK_ID = src/runtime/production.py#122-126#55696d76 — [[F:src/runtime/production.py#122-126#55696d76]].
+- _PauseSwitch.paused (method, lines 124-124): CHUNK_ID = src/runtime/production.py#124-124#55696d76 — [[F:src/runtime/production.py#124-124#55696d76]].
+- _PauseSwitch.set_paused_now (method, lines 126-126): CHUNK_ID = src/runtime/production.py#126-126#55696d76 — [[F:src/runtime/production.py#126-126#55696d76]].
+- _utc_ms (function, lines 129-130): CHUNK_ID = src/runtime/production.py#129-130#55696d76 — [[F:src/runtime/production.py#129-130#55696d76]].
+- ProductionSources (class, lines 134-150): CHUNK_ID = src/runtime/production.py#134-150#55696d76 — [[F:src/runtime/production.py#134-150#55696d76]].
+- _impl (function, lines 153-155): CHUNK_ID = src/runtime/production.py#153-155#55696d76 — [[F:src/runtime/production.py#153-155#55696d76]].
+- _orchestrator_task_dependencies (function, lines 158-180): CHUNK_ID = src/runtime/production.py#158-180#55696d76 — [[F:src/runtime/production.py#158-180#55696d76]].
+- production_discoveries (function, lines 183-225): CHUNK_ID = src/runtime/production.py#183-225#55696d76 — [[F:src/runtime/production.py#183-225#55696d76]].
+- production_controllers (function, lines 228-256): CHUNK_ID = src/runtime/production.py#228-256#55696d76 — [[F:src/runtime/production.py#228-256#55696d76]].
+- SyncReport (class, lines 260-263): CHUNK_ID = src/runtime/production.py#260-263#55696d76 — [[F:src/runtime/production.py#260-263#55696d76]].
+- RuntimeLoop (class, lines 266-303, slice 1): CHUNK_ID = src/runtime/production.py#266-303#55696d76 — [[F:src/runtime/production.py#266-303#55696d76]].
+- RuntimeLoop (class, lines 304-341, slice 2): CHUNK_ID = src/runtime/production.py#304-341#55696d76 — [[F:src/runtime/production.py#304-341#55696d76]].
+- RuntimeLoop (class, lines 342-372, slice 3): CHUNK_ID = src/runtime/production.py#342-372#55696d76 — [[F:src/runtime/production.py#342-372#55696d76]].
+- RuntimeLoop.__init__ (method, lines 272-298): CHUNK_ID = src/runtime/production.py#272-298#55696d76 — [[F:src/runtime/production.py#272-298#55696d76]].
+- RuntimeLoop.sync_once (method, lines 300-338): CHUNK_ID = src/runtime/production.py#300-338#55696d76 — [[F:src/runtime/production.py#300-338#55696d76]].
+- RuntimeLoop.step (method, lines 340-349): CHUNK_ID = src/runtime/production.py#340-349#55696d76 — [[F:src/runtime/production.py#340-349#55696d76]].
+- RuntimeLoop.run (method, lines 351-372): CHUNK_ID = src/runtime/production.py#351-372#55696d76 — [[F:src/runtime/production.py#351-372#55696d76]].
+- UpgradeListing (class, lines 375-418): CHUNK_ID = src/runtime/production.py#375-418#55696d76 — [[F:src/runtime/production.py#375-418#55696d76]].
+- UpgradeListing.__init__ (method, lines 384-388): CHUNK_ID = src/runtime/production.py#384-388#55696d76 — [[F:src/runtime/production.py#384-388#55696d76]].
+- UpgradeListing.refresh (method, lines 390-414): CHUNK_ID = src/runtime/production.py#390-414#55696d76 — [[F:src/runtime/production.py#390-414#55696d76]].
+- UpgradeListing.close (method, lines 416-418): CHUNK_ID = src/runtime/production.py#416-418#55696d76 — [[F:src/runtime/production.py#416-418#55696d76]].
 
 ## src/runtime/platform.py
 
@@ -1659,7 +1654,6 @@ SHA8 a2efe8f2; total lines 805.
 
 - WorkerTask (class, lines 42-54): CHUNK_ID = src/workers/orchestrator.py#42-54#a2efe8f2 — [[F:src/workers/orchestrator.py#42-54#a2efe8f2]].
 - WorkerResult (class, lines 58-88): CHUNK_ID = src/workers/orchestrator.py#58-88#a2efe8f2 — [[F:src/workers/orchestrator.py#58-88#a2efe8f2]].
-- _handle_worker_sigterm (function, lines 91-93): CHUNK_ID = src/workers/orchestrator.py#91-93#a2efe8f2 — [[F:src/workers/orchestrator.py#91-93#a2efe8f2]].
 - _model_worker (function, lines 96-135): CHUNK_ID = src/workers/orchestrator.py#96-135#a2efe8f2 — [[F:src/workers/orchestrator.py#96-135#a2efe8f2]].
 - _run_horizon_inference (function, lines 138-175, slice 1): CHUNK_ID = src/workers/orchestrator.py#138-175#a2efe8f2 — [[F:src/workers/orchestrator.py#138-175#a2efe8f2]].
 - _run_horizon_inference (function, lines 176-213, slice 2): CHUNK_ID = src/workers/orchestrator.py#176-213#a2efe8f2 — [[F:src/workers/orchestrator.py#176-213#a2efe8f2]].
@@ -1772,7 +1766,6 @@ SHA8 1de280b9; total lines 616.
 
 - is_local_check_execution (function, lines 169-175): CHUNK_ID = common/command_schema.py#169-175#1de280b9 — [[F:common/command_schema.py#169-175#1de280b9]].
 - classify (function, lines 489-505): CHUNK_ID = common/command_schema.py#489-505#1de280b9 — [[F:common/command_schema.py#489-505#1de280b9]].
-- is_exact_patch_apply_command (function, lines 508-521): CHUNK_ID = common/command_schema.py#508-521#1de280b9 — [[F:common/command_schema.py#508-521#1de280b9]].
 - is_ci_log_access (function, lines 535-548): CHUNK_ID = common/command_schema.py#535-548#1de280b9 — [[F:common/command_schema.py#535-548#1de280b9]].
 - rank (function, lines 551-556): CHUNK_ID = common/command_schema.py#551-556#1de280b9 — [[F:common/command_schema.py#551-556#1de280b9]].
 - redact (function, lines 559-589): CHUNK_ID = common/command_schema.py#559-589#1de280b9 — [[F:common/command_schema.py#559-589#1de280b9]].
@@ -1831,11 +1824,11 @@ SHA8 10e2649d; total lines 457.
 
 ## frontend/src/App.jsx
 
-SHA8 14ed8fbf; AST parse unavailable near line 65: unterminated string literal (detected at line 65). Use bounded textual slices.
+SHA8 1f059b47; AST parse unavailable near line 65: unterminated string literal (detected at line 65). Use bounded textual slices.
 
 ## frontend/src/hooks/useApi.js
 
-SHA8 79cc9d3c; AST parse unavailable near line 1: invalid syntax. Use bounded textual slices.
+SHA8 d0343ff3; AST parse unavailable near line 1: invalid syntax. Use bounded textual slices.
 
 ## frontend/src/terminal/client.js
 
@@ -1843,11 +1836,11 @@ SHA8 97805d86; AST parse unavailable near line 8: unterminated string literal (d
 
 ## frontend/electron/main.cjs
 
-SHA8 2846114f; AST parse unavailable near line 1: invalid character '—' (U+2014). Use bounded textual slices.
+SHA8 5a1a7124; AST parse unavailable near line 1: invalid character '—' (U+2014). Use bounded textual slices.
 
 ## frontend/electron/terminalBridge.cjs
 
-SHA8 df9b68c6; AST parse unavailable near line 11: leading zeros in decimal integer literals are not permitted; use an 0o prefix for octal integers. Use bounded textual slices.
+SHA8 bb5f41f6; AST parse unavailable near line 11: leading zeros in decimal integer literals are not permitted; use an 0o prefix for octal integers. Use bounded textual slices.
 
 ## tests/test_engine_seam_contract.py
 
@@ -1972,39 +1965,40 @@ Python AST parsing is not valid for JSX, JavaScript, YAML or Markdown. These ran
 
 ### frontend/src/App.jsx
 
-SHA8 14ed8fbf; total lines 471.
+SHA8 1f059b47; total lines 493.
 
-- CHUNK_ID = frontend/src/App.jsx#1-38#14ed8fbf — [[F:frontend/src/App.jsx#1-38#14ed8fbf]].
-- CHUNK_ID = frontend/src/App.jsx#39-76#14ed8fbf — [[F:frontend/src/App.jsx#39-76#14ed8fbf]] declarations nearby: REGIME_COLOR, REGIME_NAME, SPEC_BY_ID, App, Dashboard.
-- CHUNK_ID = frontend/src/App.jsx#77-114#14ed8fbf — [[F:frontend/src/App.jsx#77-114#14ed8fbf]] declarations nearby: onEvent, status, readiness, equityCurve, trades.
-- CHUNK_ID = frontend/src/App.jsx#115-152#14ed8fbf — [[F:frontend/src/App.jsx#115-152#14ed8fbf]] declarations nearby: riskControls, modelsStatus, handleModeSwitch, handleRiskUpdate, handleApprovalResolve.
-- CHUNK_ID = frontend/src/App.jsx#153-190#14ed8fbf — [[F:frontend/src/App.jsx#153-190#14ed8fbf]] declarations nearby: activeTimeframes, equity, dailyPnl, positions, regime.
-- CHUNK_ID = frontend/src/App.jsx#191-228#14ed8fbf — [[F:frontend/src/App.jsx#191-228#14ed8fbf]] declarations nearby: renderPanel, spec, panel, item.
-- CHUNK_ID = frontend/src/App.jsx#229-266#14ed8fbf — [[F:frontend/src/App.jsx#229-266#14ed8fbf]] declarations nearby: hiddenCount.
-- CHUNK_ID = frontend/src/App.jsx#267-304#14ed8fbf — [[F:frontend/src/App.jsx#267-304#14ed8fbf]].
-- CHUNK_ID = frontend/src/App.jsx#305-342#14ed8fbf — [[F:frontend/src/App.jsx#305-342#14ed8fbf]] declarations nearby: Header.
-- CHUNK_ID = frontend/src/App.jsx#343-380#14ed8fbf — [[F:frontend/src/App.jsx#343-380#14ed8fbf]].
-- CHUNK_ID = frontend/src/App.jsx#381-418#14ed8fbf — [[F:frontend/src/App.jsx#381-418#14ed8fbf]] declarations nearby: StatsRow, regimeState, regimeColor, regimeName.
-- CHUNK_ID = frontend/src/App.jsx#419-456#14ed8fbf — [[F:frontend/src/App.jsx#419-456#14ed8fbf]] declarations nearby: PanelManager, visible.
-- CHUNK_ID = frontend/src/App.jsx#457-471#14ed8fbf — [[F:frontend/src/App.jsx#457-471#14ed8fbf]].
+- CHUNK_ID = frontend/src/App.jsx#1-38#1f059b47 — [[F:frontend/src/App.jsx#1-38#1f059b47]].
+- CHUNK_ID = frontend/src/App.jsx#39-76#1f059b47 — [[F:frontend/src/App.jsx#39-76#1f059b47]].
+- CHUNK_ID = frontend/src/App.jsx#77-114#1f059b47 — [[F:frontend/src/App.jsx#77-114#1f059b47]].
+- CHUNK_ID = frontend/src/App.jsx#115-152#1f059b47 — [[F:frontend/src/App.jsx#115-152#1f059b47]].
+- CHUNK_ID = frontend/src/App.jsx#153-190#1f059b47 — [[F:frontend/src/App.jsx#153-190#1f059b47]].
+- CHUNK_ID = frontend/src/App.jsx#191-228#1f059b47 — [[F:frontend/src/App.jsx#191-228#1f059b47]].
+- CHUNK_ID = frontend/src/App.jsx#229-266#1f059b47 — [[F:frontend/src/App.jsx#229-266#1f059b47]].
+- CHUNK_ID = frontend/src/App.jsx#267-304#1f059b47 — [[F:frontend/src/App.jsx#267-304#1f059b47]].
+- CHUNK_ID = frontend/src/App.jsx#305-342#1f059b47 — [[F:frontend/src/App.jsx#305-342#1f059b47]].
+- CHUNK_ID = frontend/src/App.jsx#343-380#1f059b47 — [[F:frontend/src/App.jsx#343-380#1f059b47]].
+- CHUNK_ID = frontend/src/App.jsx#381-418#1f059b47 — [[F:frontend/src/App.jsx#381-418#1f059b47]].
+- CHUNK_ID = frontend/src/App.jsx#419-456#1f059b47 — [[F:frontend/src/App.jsx#419-456#1f059b47]].
+- CHUNK_ID = frontend/src/App.jsx#457-493#1f059b47 — [[F:frontend/src/App.jsx#457-493#1f059b47]].
 
 ### frontend/src/hooks/useApi.js
 
-SHA8 79cc9d3c; total lines 463.
+SHA8 d0343ff3; total lines 522.
 
-- CHUNK_ID = frontend/src/hooks/useApi.js#1-38#79cc9d3c — [[F:frontend/src/hooks/useApi.js#1-38#79cc9d3c]] declarations nearby:_RAW_API, API_KEY, _ALLOWED_API_RE, API, WS_URL.
-- CHUNK_ID = frontend/src/hooks/useApi.js#39-76#79cc9d3c — [[F:frontend/src/hooks/useApi.js#39-76#79cc9d3c]] declarations nearby: err,_topicListeners, _emit, listeners,_resyncListeners.
-- CHUNK_ID = frontend/src/hooks/useApi.js#77-114#79cc9d3c — [[F:frontend/src/hooks/useApi.js#77-114#79cc9d3c]] declarations nearby:_liveSocket, _sendSubscribe, topics.
-- CHUNK_ID = frontend/src/hooks/useApi.js#115-152#79cc9d3c — [[F:frontend/src/hooks/useApi.js#115-152#79cc9d3c]] declarations nearby: RECONNECT_BASE_MS, RECONNECT_CAP_MS, reconnectDelay, backoff, useWebSocket.
-- CHUNK_ID = frontend/src/hooks/useApi.js#153-190#79cc9d3c — [[F:frontend/src/hooks/useApi.js#153-190#79cc9d3c]] declarations nearby: connect, wsUrl, ws, wasReconnect, msg.
-- CHUNK_ID = frontend/src/hooks/useApi.js#191-228#79cc9d3c — [[F:frontend/src/hooks/useApi.js#191-228#79cc9d3c]].
-- CHUNK_ID = frontend/src/hooks/useApi.js#229-266#79cc9d3c — [[F:frontend/src/hooks/useApi.js#229-266#79cc9d3c]] declarations nearby: useStream, transformRef, applyRef, refetchRef, cancelled.
-- CHUNK_ID = frontend/src/hooks/useApi.js#267-304#79cc9d3c — [[F:frontend/src/hooks/useApi.js#267-304#79cc9d3c]] declarations nearby: isNewTopic, API_ORIGIN.
-- CHUNK_ID = frontend/src/hooks/useApi.js#305-342#79cc9d3c — [[F:frontend/src/hooks/useApi.js#305-342#79cc9d3c]] declarations nearby: apiProblem.
-- CHUNK_ID = frontend/src/hooks/useApi.js#343-380#79cc9d3c — [[F:frontend/src/hooks/useApi.js#343-380#79cc9d3c]] declarations nearby: useApiResource, transformRef, live, inFlight, poll.
-- CHUNK_ID = frontend/src/hooks/useApi.js#381-418#79cc9d3c — [[F:frontend/src/hooks/useApi.js#381-418#79cc9d3c]] declarations nearby: useReadiness, usePolling, transformRef, inFlight, poll.
-- CHUNK_ID = frontend/src/hooks/useApi.js#419-456#79cc9d3c — [[F:frontend/src/hooks/useApi.js#419-456#79cc9d3c]] declarations nearby: body, fn, id, useOperatorAction, action.
-- CHUNK_ID = frontend/src/hooks/useApi.js#457-463#79cc9d3c — [[F:frontend/src/hooks/useApi.js#457-463#79cc9d3c]].
+- CHUNK_ID = frontend/src/hooks/useApi.js#1-38#d0343ff3 — [[F:frontend/src/hooks/useApi.js#1-38#d0343ff3]].
+- CHUNK_ID = frontend/src/hooks/useApi.js#39-76#d0343ff3 — [[F:frontend/src/hooks/useApi.js#39-76#d0343ff3]].
+- CHUNK_ID = frontend/src/hooks/useApi.js#77-114#d0343ff3 — [[F:frontend/src/hooks/useApi.js#77-114#d0343ff3]].
+- CHUNK_ID = frontend/src/hooks/useApi.js#115-152#d0343ff3 — [[F:frontend/src/hooks/useApi.js#115-152#d0343ff3]].
+- CHUNK_ID = frontend/src/hooks/useApi.js#153-190#d0343ff3 — [[F:frontend/src/hooks/useApi.js#153-190#d0343ff3]].
+- CHUNK_ID = frontend/src/hooks/useApi.js#191-228#d0343ff3 — [[F:frontend/src/hooks/useApi.js#191-228#d0343ff3]].
+- CHUNK_ID = frontend/src/hooks/useApi.js#229-266#d0343ff3 — [[F:frontend/src/hooks/useApi.js#229-266#d0343ff3]].
+- CHUNK_ID = frontend/src/hooks/useApi.js#267-304#d0343ff3 — [[F:frontend/src/hooks/useApi.js#267-304#d0343ff3]].
+- CHUNK_ID = frontend/src/hooks/useApi.js#305-342#d0343ff3 — [[F:frontend/src/hooks/useApi.js#305-342#d0343ff3]].
+- CHUNK_ID = frontend/src/hooks/useApi.js#343-380#d0343ff3 — [[F:frontend/src/hooks/useApi.js#343-380#d0343ff3]].
+- CHUNK_ID = frontend/src/hooks/useApi.js#381-418#d0343ff3 — [[F:frontend/src/hooks/useApi.js#381-418#d0343ff3]].
+- CHUNK_ID = frontend/src/hooks/useApi.js#419-456#d0343ff3 — [[F:frontend/src/hooks/useApi.js#419-456#d0343ff3]].
+- CHUNK_ID = frontend/src/hooks/useApi.js#457-494#d0343ff3 — [[F:frontend/src/hooks/useApi.js#457-494#d0343ff3]].
+- CHUNK_ID = frontend/src/hooks/useApi.js#495-522#d0343ff3 — [[F:frontend/src/hooks/useApi.js#495-522#d0343ff3]].
 
 ### frontend/src/terminal/client.js
 
@@ -2031,48 +2025,47 @@ SHA8 e63a327a; total lines 119.
 
 ### frontend/electron/main.cjs
 
-SHA8 2846114f; total lines 166.
+SHA8 5a1a7124; total lines 183.
 
-- CHUNK_ID = frontend/electron/main.cjs#1-38#2846114f — [[F:frontend/electron/main.cjs#1-38#2846114f]] declarations nearby: path, isDev, REPO_ROOT, terminalBridge, DEV_URL.
-- CHUNK_ID = frontend/electron/main.cjs#39-76#2846114f — [[F:frontend/electron/main.cjs#39-76#2846114f]] declarations nearby: createWindow.
-- CHUNK_ID = frontend/electron/main.cjs#77-114#2846114f — [[F:frontend/electron/main.cjs#77-114#2846114f]] declarations nearby: trayIconForBadge, iconPath, updateTrayBadge, createTray, menu.
-- CHUNK_ID = frontend/electron/main.cjs#115-152#2846114f — [[F:frontend/electron/main.cjs#115-152#2846114f]].
-- CHUNK_ID = frontend/electron/main.cjs#153-166#2846114f — [[F:frontend/electron/main.cjs#153-166#2846114f]].
+- CHUNK_ID = frontend/electron/main.cjs#1-38#5a1a7124 — [[F:frontend/electron/main.cjs#1-38#5a1a7124]].
+- CHUNK_ID = frontend/electron/main.cjs#39-76#5a1a7124 — [[F:frontend/electron/main.cjs#39-76#5a1a7124]].
+- CHUNK_ID = frontend/electron/main.cjs#77-114#5a1a7124 — [[F:frontend/electron/main.cjs#77-114#5a1a7124]].
+- CHUNK_ID = frontend/electron/main.cjs#115-152#5a1a7124 — [[F:frontend/electron/main.cjs#115-152#5a1a7124]].
+- CHUNK_ID = frontend/electron/main.cjs#153-183#5a1a7124 — [[F:frontend/electron/main.cjs#153-183#5a1a7124]].
 
 ### frontend/electron/terminalBridge.cjs
 
-SHA8 df9b68c6; total lines 221.
+SHA8 bb5f41f6; total lines 225.
 
-- CHUNK_ID = frontend/electron/terminalBridge.cjs#1-38#df9b68c6 — [[F:frontend/electron/terminalBridge.cjs#1-38#df9b68c6]] declarations nearby: fs, net, path, ALLOWED_TYPES, MAX_FRAME_BYTES.
-- CHUNK_ID = frontend/electron/terminalBridge.cjs#39-76#df9b68c6 — [[F:frontend/electron/terminalBridge.cjs#39-76#df9b68c6]] declarations nearby: validateFrame, line, resolvePython, venv, runTerminalCli.
-- CHUNK_ID = frontend/electron/terminalBridge.cjs#77-114#df9b68c6 — [[F:frontend/electron/terminalBridge.cjs#77-114#df9b68c6]] declarations nearby: ensureService, result, info, TerminalBridge.
-- CHUNK_ID = frontend/electron/terminalBridge.cjs#115-152#df9b68c6 — [[F:frontend/electron/terminalBridge.cjs#115-152#df9b68c6]] declarations nearby: service, socket, record, settled, newline.
-- CHUNK_ID = frontend/electron/terminalBridge.cjs#153-190#df9b68c6 — [[F:frontend/electron/terminalBridge.cjs#153-190#df9b68c6]] declarations nearby: frame, line, record.
-- CHUNK_ID = frontend/electron/terminalBridge.cjs#191-221#df9b68c6 — [[F:frontend/electron/terminalBridge.cjs#191-221#df9b68c6]] declarations nearby: record.
+- CHUNK_ID = frontend/electron/terminalBridge.cjs#1-38#bb5f41f6 — [[F:frontend/electron/terminalBridge.cjs#1-38#bb5f41f6]].
+- CHUNK_ID = frontend/electron/terminalBridge.cjs#39-76#bb5f41f6 — [[F:frontend/electron/terminalBridge.cjs#39-76#bb5f41f6]].
+- CHUNK_ID = frontend/electron/terminalBridge.cjs#77-114#bb5f41f6 — [[F:frontend/electron/terminalBridge.cjs#77-114#bb5f41f6]].
+- CHUNK_ID = frontend/electron/terminalBridge.cjs#115-152#bb5f41f6 — [[F:frontend/electron/terminalBridge.cjs#115-152#bb5f41f6]].
+- CHUNK_ID = frontend/electron/terminalBridge.cjs#153-190#bb5f41f6 — [[F:frontend/electron/terminalBridge.cjs#153-190#bb5f41f6]].
+- CHUNK_ID = frontend/electron/terminalBridge.cjs#191-225#bb5f41f6 — [[F:frontend/electron/terminalBridge.cjs#191-225#bb5f41f6]].
 
 ### frontend/package.json
 
-SHA8 1b928b39; total lines 77.
+SHA8 397d38f6; total lines 77.
 
-- CHUNK_ID = frontend/package.json#1-38#1b928b39 — [[F:frontend/package.json#1-38#1b928b39]].
-- CHUNK_ID = frontend/package.json#39-77#1b928b39 — [[F:frontend/package.json#39-77#1b928b39]].
+- CHUNK_ID = frontend/package.json#1-38#397d38f6 — [[F:frontend/package.json#1-38#397d38f6]].
+- CHUNK_ID = frontend/package.json#39-77#397d38f6 — [[F:frontend/package.json#39-77#397d38f6]].
 
 ### .github/workflows/ci.yml
 
-SHA8 157db505; total lines 408.
+SHA8 1afd1d2e; total lines 408.
 
-- CHUNK_ID = .github/workflows/ci.yml#1-38#157db505 — [[F:.github/workflows/ci.yml#1-38#157db505]].
-- CHUNK_ID = .github/workflows/ci.yml#39-76#157db505 — [[F:.github/workflows/ci.yml#39-76#157db505]].
-- CHUNK_ID = .github/workflows/ci.yml#77-114#157db505 — [[F:.github/workflows/ci.yml#77-114#157db505]].
-- CHUNK_ID = .github/workflows/ci.yml#115-152#157db505 — [[F:.github/workflows/ci.yml#115-152#157db505]].
-- CHUNK_ID = .github/workflows/ci.yml#153-190#157db505 — [[F:.github/workflows/ci.yml#153-190#157db505]].
-- CHUNK_ID = .github/workflows/ci.yml#191-228#157db505 — [[F:.github/workflows/ci.yml#191-228#157db505]].
-- CHUNK_ID = .github/workflows/ci.yml#229-266#157db505 — [[F:.github/workflows/ci.yml#229-266#157db505]].
-- CHUNK_ID = .github/workflows/ci.yml#267-304#157db505 — [[F:.github/workflows/ci.yml#267-304#157db505]].
-- CHUNK_ID = .github/workflows/ci.yml#305-342#157db505 — [[F:.github/workflows/ci.yml#305-342#157db505]].
-- CHUNK_ID = .github/workflows/ci.yml#343-380#157db505 — [[F:.github/workflows/ci.yml#343-380#157db505]].
-- CHUNK_ID = .github/workflows/ci.yml#381-408#157db505 — [[F:.github/workflows/ci.yml#381-408#157db505]].
-
+- CHUNK_ID = .github/workflows/ci.yml#1-38#1afd1d2e — [[F:.github/workflows/ci.yml#1-38#1afd1d2e]].
+- CHUNK_ID = .github/workflows/ci.yml#39-76#1afd1d2e — [[F:.github/workflows/ci.yml#39-76#1afd1d2e]].
+- CHUNK_ID = .github/workflows/ci.yml#77-114#1afd1d2e — [[F:.github/workflows/ci.yml#77-114#1afd1d2e]].
+- CHUNK_ID = .github/workflows/ci.yml#115-152#1afd1d2e — [[F:.github/workflows/ci.yml#115-152#1afd1d2e]].
+- CHUNK_ID = .github/workflows/ci.yml#153-190#1afd1d2e — [[F:.github/workflows/ci.yml#153-190#1afd1d2e]].
+- CHUNK_ID = .github/workflows/ci.yml#191-228#1afd1d2e — [[F:.github/workflows/ci.yml#191-228#1afd1d2e]].
+- CHUNK_ID = .github/workflows/ci.yml#229-266#1afd1d2e — [[F:.github/workflows/ci.yml#229-266#1afd1d2e]].
+- CHUNK_ID = .github/workflows/ci.yml#267-304#1afd1d2e — [[F:.github/workflows/ci.yml#267-304#1afd1d2e]].
+- CHUNK_ID = .github/workflows/ci.yml#305-342#1afd1d2e — [[F:.github/workflows/ci.yml#305-342#1afd1d2e]].
+- CHUNK_ID = .github/workflows/ci.yml#343-380#1afd1d2e — [[F:.github/workflows/ci.yml#343-380#1afd1d2e]].
+- CHUNK_ID = .github/workflows/ci.yml#381-408#1afd1d2e — [[F:.github/workflows/ci.yml#381-408#1afd1d2e]].
 ### docs/terminal/ARCHITECTURE.md
 
 SHA8 ac1b11e0; total lines 217.
