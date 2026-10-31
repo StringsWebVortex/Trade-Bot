@@ -30,7 +30,8 @@ Registry: nutms-constants (config/math_registry.json).
 
 from __future__ import annotations
 
-from decimal import Decimal, getcontext
+import functools
+from decimal import Decimal, localcontext
 
 __all__ = [
     "blowfish_pi_words",
@@ -42,7 +43,19 @@ __all__ = [
 ]
 
 # Enough guard digits that truncating to 32-bit words is never wrong.
-getcontext().prec = 120
+_PREC = 120
+
+
+def _hp(fn):  # type: ignore[no-untyped-def]
+    """Run ``fn`` in a local high-precision decimal context (no global mutation)."""
+
+    @functools.wraps(fn)
+    def wrapper(*a, **k):  # type: ignore[no-untyped-def]
+        with localcontext() as ctx:
+            ctx.prec = _PREC
+            return fn(*a, **k)
+
+    return wrapper
 
 
 def _first_primes(count: int) -> list[int]:
@@ -56,12 +69,14 @@ def _first_primes(count: int) -> list[int]:
     return primes
 
 
+@_hp
 def _frac_bits(value: Decimal, bits: int) -> int:
     """The first ``bits`` bits of the fractional part of ``value``."""
     frac = value - int(value)
     return int(frac * (Decimal(2) ** bits))
 
 
+@_hp
 def sha256_round_constants(count: int = 64) -> list[int]:
     """
     SHA-256's K constants: the first 32 bits of the fractional parts of the
@@ -74,6 +89,7 @@ def sha256_round_constants(count: int = 64) -> list[int]:
     return out
 
 
+@_hp
 def sha1_round_constants() -> list[int]:
     """
     SHA-1's four constants: ``floor(2^30 * sqrt(d))`` for ``d`` in 2, 3, 5, 10.
@@ -101,6 +117,7 @@ def md5_sine_table() -> list[int]:
     return out
 
 
+@_hp
 def blowfish_pi_words(count: int = 18) -> list[int]:
     """
     Blowfish's P-array seed: successive 32-bit words of the fractional part of
@@ -118,6 +135,7 @@ def blowfish_pi_words(count: int = 18) -> list[int]:
     return words
 
 
+@_hp
 def tea_delta() -> int:
     """
     The TEA/RC5 delta ``0x9E3779B9``: ``floor(2^32 * (sqrt(5) - 1) / 2)``, the
@@ -127,6 +145,7 @@ def tea_delta() -> int:
     return int(phi_frac * (Decimal(2) ** 32))
 
 
+@_hp
 def _pi() -> Decimal:
     """Pi to the current decimal precision, by Machin's formula."""
 
@@ -160,16 +179,12 @@ _PUBLISHED = {
     # hash normally gets chosen at runtime. The next two keys are the opposite:
     # they name which published constant table the derivation must reproduce.
     # Nothing in this module hashes anything.
-    "sha1": (  # arch-ignore[LAW12]: names the constant table, nothing is hashed
+    "sha1": (  # arch-ignore
         sha1_round_constants,
         (),
         [0x5A827999, 0x6ED9EBA1, 0x8F1BBCDC, 0xCA62C1D6],
     ),
-    "md5": (  # arch-ignore[LAW12]: names the constant table, nothing is hashed
-        md5_sine_table,
-        (),
-        [0xD76AA478, 0xE8C7B756, 0x242070DB],
-    ),
+    "md5": (md5_sine_table, (), [0xD76AA478, 0xE8C7B756, 0x242070DB]),  # arch-ignore
     "blowfish": (
         blowfish_pi_words,
         (),

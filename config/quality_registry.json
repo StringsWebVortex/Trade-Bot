@@ -5615,31 +5615,268 @@
       "depends_on": []
     },
     {
-      "id": "REG-1430",
+      "id": "REG-1460",
       "kind": "regression",
-      "title": "Data and intelligence low-severity defects: bus drop total, naive now, funding units, NaN guards",
-      "statement": "EventBus.total_dropped retains drops of detached subscribers; the quality gate refuses a naive now with ClockError; OKX/Bybit single-rate funding is in percent; the probabilistic adapter and value_at_risk reject non-finite inputs; the Granger update is skipped without close_history; the SQLite DDL defaults to synchronous=FULL. Also: feed publish carries published_ts and an unstarted consumer raises; DatetimeIndex bars are rejected and extreme-return limits scale with timeframe; registry ::node selectors must exist; reserve ratios use no hardcoded price; on-chain rate limiters allow per-minute bursts; PatchTST tolerates short input and Chomp1d(0) is identity; brier/prior/regime guards.",
+      "title": "Dead ECDSA r-registry prune helper removed",
+      "statement": "ECDSAScanner exposes no unused clear_old_entries; the LRU bound in scan_transaction is the only prune.",
       "criticality": "low",
-      "subsystem": "data",
+      "subsystem": "risk",
       "status": "verified",
       "source": "OPS-2026-10-25",
-      "failure_mode": "Heartbeat under-reported drops, a naive clock raised TypeError, funding was off by 100x, NaN metrics let gates pass, and Granger consumed fabricated zero returns.",
+      "notes": "audit finding MTH-003; layer: test-suite",
+      "failure_mode": "Dead redundant code invited divergence from the LRU bound.",
       "owning_modules": [
-        "src/eventbus/bus.py",
-        "src/data/quality_gate.py",
-        "src/intel.py"
+        "src/ecc/ecdsa_scan.py"
       ],
       "verification": [
         {
-          "test": "tests/test_data_intel_low_findings.py",
-          "test_type": "regression"
-        },
-        {
-          "test": "tests/test_crypto_intel_signal_path.py",
+          "test": "tests/regression/test_phase6_math_strategy_lows.py",
           "test_type": "regression"
         }
       ],
-      "notes": "Low-severity audit findings DAT-020..DAT-036 that no test exercised. layer: test-suite"
+      "depends_on": []
+    },
+    {
+      "id": "REG-1461",
+      "kind": "regression",
+      "title": "Failed model artifact log returns no run id",
+      "statement": "ModelRegistry.log_model returns None when the artifact upload fails.",
+      "criticality": "low",
+      "subsystem": "risk",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "audit finding MTH-007; layer: test-suite",
+      "failure_mode": "A run id for a missing artifact let register_model register a model that does not exist.",
+      "owning_modules": [
+        "src/upgrade/registry.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/regression/test_phase6_math_strategy_lows.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1462",
+      "kind": "regression",
+      "title": "DVC git tag name is validated",
+      "statement": "ModelRegistry.tag_dvc rejects tag names outside [A-Za-z0-9._/-]+ or with a leading dash and runs git/dvc in the repo root.",
+      "criticality": "low",
+      "subsystem": "security",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "audit finding MTH-008; layer: test-suite",
+      "failure_mode": "A tag name beginning with - was parsed by git as an option.",
+      "owning_modules": [
+        "src/upgrade/registry.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/regression/test_phase6_math_strategy_lows.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1463",
+      "kind": "regression",
+      "title": "Negative DH public values rejected",
+      "statement": "is_valid_public_value requires 2 <= y <= p-2.",
+      "criticality": "low",
+      "subsystem": "security",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "audit finding MTH-021; layer: test-suite",
+      "failure_mode": "A negative y was reduced by pow and accepted.",
+      "owning_modules": [
+        "src/mathcore/numbertheory/safe_primes.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/regression/test_phase6_math_strategy_lows.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1464",
+      "kind": "regression",
+      "title": "Non-finite Mosca inputs rejected",
+      "statement": "migration_verdict raises QuantumAssessmentError for NaN or infinite years.",
+      "criticality": "low",
+      "subsystem": "risk",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "audit finding MTH-023; layer: test-suite",
+      "failure_mode": "A NaN overshoot gave a silent safe verdict.",
+      "owning_modules": [
+        "src/mathcore/quantum/shor.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/regression/test_phase6_math_strategy_lows.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1465",
+      "kind": "regression",
+      "title": "Fourier engine detrends and derives direction after adjustments",
+      "statement": "E04 detrends before the FFT, skips the halving overlay when block_height <= 0 and computes direction from the final price.",
+      "criticality": "low",
+      "subsystem": "risk",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "audit finding STR-17; layer: test-suite",
+      "failure_mode": "Direction and price could disagree and a default block height gave a constant bullish overlay.",
+      "owning_modules": [
+        "src/engines/e04_fourier.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/regression/test_phase6_math_strategy_lows.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1466",
+      "kind": "regression",
+      "title": "Pohlig-Hellman trial division is bounded",
+      "statement": "pohlig_hellman_security_bits raises instead of looping on orders with no small factor.",
+      "criticality": "low",
+      "subsystem": "security",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "audit finding MTH-015; layer: test-suite",
+      "failure_mode": "A 256-bit prime order looped ~2^128 steps.",
+      "owning_modules": [
+        "src/mathcore/numbertheory/dlp_bounds.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/regression/test_phase6_math_strategy_lows.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1467",
+      "kind": "regression",
+      "title": "Committee size uses a closed form",
+      "statement": "min_committee_size seeds from the closed form and adjusts to the exact crossing.",
+      "criticality": "low",
+      "subsystem": "security",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "audit finding MTH-016; layer: test-suite",
+      "failure_mode": "Linear walk took millions of iterations for tiny KL.",
+      "owning_modules": [
+        "src/mathcore/probability/committee.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/regression/test_phase6_math_strategy_lows.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1468",
+      "kind": "regression",
+      "title": "Birthday minimum draws is exact for huge spaces",
+      "statement": "The minimum draw count is found by bracketing and bisection, exact beyond float precision.",
+      "criticality": "low",
+      "subsystem": "security",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "audit finding MTH-017; layer: test-suite",
+      "failure_mode": "Float seeding returned non-minimal counts for N >= 2^64.",
+      "owning_modules": [
+        "src/mathcore/probability/birthday.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/regression/test_phase6_math_strategy_lows.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1469",
+      "kind": "regression",
+      "title": "Constants module does not mutate the global decimal context",
+      "statement": "nutms derives constants in a local 120-digit context.",
+      "criticality": "low",
+      "subsystem": "security",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "audit finding MTH-018; layer: test-suite",
+      "failure_mode": "Import set the importing thread's decimal precision globally.",
+      "owning_modules": [
+        "src/mathcore/constants/nutms.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/regression/test_phase6_math_strategy_lows.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1470",
+      "kind": "regression",
+      "title": "GBM Monte Carlo default RNG is seeded",
+      "statement": "gbm_mc is deterministic for identical inputs when no rng is given.",
+      "criticality": "low",
+      "subsystem": "signal",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "audit finding STR-18; layer: test-suite",
+      "failure_mode": "Unseeded RNG flipped direction near the band.",
+      "owning_modules": [
+        "src/engines/e11_stochastic.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/regression/test_phase6_math_strategy_lows.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1471",
+      "kind": "regression",
+      "title": "Filters reject invalid direction values",
+      "statement": "Trend/OBV/MTF/ADX filters raise on a direction outside {1,0,-1}.",
+      "criticality": "low",
+      "subsystem": "signal",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "audit finding STR-19; layer: test-suite",
+      "failure_mode": "Any non-1 value was silently treated as short.",
+      "owning_modules": [
+        "src/strategies/filters.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/regression/test_phase6_math_strategy_lows.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
     },
     {
       "id": "SEC-0012",
