@@ -1,0 +1,23 @@
+{
+  "id": "REG-1521",
+  "kind": "regression",
+  "title": "Knowledge-graph and review retrieval return no edges when no entity matches",
+  "statement": "kg.query._subgraph and review.retrieval.graph return an empty list for an empty entity set, and kg candidate-name extraction drops stopwords.",
+  "criticality": "low",
+  "subsystem": "data",
+  "status": "verified",
+  "source": "OPS-2026-10-25",
+  "notes": "layer: test-suite",
+  "failure_mode": "Arbitrary first-N edges were presented to the model as grounding for unrelated questions.",
+  "owning_modules": [
+    "kg/query.py",
+    "review/retrieval.py"
+  ],
+  "verification": [
+    {
+      "test": "tests/test_low_findings_regressions.py",
+      "test_type": "regression"
+    }
+  ],
+  "depends_on": []
+}
