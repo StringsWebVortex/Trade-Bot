@@ -283,8 +283,8 @@ class TestCoinglassProviderEnabled:
         with patch.object(prov, "_get", side_effect=mock_get):
             m = await prov.fetch_metrics()
 
-        # 5 fields, each -0.05 penalty on a None fetch -> 1.0 - 0.25 = 0.75.
-        assert m["confidence"] == pytest.approx(0.75)
+        # 4 fetched fields, each -0.05 penalty on a None fetch -> 1.0 - 0.20 = 0.80.
+        assert m["confidence"] == pytest.approx(0.80)
         assert m["futures_oi_change_pct"] == 0.0
         assert m["liquidation_pressure_24h_zscore"] == 0.0
         assert m["liquidation_cascade_risk_usd"] == 0.0
