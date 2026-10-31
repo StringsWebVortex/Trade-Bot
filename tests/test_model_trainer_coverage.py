@@ -890,7 +890,16 @@ class TestTrainMetaLabel:
         trainer = _fast_trainer()
         fm = _feature_matrix(n=400)
         dir_result = trainer.train_direction(fm)
-        meta_result = trainer.train_meta_label(fm, dir_result.model)
+        # Keep the meta target two-class regardless of XGBoost's fitted
+        # decision boundary: half the direction predictions are deliberately
+        # inverted so CPCV exercises both correct and incorrect outcomes.
+        labels = fm.labels.to_numpy(dtype=np.int8)
+        predictions = labels.copy()
+        predictions[::2] = 1 - predictions[::2]
+        p_long = np.where(predictions == 1, 0.9, 0.1)
+        probabilities = np.column_stack([1.0 - p_long, p_long])
+        with patch.object(dir_result.model, "predict_proba", return_value=probabilities):
+            meta_result = trainer.train_meta_label(fm, dir_result.model)
         assert isinstance(meta_result, TrainingResult)
         assert isinstance(meta_result.model, XGBClassifier)
 
