@@ -47,28 +47,28 @@ deletion of the thing it points at.
 
 | Status | Entries |
 |---|---|
-| VERIFIED | 250 |
+| VERIFIED | 284 |
 | PARTIAL | 3 |
 | PLANNED | 0 |
 | ACCEPTED GAP | 0 |
-| **Total** | **253** |
+| **Total** | **287** |
 
 ## Summary by subsystem
 
 | Subsystem | Entries | Verified |
 |---|---|---|
-| Risk | 11 | 11 |
+| Risk | 12 | 12 |
 | Execution | 17 | 16 |
-| Portfolio | 1 | 1 |
-| Signal and features | 7 | 7 |
-| Models and leakage | 11 | 11 |
-| Data, money and time | 11 | 10 |
+| Portfolio | 2 | 2 |
+| Signal and features | 16 | 16 |
+| Models and leakage | 23 | 23 |
+| Data, money and time | 16 | 15 |
 | API and WebSocket | 26 | 26 |
-| Cryptography and secrets | 33 | 33 |
+| Cryptography and secrets | 38 | 38 |
 | Supply chain and artifacts | 7 | 7 |
 | Resilience and recovery | 26 | 26 |
 | Release and production | 17 | 17 |
-| Governance | 73 | 72 |
+| Governance | 74 | 73 |
 | Terminal and process center | 13 | 13 |
 
 ## Outstanding work by phase
@@ -227,6 +227,20 @@ When RiskGate.check_drift reports drift for the contributing horizon, CryptoInte
   - `tests/test_crypto_intel_signal_path.py` (regression)
 
 > layer: test-suite
+
+#### `REG-1372` — Slippage calibration ADV is a daily volume
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+adv_20d is the mean bar volume multiplied by bars per day for the configured timeframe.
+
+- **If violated:** On 15m bars participation was overstated about 96x and the tuned impact coefficient was calibrated on the wrong scale.
+- **Owned by:** `src/tuning/scheduler.py`
+- **Verification:**
+  - `tests/test_math_strategies_audit_fixes.py` (regression)
+  - `tests/test_tuning_scheduler.py` (regression)
+
+> audit finding STR-14. layer: test-suite
 
 ## Execution
 
@@ -462,6 +476,19 @@ Aggregate exposure, cross-strategy correlation and portfolio agreement are evalu
   - `tests/test_portfolio_correlation.py` (risk)
   - `tests/test_portfolio_agreement.py` (risk)
 
+#### `REG-1371` — Capital allocator does not mix warm-up shares with raw scores
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+Mature scores split the share left after warm-up and floored strategies; warm-up strategies keep their equal share.
+
+- **If violated:** Shares were summed with Sharpe/Sortino or 1/vol units, so allocation depended on unrelated scales.
+- **Owned by:** `src/strategies/capital_allocator.py`
+- **Verification:**
+  - `tests/test_math_strategies_audit_fixes.py` (regression)
+
+> audit finding STR-13. layer: test-suite
+
 ## Signal and features
 
 #### `RES-024` — Every ensemble cycle leaves per-engine causal evidence off the trading path
@@ -535,6 +562,122 @@ SOPR, NVT and MVRV are either genuinely computed or NaN; no on-chain metric retu
   - `tests/test_onchain_no_fabricated_values.py` (regression)
 
 > Escaped to production: the constant reached the live feature dict in src/intel.py and was persisted to intelligence_features_history beside measured columns. The test suite could not catch it because the test that existed asserted the placeholder (== 1.0) rather than the requirement, so the layer that should have caught it is the review that accepted a return of a bare literal from a metric together with a docstring describing a computation the body never performed. layer: review
+
+#### `REG-1070` — Live inference scores the latest closed bar
+
+**VERIFIED** · critical · regression · source: OPS-2026-10-25
+
+Live inference scores the feature row of the newest closed bar (label-independent), refuses a matrix whose last row is not the last bar, and the engine slices off a forming bar rather than skipping the tick
+
+- **If violated:** Live path scored an older, lookahead-selected labelled row; HMM fed a gapped series
+- **Verification:**
+  - `tests/features/test_closed_bar_inference.py` (regression)
+
+> Audit DAT-001, EXR-003. layer: test-suite
+
+#### `REG-1362` — Cluster flow score is flagged unavailable when no flow data exists
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+ClusteringResult.flow_available is true only when a whale cluster carries inflow/outflow, and the worker marks cluster validity from it, so a constant 0.0 is not consumed as a signal.
+
+- **If violated:** flow_score was a constant 0.0 because flows were never populated, yet the ensemble consumed it as valid.
+- **Owned by:** `src/ecc/secp256k1_cluster.py`, `src/workers/orchestrator.py`
+- **Verification:**
+  - `tests/test_math_strategies_audit_fixes.py` (regression)
+
+> audit finding MTH-004. layer: test-suite
+
+#### `REG-1363` — UTXO age falls back to confirmations and excludes unknown ages
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+compute_hodler_index derives age from timestamp, else confirmations x 600s, and excludes UTXOs with neither instead of aging them to zero.
+
+- **If violated:** Missing timestamps made every UTXO age 0, pinning hodler_index at 0 and supply_shock_risk False.
+- **Owned by:** `src/ecc/utxo_curve.py`
+- **Verification:**
+  - `tests/test_math_strategies_audit_fixes.py` (regression)
+
+> audit finding MTH-005. layer: test-suite
+
+#### `REG-1364` — Tornado detection handles HexBytes input and matches withdrawals by pool
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+Selectors are read from bytes or str input, and withdrawals join a deposit's cluster by pool contract rather than by transaction value.
+
+- **If violated:** web3 HexBytes input never matched str selectors and withdrawals carry value 0, so dark_pool_pressure was always 0.
+- **Owned by:** `src/ecc/zksnark_detect.py`
+- **Verification:**
+  - `tests/test_math_strategies_audit_fixes.py` (regression)
+
+> audit finding MTH-012. layer: test-suite
+
+#### `REG-1365` — Engine backtest annualises per sample, scores at horizon, applies documented gate
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+signal_sharpe annualises by samples per year, each engine is scored at its declared horizon, and passes_gate requires DA > 0.55 and Sharpe > 1.0.
+
+- **If violated:** Sharpe was overstated by about sqrt(30), every engine was scored on the next hourly close, and the gate ignored Sharpe and used 0.5.
+- **Owned by:** `src/tuning/engine_backtest.py`
+- **Verification:**
+  - `tests/test_math_strategies_audit_fixes.py` (regression)
+
+> audit finding STR-07. layer: test-suite
+
+#### `REG-1367` — E-14 abstains without history and is neutral on a degenerate window
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+E-14 abstains until five readings exist and contrarian_signal returns 0 when max equals min.
+
+- **If violated:** The first reading produced a full-confidence long.
+- **Owned by:** `src/engines/e14_sentiment.py`
+- **Verification:**
+  - `tests/test_math_strategies_audit_fixes.py` (regression)
+
+> audit finding STR-09. layer: test-suite
+
+#### `REG-1368` — Engine rolling state is keyed by symbol
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+E-08, E-12, E-13, E-14 and E-17 keep their rolling history per symbol so one asset is never z-scored against another.
+
+- **If violated:** A shared orchestrator mixed history across symbols and corrupted every z-score and contagion delta.
+- **Owned by:** `src/engines/e08_topology.py`, `src/engines/e12_options.py`, `src/engines/e13_contagion.py`, `src/engines/e14_sentiment.py`, `src/engines/e17_liquidity.py`
+- **Verification:**
+  - `tests/test_math_strategies_audit_fixes.py` (regression)
+
+> audit finding STR-10. layer: test-suite
+
+#### `REG-1369` — Consensus dispersion excludes abstentions and the breaker holds real spot
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+Agreement and outliers are computed over engines with non-zero confidence, and the circuit breaker holds the caller's spot when supplied.
+
+- **If violated:** Abstentions biased agreement toward 1 and the breaker reported E-01's forecast as spot.
+- **Owned by:** `src/engines/consensus.py`, `src/engines/orchestrator.py`
+- **Verification:**
+  - `tests/test_math_strategies_audit_fixes.py` (regression)
+
+> audit finding STR-11. layer: test-suite
+
+#### `REG-1370` — E-07 PCA direction follows the recent PC1 score with a fixed sign
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+The PC1 loading sign is fixed so loadings sum positive and direction is the sign of the mean recent PC1 score.
+
+- **If violated:** The arbitrary SVD sign made the emitted direction effectively random.
+- **Owned by:** `src/engines/e07_linear_algebra.py`
+- **Verification:**
+  - `tests/test_math_strategies_audit_fixes.py` (regression)
+
+> audit finding STR-12. layer: test-suite
 
 #### `REG-1704` — Carry and arbitrage entries clear a measured-cost hurdle, never a fixed threshold
 
@@ -679,6 +822,112 @@ Orchestrator._metrics_payload() builds a complete metrics snapshot for every tic
 
 > Pins payload completeness with and without an executor, the method-vs-property fact the bug turned on, and the original TypeError as a negative case. layer: test-suite
 
+#### `REG-1090` — BOCPD changepoint probability responds to a mean shift
+
+**VERIFIED** · high · regression · source: OPS-2026-10-25
+
+BayesianOnlineChangepointDetector.update reports the relative collapse of the expected run length, which rises well above the hazard rate after a step change in the mean, and the run_length=0 hypothesis always survives pruning.
+
+- **If violated:** With a constant hazard the mass on run_length=0 is identically the hazard rate, so the reported changepoint probability and the ensemble agreement score carried no information; a pruned r=0 hypothesis raised StopIteration.
+- **Owned by:** `src/regime/changepoint.py`
+- **Verification:**
+  - `tests/test_changepoint.py` (regression)
+
+> layer: test-suite
+
+#### `REG-1281` — Predictor labels never fabricate a down move for unlabelable tail rows
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+forward_direction_label returns NaN for the last horizon rows, so they are dropped rather than labelled 0.
+
+- **If violated:** The last horizon rows entered training and test folds as down labels, biasing accuracy and PBO proxies.
+- **Owned by:** `crypto-predictor/indicators.py`, `crypto-predictor/validation.py`
+- **Verification:**
+  - `tests/test_crypto_predictor_regressions.py` (regression)
+
+> Audit SCR-007, SCR-008 and DOC-014 (standalone crypto-predictor). layer: test-suite
+
+#### `REG-1282` — Walk-forward training purges labels that overlap the test window
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+walk_forward_backtest excludes the last horizon training rows before each test block, because their labels use closes inside that block.
+
+- **If violated:** Training labels used prices from the test window, inflating out-of-sample accuracy.
+- **Owned by:** `crypto-predictor/backtest.py`
+- **Verification:**
+  - `tests/test_crypto_predictor_regressions.py` (regression)
+
+> Audit SCR-007, SCR-008 and DOC-014 (standalone crypto-predictor). layer: test-suite
+
+#### `REG-1283` — Backtest P&L uses non-overlapping holds and horizon-correct annualisation
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+evaluate compounds returns only on every horizon-th row and annualises with sqrt(365*24/horizon).
+
+- **If violated:** Overlapping forward returns were compounded and Sharpe used a 252-day factor, so total return and Sharpe were overstated.
+- **Owned by:** `crypto-predictor/backtest.py`
+- **Verification:**
+  - `tests/test_crypto_predictor_regressions.py` (regression)
+
+> Audit SCR-007, SCR-008 and DOC-014 (standalone crypto-predictor). layer: test-suite
+
+#### `REG-1284` — Probability calibration folds are time-ordered
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+calibrate_probabilities uses TimeSeriesSplit so the calibrator never trains on rows later than those it scores.
+
+- **If violated:** An unshuffled KFold calibrated on future rows and scored earlier ones, leaking information into the probabilities that drive Kelly sizing.
+- **Owned by:** `crypto-predictor/risk.py`
+- **Verification:**
+  - `tests/test_crypto_predictor_regressions.py` (regression)
+
+> Audit SCR-007, SCR-008 and DOC-014 (standalone crypto-predictor). layer: test-suite
+
+#### `REG-1360` — HNP key recovery is correct for a non-zero leaked nonce prefix
+
+**VERIFIED** · high · regression · source: OPS-2026-10-25
+
+recover_private_key subtracts the known nonce prefix (u = s^-1 z - a) and checks the leak against nonce_bitlength, so a signer with any known high-bit value is recovered.
+
+- **If violated:** The sign error made recovery work only for known_value == 0, so the defender-side bias audit reported a biased signer as sound.
+- **Owned by:** `src/mathcore/lattice/hnp.py`
+- **Verification:**
+  - `tests/test_math_strategies_audit_fixes.py` (regression)
+
+> audit finding MTH-014. layer: test-suite
+
+#### `REG-1366` — E-09 retrain uses the inference feature set and a held-out gate before saving
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+E-09 features are E-01..E-08 only, and retrain_e09_walkforward saves a model only when a candidate fitted on the head beats the OOS accuracy threshold on the held-out tail.
+
+- **If violated:** Slots for E-10..E-18 were zero in training but live at inference, and an unvalidated model overwrote the artifact.
+- **Owned by:** `src/engines/e09_ml_meta.py`, `src/tuning/engine_backtest.py`
+- **Verification:**
+  - `tests/test_math_strategies_audit_fixes.py` (regression)
+  - `tests/engines/test_backtest_runners.py` (regression)
+
+> audit finding STR-08. layer: test-suite
+
+#### `REG-1373` — Entropy harness does not report an identical win-rate metric
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+run_entropy_threshold_backtest omits win_rate, which is identical for both arms by construction.
+
+- **If violated:** A dead metric cost a slot in the regression check.
+- **Owned by:** `src/tuning/backtest_harness.py`
+- **Verification:**
+  - `tests/test_math_strategies_audit_fixes.py` (regression)
+  - `tests/test_tuning_backtest_harness.py` (regression)
+
+> audit finding STR-15. layer: test-suite
+
 #### `REG-1605` — LLL and the BLS12-381 pairing do not redo work they can update
 
 **VERIFIED** · low · regression · source: OPS-2026-10-25
@@ -691,6 +940,58 @@ lll_reduce_with_transform updates the Gram-Schmidt coefficients in place after a
   - `tests/test_mth020_lattice_and_pairing_cost.py` (regression)
 
 > Audit MTH-020. The tests pin the results to the old algorithm and the direct exponent, so a faster wrong answer fails. layer: test-suite
+
+#### `SEC-1120` — MLflow registry never promotes and never unpickles without a pinned manifest
+
+**VERIFIED** · high · security_regression · source: OPS-2026-10-25
+
+ModelRegistry.register_model requires an artifact SHA-256, stores it as a version tag and never transitions a stage; load_model refuses without a pinned hash and loads only a downloaded artifact whose hash matches (INT/MTH-006).
+
+- **If violated:** Anyone able to write the MLflow server or artifact store got code execution via pickle, and every registered model silently became Production.
+- **Owned by:** `src/upgrade/registry.py`
+- **Verification:**
+  - `tests/test_upgrade_registry.py` (security)
+
+> layer: test-suite
+
+#### `SEC-1121` — OnlineTrainer persists and loads models only through an atomic, manifest-verified path
+
+**VERIFIED** · high · security_regression · source: OPS-2026-10-25
+
+OnlineTrainer.save writes each model atomically with a SHA-256 manifest and _try_load deserializes only the verified bytes; a missing or mismatched manifest yields fresh models, never an unpickled file (INT-009).
+
+- **If violated:** joblib.load on an unverified pickle in the model directory gave code execution; torn writes were silently accepted.
+- **Owned by:** `src/models/online_trainer.py`
+- **Verification:**
+  - `tests/test_model_loading_integrity.py` (security)
+
+> layer: test-suite
+
+#### `SEC-1122` — HorizonMLPExpert deserializes exactly the bytes it hashed
+
+**VERIFIED** · high · security_regression · source: OPS-2026-10-25
+
+HorizonMLPExpert.load passes the hashed payload to joblib via BytesIO, and activate_candidate copies bytes re-verified against the evaluated version (INT-010).
+
+- **If violated:** A file swap between the hash read and the joblib read bypassed the integrity check.
+- **Owned by:** `src/models/horizon_mlp.py`, `src/models/horizon_learning.py`
+- **Verification:**
+  - `tests/test_model_loading_integrity.py` (security)
+
+> layer: test-suite
+
+#### `SEC-1123` — EnsemblePredictor save is atomic and load deserializes only verified bytes
+
+**VERIFIED** · high · security_regression · source: OPS-2026-10-25
+
+EnsemblePredictor.save writes artifact and manifest via temp-file plus os.replace, and load unpickles the single buffer returned by manifest verification (INT-011).
+
+- **If violated:** Hash-then-reread TOCTOU and non-atomic writes let a swapped or torn file be loaded.
+- **Owned by:** `src/intelligence/ensemble_predictor.py`
+- **Verification:**
+  - `tests/test_model_loading_integrity.py` (security)
+
+> layer: test-suite
 
 ## Data, money and time
 
@@ -822,6 +1123,70 @@ MarketDataFetcher.initialize() must open each venue independently, record an una
   - `tests/test_fetcher_venue_degradation.py` (regression)
 
 > Observed against Binance answering HTTP 451 'Service unavailable from a restricted location' on both mainnet and testnet from an affected network, which made the backend unstartable however healthy OKX and everything else was. initialize() built both venues and loaded their markets in one unisolated sequence. GET /venues and POST /venues/{venue}/reconnect expose the state and the recovery so neither needs a restart. layer: test-suite
+
+#### `REG-1071` — Forming candles are never persisted
+
+**VERIFIED** · critical · regression · source: OPS-2026-10-25
+
+The fetcher drops rows whose ts + timeframe exceeds now, so an unfinished candle is never stored
+
+- **If violated:** Partial candle stored permanently (insert-only storage, gap_fill resumes after it)
+- **Verification:**
+  - `tests/features/test_closed_bar_inference.py` (regression)
+
+> Audit DAT-002, EXR-003. layer: test-suite
+
+#### `REG-1091` — MVRV is NaN without a chain-wide realised-cap source
+
+**VERIFIED** · high · regression · source: OPS-2026-10-25
+
+OnChainFeatureExtractor reports mvrv as NaN; node-wallet listunspent is never used to build a realised cap.
+
+- **If violated:** MVRV was market cap divided by node-wallet BTC times spot, an arbitrary number presented as a bound.
+- **Owned by:** `src/features/onchain.py`
+- **Verification:**
+  - `tests/test_onchain_no_fabricated_values.py` (regression)
+
+> layer: test-suite
+
+#### `REG-1092` — Triple-barrier unresolved tail rows are NaN, not time exits
+
+**VERIFIED** · high · regression · source: OPS-2026-10-25
+
+triple_barrier_labels_with_offsets returns NaN label and offset for rows whose holding window extends past the data and that have not hit a barrier.
+
+- **If violated:** Unresolved tail rows were labelled -1 (time exit), inflating time_exit_fraction and selecting tail rows by whether they happened to resolve early.
+- **Owned by:** `src/features/pipeline.py`
+- **Verification:**
+  - `tests/test_features.py` (regression)
+
+> layer: test-suite
+
+#### `REG-1093` — Lookahead intelligence-feature broadcast helper removed
+
+**VERIFIED** · high · regression · source: OPS-2026-10-25
+
+src/features/intelligence_features.py exposes no add_intelligence_features helper that broadcasts a current IntelligenceMetrics snapshot onto historical rows.
+
+- **If violated:** The unused helper stamped today's on-chain values on every past bar, a lookahead hazard if used for training.
+- **Owned by:** `src/features/intelligence_features.py`
+- **Verification:**
+  - `tests/test_intelligence_features_coverage.py` (regression)
+
+> layer: test-suite
+
+#### `REG-1280` — Standalone predictor drops the still-forming candle
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+crypto-predictor data fetchers never return the still-open candle: Binance rows whose close_time is in the future are removed, and the final uncommitted Kraken OHLC entry is removed.
+
+- **If violated:** A repainting bar entered features and labels, so backtest results looked better than the data available at the time.
+- **Owned by:** `crypto-predictor/data_fetch.py`, `crypto-predictor/data_fetch_kraken.py`
+- **Verification:**
+  - `tests/test_crypto_predictor_regressions.py` (regression)
+
+> Audit SCR-007, SCR-008 and DOC-014 (standalone crypto-predictor). layer: test-suite
 
 #### `REG-1702` — kg/ and rag_mongo/ share one MongoClient factory and one URI check
 
@@ -1450,6 +1815,19 @@ The LAW12 cipher-suite pattern matches static DH/ECDH, RSA key transport and exp
 
 > The rule shipped with no test of its own, so nothing could tell a true positive from a false one until a PR tripped it. The test added with this entry is that missing check. layer: test-suite
 
+#### `REG-1361` — ECDSA scanner does not report a re-seen transaction as nonce reuse
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+A signature seen again under the same txid and s is ignored; only the same r with a different (txid, s) is reported.
+
+- **If violated:** Re-broadcast or reorged transactions matched themselves and raised a 0.7 nonce-reuse risk score.
+- **Owned by:** `src/ecc/ecdsa_scan.py`
+- **Verification:**
+  - `tests/test_math_strategies_audit_fixes.py` (regression)
+
+> audit finding MTH-002. layer: test-suite
+
 #### `REG-1608` — Prometheus authenticates its /metrics scrape
 
 **VERIFIED** · low · regression · source: OPS-2026-10-25
@@ -1544,18 +1922,18 @@ The integrated terminal adds a command-execution surface; nothing reaches it exc
 
 > layer: test-suite
 
-#### `SEC-0011` — The frontend lockfile resolves electron, follow-redirects and undici outside their high advisory ranges
+#### `SEC-0011` — The frontend lockfile resolves dependencies outside their high advisory ranges
 
 **VERIFIED** · high · security_regression · source: OPS-2026-10-25
 
-frontend's npm tree resolves electron >= 44.9.1, follow-redirects >= 1.16.1 and undici >= 7.30.1 (>= 8.12.2 on the 8.x line), so npm audit at --audit-level=high reports no fixable advisory.
+frontend's npm tree resolves electron >= 44.9.1, follow-redirects >= 1.16.2, joi >= 18.3.1 and undici >= 7.30.1 (>= 8.12.2 on the 8.x line), so npm audit at --audit-level=high reports no fixable advisory.
 
-- **If violated:** Security gate (npm audit) failed on pull requests that do not touch frontend (#498, #499) because main's lockfile resolved electron 44.7.0 (GHSA-jr5w-w6x2-84p9), follow-redirects 1.16.0 (GHSA-q3jh-wrc6-jgq8, GHSA-8r9p-f939-6h3c) and undici 7.30.0 / 8.11.2 (GHSA-4qv8-2p9j-2685, GHSA-f72v-6w45-q472), all with fixAvailable true. Measured with npm audit --json on a copy of frontend/: 3 high before; 0 high after (4 moderate vitest advisories remain, below the gate threshold).
+- **If violated:** Security gate (npm audit) failed on pull requests that do not touch frontend (#498, #499) because the lockfile resolved vulnerable electron, follow-redirects and undici versions, all with fixAvailable true. GHSA-mrwp-f3q8-3g9p affects follow-redirects 1.16.0-1.16.1 and is fixed in 1.16.2. GHSA-4528-x5fx-h6hg affects joi 18.0.0-18.3.0 and is fixed in 18.3.1. The lockfile floors clear these findings; 4 moderate vitest advisories remain below the gate threshold.
 - **Owned by:** `frontend/package.json`, `.github/workflows/security.yml`
 - **Verification:**
   - `tests/test_frontend_audit_scope.py` (unit)
 
-> Lockfile refresh via npm install --package-lock-only plus npm update of the three packages; the only manifest change is the electron floor. The gate was not changed. layer: supply-chain
+> Lockfile refresh via npm install --package-lock-only plus npm update of vulnerable transitive packages; the manifest is unchanged. follow-redirects is kept at 1.16.2 for GHSA-mrwp-f3q8-3g9p and joi at 18.3.1 for GHSA-4528-x5fx-h6hg. The gate was not changed. layer: supply-chain
 
 #### `SEC-0012` — The runtime manifest never resolves a vulnerable filelock
 
@@ -1569,6 +1947,58 @@ requirements.txt declares filelock>=4.2.1, and every Dockerfile install into the
   - `tests/security/test_filelock_cve_floor.py` (security)
 
 > The advisory was published against a release nobody here chose, so no commit or review could have seen it arrive. layer: supply-chain
+
+#### `SEC-1020` — The auto-resolve job never exposes its PAT to pull-request branch code
+
+**VERIFIED** · high · security_regression · source: OPS-2026-10-10
+
+pr-auto-update's resolve-next job checks out with persist-credentials false and the default token; the PR_AUTOUPDATE_TOKEN is present only in the final push step, which runs no repository file.
+
+- **If violated:** A same-repo branch edits a script the job runs and exfiltrates the repo-scope PAT, bypassing branch protection.
+- **Owned by:** `.github/workflows/pr-auto-update.yml`
+- **Verification:**
+  - `tests/test_pr_auto_update_workflow.py` (security)
+
+> layer: test-suite
+
+#### `SEC-1021` — Deploy dispatch inputs are never interpolated into shell
+
+**VERIFIED** · high · security_regression · source: OPS-2026-10-10
+
+deploy.yml passes inputs.artifact_run_id to run steps only through env and rejects a non-numeric value in preflight.
+
+- **If violated:** A dispatcher injects shell into jobs holding production environment secrets.
+- **Owned by:** `.github/workflows/deploy.yml`
+- **Verification:**
+  - `tests/test_deploy_workflow_inputs.py` (security)
+
+> layer: test-suite
+
+#### `SEC-1022` — The CI patch validator refuses sections without a validated git header
+
+**VERIFIED** · high · security_regression · source: OPS-2026-10-10
+
+apply_ci_patch._validate_patch rejects traditional ---/+++ sections outside a validated diff --git section, before or after one.
+
+- **If violated:** A header-less section rewrites a protected control-plane file that path validation never saw.
+- **Owned by:** `scripts/apply_ci_patch.py`
+- **Verification:**
+  - `tests/test_apply_ci_patch.py` (security)
+
+> layer: test-suite
+
+#### `SEC-1023` — Command output is redacted before it is truncated
+
+**VERIFIED** · high · security_regression · source: OPS-2026-10-10
+
+shell_exec.run masks secrets in the whole raw output before filtering and capping, and an unterminated PEM private key block is masked to the end of the text.
+
+- **If violated:** A PEM key cut by max_lines or max_bytes no longer matches the redaction pattern and reaches model context verbatim.
+- **Owned by:** `common/shell_exec.py`, `common/command_schema.py`
+- **Verification:**
+  - `tests/test_shell_exec.py` (security)
+
+> layer: test-suite
 
 ## Supply chain and artifacts
 
@@ -2973,6 +3403,19 @@ Every scripts/ path named in the README, in src/ comments or in a test's skip me
 
 > scripts/timescaledb.sh was referenced from six call sites -- README.md three times, src/config.py, src/data/storage.py and the skip message in tests/test_timescale_storage.py -- and did not exist; removed by the config purge (#144) without the references going with it. The test guards the general form (a named scripts/ path that is absent) as well as this one file, and pins the script to ci.yml's service block so the local and CI databases cannot drift apart silently. layer: test-suite
 
+#### `REG-1374` — Strategy selector exposes no dead funding-carry parameter
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+select_strategy has no allow_funding_carry parameter and no unused STRATEGY_FUNDING_CARRY constant.
+
+- **If violated:** The documented overlay was never implemented, misleading callers.
+- **Owned by:** `src/strategies/regime_strategy_selector.py`
+- **Verification:**
+  - `tests/test_math_strategies_audit_fixes.py` (regression)
+
+> audit finding STR-16. layer: test-suite
+
 #### `REG-1600` — The CPU torch pre-pass uses the same version spec as requirements.txt
 
 **VERIFIED** · low · regression · source: OPS-2026-10-25
@@ -3288,4 +3731,4 @@ To add or change an entry, edit the registry and regenerate this file. See
 `docs/quality/TEST_STRATEGY.md` for the taxonomy the `test_type` column draws
 on, and `docs/quality/IMPLEMENTATION_PLAN.md` for what each phase delivers.
 
-Registry version: 1.0.0 — 253 entries.
+Registry version: 1.0.0 — 287 entries.
