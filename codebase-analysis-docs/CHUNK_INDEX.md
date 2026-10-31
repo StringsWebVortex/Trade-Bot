@@ -35,12 +35,12 @@ SHA8 58a7b930; total lines 3954.
 - _StartupGuard._cleanup (method, lines 506-543, slice 1): CHUNK_ID = src/api/main.py#506-543#58a7b930 — [[F:src/api/main.py#506-543#58a7b930]].
 - _StartupGuard._cleanup (method, lines 544-581, slice 2): CHUNK_ID = src/api/main.py#544-581#58a7b930 — [[F:src/api/main.py#544-581#58a7b930]].
 - _StartupGuard._cleanup (method, lines 582-584, slice 3): CHUNK_ID = src/api/main.py#582-584#58a7b930 — [[F:src/api/main.py#582-584#58a7b930]].
-- lifespan (function, lines 588-625, slice 1): CHUNK_ID = src/api/main.py#588-625#58a7b930 — [[F:src/api/main.py#588-625#58a7b930]].
-- lifespan (function, lines 626-663, slice 2): CHUNK_ID = src/api/main.py#626-663#58a7b930 — [[F:src/api/main.py#626-663#58a7b930]].
-- lifespan (function, lines 664-701, slice 3): CHUNK_ID = src/api/main.py#664-701#58a7b930 — [[F:src/api/main.py#664-701#58a7b930]].
-- lifespan (function, lines 702-739, slice 4): CHUNK_ID = src/api/main.py#702-739#58a7b930 — [[F:src/api/main.py#702-739#58a7b930]].
-- lifespan (function, lines 740-777, slice 5): CHUNK_ID = src/api/main.py#740-777#58a7b930 — [[F:src/api/main.py#740-777#58a7b930]].
-- lifespan (function, lines 778-806, slice 6): CHUNK_ID = src/api/main.py#778-806#58a7b930 — [[F:src/api/main.py#778-806#58a7b930]].
+- lifespan (function, lines 588-630, slice 1): CHUNK_ID = src/api/main.py#588-630#58a7b930 — [[F:src/api/main.py#588-630#58a7b930]].
+- lifespan (function, lines 631-668, slice 2): CHUNK_ID = src/api/main.py#631-668#58a7b930 — [[F:src/api/main.py#631-668#58a7b930]].
+- lifespan (function, lines 669-706, slice 3): CHUNK_ID = src/api/main.py#669-706#58a7b930 — [[F:src/api/main.py#669-706#58a7b930]].
+- lifespan (function, lines 707-744, slice 4): CHUNK_ID = src/api/main.py#707-744#58a7b930 — [[F:src/api/main.py#707-744#58a7b930]].
+- lifespan (function, lines 745-782, slice 5): CHUNK_ID = src/api/main.py#745-782#58a7b930 — [[F:src/api/main.py#745-782#58a7b930]].
+- lifespan (function, lines 783-806, slice 6): CHUNK_ID = src/api/main.py#783-806#58a7b930 — [[F:src/api/main.py#783-806#58a7b930]].
 - api_key_header (function, lines 846-848): CHUNK_ID = src/api/main.py#846-848#58a7b930 — [[F:src/api/main.py#846-848#58a7b930]].
 - resolve_role (function, lines 851-860): CHUNK_ID = src/api/main.py#851-860#58a7b930 — [[F:src/api/main.py#851-860#58a7b930]].
 - requires (function, lines 863-890): CHUNK_ID = src/api/main.py#863-890#58a7b930 — [[F:src/api/main.py#863-890#58a7b930]].
@@ -66,7 +66,7 @@ SHA8 58a7b930; total lines 3954.
 - StrategyReEnableRequest.validate_operator (method, lines 1120-1121): CHUNK_ID = src/api/main.py#1120-1121#58a7b930 — [[F:src/api/main.py#1120-1121#58a7b930]].
 - SelfTuningRollbackRequest (class, lines 1124-1140): CHUNK_ID = src/api/main.py#1124-1140#58a7b930 — [[F:src/api/main.py#1124-1140#58a7b930]].
 - SelfTuningRollbackRequest.validate_operator (method, lines 1139-1140): CHUNK_ID = src/api/main.py#1139-1140#58a7b930 — [[F:src/api/main.py#1139-1140#58a7b930]].
-- _verify_operator_secret (function, lines 1143-1149): CHUNK_ID = src/api/main.py#1143-1149#58a7b930 — [[F:src/api/main.py#1143-1149#58a7b930]].
+- _verify_operator_secret (function, lines 1143-1143): CHUNK_ID = src/api/main.py#1143-1143#58a7b930 — [[F:src/api/main.py#1143-1143#58a7b930]].
 - livez (function, lines 1158-1164): CHUNK_ID = src/api/main.py#1158-1164#58a7b930 — [[F:src/api/main.py#1158-1164#58a7b930]].
 - readyz (function, lines 1168-1184): CHUNK_ID = src/api/main.py#1168-1184#58a7b930 — [[F:src/api/main.py#1168-1184#58a7b930]].
 - health (function, lines 1188-1197): CHUNK_ID = src/api/main.py#1188-1197#58a7b930 — [[F:src/api/main.py#1188-1197#58a7b930]].
@@ -82,11 +82,11 @@ SHA8 58a7b930; total lines 3954.
 - crypto_box_status (function, lines 1443-1461): CHUNK_ID = src/api/main.py#1443-1461#58a7b930 — [[F:src/api/main.py#1443-1461#58a7b930]].
 - approvals (function, lines 1465-1471): CHUNK_ID = src/api/main.py#1465-1471#58a7b930 — [[F:src/api/main.py#1465-1471#58a7b930]].
 - resolve_approval (function, lines 1486-1519): CHUNK_ID = src/api/main.py#1486-1519#58a7b930 — [[F:src/api/main.py#1486-1519#58a7b930]].
-- _change_execution_mode (function, lines 1522-1553): CHUNK_ID = src/api/main.py#1522-1553#58a7b930 — [[F:src/api/main.py#1522-1553#58a7b930]].
-- set_execution_mode (function, lines 1568-1593): CHUNK_ID = src/api/main.py#1568-1593#58a7b930 — [[F:src/api/main.py#1568-1593#58a7b930]].
+- set_execution_mode (function, lines 1523-1534, slice 1): CHUNK_ID = src/api/main.py#1523-1534#58a7b930 — [[F:src/api/main.py#1523-1534#58a7b930]].
+- set_execution_mode (function, lines 1535-1593, slice 2): CHUNK_ID = src/api/main.py#1535-1593#58a7b930 — [[F:src/api/main.py#1535-1593#58a7b930]].
 - get_risk_controls (function, lines 1597-1606): CHUNK_ID = src/api/main.py#1597-1606#58a7b930 — [[F:src/api/main.py#1597-1606#58a7b930]].
-- set_risk_controls (function, lines 1622-1659, slice 1): CHUNK_ID = src/api/main.py#1622-1659#58a7b930 — [[F:src/api/main.py#1622-1659#58a7b930]].
-- set_risk_controls (function, lines 1660-1667, slice 2): CHUNK_ID = src/api/main.py#1660-1667#58a7b930 — [[F:src/api/main.py#1660-1667#58a7b930]].
+- set_risk_controls (function, lines 1622-1648, slice 1): CHUNK_ID = src/api/main.py#1622-1648#58a7b930 — [[F:src/api/main.py#1622-1648#58a7b930]].
+- set_risk_controls (function, lines 1649-1667, slice 2): CHUNK_ID = src/api/main.py#1649-1667#58a7b930 — [[F:src/api/main.py#1649-1667#58a7b930]].
 - model_metrics (function, lines 1675-1711): CHUNK_ID = src/api/main.py#1675-1711#58a7b930 — [[F:src/api/main.py#1675-1711#58a7b930]].
 - self_tuning_status (function, lines 1725-1767): CHUNK_ID = src/api/main.py#1725-1767#58a7b930 — [[F:src/api/main.py#1725-1767#58a7b930]].
 - self_tuning_pause (function, lines 1781-1796): CHUNK_ID = src/api/main.py#1781-1796#58a7b930 — [[F:src/api/main.py#1781-1796#58a7b930]].
@@ -96,8 +96,8 @@ SHA8 58a7b930; total lines 3954.
 - _build_tick_snapshot (function, lines 1907-1918, slice 2): CHUNK_ID = src/api/main.py#1907-1918#58a7b930 — [[F:src/api/main.py#1907-1918#58a7b930]].
 - _heartbeat_loop (function, lines 1921-1946): CHUNK_ID = src/api/main.py#1921-1946#58a7b930 — [[F:src/api/main.py#1921-1946#58a7b930]].
 - _event_fanout_loop (function, lines 1949-1989): CHUNK_ID = src/api/main.py#1949-1989#58a7b930 — [[F:src/api/main.py#1949-1989#58a7b930]].
-- websocket_endpoint (function, lines 1993-2030, slice 1): CHUNK_ID = src/api/main.py#1993-2030#58a7b930 — [[F:src/api/main.py#1993-2030#58a7b930]].
-- websocket_endpoint (function, lines 2031-2065, slice 2): CHUNK_ID = src/api/main.py#2031-2065#58a7b930 — [[F:src/api/main.py#2031-2065#58a7b930]].
+- websocket_endpoint (function, lines 1993-2033, slice 1): CHUNK_ID = src/api/main.py#1993-2033#58a7b930 — [[F:src/api/main.py#1993-2033#58a7b930]].
+- websocket_endpoint (function, lines 2034-2065, slice 2): CHUNK_ID = src/api/main.py#2034-2065#58a7b930 — [[F:src/api/main.py#2034-2065#58a7b930]].
 - _handle_ws_command (function, lines 2068-2105, slice 1): CHUNK_ID = src/api/main.py#2068-2105#58a7b930 — [[F:src/api/main.py#2068-2105#58a7b930]].
 - _handle_ws_command (function, lines 2106-2117, slice 2): CHUNK_ID = src/api/main.py#2106-2117#58a7b930 — [[F:src/api/main.py#2106-2117#58a7b930]].
 - _send_ws_error (function, lines 2120-2131): CHUNK_ID = src/api/main.py#2120-2131#58a7b930 — [[F:src/api/main.py#2120-2131#58a7b930]].
@@ -184,7 +184,6 @@ SHA8 7b3169c1; total lines 190.
 - _get_configured_key (function, lines 42-64): CHUNK_ID = src/api/auth.py#42-64#7b3169c1 — [[F:src/api/auth.py#42-64#7b3169c1]].
 - _get_readonly_key (function, lines 67-91): CHUNK_ID = src/api/auth.py#67-91#7b3169c1 — [[F:src/api/auth.py#67-91#7b3169c1]].
 - verify_api_key (function, lines 94-133): CHUNK_ID = src/api/auth.py#94-133#7b3169c1 — [[F:src/api/auth.py#94-133#7b3169c1]].
-- key_from_subprotocols (function, lines 140-148): CHUNK_ID = src/api/auth.py#140-148#7b3169c1 — [[F:src/api/auth.py#140-148#7b3169c1]].
 - verify_ws_key (function, lines 151-190): CHUNK_ID = src/api/auth.py#151-190#7b3169c1 — [[F:src/api/auth.py#151-190#7b3169c1]].
 
 ## src/config.py
@@ -1824,11 +1823,11 @@ SHA8 10e2649d; total lines 457.
 
 ## frontend/src/App.jsx
 
-SHA8 1f059b47; AST parse unavailable near line 65: unterminated string literal (detected at line 65). Use bounded textual slices.
+SHA8 babdff7e; AST parse unavailable near line 65: unterminated string literal (detected at line 65). Use bounded textual slices.
 
 ## frontend/src/hooks/useApi.js
 
-SHA8 d0343ff3; AST parse unavailable near line 1: invalid syntax. Use bounded textual slices.
+SHA8 79cc9d3c; AST parse unavailable near line 1: invalid syntax. Use bounded textual slices.
 
 ## frontend/src/terminal/client.js
 
@@ -1836,11 +1835,11 @@ SHA8 97805d86; AST parse unavailable near line 8: unterminated string literal (d
 
 ## frontend/electron/main.cjs
 
-SHA8 5a1a7124; AST parse unavailable near line 1: invalid character '—' (U+2014). Use bounded textual slices.
+SHA8 2846114f; AST parse unavailable near line 1: invalid character '—' (U+2014). Use bounded textual slices.
 
 ## frontend/electron/terminalBridge.cjs
 
-SHA8 bb5f41f6; AST parse unavailable near line 11: leading zeros in decimal integer literals are not permitted; use an 0o prefix for octal integers. Use bounded textual slices.
+SHA8 df9b68c6; AST parse unavailable near line 11: leading zeros in decimal integer literals are not permitted; use an 0o prefix for octal integers. Use bounded textual slices.
 
 ## tests/test_engine_seam_contract.py
 
@@ -1965,40 +1964,39 @@ Python AST parsing is not valid for JSX, JavaScript, YAML or Markdown. These ran
 
 ### frontend/src/App.jsx
 
-SHA8 1f059b47; total lines 493.
+SHA8 babdff7e; total lines 470.
 
-- CHUNK_ID = frontend/src/App.jsx#1-38#1f059b47 — [[F:frontend/src/App.jsx#1-38#1f059b47]].
-- CHUNK_ID = frontend/src/App.jsx#39-76#1f059b47 — [[F:frontend/src/App.jsx#39-76#1f059b47]].
-- CHUNK_ID = frontend/src/App.jsx#77-114#1f059b47 — [[F:frontend/src/App.jsx#77-114#1f059b47]].
-- CHUNK_ID = frontend/src/App.jsx#115-152#1f059b47 — [[F:frontend/src/App.jsx#115-152#1f059b47]].
-- CHUNK_ID = frontend/src/App.jsx#153-190#1f059b47 — [[F:frontend/src/App.jsx#153-190#1f059b47]].
-- CHUNK_ID = frontend/src/App.jsx#191-228#1f059b47 — [[F:frontend/src/App.jsx#191-228#1f059b47]].
-- CHUNK_ID = frontend/src/App.jsx#229-266#1f059b47 — [[F:frontend/src/App.jsx#229-266#1f059b47]].
-- CHUNK_ID = frontend/src/App.jsx#267-304#1f059b47 — [[F:frontend/src/App.jsx#267-304#1f059b47]].
-- CHUNK_ID = frontend/src/App.jsx#305-342#1f059b47 — [[F:frontend/src/App.jsx#305-342#1f059b47]].
-- CHUNK_ID = frontend/src/App.jsx#343-380#1f059b47 — [[F:frontend/src/App.jsx#343-380#1f059b47]].
-- CHUNK_ID = frontend/src/App.jsx#381-418#1f059b47 — [[F:frontend/src/App.jsx#381-418#1f059b47]].
-- CHUNK_ID = frontend/src/App.jsx#419-456#1f059b47 — [[F:frontend/src/App.jsx#419-456#1f059b47]].
-- CHUNK_ID = frontend/src/App.jsx#457-493#1f059b47 — [[F:frontend/src/App.jsx#457-493#1f059b47]].
+- CHUNK_ID = frontend/src/App.jsx#1-38#babdff7e — [[F:frontend/src/App.jsx#1-38#babdff7e]].
+- CHUNK_ID = frontend/src/App.jsx#39-76#babdff7e — [[F:frontend/src/App.jsx#39-76#babdff7e]] declarations nearby: REGIME_COLOR, REGIME_NAME, SPEC_BY_ID, App, Dashboard.
+- CHUNK_ID = frontend/src/App.jsx#77-114#babdff7e — [[F:frontend/src/App.jsx#77-114#babdff7e]] declarations nearby: onEvent, status, readiness, equityCurve, trades.
+- CHUNK_ID = frontend/src/App.jsx#115-152#babdff7e — [[F:frontend/src/App.jsx#115-152#babdff7e]] declarations nearby: riskControls, modelsStatus, handleModeSwitch, handleRiskUpdate, handleApprovalResolve.
+- CHUNK_ID = frontend/src/App.jsx#153-190#babdff7e — [[F:frontend/src/App.jsx#153-190#babdff7e]] declarations nearby: activeTimeframes, equity, dailyPnl, positions, regime.
+- CHUNK_ID = frontend/src/App.jsx#191-228#babdff7e — [[F:frontend/src/App.jsx#191-228#babdff7e]] declarations nearby: renderPanel, spec, panel, item.
+- CHUNK_ID = frontend/src/App.jsx#229-266#babdff7e — [[F:frontend/src/App.jsx#229-266#babdff7e]] declarations nearby: hiddenCount.
+- CHUNK_ID = frontend/src/App.jsx#267-304#babdff7e — [[F:frontend/src/App.jsx#267-304#babdff7e]].
+- CHUNK_ID = frontend/src/App.jsx#305-342#babdff7e — [[F:frontend/src/App.jsx#305-342#babdff7e]] declarations nearby: Header.
+- CHUNK_ID = frontend/src/App.jsx#343-380#babdff7e — [[F:frontend/src/App.jsx#343-380#babdff7e]].
+- CHUNK_ID = frontend/src/App.jsx#381-418#babdff7e — [[F:frontend/src/App.jsx#381-418#babdff7e]] declarations nearby: StatsRow, regimeState, regimeColor, regimeName.
+- CHUNK_ID = frontend/src/App.jsx#419-456#babdff7e — [[F:frontend/src/App.jsx#419-456#babdff7e]] declarations nearby: PanelManager, visible.
+- CHUNK_ID = frontend/src/App.jsx#457-470#babdff7e — [[F:frontend/src/App.jsx#457-470#babdff7e]].
 
 ### frontend/src/hooks/useApi.js
 
-SHA8 d0343ff3; total lines 522.
+SHA8 350d3c1f; total lines 465.
 
-- CHUNK_ID = frontend/src/hooks/useApi.js#1-38#d0343ff3 — [[F:frontend/src/hooks/useApi.js#1-38#d0343ff3]].
-- CHUNK_ID = frontend/src/hooks/useApi.js#39-76#d0343ff3 — [[F:frontend/src/hooks/useApi.js#39-76#d0343ff3]].
-- CHUNK_ID = frontend/src/hooks/useApi.js#77-114#d0343ff3 — [[F:frontend/src/hooks/useApi.js#77-114#d0343ff3]].
-- CHUNK_ID = frontend/src/hooks/useApi.js#115-152#d0343ff3 — [[F:frontend/src/hooks/useApi.js#115-152#d0343ff3]].
-- CHUNK_ID = frontend/src/hooks/useApi.js#153-190#d0343ff3 — [[F:frontend/src/hooks/useApi.js#153-190#d0343ff3]].
-- CHUNK_ID = frontend/src/hooks/useApi.js#191-228#d0343ff3 — [[F:frontend/src/hooks/useApi.js#191-228#d0343ff3]].
-- CHUNK_ID = frontend/src/hooks/useApi.js#229-266#d0343ff3 — [[F:frontend/src/hooks/useApi.js#229-266#d0343ff3]].
-- CHUNK_ID = frontend/src/hooks/useApi.js#267-304#d0343ff3 — [[F:frontend/src/hooks/useApi.js#267-304#d0343ff3]].
-- CHUNK_ID = frontend/src/hooks/useApi.js#305-342#d0343ff3 — [[F:frontend/src/hooks/useApi.js#305-342#d0343ff3]].
-- CHUNK_ID = frontend/src/hooks/useApi.js#343-380#d0343ff3 — [[F:frontend/src/hooks/useApi.js#343-380#d0343ff3]].
-- CHUNK_ID = frontend/src/hooks/useApi.js#381-418#d0343ff3 — [[F:frontend/src/hooks/useApi.js#381-418#d0343ff3]].
-- CHUNK_ID = frontend/src/hooks/useApi.js#419-456#d0343ff3 — [[F:frontend/src/hooks/useApi.js#419-456#d0343ff3]].
-- CHUNK_ID = frontend/src/hooks/useApi.js#457-494#d0343ff3 — [[F:frontend/src/hooks/useApi.js#457-494#d0343ff3]].
-- CHUNK_ID = frontend/src/hooks/useApi.js#495-522#d0343ff3 — [[F:frontend/src/hooks/useApi.js#495-522#d0343ff3]].
+- CHUNK_ID = frontend/src/hooks/useApi.js#1-38#350d3c1f — [[F:frontend/src/hooks/useApi.js#1-38#350d3c1f]] declarations nearby:_RAW_API, API_KEY, _ALLOWED_API_RE, API, WS_URL.
+- CHUNK_ID = frontend/src/hooks/useApi.js#39-76#350d3c1f — [[F:frontend/src/hooks/useApi.js#39-76#350d3c1f]] declarations nearby: err,_topicListeners, _emit, listeners,_resyncListeners.
+- CHUNK_ID = frontend/src/hooks/useApi.js#77-114#350d3c1f — [[F:frontend/src/hooks/useApi.js#77-114#350d3c1f]] declarations nearby:_liveSocket, _sendSubscribe, topics.
+- CHUNK_ID = frontend/src/hooks/useApi.js#115-152#350d3c1f — [[F:frontend/src/hooks/useApi.js#115-152#350d3c1f]] declarations nearby: RECONNECT_BASE_MS, RECONNECT_CAP_MS, reconnectDelay, backoff, useWebSocket.
+- CHUNK_ID = frontend/src/hooks/useApi.js#153-192#350d3c1f — [[F:frontend/src/hooks/useApi.js#153-192#350d3c1f]] declarations nearby: connect, wsUrl, ws, wasReconnect, msg.
+- CHUNK_ID = frontend/src/hooks/useApi.js#193-230#350d3c1f — [[F:frontend/src/hooks/useApi.js#193-230#350d3c1f]].
+- CHUNK_ID = frontend/src/hooks/useApi.js#231-268#350d3c1f — [[F:frontend/src/hooks/useApi.js#231-268#350d3c1f]] declarations nearby: useStream, transformRef, applyRef, refetchRef, cancelled.
+- CHUNK_ID = frontend/src/hooks/useApi.js#269-306#350d3c1f — [[F:frontend/src/hooks/useApi.js#269-306#350d3c1f]] declarations nearby: isNewTopic, API_ORIGIN.
+- CHUNK_ID = frontend/src/hooks/useApi.js#307-344#350d3c1f — [[F:frontend/src/hooks/useApi.js#307-344#350d3c1f]] declarations nearby: apiProblem.
+- CHUNK_ID = frontend/src/hooks/useApi.js#345-382#350d3c1f — [[F:frontend/src/hooks/useApi.js#345-382#350d3c1f]] declarations nearby: useApiResource, transformRef, live, inFlight, poll.
+- CHUNK_ID = frontend/src/hooks/useApi.js#383-420#350d3c1f — [[F:frontend/src/hooks/useApi.js#383-420#350d3c1f]] declarations nearby: useReadiness, usePolling, transformRef, inFlight, poll.
+- CHUNK_ID = frontend/src/hooks/useApi.js#421-458#350d3c1f — [[F:frontend/src/hooks/useApi.js#421-458#350d3c1f]] declarations nearby: body, fn, id, useOperatorAction, action.
+- CHUNK_ID = frontend/src/hooks/useApi.js#459-465#350d3c1f — [[F:frontend/src/hooks/useApi.js#459-465#350d3c1f]].
 
 ### frontend/src/terminal/client.js
 
@@ -2025,24 +2023,24 @@ SHA8 e63a327a; total lines 119.
 
 ### frontend/electron/main.cjs
 
-SHA8 5a1a7124; total lines 183.
+SHA8 2846114f; total lines 166.
 
-- CHUNK_ID = frontend/electron/main.cjs#1-38#5a1a7124 — [[F:frontend/electron/main.cjs#1-38#5a1a7124]].
-- CHUNK_ID = frontend/electron/main.cjs#39-76#5a1a7124 — [[F:frontend/electron/main.cjs#39-76#5a1a7124]].
-- CHUNK_ID = frontend/electron/main.cjs#77-114#5a1a7124 — [[F:frontend/electron/main.cjs#77-114#5a1a7124]].
-- CHUNK_ID = frontend/electron/main.cjs#115-152#5a1a7124 — [[F:frontend/electron/main.cjs#115-152#5a1a7124]].
-- CHUNK_ID = frontend/electron/main.cjs#153-183#5a1a7124 — [[F:frontend/electron/main.cjs#153-183#5a1a7124]].
+- CHUNK_ID = frontend/electron/main.cjs#1-38#2846114f — [[F:frontend/electron/main.cjs#1-38#2846114f]] declarations nearby: path, isDev, REPO_ROOT, terminalBridge, DEV_URL.
+- CHUNK_ID = frontend/electron/main.cjs#39-76#2846114f — [[F:frontend/electron/main.cjs#39-76#2846114f]] declarations nearby: createWindow.
+- CHUNK_ID = frontend/electron/main.cjs#77-114#2846114f — [[F:frontend/electron/main.cjs#77-114#2846114f]] declarations nearby: trayIconForBadge, iconPath, updateTrayBadge, createTray, menu.
+- CHUNK_ID = frontend/electron/main.cjs#115-152#2846114f — [[F:frontend/electron/main.cjs#115-152#2846114f]].
+- CHUNK_ID = frontend/electron/main.cjs#153-166#2846114f — [[F:frontend/electron/main.cjs#153-166#2846114f]].
 
 ### frontend/electron/terminalBridge.cjs
 
-SHA8 bb5f41f6; total lines 225.
+SHA8 df9b68c6; total lines 221.
 
-- CHUNK_ID = frontend/electron/terminalBridge.cjs#1-38#bb5f41f6 — [[F:frontend/electron/terminalBridge.cjs#1-38#bb5f41f6]].
-- CHUNK_ID = frontend/electron/terminalBridge.cjs#39-76#bb5f41f6 — [[F:frontend/electron/terminalBridge.cjs#39-76#bb5f41f6]].
-- CHUNK_ID = frontend/electron/terminalBridge.cjs#77-114#bb5f41f6 — [[F:frontend/electron/terminalBridge.cjs#77-114#bb5f41f6]].
-- CHUNK_ID = frontend/electron/terminalBridge.cjs#115-152#bb5f41f6 — [[F:frontend/electron/terminalBridge.cjs#115-152#bb5f41f6]].
-- CHUNK_ID = frontend/electron/terminalBridge.cjs#153-190#bb5f41f6 — [[F:frontend/electron/terminalBridge.cjs#153-190#bb5f41f6]].
-- CHUNK_ID = frontend/electron/terminalBridge.cjs#191-225#bb5f41f6 — [[F:frontend/electron/terminalBridge.cjs#191-225#bb5f41f6]].
+- CHUNK_ID = frontend/electron/terminalBridge.cjs#1-38#df9b68c6 — [[F:frontend/electron/terminalBridge.cjs#1-38#df9b68c6]] declarations nearby: fs, net, path, ALLOWED_TYPES, MAX_FRAME_BYTES.
+- CHUNK_ID = frontend/electron/terminalBridge.cjs#39-76#df9b68c6 — [[F:frontend/electron/terminalBridge.cjs#39-76#df9b68c6]] declarations nearby: validateFrame, line, resolvePython, venv, runTerminalCli.
+- CHUNK_ID = frontend/electron/terminalBridge.cjs#77-114#df9b68c6 — [[F:frontend/electron/terminalBridge.cjs#77-114#df9b68c6]] declarations nearby: ensureService, result, info, TerminalBridge.
+- CHUNK_ID = frontend/electron/terminalBridge.cjs#115-152#df9b68c6 — [[F:frontend/electron/terminalBridge.cjs#115-152#df9b68c6]] declarations nearby: service, socket, record, settled, newline.
+- CHUNK_ID = frontend/electron/terminalBridge.cjs#153-190#df9b68c6 — [[F:frontend/electron/terminalBridge.cjs#153-190#df9b68c6]] declarations nearby: frame, line, record.
+- CHUNK_ID = frontend/electron/terminalBridge.cjs#191-221#df9b68c6 — [[F:frontend/electron/terminalBridge.cjs#191-221#df9b68c6]] declarations nearby: record.
 
 ### frontend/package.json
 

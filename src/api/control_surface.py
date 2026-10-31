@@ -259,12 +259,7 @@ _NEVER_WRITABLE_LEAF_MARKERS: tuple[str, ...] = ("url", "host", "path", "dir", "
 
 
 def is_operator_writable(dotted: str) -> bool:
-    """True only for explicit operator controls and allow-listed groups."""
-    # TRADING_MODE is a root setting, not a member of a dotted config group.
-    # It is nevertheless an explicit operator control; the API write route
-    # supplies the second factor and audit trail before applying the override.
-    if dotted == "trading_mode":
-        return True
+    """True only for allow-listed groups, and never for URL/path-like leaves."""
     if "." not in dotted:
         return False
     group, leaf = dotted.split(".")[0], dotted.split(".")[-1].lower()
