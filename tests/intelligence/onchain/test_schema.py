@@ -58,11 +58,13 @@ class TestValidateProviderResult:
         out = validate_provider_result(r, "test")
         assert out["confidence"] == pytest.approx(0.0)
 
-    def test_internal_field_stripped(self):
+    def test_internal_field_survives_validation_but_not_public_merge(self):
         r = self._result(confidence=1.0)
         r["exchange_stress_score_mvrv_contrib"] = 0.3
         out = validate_provider_result(r, "test")
-        assert "exchange_stress_score_mvrv_contrib" not in out
+        assert out["exchange_stress_score_mvrv_contrib"] == pytest.approx(0.3)
+        merged = merge_onchain_results([out])
+        assert "exchange_stress_score_mvrv_contrib" not in merged
 
     def test_strict_raises_on_missing_required(self):
         with pytest.raises(ValueError, match="missing required field"):
