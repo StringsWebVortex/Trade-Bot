@@ -9,7 +9,6 @@ the same either way, so downstream code (indicators/backtester) is unaffected.
 import pandas as pd
 import requests
 
-
 KRAKEN_OHLC_URL = "https://api.kraken.com/0/public/OHLC"
 
 # Kraken interval is in minutes
@@ -20,8 +19,9 @@ def fetch_ohlcv(pair: str = "XBTUSD", interval: str = "1h") -> pd.DataFrame:
     """
     Fetch real historical candles from Kraken's public API.
     Returns a DataFrame indexed by UTC timestamp with columns:
-    open, high, low, close, vwap, volume, trades.
+    open, high, low, close, volume.
     Kraken returns ~720 most recent candles per call (no arbitrary limit param).
+    The final entry is the still-forming candle and is dropped.
     """
     if interval not in INTERVAL_MINUTES:
         raise ValueError(f"interval must be one of {list(INTERVAL_MINUTES)}")
@@ -35,7 +35,9 @@ def fetch_ohlcv(pair: str = "XBTUSD", interval: str = "1h") -> pd.DataFrame:
         raise RuntimeError(f"Kraken API error: {payload['error']}")
 
     result_key = next(k for k in payload["result"] if k != "last")
-    raw = payload["result"][result_key]
+    # The last OHLC entry is not yet committed by Kraken; keeping it would
+    # feed a repainting bar into features and labels.
+    raw = payload["result"][result_key][:-1]
 
     cols = ["time", "open", "high", "low", "close", "vwap", "volume", "trades"]
     df = pd.DataFrame(raw, columns=cols)

@@ -245,11 +245,15 @@ class TestInitializeAndClose:
         b = TimescaleBackend(dsn="postgresql://unused@localhost/unused")
         await b.close()  # should not raise
 
+        assert b._pool is None
+
     async def test_close_is_idempotent(self, test_dsn):
         b = TimescaleBackend(dsn=test_dsn)
         await b.initialize()
         await b.close()
         await b.close()  # second close — no-op
+
+        assert b._pool is None
 
     async def test_open_timescale_storage_initializes_and_closes(self, test_dsn):
         async with open_timescale_storage(dsn=test_dsn) as storage:
@@ -802,6 +806,10 @@ class TestValidateSymbol:
     async def test_valid_symbol_exists(self, backend):
         await backend.upsert_bars([make_bar(symbol="BTC/USDT")])
         await backend.validate_symbol("BTC/USDT")  # should not raise
+
+        # The check reads stored bars: a well-formed symbol with none is refused.
+        with pytest.raises(ValueError, match="Unknown symbol"):
+            await backend.validate_symbol("ETH/USDT")
 
     async def test_invalid_format_raises(self, backend):
         with pytest.raises(ValueError, match="Invalid symbol format"):
