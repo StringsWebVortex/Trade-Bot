@@ -95,3 +95,27 @@ def test_the_diff_is_read_with_a_three_dot_range(monkeypatch):
     assert bc._diff_text("aaa", "bbb") == "diff text"
     assert seen["cmd"] == ["git", "diff", "aaa...bbb", "--"]
     assert seen["kwargs"]["check"] is True
+
+
+def test_a_ref_that_is_not_a_commit_is_rejected(monkeypatch):
+    import subprocess
+
+    def _not_a_commit(cmd, **kwargs):
+        return subprocess.CompletedProcess(cmd, 1, stdout="", stderr="")
+
+    monkeypatch.setattr(bc.subprocess, "run", _not_a_commit)
+    monkeypatch.setattr(bc, "_diff_text", _REAL_DIFF_TEXT)
+    with pytest.raises(ValueError, match="not a commit"):
+        bc._diff_text("bad-base", "head")
+
+
+def test_an_invalid_diff_degrades_to_empty_context(capsys):
+    with patch.object(bc, "_diff_text", side_effect=ValueError("not a commit: bad-base")):
+        ctx = bc.build_context("bad-base", "head")
+
+    assert ctx == {
+        "related_documents": [],
+        "related_facts": [],
+        "retrieval_error": "not a commit: bad-base",
+    }
+    assert "cannot diff bad-base...head" in capsys.readouterr().out
