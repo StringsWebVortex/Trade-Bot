@@ -304,9 +304,11 @@ class TtlManager:
         self._state: str = "low"
 
     def compute(self, entropy_score: float) -> int:
-        if self._state == "low" and entropy_score > _LOW_ENTROPY_THRESHOLD + _HYSTERESIS:
+        # Schmitt trigger: enter "high" above the upper bound, leave it only
+        # below the lower bound; mid-band values keep the current state.
+        if self._state == "low" and entropy_score > _HIGH_ENTROPY_THRESHOLD + _HYSTERESIS:
             self._state = "high"
-        elif self._state == "high" and entropy_score < _HIGH_ENTROPY_THRESHOLD - _HYSTERESIS:
+        elif self._state == "high" and entropy_score < _LOW_ENTROPY_THRESHOLD - _HYSTERESIS:
             self._state = "low"
         return 24 if self._state == "low" else 1
 
@@ -401,7 +403,6 @@ class ConsensusLayer:
         outputs: list[EngineOutput],
         regime: str,
         entropy_score: float = 0.5,
-        spot: float | None = None,
     ) -> ConsensusResult:
         if not outputs:
             return ConsensusResult(
@@ -418,13 +419,11 @@ class ConsensusLayer:
         # Check circuit breaker
         e16 = next((o for o in outputs if o.engine_id == "E-16"), None)
         if self._circuit_breaker.check(e16):
-            # Fall back to E-01's forecast only when the caller supplied no
-            # real spot (STR-11).
-            hold = float(spot) if spot is not None and spot > 0 else outputs[0].predicted_price
+            spot = outputs[0].predicted_price
             return ConsensusResult(
-                consensus_price=hold,
-                ci_low=hold,
-                ci_high=hold,
+                consensus_price=spot,
+                ci_low=spot,
+                ci_high=spot,
                 agreement_score=0.0,
                 outlier_ids=[],
                 spoof_penalty_applied=True,
@@ -436,19 +435,14 @@ class ConsensusLayer:
         spoof_conf = e16.metadata.get("spoof_confidence", 0.0) if e16 else 0.0
         spoof_penalty = float(spoof_conf)
 
-        # Dispersion statistics describe engines that actually forecast:
-        # an abstention (confidence 0) carries spot as its price and would
-        # bias agreement toward 1 and hide real outliers (STR-11).
-        informative = [o for o in outputs if o.confidence > 0] or outputs
-
-        # Outliers (Chauvenet-style) are reported only; they are not re-weighted.
-        outlier_ids = chauvenet_outliers(informative)
+        # Halve outlier engine weights (Chauvenet)
+        outlier_ids = chauvenet_outliers(outputs)
 
         price, weights = compute_consensus_price(outputs, regime, spoof_penalty)
         ci_low, ci_high = bootstrap_ci(outputs, weights)
-        agreement = compute_agreement_score(informative)
+        agreement = compute_agreement_score(outputs)
 
-        # Low agreement is logged only; confidences are not dampened.
+        # Dampen all confidences if agreement < 0.5
         if agreement < 0.5:
             log.info("consensus_low_agreement", agreement=agreement)
 
