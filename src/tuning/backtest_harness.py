@@ -137,9 +137,7 @@ def run_entropy_threshold_backtest(
     Replay historical trades under champion vs. challenger entropy-gate
     config, fold the results per FeatureSettings.cpcv_n_splits with a
     purge gap, and return significance-tested comparisons for
-    oos_sharpe, max_drawdown_inverted and PSR. win_rate is deliberately absent:
-    position scaling never flips a return's sign, so it is identical for both
-    arms by construction (STR-15).
+    oos_sharpe, win_rate, and max_drawdown_inverted.
 
     Only entropy_threshold/entropy_scalar_floor are varied here (matches
     the eval_strategy="cpcv_oos_sharpe" contract for those two
@@ -157,6 +155,9 @@ def run_entropy_threshold_backtest(
     challenger_fold_dd: list[float] = []
     champion_fold_psr: list[float] = []
     challenger_fold_psr: list[float] = []
+    champion_wins = 0
+    challenger_wins = 0
+    total_trades = 0
 
     for start, end in folds:
         fold_samples = samples[start:end]
@@ -182,12 +183,23 @@ def run_entropy_threshold_backtest(
         champion_fold_psr.append(probabilistic_sharpe_ratio(champion_returns))
         challenger_fold_psr.append(probabilistic_sharpe_ratio(challenger_returns))
 
+        champion_wins += sum(1 for r in champion_returns if r > 0)
+        challenger_wins += sum(1 for r in challenger_returns if r > 0)
+        total_trades += len(fold_samples)
+
     evaluator = ChallengerEvaluator()
     comparisons = [
         evaluator.compare_metric("oos_sharpe", champion_fold_sharpes, challenger_fold_sharpes),
         evaluator.compare_metric("max_drawdown_inverted", champion_fold_dd, challenger_fold_dd),
         evaluator.compare_metric(
             "probabilistic_sharpe_ratio", champion_fold_psr, challenger_fold_psr
+        ),
+        evaluator.compare_proportion(
+            "win_rate",
+            champion_p=champion_wins / total_trades if total_trades else 0.0,
+            champion_n=total_trades,
+            challenger_p=challenger_wins / total_trades if total_trades else 0.0,
+            challenger_n=total_trades,
         ),
     ]
     return comparisons
@@ -383,6 +395,7 @@ def run_feature_window_backtest(
     challenger_window: int,
     direction_model: XGBClassifier,
     features_cfg: FeatureSettings | None = None,
+    oos_start_ms: int | None = None,
 ) -> list[MetricComparison]:
     """
     Recalibrate one of the rolling-window feature parameters (Phase 8
@@ -402,6 +415,12 @@ def run_feature_window_backtest(
     ahead strategy return -- the same simplification
     ModelTrainer._run_cpcv's own OOS Sharpe already uses (no meta-label
     gate, no triple-barrier P&L simulation).
+
+    `oos_start_ms` is the Unix-ms instant the frozen model finished training.
+    Only bars strictly after it are scored: the deployed model has seen
+    everything earlier, so scoring those bars is in-sample and favours the
+    window it was trained with (STR-06). Production callers must pass it;
+    None scores every bar and is in-sample.
     """
     if field_name not in _FEATURE_WINDOW_RECOMPUTERS:
         raise UnknownFeatureWindowFieldError(
@@ -431,6 +450,8 @@ def run_feature_window_backtest(
     # list(...) rather than the constant directly: .loc reads a tuple key as a
     # MultiIndex lookup rather than a column selection, so this stays correct
     # whichever sequence type FEATURE_COLUMNS is.
+    if oos_start_ms is not None:
+        valid = valid & (idx > oos_start_ms)
     champion_features = champion_features.loc[valid, list(FEATURE_COLUMNS)]
     challenger_features = challenger_features.loc[valid, list(FEATURE_COLUMNS)]
     log_ret = baseline.log_returns.reindex(idx).loc[valid].to_numpy(dtype=np.float64)

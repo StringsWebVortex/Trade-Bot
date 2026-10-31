@@ -42,9 +42,14 @@ class ModelRegistry:
     shadow's accuracy beats the live model's over the same window.
     """
 
-    def __init__(self, min_evaluations: int = 100) -> None:
+    def __init__(self, min_evaluations: int = 100, min_improvement: float = 0.02) -> None:
         if min_evaluations < 1:
             raise ValueError(f"min_evaluations must be >= 1, got {min_evaluations}")
+        if not 0.0 <= min_improvement < 1.0:
+            raise ValueError(f"min_improvement must be in [0, 1), got {min_improvement}")
+        # Absolute accuracy margin the shadow must clear; "any difference" at
+        # all promoted on noise (INT-024).
+        self._min_improvement = min_improvement
         self._min_evaluations = min_evaluations
         self._live_model_id: str | None = None
         self._shadows: dict[str, ShadowModelState] = {}
@@ -102,21 +107,33 @@ class ModelRegistry:
                 f"insufficient evaluations ({len(state.shadow_predictions)} < "
                 f"{self._min_evaluations})"
             )
+        if len(state.live_predictions) != len(state.shadow_predictions):
+            # An empty/short live list scored 0.0, so any shadow "beat" it.
+            return False, (
+                f"unpaired windows (shadow={len(state.shadow_predictions)}, "
+                f"live={len(state.live_predictions)})"
+            )
         shadow_acc = self._accuracy(state.shadow_predictions)
         live_acc = self._accuracy(state.live_predictions)
-        if shadow_acc <= live_acc:
-            return False, f"shadow accuracy {shadow_acc:.3f} does not beat live {live_acc:.3f}"
+        if shadow_acc < live_acc + self._min_improvement or shadow_acc <= live_acc:
+            return False, (
+                f"shadow accuracy {shadow_acc:.3f} does not beat live {live_acc:.3f} "
+                f"by {self._min_improvement:.3f}"
+            )
         return True, f"shadow accuracy {shadow_acc:.3f} beats live {live_acc:.3f}"
 
     def promote_shadow(self, model_id: str) -> None:
         """
         Explicit promotion — swaps model_id into the live slot and removes
-        it from the shadow set. Callers must have already checked
-        evaluate_shadow() returns ready=True; this method does not
-        re-validate, matching the strategy kill-switch's re_enable() pattern.
+        it from the shadow set. Re-runs evaluate_shadow() and refuses
+        (ValueError) unless it is still ready, so a caller that skipped the
+        check cannot promote an unproven candidate.
         """
         if model_id not in self._shadows:
             raise KeyError(f"shadow model_id {model_id!r} not registered")
+        ready, reason = self.evaluate_shadow(model_id)
+        if not ready:
+            raise ValueError(f"shadow {model_id!r} is not ready to promote: {reason}")
         self._live_model_id = model_id
         del self._shadows[model_id]
 

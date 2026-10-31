@@ -83,7 +83,6 @@ from src.risk.macro_exposure_budget import (
 from src.risk.performance_drift import PerformanceBaseline, PerformanceDriftDetector
 from src.risk.portfolio_agreement import portfolio_agreement_scalar
 from src.risk.portfolio_correlation import get_portfolio_correlation
-from src.risk.state_persistence import state_file
 from src.risk.strategy_correlation import (
     combined_correlation_scalar,
     get_strategy_correlation,
@@ -96,6 +95,7 @@ from src.strategies.signal_engine_adapter import (
     STRATEGY_ID_SIGNAL_ENGINE,
     SignalEngineStrategy,
 )
+from src.tuning import state as tuning_state
 from src.tuning.meta_allocator import get_allocation_controller
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
@@ -593,6 +593,11 @@ class Orchestrator:
                     baseline_accuracy=baseline.oos_accuracy,
                 )
                 self._register_kill_switches(baseline)
+                # Promotions made from here on are watched by the post-promotion
+                # watchdog against this same baseline (STR-04).
+                tuning_state.runner.set_probation_detector_factory(
+                    lambda: PerformanceDriftDetector(baseline)
+                )
             except Exception as exc:
                 self._log.warning(
                     "orchestrator.drift_detector_init_failed",
@@ -2410,8 +2415,6 @@ class Orchestrator:
         strategies are skipped — startup can run twice in a process.
         """
         manager = get_strategy_kill_switch_manager()
-        # EXR-013: restore strategies disabled before a restart.
-        manager.enable_persistence(state_file("strategy_kill_switch"))
         for strategy in get_default_registry().all():
             try:
                 if manager.is_registered(strategy.strategy_id):
@@ -2829,6 +2832,28 @@ class Orchestrator:
                 error=str(exc),
                 exc_info=True,
             )
+
+    def _record_tuning_probation_outcome(
+        self, pnl_usd: float, actual_direction: int, current_equity: float
+    ) -> None:
+        """Feed a closed trade to every self-tuning parameter in probation.
+
+        A drift verdict rolls the parameter back in the version store and the
+        live registry. Never raises: a watchdog fault must not turn a
+        completed exit into an error path.
+        """
+        try:
+            for name in tuning_state.watchdog.probation_params():
+                tuning_state.watchdog.record_trade_outcome(
+                    name,
+                    pnl_usd=pnl_usd,
+                    predicted_prob=0.5,
+                    actual_direction=actual_direction,
+                    current_equity=current_equity,
+                    starting_equity=self._cfg.starting_capital_usd,
+                )
+        except Exception as exc:
+            self._log.warning("orchestrator.tuning_probation_record_failed", error=str(exc))
 
     def _record_kill_switch_outcome(
         self,
@@ -3456,6 +3481,12 @@ class Orchestrator:
                             error=str(exc),
                             exc_info=True,
                         )
+
+                self._record_tuning_probation_outcome(
+                    pnl_usd=net_pnl,
+                    actual_direction=(1 if pos["direction"] == "long" else -1),
+                    current_equity=executor.equity_usd,
+                )
 
                 # Same outcome, per strategy. The global drift detector above
                 # sees the book as one series; the kill switch keeps a

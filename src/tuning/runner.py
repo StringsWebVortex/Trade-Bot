@@ -45,6 +45,7 @@ from src.tuning.gate import GateDecision, PromotionGate
 from src.tuning.proposer import Proposal, Proposer
 from src.tuning.registry import ParameterRegistry, TunableParameter
 from src.tuning.store import VersionedConfigStore
+from src.tuning.watchdog import DriftDetector, PostPromotionWatchdog
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
@@ -76,7 +77,11 @@ class TuningRunner:
         gate: PromotionGate,
         shadow_mode: bool = True,
         decision_log_path: Path | None = None,
+        watchdog: PostPromotionWatchdog | None = None,
+        probation_detector_factory: Callable[[], DriftDetector] | None = None,
     ) -> None:
+        self._watchdog = watchdog
+        self._probation_detector_factory = probation_detector_factory
         self._registry = registry
         self._store = store
         self._audit_log = audit_log
@@ -88,6 +93,11 @@ class TuningRunner:
         # -- a shadow WOULD_PROMOTE changes nothing structurally, so logging it
         # here would bury the real changes in noise.
         self._decision_log_path = decision_log_path
+
+    def set_probation_detector_factory(self, factory: Callable[[], DriftDetector] | None) -> None:
+        """Supplied by the layer that owns the drift baseline (orchestration);
+        tuning sits below risk and cannot construct a detector itself."""
+        self._probation_detector_factory = factory
 
     def _cooldown_active(
         self, param_name: str, closed_trade_count: int | None = None
@@ -210,6 +220,18 @@ class TuningRunner:
                 reasons=("self_tuning_disabled",),
             )
 
+        if self._watchdog is not None and self._watchdog.is_locked(param_name):
+            self._audit_log.record(
+                param_name, TuningEventType.SKIPPED, {"reason": "watchdog_locked"}
+            )
+            return AttemptResult(
+                param_name=param_name,
+                attempted=False,
+                accepted=False,
+                promoted=False,
+                reasons=("watchdog_locked",),
+            )
+
         blocked, cooldown_reason = self._cooldown_active(param_name, closed_trade_count)
         if blocked:
             self._audit_log.record(param_name, TuningEventType.SKIPPED, {"reason": cooldown_reason})
@@ -222,6 +244,14 @@ class TuningRunner:
             )
 
         param = self._registry.get(param_name)
+        n_trials = (
+            sum(
+                1
+                for e in self._audit_log.read_for_param(param_name)
+                if e.event_type == TuningEventType.PROPOSED
+            )
+            + 1
+        )
         proposal = self._proposer.propose(param, primary_metric)
         self._audit_log.record(
             param_name,
@@ -258,7 +288,7 @@ class TuningRunner:
             },
         )
 
-        decision: GateDecision = self._gate.decide(param, evaluation, primary_metric)
+        decision: GateDecision = self._gate.decide(param, evaluation, primary_metric, n_trials)
 
         if not decision.accepted:
             self._audit_log.record(
@@ -301,6 +331,8 @@ class TuningRunner:
             {"challenger_value": proposal.challenger_value, "reasons": list(decision.reasons)},
         )
         self._write_decision_log(param_name, proposal, decision, primary_metric)
+        if self._watchdog is not None and self._probation_detector_factory is not None:
+            self._watchdog.start_probation(param_name, self._probation_detector_factory())
         return AttemptResult(
             param_name=param_name,
             attempted=True,

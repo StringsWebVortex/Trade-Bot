@@ -343,11 +343,7 @@ def compute_sample_weights(log_returns: pd.Series) -> np.ndarray:
     Weight each sample by the absolute magnitude of its log return.
 
     AFML Ch.10 — samples with larger price moves carry more information
-    and should receive higher weight.  Weights are normalised to mean 1
-    (sum == n) so XGBoost's ``min_child_weight`` (a sum of hessian x weight)
-    keeps its configured scale; normalising to sum 1 would make every node's
-    weighted hessian sum far below ``min_child_weight`` and suppress splits
-    (INT-026).
+    and should receive higher weight.  Weights are normalised to sum to 1.
 
     Zero-return rows receive a small floor weight (1e-4) to avoid
     XGBoost ignoring them entirely.
@@ -355,7 +351,7 @@ def compute_sample_weights(log_returns: pd.Series) -> np.ndarray:
     abs_ret = log_returns.abs().to_numpy(dtype=np.float64)
     floor = np.full_like(abs_ret, 1e-4)
     weights = np.maximum(abs_ret, floor)
-    weights = weights * (len(weights) / weights.sum())
+    weights = weights / weights.sum()
     return weights
 
 
@@ -509,45 +505,6 @@ def _build_xgb(cfg: XGBoostSettings, scale_pos_weight: float = 1.0) -> XGBClassi
     )
 
 
-def _fit_final_xgb(
-    cfg: XGBoostSettings,
-    x: np.ndarray,
-    y: np.ndarray,
-    weights: np.ndarray,
-    pos_weight: float,
-    purge_gap: int,
-) -> XGBClassifier:
-    """Fit the production model: early-stop on the newest 15%, then refit on all rows.
-
-    INT-025: a purge gap separates the early-stopping slice from the fit slice,
-    and the returned model is re-fit on the FULL dataset (including the newest
-    bars) with the best iteration count found by early stopping.
-    """
-    split = int(len(x) * 0.85)
-    fit_end = max(split - max(int(purge_gap), 0), 1)
-    n_rounds = int(cfg.n_estimators)
-    # A slice with a single class cannot be fitted (XGBoost infers classes from
-    # the slice, so "Invalid classes inferred") nor early-stopped on: meta
-    # labels in particular are heavily skewed. Skip the probe and keep the
-    # configured round count, still refitting on every row.
-    if len(np.unique(y[:fit_end])) == 2 and len(np.unique(y[split:])) == 2:
-        probe = _build_xgb(cfg, scale_pos_weight=pos_weight)
-        probe.fit(
-            x[:fit_end],
-            y[:fit_end],
-            sample_weight=weights[:fit_end],
-            eval_set=[(x[split:], y[split:])],
-            verbose=False,
-        )
-        best_iter = getattr(probe, "best_iteration", None)
-        if best_iter is not None:
-            n_rounds = int(best_iter) + 1
-    final = _build_xgb(cfg, scale_pos_weight=pos_weight)
-    final.set_params(early_stopping_rounds=None, n_estimators=max(n_rounds, 1))
-    final.fit(x, y, sample_weight=weights, verbose=False)
-    return final
-
-
 # ---------------------------------------------------------------------------
 # ModelTrainer
 # ---------------------------------------------------------------------------
@@ -694,8 +651,7 @@ class ModelTrainer:
 
         Labels: 1 = long, 0 = short (triple-barrier outcomes, time-exits excluded).
         CPCV validation computes OOS Sharpe and max drawdown.
-        Final model is re-fit on the full dataset (INT-025: best iteration
-        from a purged early-stopping slice, then refit on all rows).
+        Final model is re-fit on the full dataset.
 
         Parameters
         ----------
@@ -790,8 +746,16 @@ class ModelTrainer:
         pos_weight = float((y == 0).sum()) / max(float((y == 1).sum()), 1.0)
 
         # Final model on full dataset
-        final_model = _fit_final_xgb(
-            self._xgb_cfg, X, y, weights, pos_weight, cpcv_cfg.purge_gap_bars
+        final_model = _build_xgb(self._xgb_cfg, scale_pos_weight=pos_weight)
+        # Use last 15% as internal eval set for early stopping
+        split = int(len(X) * 0.85)
+        eval_set = [(X[split:], y[split:])]
+        final_model.fit(
+            X[:split],
+            y[:split],
+            sample_weight=weights[:split],
+            eval_set=eval_set,
+            verbose=False,
         )
 
         mean_acc = float(np.mean([f.accuracy for f in fold_metrics]))
@@ -1040,8 +1004,15 @@ class ModelTrainer:
         )
 
         pos_weight = float((meta_y == 0).sum()) / max(float((meta_y == 1).sum()), 1.0)
-        final_model = _fit_final_xgb(
-            self._xgb_cfg, x_meta, meta_y, weights, pos_weight, cpcv_cfg.purge_gap_bars
+        final_model = _build_xgb(self._xgb_cfg, scale_pos_weight=pos_weight)
+        split = int(len(x_meta) * 0.85)
+        eval_set = [(x_meta[split:], meta_y[split:])]
+        final_model.fit(
+            x_meta[:split],
+            meta_y[:split],
+            sample_weight=weights[:split],
+            eval_set=eval_set,
+            verbose=False,
         )
 
         mean_acc = float(np.mean([f.accuracy for f in fold_metrics]))
@@ -1289,6 +1260,14 @@ class ModelTrainer:
             version=version,
         )
         return dir_path, meta_path
+
+    @staticmethod
+    def direction_model_path(model_dir: str | Path, symbol: str, timeframe: str) -> Path:
+        """Where the direction model artifact lives for this symbol/timeframe."""
+        _validate_timeframe(timeframe)
+        return Path(model_dir) / _DIRECTION_FILENAME.format(
+            symbol=symbol.replace("/", "_"), timeframe=timeframe
+        )
 
     @staticmethod
     def load_direction(
