@@ -71,6 +71,10 @@ class OrderbookStream:
     # When the last depth message landed, on the monotonic clock. Drives the
     # staleness test in latest_mid; None until the first message arrives.
     _last_depth_at: float | None = field(default=None, repr=False)
+    # Survives a flush (which clears _snapshots) so latest_mid() does not go
+    # None right after each flush (DAT-008).
+    _last_snapshot: OrderbookSnapshot | None = field(default=None, repr=False)
+    _flush_seq: int = field(default=0, repr=False)
 
     # ------------------------------------------------------------------
     # Public interface
@@ -88,7 +92,7 @@ class OrderbookStream:
         self._running = False
 
     def latest_snapshot(self) -> OrderbookSnapshot | None:
-        return self._snapshots[-1] if self._snapshots else None
+        return self._snapshots[-1] if self._snapshots else self._last_snapshot
 
     def latest_mid(self, max_age_s: float = 10.0) -> float | None:
         """
@@ -155,6 +159,7 @@ class OrderbookStream:
             spread_bps=spread_bps,
         )
         self._snapshots.append(snap)
+        self._last_snapshot = snap
         now_mono = time.monotonic()
         self._last_depth_at = now_mono
 
@@ -218,7 +223,16 @@ class OrderbookStream:
         if not self._snapshots:
             return
         date_str = datetime.now(UTC).strftime("%Y-%m-%d")
-        path = self.data_root / "orderbook" / self.symbol / f"{date_str}.parquet"
+        # One new part file per flush: never read-modify-write the day's file
+        # (O(n^2) over the day, on the event loop). DAT-008.
+        self._flush_seq += 1
+        path = (
+            self.data_root
+            / "orderbook"
+            / self.symbol
+            / date_str
+            / f"{time.time_ns()}-{self._flush_seq}.parquet"
+        )
         path.parent.mkdir(parents=True, exist_ok=True)
         rows = [
             {
@@ -230,11 +244,7 @@ class OrderbookStream:
             }
             for s in self._snapshots
         ]
-        df = pd.DataFrame(rows)
-        if path.exists():
-            existing = pd.read_parquet(path)
-            df = pd.concat([existing, df], ignore_index=True)
-        df.to_parquet(path, index=False)
+        pd.DataFrame(rows).to_parquet(path, index=False)
         self._snapshots.clear()
 
     # ------------------------------------------------------------------
@@ -271,7 +281,14 @@ class OrderbookStream:
         if not self._trades:
             return
         date_str = datetime.now(UTC).strftime("%Y-%m-%d")
-        path = self.data_root / "trades" / self.symbol / f"{date_str}.parquet"
+        self._flush_seq += 1
+        path = (
+            self.data_root
+            / "trades"
+            / self.symbol
+            / date_str
+            / f"{time.time_ns()}-{self._flush_seq}.parquet"
+        )
         path.parent.mkdir(parents=True, exist_ok=True)
         rows = [
             {
@@ -282,9 +299,5 @@ class OrderbookStream:
             }
             for t in self._trades
         ]
-        df = pd.DataFrame(rows)
-        if path.exists():
-            existing = pd.read_parquet(path)
-            df = pd.concat([existing, df], ignore_index=True)
-        df.to_parquet(path, index=False)
+        pd.DataFrame(rows).to_parquet(path, index=False)
         self._trades.clear()

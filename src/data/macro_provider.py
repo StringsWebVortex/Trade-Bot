@@ -8,7 +8,7 @@ Polls once per 24h (market-close cadence).
 from __future__ import annotations
 
 import asyncio
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 import pandas as pd
@@ -67,6 +67,7 @@ class MacroProvider:
             closes: dict[str, float] = {}
             returns: dict[str, float] = {}
             series: dict[str, list] = {}
+            market_dates: list[date] = []
             for key, ticker in _TICKERS.items():
                 # 90-day window to support Granger causality in E-13
                 hist = yf.download(ticker, period="90d", interval="1d", progress=False)
@@ -75,7 +76,15 @@ class MacroProvider:
                 close_col = "Close"
                 if close_col not in hist.columns:
                     continue
-                close_vals = hist[close_col].dropna()
+                close_vals = hist[close_col]
+                if isinstance(close_vals, pd.DataFrame):
+                    # Newer yfinance returns one-column frames (MultiIndex
+                    # columns) for a single ticker: squeeze to a Series.
+                    close_vals = close_vals.iloc[:, 0]
+                close_vals = close_vals.dropna()
+                if close_vals.empty:
+                    continue
+                market_dates.append(pd.Timestamp(close_vals.index[-1]).date())
                 closes[f"{key}_close"] = float(close_vals.iloc[-1])
                 ret_series = close_vals.pct_change().dropna()
                 if len(ret_series) >= 2:
@@ -86,7 +95,9 @@ class MacroProvider:
                 return None
 
             row: dict = {
-                "date": datetime.now(UTC).date().isoformat(),
+                # Market date of the stalest series, not the fetch date, so
+                # check_macro's staleness budget can actually trip (DAT-010).
+                "date": min(market_dates).isoformat(),
                 **closes,
                 **returns,
                 **series,
@@ -108,8 +119,11 @@ class MacroProvider:
         if not macro_dir.exists():
             return None
         files = sorted(macro_dir.glob("*.parquet"), reverse=True)
+        cutoff = datetime.now(UTC).date() - timedelta(days=_STALE_LIMIT_DAYS)
         for f in files[:_STALE_LIMIT_DAYS]:
             try:
+                if date.fromisoformat(f.stem) < cutoff:
+                    continue  # too old to serve as "latest"
                 df = pd.read_parquet(f)
                 if not df.empty:
                     return df.iloc[-1].to_dict()

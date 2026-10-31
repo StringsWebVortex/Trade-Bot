@@ -55,6 +55,10 @@ from src.config import get_settings
 from src.data.storage import (
     _ALLOWED_TABLES,
     _SYMBOL_RE,
+    INTELLIGENCE_FEATURE_KEYS,
+    INTELLIGENCE_V6_INT_KEYS,
+    INTELLIGENCE_V6_KEYS,
+    INTELLIGENCE_V6_TEXT_KEYS,
     BarRecord,
     EquityRecord,
     MissedTradeRecord,
@@ -632,6 +636,11 @@ class TimescaleBackend:
             confidence: Provider confidence score [0.0, 1.0].
             source:     "backfill" | "live" | "test".
         """
+        unsupported = set(features) - INTELLIGENCE_FEATURE_KEYS
+        if unsupported:
+            raise ValueError(
+                "unsupported intelligence feature columns: " + ", ".join(sorted(unsupported))
+            )
         pool = self._require_pool()
         fetched_at = int(datetime.now(UTC).timestamp() * 1000)
 
@@ -639,13 +648,23 @@ class TimescaleBackend:
             v = features.get(key)
             return float(v) if v is not None else None
 
+        def _v6(key: str) -> Any:
+            v = features.get(key)
+            if v is None:
+                return None
+            if key in INTELLIGENCE_V6_TEXT_KEYS:
+                return str(v)
+            return int(v) if key in INTELLIGENCE_V6_INT_KEYS else float(v)
+
         values: list[Any] = [symbol, timeframe, bar_ts, fetched_at]
         values.extend(_f(f"intelligence_{c}") for c in _INTEL_COLUMNS)
         values.extend((float(confidence), source))
+        values.extend(_v6(c) for c in INTELLIGENCE_V6_KEYS)
 
         col_list = ", ".join(_INTEL_COLUMNS)
+        v6_list = ", ".join(INTELLIGENCE_V6_KEYS)
         placeholders = ", ".join(f"${i}" for i in range(1, len(values) + 1))
-        update_cols = ["fetched_at", *_INTEL_COLUMNS, "confidence", "source"]
+        update_cols = ["fetched_at", *_INTEL_COLUMNS, "confidence", "source", *INTELLIGENCE_V6_KEYS]
         update_set = ", ".join(f"{c}=EXCLUDED.{c}" for c in update_cols)
         # Column names come only from the hardcoded _INTEL_COLUMNS literal —
         # never from external/user input. Values flow through $n placeholders.
@@ -655,7 +674,7 @@ class TimescaleBackend:
                 INSERT INTO intelligence_features_history (
                     symbol, timeframe, bar_ts, fetched_at,
                     {col_list},
-                    confidence, source
+                    confidence, source, {v6_list}
                 ) VALUES ({placeholders})
                 ON CONFLICT (symbol, timeframe, bar_ts) DO UPDATE SET {update_set}
                 """,  # nosec B608
@@ -680,10 +699,11 @@ class TimescaleBackend:
 
         pool = self._require_pool()
         col_list = ", ".join(_INTEL_COLUMNS)
+        v6_list = ", ".join(INTELLIGENCE_V6_KEYS)
         async with pool.acquire() as conn:
             rows = await conn.fetch(  # nosemgrep: no-fstring-sql — cols from hardcoded literal
                 f"""
-                SELECT bar_ts, {col_list}, confidence
+                SELECT bar_ts, {col_list}, confidence, {v6_list}
                 FROM intelligence_features_history
                 WHERE symbol=$1 AND timeframe=$2 AND bar_ts>=$3
                 ORDER BY bar_ts ASC
@@ -1282,7 +1302,10 @@ class TimescaleBackend:
                   precision_score=EXCLUDED.precision_score,
                   recall_score=EXCLUDED.recall_score,
                   f1_score=EXCLUDED.f1_score,
-                  live_gate_pass=EXCLUDED.live_gate_pass
+                  live_gate_pass=EXCLUDED.live_gate_pass,
+                  -- SQLite INSERT OR REPLACE resets created_at; match it so
+                  -- latest_model_metrics orders identically (DAT-007).
+                  created_at=(EXTRACT(EPOCH FROM now()) * 1000)::BIGINT
                 """,
                 metrics.model_name,
                 metrics.timeframe,
