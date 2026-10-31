@@ -745,8 +745,6 @@ def bar_gap_report(index: pd.Index) -> dict[str, float | int]:
         return empty
 
     diffs = pd.Series(index.astype("int64")).diff().dropna()
-    if diffs.empty:
-        return empty
     expected = int(diffs.mode().iloc[0])
     if expected <= 0:
         return empty

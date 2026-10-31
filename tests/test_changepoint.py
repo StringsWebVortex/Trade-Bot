@@ -101,3 +101,23 @@ def test_zero_mass_hypothesis_survives_pruning() -> None:
     for _ in range(600):
         detector.update(rng.gauss(0, 1))
     assert any(h.run_length == 0 for h in detector._hypotheses)
+
+
+def test_zero_mass_hypothesis_is_restored_when_pruning_would_drop_it() -> None:
+    # Make 200 growth hypotheses more probable individually than the new
+    # changepoint hypothesis so top-200 pruning must explicitly restore r=0.
+    detector = BayesianOnlineChangepointDetector(hazard_rate=1e-12)
+    hypothesis_type = type(detector._hypotheses[0])
+    detector._hypotheses = [
+        hypothesis_type(
+            run_length=i + 1,
+            log_prob=-math.log(200),
+            mean=0.0,
+            m2=1.0,
+            n=2,
+        )
+        for i in range(200)
+    ]
+
+    detector.update(0.0)
+    assert any(h.run_length == 0 for h in detector._hypotheses)
