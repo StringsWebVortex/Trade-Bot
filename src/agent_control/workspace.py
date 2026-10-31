@@ -482,11 +482,26 @@ class Workspace:
             )
             return grant.authorization_id, point.checkpoint_id
 
+    def _git_aliases(self) -> dict[str, str]:
+        """Configured ``alias.*`` entries, so an alias cannot hide a guarded operation."""
+        try:
+            out = self.runner.run("config", "--get-regexp", r"^alias\.", check=False).stdout
+        except GitError:
+            return {}
+        aliases: dict[str, str] = {}
+        for line in out.splitlines():
+            name, _, value = line.partition(" ")
+            if name.lower().startswith("alias.") and value:
+                aliases[name[len("alias.") :]] = value
+        return aliases
+
     def guard(self, command: str, *, now: datetime | None = None) -> list[str]:
         """Guarded operations ``command`` would run without authorization (consumes grants)."""
-        operations = git_safety.guarded_operations(command)
+        operations = git_safety.guarded_operations(command, self._git_aliases())
         if not operations:
             return []
+        # By design the guard only applies while a task is active; the irreversible
+        # forms stay refused by common.command_schema regardless of any task.
         task_id = self.active_task_id()
         if task_id is None:
             return []

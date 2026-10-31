@@ -303,8 +303,8 @@ def _github_route_violation(event: dict[str, Any]) -> str:
                     return ""
         return (
             "Universal GitHub-only boundary: denied. Use an approved GitHub MCP tool; "
-            "local exceptions are the exact ./scripts/prfail --pr <PR_NUMBER> command "
-            "and the report-bound patch applier."
+            "local exceptions are the exact report command "
+            "./scripts/prfail --pr <PR_NUMBER> and the report-bound patch applier."
         )
     tail = tool[len(GITHUB_TOOL_PREFIX) :]
     gap = unresolved_tools()
@@ -663,6 +663,7 @@ def _fail_closed(note: str) -> None:
 
 sys.path.insert(0, str(PROJECT_DIR))
 
+_COMMON_IMPORT_FAILED = False
 try:
     from common.command_schema import (
         CI_LOG_REFUSAL,
@@ -681,27 +682,29 @@ except Exception:  # pragma: no cover
         r"\bpython(?:3)?(?:\.\d+)?\s+-m\s+pytest\b",
         r"\b(?:python(?:3)?(?:\.\d+)?\s+-m\s+)?unittest\b",
         r"\b(?:tox|nox)\b",
-        r"\\bcoverage(?:\\s+(?:run|combine|report|html|xml|erase))?\\b",
-        r"\\bruff\\s+(?:check|format)\\b",
-        r"\\b(?:mypy|pyright|flake8|pylint|black|isort)\\b",
-        r"\\b(?:bandit|pip-audit|safety|semgrep|trivy)\\b",
-        r"\\b(?:npx\\s+)?(?:vitest|jest|playwright|cypress)\\b",
-        r"\\b(?:npm|pnpm|yarn)\\s+(?:test|run\\s+(?:test|build|lint|check)|build|lint|check)\\b",
-        r"\\b(?:cargo\\s+(?:test|build|clippy)|go\\s+(?:test|build|vet))\\b",
-        r"\\b(?:make|gmake)\\s+(?:test|build|lint|check|ci)\\b",
-        r"\\b(?:cmake\\s+--build|ninja(?:\\s|$))",
-        r"\\bpython(?:3)?(?:\\.\\d+)?\\s+-m\\s+build\\b",
-        r"\\bpre-commit\\s+run\\b",
-        r"\\b(?:actionlint|shellcheck)\\b",
-        r"\\.claude/skills/quality-engineering/scripts/qe_gate\\.py\\b",
-        r"\\bscripts/arch_gate\\.sh\\b",
-        r"\\bpython(?:3)?(?:\\.\\d+)?\\s+(?:-m\\s+)?tests?/[^ \\t;&|]*\\.py\\b",
-        r"\\bpython(?:3)?(?:\\.\\d+)?\\s+-m\\s+tests?(?:\\.|\\s)",
-        r"\\bpython(?:3)?(?:\\.\\d+)?\\s+-m\\s+compileall\\b",
-        r"\\bpython(?:3)?(?:\\.\\d+)?\\s+scripts/generate_(?:math|quality)_docs\\.py\\s+--check\\b",
-        r"\\b(?:bash|sh)\\s+[^;&|]*(?:test|tests|testing|build|lint|check|quality[-_]gate|security[-_]scan)[^;&|]*\\.sh\\b",
-        r"\\bnode\\s+[^;&|]*(?:test|tests|testing|build|lint|check)[^;&|]*\\.(?:js|mjs|cjs|ts)\\b",
+        r"\bcoverage(?:\s+(?:run|combine|report|html|xml|erase))?\b",
+        r"\bruff\s+(?:check|format)\b",
+        r"\b(?:mypy|pyright|flake8|pylint|black|isort)\b",
+        r"\b(?:bandit|pip-audit|safety|semgrep|trivy)\b",
+        r"\b(?:npx\s+)?(?:vitest|jest|playwright|cypress)\b",
+        r"\b(?:npm|pnpm|yarn)\s+(?:test|run\s+(?:test|build|lint|check)|build|lint|check)\b",
+        r"\b(?:cargo\s+(?:test|build|clippy)|go\s+(?:test|build|vet))\b",
+        r"\b(?:make|gmake)\s+(?:test|build|lint|check|ci)\b",
+        r"\b(?:cmake\s+--build|ninja(?:\s|$))",
+        r"\bpython(?:3)?(?:\.\d+)?\s+-m\s+build\b",
+        r"\bpre-commit\s+run\b",
+        r"\b(?:actionlint|shellcheck)\b",
+        r"\.claude/skills/quality-engineering/scripts/qe_gate\.py\b",
+        r"\bscripts/arch_gate\.sh\b",
+        r"\bpython(?:3)?(?:\.\d+)?\s+(?:-m\s+)?tests?/[^ \t;&|]*\.py\b",
+        r"\bpython(?:3)?(?:\.\d+)?\s+-m\s+tests?(?:\.|\s)",
+        r"\bpython(?:3)?(?:\.\d+)?\s+-m\s+compileall\b",
+        r"\bpython(?:3)?(?:\.\d+)?\s+scripts/generate_(?:math|quality)_docs\.py\s+--check\b",
+        r"\b(?:bash|sh)\s+[^;&|]*(?:test|tests|testing|build|lint|check|quality[-_]gate|security[-_]scan)[^;&|]*\.sh\b",
+        r"\bnode\s+[^;&|]*(?:test|tests|testing|build|lint|check)[^;&|]*\.(?:js|mjs|cjs|ts)\b",
     )
+
+    _COMMON_IMPORT_FAILED = True
 
     def is_ci_log_access(command: str) -> bool:
         return False
@@ -951,13 +954,22 @@ def _violations(event: dict[str, Any], policy: dict[str, Any]) -> list[str]:
             )
             if guard:
                 problems.append(guard)
-        except Exception as exc:  # pragma: no cover
-            print(f"[pre_tool_use] git guard degraded, allowing: {exc!r}", file=sys.stderr)
+        except Exception as exc:
+            # Fail closed: a guard that cannot run must not wave a git command through.
+            print(f"[pre_tool_use] git guard unavailable, denying: {exc!r}", file=sys.stderr)
+            problems.append(
+                "Git guard could not evaluate this git command "
+                f"({type(exc).__name__}); denied until the guard is repaired."
+            )
 
     return problems
 
 
 def main() -> None:
+    if _COMMON_IMPORT_FAILED:
+        # The command classifier and CI-log guard are unavailable; do not run on stubs.
+        _fail_closed("common.command_schema could not be imported")
+        return
     try:
         raw = sys.stdin.read()
         if not raw.strip():
