@@ -19,6 +19,9 @@ Per entry id:
   * deleted on one side, untouched  -> deleted
   * deleted on one side, edited on the other -> unresolvable
 
+An add/add conflict (both sides created the file) has no stage 1; the base is
+then empty, so only entries both sides wrote identically merge without a person.
+
 Top-level keys other than "entries" follow the same one-side-changed rule.
 
 Usage (inside a conflicted merge, from the repository root):
@@ -100,12 +103,16 @@ def _indent(raw: str) -> int:
 def main(argv: list[str]) -> int:
     path = argv[1] if len(argv) > 1 else DEFAULT_PATH
     try:
-        base, _ = _stage(1, path)
         ours, _ = _stage(2, path)
         theirs, raw = _stage(3, path)
     except subprocess.CalledProcessError:
         print(f"{path} is not in a conflicted merge state.", file=sys.stderr)
         return 1
+    try:
+        base, _ = _stage(1, path)
+    except subprocess.CalledProcessError:
+        # add/add: both sides created the file, so git keeps no stage 1 (SCR-018).
+        base = {}
     try:
         merged = merge(base, ours, theirs)
     except Unresolvable as exc:
