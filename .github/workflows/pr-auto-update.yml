@@ -261,7 +261,7 @@ jobs:
             # clean document as the metadata template, then refresh it after
             # all paths are resolved so files from both branches are included.
             if grep -qx 'codebase-analysis-docs/FILE_INDEX.md' <<< "${conflicted}"; then
-              git checkout --theirs -- codebase-analysis-docs/FILE_INDEX.md
+              git show :3:codebase-analysis-docs/FILE_INDEX.md > codebase-analysis-docs/FILE_INDEX.md
               git add -- codebase-analysis-docs/FILE_INDEX.md
             fi
 
