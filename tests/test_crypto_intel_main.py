@@ -7,10 +7,13 @@ import asyncio
 
 def _isolated_config(tmp_path):
     """Keep each CryptoIntelligence test's SQLite state inside its tmp_path."""
-    cfg = tmp_path / "i.yaml"
+    cfg = _isolated_config(tmp_path)
     checkpoint_dir = (tmp_path / "horizons").as_posix()
     cfg.write_text(f"checkpoint_dir: '{checkpoint_dir}'\n")
     return cfg
+
+
+from src.intel import IntelSignal
 
 
 class TestIntelSignal:
@@ -67,7 +70,7 @@ class TestCryptoIntelligenceLifecycle:
     def test_start_and_close(self, tmp_path) -> None:
         from src.intel import CryptoIntelligence
 
-        cfg = _isolated_config(tmp_path)
+        cfg = tmp_path / "i.yaml"
         intel = CryptoIntelligence(config_path=cfg)
         intel.start()
         assert intel._started
@@ -77,7 +80,7 @@ class TestCryptoIntelligenceLifecycle:
     def test_double_start_idempotent(self, tmp_path) -> None:
         from src.intel import CryptoIntelligence
 
-        cfg = _isolated_config(tmp_path)
+        cfg = tmp_path / "i.yaml"
         intel = CryptoIntelligence(config_path=cfg)
         intel.start()
         intel.start()
@@ -92,7 +95,7 @@ class TestOnBarAsync:
     def test_on_bar_returns_signal_or_none(self, tmp_path) -> None:
         from src.intel import CryptoIntelligence
 
-        cfg = _isolated_config(tmp_path)
+        cfg = tmp_path / "i.yaml"
         intel = CryptoIntelligence(config_path=cfg)
         intel.start()
         ohlcv = {
@@ -103,14 +106,18 @@ class TestOnBarAsync:
             "volume": 100.0,
         }
         result = self._run(intel.on_bar("BTC/USDT", ohlcv))
-        # RiskGate may suppress → None is valid
-        assert result is None or hasattr(result, "direction")
+        # RiskGate may suppress -> None is valid; any emitted signal must be typed.
+        assert result is None or (
+            isinstance(result, IntelSignal)
+            and result.symbol == "BTC/USDT"
+            and result.direction in (-1, 0, 1)
+        )
         intel.close()
 
     def test_on_bar_auto_starts(self, tmp_path) -> None:
         from src.intel import CryptoIntelligence
 
-        cfg = _isolated_config(tmp_path)
+        cfg = tmp_path / "i.yaml"
         intel = CryptoIntelligence(config_path=cfg)
         assert not intel._started
         ohlcv = {"close": 50000.0, "volume": 10.0}
@@ -121,24 +128,24 @@ class TestOnBarAsync:
     def test_on_bar_with_bids_asks(self, tmp_path) -> None:
         from src.intel import CryptoIntelligence
 
-        cfg = _isolated_config(tmp_path)
+        cfg = tmp_path / "i.yaml"
         intel = CryptoIntelligence(config_path=cfg)
         ohlcv = {"close": 50000.0, "volume": 10.0}
         bids = [[49990.0, 1.0], [49980.0, 2.0]]
         asks = [[50010.0, 1.0], [50020.0, 2.0]]
         result = self._run(intel.on_bar("BTC/USDT", ohlcv, bids=bids, asks=asks))
-        assert result is None or hasattr(result, "symbol")
+        assert result is None or (isinstance(result, IntelSignal) and result.symbol == "BTC/USDT")
         intel.close()
 
     def test_on_bar_with_derivatives_data(self, tmp_path) -> None:
         from src.intel import CryptoIntelligence
 
-        cfg = _isolated_config(tmp_path)
+        cfg = tmp_path / "i.yaml"
         intel = CryptoIntelligence(config_path=cfg)
         ohlcv = {"close": 50000.0, "volume": 10.0}
         deriv = {"oi_usd": 1e9, "funding_rate": 0.0001, "liquidations_usd": 5e6}
         result = self._run(intel.on_bar("BTC/USDT", ohlcv, derivatives_data=deriv))
-        assert result is None or hasattr(result, "symbol")
+        assert result is None or (isinstance(result, IntelSignal) and result.symbol == "BTC/USDT")
         intel.close()
 
 
@@ -146,9 +153,12 @@ class TestCollectECC:
     def test_collect_ecc_returns_dict(self, tmp_path) -> None:
         from src.intel import CryptoIntelligence
 
-        cfg = _isolated_config(tmp_path)
+        cfg = tmp_path / "i.yaml"
+        # With the ECC thread off nothing can report, so there is no ECC state to
+        # expose. Left on, it publishes a cycle immediately and the result races it.
+        cfg.write_text(f"checkpoint_dir: '{(tmp_path / 'horizons').as_posix()}'\necc_enabled: false\n", encoding="utf-8")
         intel = CryptoIntelligence(config_path=cfg)
         intel.start()
         result = intel._collect_ecc()
-        assert isinstance(result, dict)
+        assert result == {}
         intel.close()

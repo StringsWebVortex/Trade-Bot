@@ -137,7 +137,9 @@ def run_entropy_threshold_backtest(
     Replay historical trades under champion vs. challenger entropy-gate
     config, fold the results per FeatureSettings.cpcv_n_splits with a
     purge gap, and return significance-tested comparisons for
-    oos_sharpe, win_rate, and max_drawdown_inverted.
+    oos_sharpe, max_drawdown_inverted and PSR. win_rate is deliberately absent:
+    position scaling never flips a return's sign, so it is identical for both
+    arms by construction (STR-15).
 
     Only entropy_threshold/entropy_scalar_floor are varied here (matches
     the eval_strategy="cpcv_oos_sharpe" contract for those two
@@ -155,9 +157,6 @@ def run_entropy_threshold_backtest(
     challenger_fold_dd: list[float] = []
     champion_fold_psr: list[float] = []
     challenger_fold_psr: list[float] = []
-    champion_wins = 0
-    challenger_wins = 0
-    total_trades = 0
 
     for start, end in folds:
         fold_samples = samples[start:end]
@@ -183,23 +182,12 @@ def run_entropy_threshold_backtest(
         champion_fold_psr.append(probabilistic_sharpe_ratio(champion_returns))
         challenger_fold_psr.append(probabilistic_sharpe_ratio(challenger_returns))
 
-        champion_wins += sum(1 for r in champion_returns if r > 0)
-        challenger_wins += sum(1 for r in challenger_returns if r > 0)
-        total_trades += len(fold_samples)
-
     evaluator = ChallengerEvaluator()
     comparisons = [
         evaluator.compare_metric("oos_sharpe", champion_fold_sharpes, challenger_fold_sharpes),
         evaluator.compare_metric("max_drawdown_inverted", champion_fold_dd, challenger_fold_dd),
         evaluator.compare_metric(
             "probabilistic_sharpe_ratio", champion_fold_psr, challenger_fold_psr
-        ),
-        evaluator.compare_proportion(
-            "win_rate",
-            champion_p=champion_wins / total_trades if total_trades else 0.0,
-            champion_n=total_trades,
-            challenger_p=challenger_wins / total_trades if total_trades else 0.0,
-            challenger_n=total_trades,
         ),
     ]
     return comparisons
