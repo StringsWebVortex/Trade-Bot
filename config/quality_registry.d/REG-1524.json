@@ -1,0 +1,22 @@
+{
+  "id": "REG-1524",
+  "kind": "regression",
+  "title": "All-green gate tolerates null job payloads and rejects stale allowances with exit 2",
+  "statement": "scripts/assert_jobs_green treats a null job payload as missing, and returns 2 when ALLOW_SKIPPED names a job that is not in needs.",
+  "criticality": "low",
+  "subsystem": "governance",
+  "status": "verified",
+  "source": "OPS-2026-10-25",
+  "notes": "layer: test-suite",
+  "failure_mode": "A null payload raised AttributeError, and a stale skip allowance only printed a warning.",
+  "owning_modules": [
+    "scripts/assert_jobs_green.py"
+  ],
+  "verification": [
+    {
+      "test": "tests/test_low_findings_regressions.py",
+      "test_type": "regression"
+    }
+  ],
+  "depends_on": []
+}
