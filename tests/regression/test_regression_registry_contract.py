@@ -248,6 +248,20 @@ class TestTheRegistryHasAPlaceForDefects:
             # REG-1704: audit STR-21 -- carry and arbitrage entries gated on
             # fixed thresholds no cost measurement produced.
             "REG-1704",
+            # REG-1040..1043: audit EXR-006/007/008/012 (execution accounting).
+            "REG-1040",
+            "REG-1041",
+            "REG-1042",
+            "REG-1043",
+            # REG-1070/1071: live inference scored a stale row; forming candles
+            # were persisted.
+            "REG-1070",
+            "REG-1071",
+            # DAT-003..DAT-006: changepoint, MVRV, triple-barrier tail, lookahead.
+            "REG-1090",
+            "REG-1091",
+            "REG-1092",
+            "REG-1093",
             # REG-1705: the knowledge-index gate demanded fresh hashes for every
             # file, so any merge broke every other open PR -- ci-gate-design.
             # REG-1706: fail-fast cancelled five shards when one failed, hiding
@@ -317,6 +331,16 @@ class TestTheRegistryHasAPlaceForDefects:
             "SEC-0010",
             "SEC-0011",
             "SEC-0012",
+            # SEC-1020..1023: CI tooling and workflow security findings.
+            "SEC-1020",
+            "SEC-1021",
+            "SEC-1022",
+            "SEC-1023",
+            # SEC-1120..1123: model-loading integrity audit findings.
+            "SEC-1120",
+            "SEC-1121",
+            "SEC-1122",
+            "SEC-1123",
         }
 
     def test_every_filed_defect_names_a_permanent_test(self, registry):
@@ -594,8 +618,12 @@ class TestTheMetricsCollector:
         # audit regressions -- test-suite.
         # REG-1360..1374 add fifteen phase 5 math/strategy audit regressions
         # no test exercised -- test-suite, 56 -> 71.
+        # REG-1090..1093 add four data-numerics regressions -- test-suite, 75.
+        # SEC-1020..1023 add four CI tooling security findings -- test-suite, +4.
+        # SEC-1120..1123 add four model-loading integrity findings -- test-suite, 83.
+        # REG-1070/1071 add two closed-bar regressions -- test-suite, 89 including EXR-006/007/008/012.
         assert metric["value"] == {
-            "test-suite": 71,
+            "test-suite": 89,
             "review": 1,
             "supply-chain": 4,
             "ci-gate-design": 2,

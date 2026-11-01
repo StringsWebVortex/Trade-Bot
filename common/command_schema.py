@@ -194,6 +194,12 @@ REDACTION_PATTERNS: tuple[tuple[str, str], ...] = (
         r"(-----BEGIN [A-Z ]*PRIVATE KEY-----)[\s\S]*?(-----END [A-Z ]*PRIVATE KEY-----)",
         "PRIVATE_KEY",
     ),
+    # DOC-001: a key block whose END line is missing (truncated upstream) is
+    # masked to the end of the text rather than passed through.
+    (
+        r"(-----BEGIN [A-Z ]*PRIVATE KEY-----)(?:(?!-----END [A-Z ]*PRIVATE KEY-----)[\s\S])*\Z",
+        "PRIVATE_KEY_UNTERMINATED",
+    ),
     (
         r"((?i:\b[A-Za-z0-9_]*(?:SECRET|TOKEN|PASSWORD|PASSWD|APIKEY|API_KEY|PRIVATE_KEY)[A-Za-z0-9_]*)\s*[=:]\s*)(\S*)(\s|$)",
         "ENV_SECRET",

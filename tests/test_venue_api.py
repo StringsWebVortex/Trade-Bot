@@ -63,8 +63,9 @@ class _FakeStorage:
 
 @pytest.fixture()
 def api_client(monkeypatch):
-    os.environ["API_SECRET_KEY"] = "test-key-" + "a" * 32  # pragma: allowlist secret
-    os.environ["OPERATOR_SECRET"] = _TEST_SECRET
+    api_key = "test-key-" + "a" * 32  # pragma: allowlist secret
+    monkeypatch.setenv("API_SECRET_KEY", api_key)
+    monkeypatch.setenv("OPERATOR_SECRET", _TEST_SECRET)
 
     from fastapi.testclient import TestClient
 
@@ -78,7 +79,7 @@ def api_client(monkeypatch):
     monkeypatch.setattr(api_main._state, "storage", _FakeStorage(), raising=False)
 
     client = TestClient(api_main.app)
-    client.headers.update({"x-api-key": os.environ["API_SECRET_KEY"]})
+    client.headers.update({"x-api-key": api_key})
     client.fetcher = fetcher  # type: ignore[attr-defined]
     return client
 

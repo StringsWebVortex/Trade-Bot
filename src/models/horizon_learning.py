@@ -731,7 +731,7 @@ class HorizonLearningStore:
     ) -> None:
         """Atomically point the active model at an evaluated candidate in probation."""
         from src.models.horizon_mlp import HorizonMLPExpert
-        from src.models.provenance import manifest_path_for
+        from src.models.provenance import hash_artifact, manifest_path_for
 
         instrument = hashlib.sha256(symbol.encode()).hexdigest()[:16]
         active_path = model_root / f"h{horizon_id + 1}" / instrument / "mlp.joblib"
@@ -792,7 +792,12 @@ class HorizonLearningStore:
             temp_dir = Path(tempfile.mkdtemp(prefix=".horizon-activate-", dir=versions))
             try:
                 target = temp_dir / active_path.name
-                target.write_bytes(source.read_bytes())
+                # INT-010: copy one read of the artifact, re-verified against
+                # the evaluated version, not a second unverified read.
+                verified = source.read_bytes()
+                if hash_artifact(verified) != candidate_version:
+                    raise ValueError("candidate artifact changed after its evaluation")
+                target.write_bytes(verified)
                 manifest_path_for(target).write_bytes(source_manifest.read_bytes())
                 with suppress(FileExistsError):
                     os.replace(temp_dir, version_dir)
