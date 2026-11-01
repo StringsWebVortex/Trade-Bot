@@ -18,6 +18,7 @@ Authority:
 from __future__ import annotations
 
 import asyncio
+import math
 import os
 import time
 import uuid
@@ -74,6 +75,12 @@ from src.models.online_trainer import OnlineTrainer
 from src.models.trainer import ModelTrainer
 from src.regime.detector import RegimeDetector
 from src.risk.drift_integration import DriftIntegrationAdapter
+from src.risk.execution_cost import (
+    ExecutionCost,
+    FeeMeasurement,
+    closed_trade_fills,
+    measure_fee_bps,
+)
 from src.risk.gates import check_position_exit, stricter_daily_pnl
 from src.risk.kelly import apply_size_scalar, compute_win_loss_stats
 from src.risk.macro_exposure_budget import (
@@ -83,6 +90,7 @@ from src.risk.macro_exposure_budget import (
 from src.risk.performance_drift import PerformanceBaseline, PerformanceDriftDetector
 from src.risk.portfolio_agreement import portfolio_agreement_scalar
 from src.risk.portfolio_correlation import get_portfolio_correlation
+from src.risk.slippage import SlippageModel
 from src.risk.strategy_correlation import (
     combined_correlation_scalar,
     get_strategy_correlation,
@@ -183,6 +191,26 @@ _PORTFOLIO_FUNDING_MAX_ROWS: int = 5_000
 # duplicate calls inside one tick's assembly — never survive long enough to
 # feed a later tick a stale price, which the skew guard would reject anyway.
 _QUOTE_CACHE_TTL_S: float = 1.0
+# Closed trades the measured fee is read from, newest first. The same window
+# the Kelly win/loss stats read, so both describe the same recent history.
+_COST_FEE_TRADE_WINDOW: int = 200
+# How long one fee measurement is reused. A fee moves with a tier change, not
+# with the tick; re-reading the trade window on every tick of every
+# timeframe would put a database read on the tick path for the same number.
+_COST_FEE_TTL_S: float = 300.0
+# Completed bars the daily-volume estimate averages: the window the
+# slippage-coefficient calibration measures participation against
+# (AutoTuningScheduler._build_slippage_samples), so the impact uses the
+# coefficient in the unit it was calibrated in.
+_COST_ADV_BARS: int = 20
+# Capital fractions of the families that size their entry hurdle from the
+# measured cost. The representative order is the largest of them: one cost
+# serves all three, and the larger order is the dearer one to fill.
+_COST_FAMILY_FRACTIONS: tuple[str, ...] = (
+    "basis_trade_fraction",
+    "funding_carry_fraction",
+    "cross_exchange_arb_fraction",
+)
 # Oldest universe snapshot the pairs family may compute a spread from. One
 # 4h bar — the timeframe those closes are sampled at — so the bound only
 # bites during a genuine outage: the cache's own TTL is an hour and its
@@ -357,6 +385,10 @@ class Orchestrator:
         # quotes that assembling one tick's portfolio inputs would otherwise
         # request twice; see _quote.
         self._quote_cache: dict[tuple[str, str], tuple[float, float]] = {}
+        # trading_mode -> (monotonic time measured, fee or None). Lets one
+        # fee measurement serve the ticks of _COST_FEE_TTL_S; see
+        # _measured_fee.
+        self._fee_cache: dict[str, tuple[float, FeeMeasurement | None]] = {}
 
         # GAP-003: Performance drift detector (initialized in startup after models trained)
         self._drift_detector: PerformanceDriftDetector | None = None
@@ -2968,7 +3000,10 @@ class Orchestrator:
         lows: list[float] | None = None
         closes: list[float] | None = None
         volumes: list[float] | None = None
-        if InputNeed.BARS in wanted:
+        # COST reads the bar volumes for the daily volume its impact term
+        # is measured against, so it fetches the same window rather than a
+        # second one.
+        if wanted & {InputNeed.BARS, InputNeed.COST}:
             # fetch_bars is `ts >= since_ts ORDER BY ts ASC LIMIT n`, so
             # since_ts is what selects the window — a limit alone would return
             # the oldest n bars in the table and the portfolio would evaluate
@@ -3062,6 +3097,14 @@ class Orchestrator:
         if InputNeed.PAIR in wanted:
             pair_a, pair_b, hedge_ratio = self._pair_series()
 
+        execution_cost: ExecutionCost | None = None
+        if InputNeed.COST in wanted:
+            try:
+                execution_cost = await self._measure_execution_cost(tf, volumes)
+            except Exception as exc:
+                # None abstains the cost-hurdle families; nothing else reads it.
+                self._log.warning("orchestrator.execution_cost_failed", error=str(exc))
+
         return PortfolioInputs(
             symbol=self._symbol,
             timeframe=tf.value,
@@ -3083,7 +3126,106 @@ class Orchestrator:
             volumes=volumes,
             funding_rate_pct=funding_rate,
             funding_history_pct=funding_history,
+            execution_cost=execution_cost,
         )
+
+    async def _measure_execution_cost(
+        self, tf: Timeframe, volumes: list[float] | None
+    ) -> ExecutionCost | None:
+        """
+        This tick's per-leg execution cost, built only from measurements.
+
+        fee          : the account's own recent closed trades in the trading
+                       mode this timeframe executes in (_measured_fee)
+        half-spread  : half the quoted width of the live order book, from the
+                       same fetch_orderbook source the signal engine halves
+        impact       : SlippageModel's calibrated square-root impact for one
+                       representative order: the largest capital fraction of
+                       the cost-hurdle families times this executor's equity,
+                       against the daily volume of the last _COST_ADV_BARS
+                       completed bars
+        uncertainty  : the measured fee's spread only. No calibration of the
+                       slippage model's error spread exists (the coefficient
+                       backtest compares mean errors and keeps none), so
+                       slippage_error_std_bps is 0 until one does.
+
+        Any component that cannot be measured returns None, and the families
+        that need it abstain. No component falls back to a configured or
+        published number: an unmeasured cost is not a known cost (STR-21).
+        """
+        executor = self._executor_for(tf)
+        if executor is None:
+            return None
+        if volumes is None or len(volumes) < _COST_ADV_BARS + 1:
+            self._log.debug("orchestrator.execution_cost_unmeasured", missing="volume")
+            return None
+        # The newest bar may still be forming; the calibration excludes it too.
+        completed = volumes[-(_COST_ADV_BARS + 1) : -1]
+        adv_daily = math.fsum(completed) / len(completed) * (86400.0 / TIMEFRAME_SECONDS[tf])
+        equity = float(executor.equity_usd)
+        portfolio_cfg = self._cfg.strategy_portfolio
+        fraction = max(float(getattr(portfolio_cfg, name)) for name in _COST_FAMILY_FRACTIONS)
+        if not (math.isfinite(adv_daily) and adv_daily > 0.0):
+            self._log.debug("orchestrator.execution_cost_unmeasured", missing="volume")
+            return None
+        if not (math.isfinite(equity) and equity > 0.0):
+            self._log.debug("orchestrator.execution_cost_unmeasured", missing="equity")
+            return None
+
+        mode = (
+            TradingMode.PAPER.value
+            if executor is self._non_primary_executor
+            else self._cfg.trading_mode.value
+        )
+        fee = await self._measured_fee(mode)
+        if fee is None:
+            self._log.debug("orchestrator.execution_cost_unmeasured", missing="fee", mode=mode)
+            return None
+
+        book = await self._fetcher.fetch_orderbook(self._symbol)
+        bid, ask = book.bid_price, book.ask_price
+        # A one-sided or crossed book has no spread to measure; its "mid"
+        # would be half the surviving touch.
+        if not (math.isfinite(bid) and math.isfinite(ask) and 0.0 < bid <= ask):
+            self._log.debug("orchestrator.execution_cost_unmeasured", missing="order_book")
+            return None
+        mid = (bid + ask) / 2.0
+        half_spread_bps = (ask - bid) / mid * 10_000.0 / 2.0
+
+        estimate = SlippageModel().estimate(
+            symbol=self._symbol,
+            qty=equity * fraction / mid,
+            price=mid,
+            adv_20d=adv_daily,
+            spread_bps=half_spread_bps,
+        )
+        return ExecutionCost.from_measurements(
+            fee,
+            half_spread_bps=half_spread_bps,
+            impact_bps=estimate.impact_bps,
+            slippage_error_std_bps=0.0,
+        )
+
+    async def _measured_fee(self, trading_mode: str) -> FeeMeasurement | None:
+        """
+        Per-leg fee from this symbol's recent closed trades in ``trading_mode``.
+
+        Reused for _COST_FEE_TTL_S, including an answer of "too few trades",
+        so the read happens once per window rather than once per tick. A
+        failed read raises and is not cached: the next tick tries again.
+        """
+        now = time.monotonic()
+        cached = self._fee_cache.get(trading_mode)
+        if cached is not None and now - cached[0] <= _COST_FEE_TTL_S:
+            return cached[1]
+        trades = await self._storage.fetch_trades(
+            symbol=self._symbol,
+            trading_mode=trading_mode,
+            limit=_COST_FEE_TRADE_WINDOW,
+        )
+        fee = measure_fee_bps(closed_trade_fills(trades))
+        self._fee_cache[trading_mode] = (now, fee)
+        return fee
 
     async def _load_symbol_precision(self) -> None:
         """
