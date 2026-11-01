@@ -195,6 +195,16 @@ class RiskSettings(BaseSettings):
         ge=1.0,
         description="Seconds to wait for manual approval before auto-skip in RESTRICTED mode",
     )
+    approval_max_price_drift_bps: float = Field(
+        default=50.0,
+        ge=0.0,
+        description=(
+            "An approved trade executes on the next tick that still passes every "
+            "gate, and only while the fresh price is within this many bps of the "
+            "price the approval request showed; beyond it the approval is stale "
+            "and the trade is rejected (EXR-018)."
+        ),
+    )
 
     # GAP-001 — Almgren-Chriss slippage / market-impact model
     # (Almgren & Chriss 2001, "Optimal Execution of Portfolio Transactions").

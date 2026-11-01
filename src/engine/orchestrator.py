@@ -1264,6 +1264,9 @@ class Orchestrator:
         executor = self._executor_for(tf)
         if executor is None:
             return
+        # EXR-018: an approved intent is offered to one tick only. This tick
+        # is its chance; one that already had its tick lapses here.
+        executor.close_approval_window(self._symbol, tf.value)
 
         self._tick_counts[tf.value] += 1
         self._last_tick_ts[tf.value] = time.monotonic()
@@ -1742,10 +1745,12 @@ class Orchestrator:
                     )
 
             # UI-001: a tradeable signal that didn't open a position (gate
-            # rejection, approval denial/timeout) is a "missed trade" —
+            # rejection, failed approval re-validation) is a "missed trade" —
             # log it best-effort so the dashboard can surface it. Never
-            # let a logging failure affect the trade path.
-            if outcome != "opened":
+            # let a logging failure affect the trade path. "queued" is not
+            # missed: it awaits the operator, and the tick no longer waits
+            # with it (EXR-018).
+            if outcome not in ("opened", "queued"):
                 try:
                     await self._storage.insert_missed_trade(
                         MissedTradeRecord(

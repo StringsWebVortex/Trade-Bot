@@ -81,6 +81,9 @@ def _make_executor():
     e.open_positions = MagicMock(return_value=[])
     e.open_positions_safe = AsyncMock(return_value=[])
     e.equity_usd = 1000.0
+    # Synchronous on AbstractExecutor (EXR-018): an AsyncMock coroutine
+    # here would be created every tick and never awaited.
+    e.close_approval_window = MagicMock(return_value=None)
     e.starting_equity_usd = 1000.0
     e.shutdown = AsyncMock(return_value=None)
     return e

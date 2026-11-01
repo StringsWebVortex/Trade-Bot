@@ -46,7 +46,14 @@ from src.diagnostics.disaster_recovery import (
     is_state_consistent,
     reconcile,
 )
-from src.execution.base import AbstractExecutor
+from src.execution.base import (
+    AbstractExecutor,
+    ApprovalRequest,
+    expire_unresolved_approvals,
+    lapse_approved_intents,
+    open_approval_for,
+    revalidate_approved_intent,
+)
 from src.execution.idempotency import (
     DuplicateOrderError,
     IdempotencyRegistry,
@@ -124,47 +131,6 @@ class LivePosition:
             if pct > self.peak_unrealized_pct:
                 self.peak_unrealized_pct = pct
         return self.unrealized_pnl
-
-
-# ---------------------------------------------------------------------------
-# Approval request — identical shape to paper executor
-# ---------------------------------------------------------------------------
-
-
-@dataclass
-class ApprovalRequest:
-    request_id: str
-    symbol: str
-    timeframe: str
-    direction: int
-    notional_usd: float
-    entry_price: float
-    quantity: float
-    kelly_fraction: float
-    regime_state: int
-    meta_label_prob: float
-    raw_signal: float
-    created_at: float
-    resolved: bool = field(default=False)
-    approved: bool = field(default=False)
-    operator: str = field(default="")
-    # Event-based notification — eliminates busy-poll lock contention (VUL-024)
-    _event: asyncio.Event = field(default_factory=asyncio.Event, repr=False)
-
-    def to_dict(self) -> dict[str, object]:
-        return {
-            "request_id": self.request_id,
-            "symbol": self.symbol,
-            "timeframe": self.timeframe,
-            "direction": "long" if self.direction == 1 else "short",
-            "notional_usd": round(self.notional_usd, 2),
-            "entry_price": round(self.entry_price, 4),
-            "quantity": self.quantity,
-            "kelly_fraction": round(self.kelly_fraction, 4),
-            "regime_state": self.regime_state,
-            "meta_label_prob": round(self.meta_label_prob, 4),
-            "raw_signal": round(self.raw_signal, 4),
-        }
 
 
 # ---------------------------------------------------------------------------
@@ -408,7 +374,9 @@ class LiveExecutor(AbstractExecutor):
         Route signal through execution mode and place live order if approved.
 
         Returns (trade_id, outcome).
-        outcome: 'opened' | 'queued' | 'skipped' | 'rejected'
+        outcome: 'opened' | 'queued' | 'rejected'. RESTRICTED (above the
+        limit) and MANUAL never wait for an operator: see
+        _submit_signal_with_approval (EXR-018).
         """
         self._require_initialized()
         # v8: refuse new exposure while startup reconciliation is unresolved.
@@ -464,8 +432,8 @@ class LiveExecutor(AbstractExecutor):
                 regime_state,
                 meta_label_prob,
                 raw_signal,
+                current_price,
                 timeout_s=self._risk_cfg.approval_timeout_s,
-                denied_outcome="skipped",
                 strategy_id=strategy_id,
                 blend_audit=blend_audit,
             )
@@ -479,8 +447,8 @@ class LiveExecutor(AbstractExecutor):
                 regime_state,
                 meta_label_prob,
                 raw_signal,
+                current_price,
                 timeout_s=None,
-                denied_outcome="rejected",
                 strategy_id=strategy_id,
                 blend_audit=blend_audit,
             )
@@ -523,32 +491,68 @@ class LiveExecutor(AbstractExecutor):
         regime_state: int,
         meta_label_prob: float,
         raw_signal: float,
+        current_price: float,
         timeout_s: float | None,
-        denied_outcome: str,
         strategy_id: str = "signal_engine_v1",
         blend_audit: BlendAudit | None = None,
     ) -> tuple[str | None, str]:
-        req_id = await self._enqueue_approval(
-            symbol,
-            timeframe,
-            direction,
-            kelly_result,
-            regime_state,
-            meta_label_prob,
-            raw_signal,
+        """
+        Queue-and-return approval routing (EXR-018). Never awaits an operator.
+
+        No open request for this symbol/timeframe: queue one at the current
+        price and return "queued". One still awaiting the operator: return
+        "queued" without a duplicate. An approved intent: this call is a
+        fresh signal that already passed the gate stack, so place it with
+        the fresh size if revalidate_approved_intent() allows, otherwise
+        reject it. The timeframe loop serialises calls per key.
+        """
+        async with self._lock:
+            expire_unresolved_approvals(self._approval_queue, time.monotonic())
+            req = open_approval_for(self._approval_queue, symbol, timeframe)
+            if req is not None and req.approved:
+                self._approval_queue.pop(req.request_id, None)
+
+        if req is None:
+            await self._enqueue_approval(
+                symbol,
+                timeframe,
+                direction,
+                kelly_result,
+                regime_state,
+                meta_label_prob,
+                raw_signal,
+                reference_price=current_price,
+                timeout_s=timeout_s,
+            )
+            return None, "queued"
+        if not req.approved:
+            return None, "queued"
+
+        fill_kelly, reason = revalidate_approved_intent(
+            req,
+            direction=direction,
+            kelly_result=kelly_result,
+            current_price=current_price,
+            max_price_drift_bps=self._risk_cfg.approval_max_price_drift_bps,
         )
-        approved, operator = await self._await_approval(req_id, timeout_s=timeout_s)
-        if not approved:
-            return None, denied_outcome
+        if fill_kelly is None:
+            self._log.warning(
+                "live.approval_revalidation_failed",
+                request_id=req.request_id,
+                reason=reason,
+                approved_price=req.entry_price,
+                current_price=current_price,
+            )
+            return None, "rejected"
         return await self._submit_signal_auto(
             symbol,
             timeframe,
             direction,
-            kelly_result,
+            fill_kelly,
             regime_state,
             meta_label_prob,
             raw_signal,
-            approved_by=operator,
+            approved_by=req.operator,
             strategy_id=strategy_id,
             blend_audit=blend_audit,
         )
@@ -793,17 +797,23 @@ class LiveExecutor(AbstractExecutor):
         operator: str,
     ) -> bool:
         """
-        Mark an approval request as resolved and wake the waiting coroutine via Event.
-        Eliminates the 250ms busy-poll lock loop (VUL-024).
+        Mark an approval request as resolved.
+
+        An approval does not trade here: it records an approved intent that
+        the next tick of the same symbol/timeframe places only if its fresh
+        signal passes every gate and re-validation (EXR-018). A request past
+        its timeout is expired first, so a late approval is refused.
         """
         async with self._lock:
+            now = time.monotonic()
+            expire_unresolved_approvals(self._approval_queue, now)
             req = self._approval_queue.get(request_id)
             if req is None or req.resolved:
                 return False
             req.resolved = True
             req.approved = approved
             req.operator = operator
-            req._event.set()
+            req.resolved_at = now
         self._log.info(
             "live.approval_resolved",
             request_id=request_id,
@@ -819,12 +829,16 @@ class LiveExecutor(AbstractExecutor):
         L-03: renamed to _pending_approvals_unsafe to signal no locking.
         External callers should use pending_approvals() which delegates to
         the safe async variant. Only call this from within a held lock context.
+        An approved intent is never pruned here: its tick executes it or
+        close_approval_window() drops it.
         """
-        cutoff = time.monotonic() - 3600.0
+        now = time.monotonic()
+        expire_unresolved_approvals(self._approval_queue, now)
+        cutoff = now - 3600.0
         to_prune = [
             rid
             for rid, req in self._approval_queue.items()
-            if req.resolved and req.created_at < cutoff
+            if req.resolved and not req.approved and req.created_at < cutoff
         ]
         for rid in to_prune:
             self._approval_queue.pop(rid, None)
@@ -842,15 +856,18 @@ class LiveExecutor(AbstractExecutor):
     async def pending_approvals_safe(self) -> list[dict[str, object]]:
         """Thread-safe snapshot of pending approvals for WS heartbeat (VUL-035)."""
         async with self._lock:
-            cutoff = time.monotonic() - 3600.0
-            to_prune = [
-                rid
-                for rid, req in self._approval_queue.items()
-                if req.resolved and req.created_at < cutoff
-            ]
-            for rid in to_prune:
-                self._approval_queue.pop(rid, None)
-            return [req.to_dict() for req in self._approval_queue.values() if not req.resolved]
+            return self._pending_approvals_unsafe()
+
+    def close_approval_window(self, symbol: str, timeframe: str) -> None:
+        """Drop an approved intent that already had its tick (EXR-018)."""
+        for req in lapse_approved_intents(self._approval_queue, symbol, timeframe):
+            self._log.warning(
+                "live.approval_intent_lapsed",
+                request_id=req.request_id,
+                symbol=symbol,
+                timeframe=timeframe,
+                operator=req.operator,
+            )
 
     def _open_positions_snapshot(self) -> list[dict[str, object]]:
         """Build positions list — must be called with self._lock held."""
@@ -1378,6 +1395,8 @@ class LiveExecutor(AbstractExecutor):
         regime_state: int,
         meta_label_prob: float,
         raw_signal: float,
+        reference_price: float = 0.0,
+        timeout_s: float | None = None,
     ) -> str:
         """Create an ApprovalRequest and add to the queue."""
         req_id = str(uuid.uuid4())
@@ -1387,13 +1406,16 @@ class LiveExecutor(AbstractExecutor):
             timeframe=timeframe,
             direction=direction,
             notional_usd=kelly_result.notional_usd,
-            entry_price=0.0,  # filled at execution time
+            # The price the operator approves against; execution re-checks
+            # the fresh price against it (EXR-018).
+            entry_price=reference_price,
             quantity=kelly_result.quantity,
             kelly_fraction=kelly_result.adjusted_fraction,
             regime_state=regime_state,
             meta_label_prob=meta_label_prob,
             raw_signal=raw_signal,
             created_at=time.monotonic(),
+            timeout_s=timeout_s,
         )
         async with self._lock:
             self._approval_queue[req_id] = req
@@ -1406,41 +1428,6 @@ class LiveExecutor(AbstractExecutor):
             notional_usd=round(kelly_result.notional_usd, 2),
         )
         return req_id
-
-    async def _await_approval(
-        self,
-        request_id: str,
-        timeout_s: float | None,
-    ) -> tuple[bool, str]:
-        """
-        Wait for approval resolution using asyncio.Event — zero poll overhead.
-
-        Replaces the 250ms busy-poll loop that acquired self._lock 4x/second,
-        starving concurrent mark_to_market and gate evaluation (VUL-024).
-        """
-        async with self._lock:
-            req = self._approval_queue.get(request_id)
-        if req is None:
-            self._log.error("live.approval_missing_in_queue", request_id=request_id)
-            return False, ""
-
-        try:
-            await asyncio.wait_for(req._event.wait(), timeout=timeout_s)
-        except TimeoutError:
-            async with self._lock:
-                timed_out = self._approval_queue.pop(request_id, None)
-                if timed_out is not None:
-                    timed_out.resolved = True
-                    timed_out.approved = False
-                    timed_out.operator = "auto_timeout"
-            self._log.warning("live.approval_timeout", request_id=request_id)
-            return False, "auto_timeout"
-
-        async with self._lock:
-            resolved = self._approval_queue.pop(request_id, None)
-        if resolved is None:
-            return False, ""
-        return resolved.approved, resolved.operator
 
     def _equity_usd(self) -> float:
         return self._cash + sum(p.unrealized_pnl for p in self._positions.values())
