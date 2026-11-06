@@ -248,6 +248,11 @@ class TestTheRegistryHasAPlaceForDefects:
             # REG-1704: audit STR-21 -- carry and arbitrage entries gated on
             # fixed thresholds no cost measurement produced.
             "REG-1704",
+            # REG-1060..1063: halts and drift fail closed on unmeasured input.
+            "REG-1060",
+            "REG-1061",
+            "REG-1062",
+            "REG-1063",
             # REG-1030/1031: idempotency key release and ambiguous-fill reconciliation.
             "REG-1030",
             "REG-1031",
@@ -635,8 +640,9 @@ class TestTheMetricsCollector:
         # SEC-1130 and SEC-1131 add the two agent-guard findings -- test-suite, 91.
         # REG-1030 and REG-1031 add two execution regressions -- test-suite, 93.
         # REG-1050..1052 add three restart-persistence regressions -- test-suite, 96.
+        # REG-1060..1063 add four halt/drift regressions -- test-suite, 100.
         assert metric["value"] == {
-            "test-suite": 96,
+            "test-suite": 100,
             "review": 1,
             "supply-chain": 4,
             "ci-gate-design": 2,

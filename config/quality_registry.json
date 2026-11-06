@@ -7364,6 +7364,95 @@
         }
       ],
       "depends_on": []
+    },
+    {
+      "id": "REG-1060",
+      "kind": "regression",
+      "title": "Drift accuracy uses the real entry P(long); unknown is skipped",
+      "statement": "The drift detector and per-strategy kill switch score prediction accuracy from the entry P(long) stored on the position; an unknown probability skips the accuracy sample instead of booking every long as wrong. The orchestrator drift block applies in LIVE mode only, matching evaluate_all_gates.",
+      "criticality": "high",
+      "subsystem": "risk",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "Placeholder 0.5 made every long a wrong prediction and halted a long-biased book.",
+      "owning_modules": [
+        "src/risk/performance_drift.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/regression/test_halts_drift_failclosed.py",
+          "test_type": "regression"
+        },
+        {
+          "test": "tests/test_orchestrator_coverage.py",
+          "test_type": "regression",
+          "note": "Paper-mode ticks never consult the drift adapter; live-mode drift still blocks."
+        }
+      ],
+      "notes": "Audit EXR-004. layer: test-suite"
+    },
+    {
+      "id": "REG-1061",
+      "kind": "regression",
+      "title": "Drift and kill-switch baseline is built only from measured CPCV metrics",
+      "statement": "The drift baseline derives from the trained direction model's measured OOS metrics; missing or non-finite metrics register no drift detector and no kill switches.",
+      "criticality": "high",
+      "subsystem": "model",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "Hard-coded default baseline produced fabricated drift and disabled strategies on unmeasured evidence.",
+      "owning_modules": [
+        "src/engine/orchestrator.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/regression/test_halts_drift_failclosed.py",
+          "test_type": "regression"
+        }
+      ],
+      "notes": "Audit EXR-005. layer: test-suite"
+    },
+    {
+      "id": "REG-1062",
+      "kind": "regression",
+      "title": "Cognitive engine vetoes non-finite inputs",
+      "statement": "Any NaN or infinite numeric SignalContext field yields a VETO with zero size before validators run.",
+      "criticality": "high",
+      "subsystem": "risk",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "NaN comparisons are False so all validators passed a trade with NaN vol/p_bet/hurst/atr.",
+      "owning_modules": [
+        "src/risk/cognitive_engine.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/regression/test_halts_drift_failclosed.py",
+          "test_type": "regression"
+        }
+      ],
+      "notes": "Audit EXR-011. layer: test-suite"
+    },
+    {
+      "id": "REG-1063",
+      "kind": "regression",
+      "title": "Halt triggers fire on non-finite readings",
+      "statement": "A NaN or infinite staleness, position deviation, drawdown or clock skew makes its halt trigger fire; the halt-trigger docstring states it is not wired into the live path.",
+      "criticality": "high",
+      "subsystem": "resilience",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "NaN passed every halt trigger, and docs claimed enforcement that does not exist (AGT-010).",
+      "owning_modules": [
+        "src/diagnostics/halt_triggers.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/regression/test_halts_drift_failclosed.py",
+          "test_type": "regression"
+        }
+      ],
+      "notes": "Audit AGT-011/AGT-010. layer: test-suite"
     }
   ]
 }
