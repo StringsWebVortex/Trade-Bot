@@ -350,6 +350,13 @@ class TestTheRegistryHasAPlaceForDefects:
             "SEC-0010",
             "SEC-0011",
             "SEC-0012",
+            # SEC-1010..1015: API authorization and secret-handling audit findings.
+            "SEC-1010",
+            "SEC-1011",
+            "SEC-1012",
+            "SEC-1013",
+            "SEC-1014",
+            "SEC-1015",
             # SEC-1020..1023: CI tooling and workflow security findings.
             "SEC-1020",
             "SEC-1021",
@@ -648,8 +655,9 @@ class TestTheMetricsCollector:
         # REG-1030 and REG-1031 add two execution regressions -- test-suite, 93.
         # REG-1050..1052 add three restart-persistence regressions -- test-suite, 96.
         # REG-1060..1063 add four halt/drift and REG-1080..1085 add six engine/signal regressions -- test-suite, 106.
+        # SEC-1010..1015 add six API authorization/secret regressions.
         assert metric["value"] == {
-            "test-suite": 106,
+            "test-suite": 112,
             "review": 1,
             "supply-chain": 4,
             "ci-gate-design": 2,
