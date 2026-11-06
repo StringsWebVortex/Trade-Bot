@@ -24,8 +24,21 @@ from src.tuning.registry import TunableParameter, parameter_registry
 _OPERATOR = {"operator": "alice", "operator_secret": "irrelevant-here"}
 
 
+async def _fake_mode_setter(mode):
+    """Stands in for main._change_execution_mode (rate limit, persist, audit)."""
+    from src.config import runtime_config
+
+    await runtime_config.set_execution_mode(mode)
+
+
 async def _apply(name, value):
-    return await apply_control(name, value, SetRiskControlsRequest, **_OPERATOR)
+    return await apply_control(
+        name,
+        value,
+        SetRiskControlsRequest,
+        execution_mode_setter=_fake_mode_setter,
+        **_OPERATOR,
+    )
 
 
 @pytest.fixture

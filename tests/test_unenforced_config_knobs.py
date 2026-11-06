@@ -1,8 +1,8 @@
 """
-Tests for two config knobs that were declared and never read.
+Tests for config knobs that were declared and never read.
 
-`SelfTuningSettings.min_trades_between_attempts` had no reader at all, so
-only the wall-clock half of the tuning cadence guard was enforced.
+The tuning cadence now enforces both new-trade and new-bar evidence floors,
+in addition to the wall-clock cooldown.
 `StorageSettings.bar_cache_days` configured a retention window that
 `prune_old_bars()` implemented on both backends and nothing ever called.
 
@@ -21,13 +21,14 @@ from src.config import Timeframe, TradingMode
 from src.tuning.audit import TuningAuditEntry, TuningEventType
 
 
-def _runner(min_trades: int = 200, min_hours: float = 24.0):
+def _runner(min_trades: int = 200, min_hours: float = 24.0, min_bars: int = 1_000):
     from src.tuning.runner import TuningRunner
 
     runner = object.__new__(TuningRunner)
     runner._settings = MagicMock(
         enabled=True,
         min_trades_between_attempts=min_trades,
+        min_bars_between_attempts=min_bars,
         min_hours_between_attempts=min_hours,
     )
     runner._audit_log = MagicMock()
@@ -86,6 +87,15 @@ class TestTradeCadenceGuard:
             _proposed(48.0, {"closed_trade_count": 1_000})
         ]
         assert runner._cooldown_active("hmm.entropy_threshold", None) == (False, "")
+
+    def test_bar_driven_attempts_require_new_bars(self) -> None:
+        runner = _runner(min_bars=500)
+        runner._audit_log.read_for_param.return_value = [_proposed(48.0, {"bar_count": 10_000})]
+        assert runner._cooldown_active("features.atr_window", bar_count=10_200) == (
+            True,
+            "cooldown_active_insufficient_bars",
+        )
+        assert runner._cooldown_active("features.atr_window", bar_count=10_500) == (False, "")
 
     def test_a_prior_attempt_without_the_field_cannot_be_measured_against(self) -> None:
         """Audit entries written before this field existed carry no baseline."""
@@ -175,8 +185,8 @@ class TestSchedulerSuppliesTheCount:
 
     def test_trade_driven_groups_pass_the_count(self) -> None:
         """
-        Bar-driven feature-window tuning deliberately does not; gating it on
-        trade flow would stall it through any quiet period.
+        Feature-window tuning uses its own bar counter rather than the trade
+        counter; gating it on trade flow would stall it through quiet periods.
         """
         import inspect
 
@@ -186,7 +196,26 @@ class TestSchedulerSuppliesTheCount:
         # entropy, slippage, and the ensemble blend weight — every group whose
         # samples come from closed trades.
         assert source.count("closed_trade_count=closed_trade_count") == 3
-        assert "deliberately NOT passed here" in source
+        assert "bar_count=self._bar_evidence_count(bars_df)" in source
+        assert "oos_start_ms=oos_start_ms" in source
+        assert "timeframe=self._timeframe" in source
+
+    def test_bar_evidence_ordinal_advances_with_a_fixed_size_window(self) -> None:
+        import pandas as pd
+
+        from src.tuning.scheduler import AutoTuningScheduler
+
+        scheduler = object.__new__(AutoTuningScheduler)
+        scheduler._timeframe = "15m"
+        interval_ms = 15 * 60 * 1_000
+        first_window = pd.DataFrame(index=[100 * interval_ms + i * interval_ms for i in range(5)])
+        later_window = pd.DataFrame(index=[105 * interval_ms + i * interval_ms for i in range(5)])
+
+        first = scheduler._bar_evidence_count(first_window)
+        later = scheduler._bar_evidence_count(later_window)
+        assert first is not None and later is not None
+        assert len(first_window) == len(later_window)
+        assert later - first == 5
 
 
 @pytest.mark.asyncio
@@ -196,8 +225,13 @@ async def test_the_proposed_audit_entry_records_the_count() -> None:
 
     runner = object.__new__(TuningRunner)
     runner._settings = MagicMock(
-        enabled=True, min_trades_between_attempts=200, min_hours_between_attempts=24.0
+        enabled=True,
+        min_trades_between_attempts=200,
+        min_bars_between_attempts=1_000,
+        min_hours_between_attempts=24.0,
     )
+    runner._watchdog = None
+    runner._probation_detector_factory = None
     runner._audit_log = MagicMock()
     runner._audit_log.read_for_param.return_value = []
     runner._registry = MagicMock()
@@ -209,10 +243,11 @@ async def test_the_proposed_audit_entry_records_the_count() -> None:
 
     with patch.object(runner, "_cooldown_active", return_value=(False, "")):
         with pytest.raises(Exception):  # noqa: B017 - evaluate_fn is a stub
-            runner.attempt("p", MagicMock(side_effect=RuntimeError("stop here")), "m", 4_242)
+            runner.attempt("p", MagicMock(side_effect=RuntimeError("stop here")), "m", 4_242, 8_484)
 
     proposed = [
         c for c in runner._audit_log.record.call_args_list if c.args[1] == TuningEventType.PROPOSED
     ]
     assert proposed
     assert proposed[0].args[2]["closed_trade_count"] == 4_242
+    assert proposed[0].args[2]["bar_count"] == 8_484

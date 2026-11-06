@@ -1,4 +1,8 @@
-"""Tests for src/tuning/scheduler.py -- AutoTuningScheduler."""
+"""Tests for src/tuning/scheduler.py -- AutoTuningScheduler.
+
+Decides:
+  - REG-1372 — Slippage calibration ADV is a daily volume
+"""
 
 from __future__ import annotations
 
@@ -328,7 +332,7 @@ class TestAutoTuningSchedulerAttempts:
             # argument and returns (blocked, reason) so the caller can log WHICH
             # half of the cadence guard fired.
             "_cooldown_active",
-            lambda param_name, closed_trade_count=None: (False, ""),
+            lambda param_name, closed_trade_count=None, bar_count=None: (False, ""),
         )
 
         async def _run():
@@ -375,7 +379,9 @@ class TestAutoTuningSchedulerAttempts:
         # closed_trade_count is supplied by the trade-driven parameter groups so
         # the runner can enforce min_trades_between_attempts. Accepted and
         # ignored: this test isolates intra-cycle champion visibility.
-        def _fake_attempt(param_name, evaluate_fn, primary_metric, closed_trade_count=None):
+        def _fake_attempt(
+            param_name, evaluate_fn, primary_metric, closed_trade_count=None, bar_count=None
+        ):
             # Bypasses the real proposer/gate entirely -- this test isolates
             # ONLY the evaluate() closure's registry-read timing, not
             # promotion logic (already covered by tests/test_tuning_runner.py).
@@ -459,7 +465,7 @@ class TestBuildSlippageSamples:
         sample = samples[0]
         assert sample.reference_price == pytest.approx(100.0)
         assert sample.fill_price == pytest.approx(101.0)
-        assert sample.adv_20d == pytest.approx(20.0)
+        assert sample.adv_20d == pytest.approx(20.0 * 96)  # 15m bars: 96 per day (STR-14)
         assert sample.direction == 1
 
     def test_skips_trades_with_non_positive_price_or_qty(self) -> None:
@@ -817,7 +823,7 @@ def _enable_runner_for_test(monkeypatch) -> None:
         # argument and returns (blocked, reason) so the caller can log WHICH
         # half of the cadence guard fired.
         "_cooldown_active",
-        lambda param_name, closed_trade_count=None: (False, ""),
+        lambda param_name, closed_trade_count=None, bar_count=None: (False, ""),
     )
 
 

@@ -19,6 +19,7 @@ Registry: MODL-006 (config/quality_registry.json).
 
 from __future__ import annotations
 
+import math
 import re
 import time
 from dataclasses import dataclass, field
@@ -153,10 +154,27 @@ class ShadowDeployer:
             return model(x)
         if hasattr(model, "predict"):
             return model.predict(x)
-        return 0.0
+        raise TypeError("shadow model must be callable or expose predict()")
+
+    @staticmethod
+    def _scalar_prediction(value: Any, name: str) -> float:
+        """Accept a scalar or a one-element model output; reject ambiguity."""
+        try:
+            array = np.asarray(value, dtype=np.float64)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"{name} must contain exactly one finite prediction") from exc
+        if array.size != 1:
+            raise ValueError(f"{name} must contain exactly one finite prediction")
+        result = float(array.reshape(-1)[0])
+        if not math.isfinite(result):
+            raise ValueError(f"{name} must contain exactly one finite prediction")
+        return result
 
     def record_return(
-        self, actual_return: float, incumbent_pred: float, challenger_pred: float
+        self,
+        actual_return: float,
+        incumbent_pred: Any,
+        challenger_pred: Any,
     ) -> None:
         """
         Record realized return and compute per-model P&L attribution.
@@ -165,12 +183,18 @@ class ShadowDeployer:
         the realized_return is the market return over the horizon.
         """
         # Required and coerced: a defaulted 0.0 silently recorded zero returns
-        # for both arms, and `if pred` raised on an array-valued prediction.
-        inc_dir = float(np.sign(float(incumbent_pred)))
-        cha_dir = float(np.sign(float(challenger_pred)))
+        # for both arms. Accept scalar or one-element ndarray model outputs,
+        # but reject empty, multi-value, or non-finite predictions/returns.
+        actual = float(actual_return)
+        if not math.isfinite(actual):
+            raise ValueError("actual_return must be finite")
+        inc_value = self._scalar_prediction(incumbent_pred, "incumbent_pred")
+        cha_value = self._scalar_prediction(challenger_pred, "challenger_pred")
+        inc_dir = float(np.sign(inc_value))
+        cha_dir = float(np.sign(cha_value))
 
-        self._incumbent.returns.append(float(inc_dir * actual_return))
-        self._challenger.returns.append(float(cha_dir * actual_return))
+        self._incumbent.returns.append(float(inc_dir * actual))
+        self._challenger.returns.append(float(cha_dir * actual))
 
     def ready_to_evaluate(self) -> bool:
         return self._active and self._incumbent.age_hours() >= self._shadow_hours
