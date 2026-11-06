@@ -85,6 +85,7 @@ ENGINE_CACHE_INPUTS: dict[str, tuple[str, ...]] = {
     "E-12": ("options",),
     "E-13": ("macro",),
     "E-14": ("sentiment",),
+    "E-17": ("orderbook",),
     "E-18": ("exchange_flows",),
 }
 
@@ -352,7 +353,8 @@ class EngineOrchestrator:
         entropy = float(e03.metadata.get("entropy_score", 0.5)) if e03 else 0.5
 
         consensus_result = self._stage(
-            "consensus", lambda: self._consensus.compute(outputs, regime, entropy)
+            "consensus",
+            lambda: self._consensus.compute(outputs, regime, entropy, spot=data.get("spot")),
         )
 
         # Risk quantification from E-11 and E-17

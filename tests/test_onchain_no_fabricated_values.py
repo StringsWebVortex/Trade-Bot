@@ -15,6 +15,9 @@ requirement.
 
 The value-level cases are pinned below, and so is the structural property, so
 the next constant cannot be reintroduced under a different name.
+
+Decides:
+  - REG-1091 — MVRV is NaN without a chain-wide realised-cap source
 """
 
 from __future__ import annotations
@@ -56,7 +59,7 @@ async def test_sopr_is_nan_on_the_happy_path_too() -> None:
     )
     assert math.isnan(feats.sopr)
     assert not math.isnan(feats.nvt), "NVT is genuinely computed and must stay so"
-    assert not math.isnan(feats.mvrv), "MVRV is computable when UTXOs exist"
+    assert math.isnan(feats.mvrv), "MVRV has no chain-wide realised-cap source (DAT-004)"
 
 
 async def test_node_outage_is_nan_not_a_neutral_looking_reading() -> None:
@@ -66,14 +69,9 @@ async def test_node_outage_is_nan_not_a_neutral_looking_reading() -> None:
     assert all(math.isnan(v) for v in (feats.sopr, feats.nvt, feats.mvrv))
 
 
-def test_realised_cap_with_no_utxos_is_nan() -> None:
-    """Nothing to sum is not the same as half the 21M supply priced at spot."""
-    assert math.isnan(OnChainFeatureExtractor(rpc=_fake_rpc())._estimate_realised_cap([], 50_000.0))
-
-
-async def test_missing_realised_cap_propagates_to_mvrv() -> None:
-    """The NaN must survive `max(realised_cap, 1.0)` rather than becoming 1.0."""
-    feats = await OnChainFeatureExtractor(rpc=_fake_rpc([])).compute(50_000.0, 1e12)
+async def test_mvrv_is_nan_even_with_wallet_utxos() -> None:
+    """DAT-004: wallet UTXOs x spot is not a realised cap; MVRV must stay NaN."""
+    feats = await OnChainFeatureExtractor(rpc=_fake_rpc([{"amount": 3.0}])).compute(50_000.0, 1e12)
     assert math.isnan(feats.mvrv)
 
 

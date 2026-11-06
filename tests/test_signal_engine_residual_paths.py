@@ -221,6 +221,8 @@ class TestOnlineLearning:
 
         engine._learn_online(MagicMock())
 
+        assert engine._online_feature_cols is None
+
     def test_a_feature_matrix_without_labels_is_skipped(self):
         engine = _make_engine()
         engine._online_trainer = MagicMock()

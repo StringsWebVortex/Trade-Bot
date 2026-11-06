@@ -2,6 +2,7 @@
 
 Decides:
   - GOV-066 — knowledge indexes have a deterministic integrity checker and safe refresh path
+  - REG-1705 — the knowledge-index gate checks structure, so a merge elsewhere never breaks it
 """
 
 from __future__ import annotations
@@ -9,6 +10,8 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 from pathlib import Path
+
+import pytest
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "codebase_knowledge_index.py"
 SPEC = importlib.util.spec_from_file_location("codebase_knowledge_index", SCRIPT)
@@ -142,3 +145,72 @@ def test_refresh_adds_new_tracked_paths_and_updates_totals(tmp_path: Path, monke
     assert "- P1 files: 1" in refreshed
     assert "tests/new_test.py" in refreshed
     assert "existing note" in refreshed
+
+
+API_SOURCE = '@app.get("/status")\ndef status():\n    return {}\n'
+INDEX_HEADER = (
+    "## Complete tracked-file index\n"
+    "| # | Priority | Path | Type | Lines | SHA8 | Notes |\n"
+    "| ---: | --- | --- | --- | ---: | --- | --- |\n"
+)
+
+
+def _knowledge_root(tmp_path: Path, monkeypatch, *, row: str, anchor: str, route: str) -> Path:
+    docs = tmp_path / "codebase-analysis-docs"
+    docs.mkdir()
+    (docs / "FILE_INDEX.md").write_text(INDEX_HEADER + row + "\n", encoding="utf-8")
+    (docs / "CHUNK_INDEX.md").write_text("# Chunks\n", encoding="utf-8")
+    (docs / "CODEBASE_KNOWLEDGE.md").write_text(anchor + "\n", encoding="utf-8")
+    (docs / "API_REFERENCE.md").write_text("## All routes\n" + route + "\n", encoding="utf-8")
+    api = tmp_path / "src" / "api" / "main.py"
+    api.parent.mkdir(parents=True)
+    api.write_text(API_SOURCE, encoding="utf-8")
+    monkeypatch.setattr(indexer, "tracked_paths", lambda root: {"src/api/main.py"})
+    return tmp_path
+
+
+def test_the_gate_ignores_metadata_that_another_merge_made_stale(tmp_path, monkeypatch) -> None:
+    """
+    REG-1705. The gate demanded a byte-identical regeneration: a SHA8 and line
+    count for every tracked file, every anchor's whole-file hash, and every
+    route's line number. Any merge, even a dependency bump, made every other
+    open pull request fail it, and all 29 open pull requests carried
+    conflicting edits to the same index. Stale metadata is for --strict.
+    """
+    root = _knowledge_root(
+        tmp_path,
+        monkeypatch,
+        row="| 1 | P0 | src/api/main.py | Python | 99 | 00000000 | note |",
+        anchor="[[F:src/api/main.py#1-2#00000000]]",
+        route="| GET | /status | status | 99 |",
+    )
+
+    assert indexer.check(root) == []
+
+    strict = indexer.check(root, strict=True)
+    assert any("FILE_INDEX.md metadata is stale" in issue for issue in strict)
+    assert any("stale CODEBASE_KNOWLEDGE.md anchor hash" in issue for issue in strict)
+    assert any("route inventory differs" in issue for issue in strict)
+
+
+def test_the_gate_still_rejects_dangling_references(tmp_path, monkeypatch) -> None:
+    """Structure stays enforced: a removed path, an impossible range, a lost route."""
+    root = _knowledge_root(
+        tmp_path,
+        monkeypatch,
+        row="| 1 | P0 | src/gone.py | Python | 1 | 00000000 | note |",
+        anchor="[[F:src/api/main.py#1-50#00000000]]",
+        route="| GET | /renamed | status | 2 |",
+    )
+
+    issues = indexer.check(root)
+
+    assert any("lists a path that is not tracked: src/gone.py" in issue for issue in issues)
+    assert any("invalid CODEBASE_KNOWLEDGE.md anchor range" in issue for issue in issues)
+    assert any("route inventory differs" in issue for issue in issues)
+    assert not any("anchor hash" in issue or "metadata is stale" in issue for issue in issues)
+
+
+def test_strict_is_only_a_check_modifier() -> None:
+    with pytest.raises(SystemExit):
+        indexer.main(["--refresh-file-index", "--strict"])
