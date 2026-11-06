@@ -484,10 +484,9 @@ class Workspace:
 
     def _git_aliases(self) -> dict[str, str]:
         """Configured ``alias.*`` entries, so an alias cannot hide a guarded operation."""
-        try:
-            out = self.runner.run("config", "--get-regexp", r"^alias\.", check=False).stdout
-        except GitError:
-            return {}
+        # A failed config read must propagate: silently dropping aliases would
+        # turn a guard dependency failure into an authorization bypass.
+        out = self.runner.run("config", "--get-regexp", r"^alias\.", check=False).stdout
         aliases: dict[str, str] = {}
         for line in out.splitlines():
             name, _, value = line.partition(" ")

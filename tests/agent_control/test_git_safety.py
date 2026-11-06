@@ -101,6 +101,9 @@ def test_guarded_operation_detection(command: str, expected: list[str]) -> None:
     ("command", "expected"),
     [
         ("echo `git reset --hard`", ["reset"]),
+        ('echo "$(git checkout main)"', ["checkout"]),
+        ("echo $(printf x$(git stash drop))", ["stash"]),
+        ("echo '$(git reset --hard)'", []),
         ('echo "x `git checkout main` y"', ["checkout"]),
         ("echo '`git reset`'", []),
         ("xargs git checkout < files.txt", ["checkout"]),
@@ -112,6 +115,7 @@ def test_guarded_operation_detection(command: str, expected: list[str]) -> None:
         ("git -c alias.x=reset x HEAD~1", ["reset"]),
         ("git -c alias.pf='push --force' pf origin b", [FORCE_PUSH]),
         ("git -c alias.x='!git stash drop' x", ["stash"]),
+        ("git -c alias.x='!f() { git reset --hard; }; f' x", ["reset"]),
         ("git -c alias.x=status x", []),
         ("git checkout a && git checkout b", ["checkout", "checkout"]),
     ],
@@ -125,6 +129,7 @@ def test_configured_aliases_are_resolved() -> None:
     assert guarded_operations("git co main", aliases) == ["checkout"]
     assert guarded_operations("git pf origin b", aliases) == [FORCE_PUSH]
     assert guarded_operations("git sh", aliases) == ["stash"]
+    assert guarded_operations("git fn", {"fn": "!f() { git reset --hard; }; f"}) == ["reset"]
     assert guarded_operations("git co main") == []
 
 
