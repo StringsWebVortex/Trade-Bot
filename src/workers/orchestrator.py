@@ -562,7 +562,9 @@ def _run_ecc_cycle(
             whale_count=cluster_result.whale_count,
             total_whale_btc=cluster_result.total_whale_btc,
         )
-        ecc_validity["cluster"] = True
+        # A flow score computed from clusters with no flow data is a constant
+        # zero, not a measurement (MTH-004); only vouch for it when real.
+        ecc_validity["cluster"] = cluster_result.flow_available is True
     except Exception as exc:
         log.warning("ecc_cluster_failed", exc=str(exc))
         cluster_result = None

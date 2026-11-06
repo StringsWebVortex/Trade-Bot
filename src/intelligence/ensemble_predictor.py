@@ -34,7 +34,9 @@ from __future__ import annotations
 import hashlib
 import hmac
 import importlib.util
+import io
 import json
+import os
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
@@ -126,23 +128,36 @@ _MODEL_FILENAME: Final[str] = "ensemble_{symbol}_{timeframe}.joblib"
 _MANIFEST_SUFFIX: Final[str] = ".sha256"
 
 
-def _write_manifest(path: Path) -> None:
-    digest = hashlib.sha256(path.read_bytes()).hexdigest()
-    path.with_suffix(_MANIFEST_SUFFIX).write_text(json.dumps({"file": path.name, "sha256": digest}))
+def _atomic_write_bytes(path: Path, data: bytes) -> None:
+    """INT-011: temp-file + os.replace so readers never see a torn file."""
+    tmp_path = path.with_name(f"{path.name}.tmp{os.getpid()}")
+    tmp_path.write_bytes(data)
+    os.replace(tmp_path, path)
 
 
-def _verify_manifest(path: Path) -> None:
+def _write_manifest(path: Path, data: bytes) -> None:
+    digest = hashlib.sha256(data).hexdigest()
+    _atomic_write_bytes(
+        path.with_suffix(_MANIFEST_SUFFIX),
+        json.dumps({"file": path.name, "sha256": digest}).encode("utf-8"),
+    )
+
+
+def _verify_manifest(path: Path) -> bytes:
+    """Verify and return the bytes read once (INT-011, as VF-020)."""
     manifest_path = path.with_suffix(_MANIFEST_SUFFIX)
     if not manifest_path.exists():
         raise RuntimeError(f"Ensemble model manifest missing for {path}. Re-train to regenerate.")
     manifest = json.loads(manifest_path.read_text())
     expected = manifest.get("sha256", "")
-    actual = hashlib.sha256(path.read_bytes()).hexdigest()
+    data = path.read_bytes()
+    actual = hashlib.sha256(data).hexdigest()
     if not hmac.compare_digest(actual.encode(), expected.encode()):
         raise RuntimeError(
             f"Ensemble model integrity check FAILED for {path}. "
             "File may be tampered. Re-train to replace."
         )
+    return data
 
 
 @dataclass
@@ -253,7 +268,7 @@ class ARIMAPredictor(PredictionModel):
             return float(forecast)
         except Exception as e:
             log.error("arima_prediction_failed", error=str(e), exc_info=True)
-            return 0.0
+            raise  # INT-006: let the ensemble exclude this member
 
     def predict_with_uncertainty(self, features: pd.DataFrame) -> tuple[float, float]:
         point = self.predict(features)
@@ -300,7 +315,7 @@ class XGBoostPredictor(PredictionModel):
             return float(self.model.predict(features)[0])
         except Exception as e:
             log.error("xgboost_prediction_failed", error=str(e), exc_info=True)
-            return 0.0
+            raise  # INT-006: let the ensemble exclude this member
 
     def predict_with_uncertainty(self, features: pd.DataFrame) -> tuple[float, float]:
         point = self.predict(features)
@@ -412,7 +427,7 @@ class LSTMPredictor(PredictionModel):
             return float(out.numpy().flatten()[0])
         except Exception as e:
             log.error("lstm_prediction_failed", error=str(e), exc_info=True)
-            return 0.0
+            raise  # INT-006: let the ensemble exclude this member
 
     def predict_with_uncertainty(self, features: pd.DataFrame) -> tuple[float, float]:
         point = self.predict(features)
@@ -504,7 +519,7 @@ class GaussianProcessPredictor(PredictionModel):
             return float(mean[0]), float(std[0])
         except Exception as e:
             log.error("gp_prediction_failed", error=str(e), exc_info=True)
-            return 0.0, 0.2
+            raise  # INT-006: let the ensemble exclude this member
 
     def get_performance_metrics(self) -> dict[str, Any]:
         return {"rmse": self.rmse, "model_type": "GaussianProcess"}
@@ -600,7 +615,7 @@ class TreeEnsemblePredictor(PredictionModel):
             return float(self.model.predict(features)[0])
         except Exception as e:
             log.error("tree_ensemble_prediction_failed", error=str(e), exc_info=True)
-            return 0.0
+            raise  # INT-006: let the ensemble exclude this member
 
     def predict_with_uncertainty(self, features: pd.DataFrame) -> tuple[float, float]:
         point = self.predict(features)
@@ -920,8 +935,11 @@ class EnsemblePredictor:
             "symbol": symbol,
             "timeframe": timeframe,
         }
-        joblib.dump(payload, path, compress=3)
-        _write_manifest(path)
+        buf = io.BytesIO()
+        joblib.dump(payload, buf, compress=3)
+        data = buf.getvalue()
+        _atomic_write_bytes(path, data)
+        _write_manifest(path, data)
         log.info("ensemble.saved", path=str(path))
         return path
 
@@ -940,7 +958,7 @@ class EnsemblePredictor:
         )
         if not path.exists():
             raise FileNotFoundError(f"No saved ensemble model at {path} — call fit() first.")
-        _verify_manifest(path)
+        verified = _verify_manifest(path)
         # Older compatible artifacts may contain a fitted Torch _LSTMNet.
         # Register that class before unpickling only when the memory guard says
         # the optional native runtime can be loaded safely. If the guard is
@@ -948,7 +966,7 @@ class EnsemblePredictor:
         # orchestrator can retrain a degraded ensemble without the LSTM.
         if _torch_fits_memory_budget():
             _load_torch_runtime()
-        payload: dict = joblib.load(path)
+        payload: dict = joblib.load(io.BytesIO(verified))
         instance = cls()
         instance.models = payload["models"]
         instance.weights = payload["weights"]

@@ -236,6 +236,9 @@ class TestTheRegistryHasAPlaceForDefects:
             "REG-1608",
             # REG-1609: one failed job-log download failed the whole report.
             "REG-1609",
+            # REG-1610, REG-1611: audits SCR-018 and TSA-07 (section D rest).
+            "REG-1610",
+            "REG-1611",
             # REG-1700..1703: audit OPS-011 (digest pins, rag-ingest torch
             # floor), DOC-015 and API-031 -- block C of the phase 7 findings.
             "REG-1700",
@@ -245,6 +248,76 @@ class TestTheRegistryHasAPlaceForDefects:
             # REG-1704: audit STR-21 -- carry and arbitrage entries gated on
             # fixed thresholds no cost measurement produced.
             "REG-1704",
+            # REG-1060..1063: halts and drift fail closed on unmeasured input.
+            "REG-1060",
+            "REG-1061",
+            "REG-1062",
+            "REG-1063",
+            # REG-1080..1085: engine and signal audit fixes (STR-01..03, INT-006, INT-008, MTH-001).
+            "REG-1080",
+            "REG-1081",
+            "REG-1082",
+            "REG-1083",
+            "REG-1084",
+            "REG-1085",
+            # REG-1030/1031: idempotency key release and ambiguous-fill reconciliation.
+            "REG-1030",
+            "REG-1031",
+            # REG-1050..1052: restart persistence of risk and strategy state.
+            "REG-1050",
+            "REG-1051",
+            "REG-1052",
+            # REG-1040..1043: audit EXR-006/007/008/012 (execution accounting).
+            "REG-1040",
+            "REG-1041",
+            "REG-1042",
+            "REG-1043",
+            # REG-1070/1071: live inference scored a stale row; forming candles
+            # were persisted.
+            "REG-1070",
+            "REG-1071",
+            # DAT-003..DAT-006: changepoint, MVRV, triple-barrier tail, lookahead.
+            "REG-1090",
+            "REG-1091",
+            "REG-1092",
+            "REG-1093",
+            # REG-1705: the knowledge-index gate demanded fresh hashes for every
+            # file, so any merge broke every other open PR -- ci-gate-design.
+            # REG-1706: fail-fast cancelled five shards when one failed, hiding
+            # their failures until the next push -- ci-gate-design.
+            # REG-1707: a leaked async resource printed "Event loop is closed"
+            # under a passing run; REG-0023 had locked only the reporter -- test-suite.
+            "REG-1705",
+            "REG-1706",
+            "REG-1707",
+            "REG-1140",
+            "REG-1141",
+            "REG-1142",
+            "REG-1143",
+            # REG-1280..1284: standalone crypto-predictor audit findings (SCR-007,
+            # SCR-008, DOC-014), each filed with its deciding test.
+            "REG-1280",
+            "REG-1281",
+            "REG-1282",
+            "REG-1283",
+            "REG-1284",
+            # REG-1360..1374: phase 5 math/strategy audit findings (MTH-002/004/005/012/014,
+            # STR-07..STR-16), each filed with its deciding test.
+            "REG-1360",
+            "REG-1361",
+            "REG-1362",
+            "REG-1363",
+            "REG-1364",
+            "REG-1365",
+            "REG-1366",
+            "REG-1367",
+            "REG-1368",
+            "REG-1369",
+            "REG-1370",
+            "REG-1371",
+            "REG-1372",
+            "REG-1373",
+            "REG-1374",
         }
         # SEC-0005: `.gitignore` carried a bare `.env`, which matches that one
         # name and nothing else -- so `.env.bak.<timestamp>` from a
@@ -275,15 +348,28 @@ class TestTheRegistryHasAPlaceForDefects:
             "SEC-0008",
             "SEC-0009",
             "SEC-0010",
+            "SEC-0011",
             "SEC-0012",
-            # SEC-1010..1015: API authorization and secret-handling audit
-            # findings (API-001..005, API-007).
+            # SEC-1010..1015: API authorization and secret-handling audit findings.
             "SEC-1010",
             "SEC-1011",
             "SEC-1012",
             "SEC-1013",
             "SEC-1014",
             "SEC-1015",
+            # SEC-1020..1023: CI tooling and workflow security findings.
+            "SEC-1020",
+            "SEC-1021",
+            "SEC-1022",
+            "SEC-1023",
+            # SEC-1120..1123: model-loading integrity audit findings.
+            "SEC-1120",
+            "SEC-1121",
+            "SEC-1122",
+            "SEC-1123",
+            # SEC-1130, SEC-1131: git guard and PreToolUse fail-closed findings.
+            "SEC-1130",
+            "SEC-1131",
         }
 
     def test_every_filed_defect_names_a_permanent_test(self, registry):
@@ -555,9 +641,27 @@ class TestTheMetricsCollector:
         # test-suite, 43.
         # REG-1704 adds the fixed-threshold carry/arbitrage regression (STR-21):
         # no test asked what the thresholds cost to clear -- test-suite, 44.
-        # SEC-1010..1015 add six API authz/secret audit findings no test
-        # exercised -- test-suite, 50.
-        assert metric["value"] == {"test-suite": 50, "review": 1, "supply-chain": 3}
+        # REG-1610 and REG-1611 add the section D script and CI-skip regressions.
+        # REG-1707 adds the async-resource regression; main also adds the CI gate
+        # and supply-chain findings. REG-1280..1284 add five crypto-predictor
+        # audit regressions -- test-suite.
+        # REG-1360..1374 add fifteen phase 5 math/strategy audit regressions
+        # no test exercised -- test-suite, 56 -> 71.
+        # REG-1090..1093 add four data-numerics regressions -- test-suite, 75.
+        # SEC-1020..1023 add four CI tooling security findings -- test-suite, +4.
+        # SEC-1120..1123 add four model-loading integrity findings -- test-suite, 83.
+        # REG-1070/1071 add two closed-bar regressions -- test-suite, 89 including EXR-006/007/008/012.
+        # SEC-1130 and SEC-1131 add the two agent-guard findings -- test-suite, 91.
+        # REG-1030 and REG-1031 add two execution regressions -- test-suite, 93.
+        # REG-1050..1052 add three restart-persistence regressions -- test-suite, 96.
+        # REG-1060..1063 add four halt/drift and REG-1080..1085 add six engine/signal regressions -- test-suite, 106.
+        # SEC-1010..1015 add six API authorization/secret regressions.
+        assert metric["value"] == {
+            "test-suite": 112,
+            "review": 1,
+            "supply-chain": 4,
+            "ci-gate-design": 2,
+        }
 
     def test_zero_escaped_defects_would_be_stated_explicitly(self, collector, monkeypatch):
         # "We have not measured this" and "this is zero" are different

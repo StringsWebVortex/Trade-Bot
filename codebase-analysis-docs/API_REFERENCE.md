@@ -79,7 +79,7 @@ Total app-decorator routes discovered: 68.
 | POST | /venues/{venue}/disconnect | disconnect_venue | 3620 | | venue : str, body : VenueReconnectRequest, request : Request |
 | POST | /venues/{venue}/verify | verify_venue_account | 3646 | | venue : str, body : VenueReconnectRequest, request : Request |
 | GET | /controls | control_surface | 3662 | Depends(api_key_header) | |
-| POST | /controls/{name} | set_control | 3690 | Depends(api_key_header) | name : str, body : SetControlRequest, request : Request |
+| POST | /controls/{name} | set_control | 3690 | Depends(requires(Permission.CHANGE_EXECUTION_MODE)), Depends(require_healthy_security_controls) | name : str, body : SetControlRequest, request : Request |
 | GET | /runtime | runtime_overview | 3850 | | |
 | GET | /runtime/components | runtime_components | 3856 | | component_type : Optional[str] = None |
 | GET | /runtime/components/{component_id} | runtime_component | 3869 | | component_id : str |

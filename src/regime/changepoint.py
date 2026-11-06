@@ -58,6 +58,7 @@ class BayesianOnlineChangepointDetector:
     hazard_rate: float = 1.0 / 250.0  # ~once per 250 bars, a priori
     _hypotheses: list[_RunLengthHypothesis] = field(default_factory=list)
     _last_changepoint_prob: float = 0.0
+    _last_expected_run_length: float = 0.0
 
     def __post_init__(self) -> None:
         if not 0.0 < self.hazard_rate < 1.0:
@@ -66,8 +67,9 @@ class BayesianOnlineChangepointDetector:
 
     def update(self, x: float) -> float:
         """
-        Process one new observation. Returns the posterior probability
-        that a changepoint occurred at this step (mass on run_length=0).
+        Process one new observation. Returns a changepoint signal in [0, 1]:
+        the relative drop of the posterior expected run length versus its
+        no-change trajectory (mass on r=0 alone is constant = hazard rate).
         """
         # Predictive probability of x under each existing hypothesis
         pred_log_probs = [
@@ -106,12 +108,26 @@ class BayesianOnlineChangepointDetector:
             h.log_prob -= total_log
 
         # Bound hypothesis count to keep this O(1)-ish per step long-run.
+        # The run_length=0 hypothesis always survives pruning (DAT-003).
         new_hypotheses.sort(key=lambda h: h.log_prob, reverse=True)
-        self._hypotheses = new_hypotheses[:200]
+        kept = new_hypotheses[:200]
+        if not any(h.run_length == 0 for h in kept):
+            kept[-1] = next(h for h in new_hypotheses if h.run_length == 0)
+        renorm = _logsumexp([h.log_prob for h in kept])
+        for h in kept:
+            h.log_prob -= renorm
+        self._hypotheses = kept
 
-        self._last_changepoint_prob = math.exp(
-            next(h.log_prob for h in self._hypotheses if h.run_length == 0)
-        )
+        # DAT-003: with a constant hazard the posterior mass on r=0 is
+        # identically the hazard rate, so it carries no information. Report
+        # instead the relative collapse of the expected run length: under a
+        # stable regime E[r_t] ~ E[r_{t-1}] + 1 (signal ~ 0); after a
+        # changepoint the mass moves to short runs and E[r_t] falls far below
+        # that (signal -> 1).
+        expected_rl = sum(h.run_length * math.exp(h.log_prob) for h in self._hypotheses)
+        baseline = self._last_expected_run_length + 1.0
+        self._last_expected_run_length = expected_rl
+        self._last_changepoint_prob = min(1.0, max(0.0, 1.0 - expected_rl / baseline))
         return self._last_changepoint_prob
 
     @property

@@ -78,10 +78,16 @@ def registry_metrics() -> dict[str, Any]:
 
 
 def coverage_metrics() -> dict[str, Any]:
-    """Branch coverage, read from an existing .coverage if pytest has run."""
+    """
+    Coverage, read from an existing .coverage if pytest has run.
+
+    With ``branch = true`` coverage's ``percent_covered`` counts lines and
+    branches together, so the metric is named for that rather than claimed as
+    branch coverage (SCR-018).
+    """
     if not (PROJECT_ROOT / ".coverage").exists():
         return {
-            "branch_coverage_pct": _unavailable("no .coverage file -- run pytest first"),
+            "line_and_branch_coverage_pct": _unavailable("no .coverage file -- run pytest first"),
             "measured_files": _unavailable("no .coverage file -- run pytest first"),
         }
     proc = subprocess.run(  # noqa: S603 - fixed argv, no shell
@@ -93,14 +99,15 @@ def coverage_metrics() -> dict[str, Any]:
     )
     if proc.returncode != 0:
         return {
-            "branch_coverage_pct": _unavailable("coverage could not read its data file"),
+            "line_and_branch_coverage_pct": _unavailable("coverage could not read its data file"),
             "measured_files": _unavailable("coverage could not read its data file"),
         }
     report = json.loads(proc.stdout)
     return {
-        "branch_coverage_pct": {
+        "line_and_branch_coverage_pct": {
             "value": round(report["totals"]["percent_covered"], 2),
             "status": "ok",
+            "note": "Lines and branches covered, as one percentage of both.",
         },
         "measured_files": {"value": len(report["files"]), "status": "ok"},
     }

@@ -93,6 +93,10 @@ BLOCKED = [
     "./scripts/prfail --pr 313 --run-id 9",
     "cd /tmp && ./scripts/prfail --pr 313",
     "./scripts/prfail --pr 313 | cat",
+    'ruby -e \'require "net/http"; URI("https://" + "api.github.com" + "/repos/o/r/" + "actions/runs")\'',
+    "http GET https://api.github.com/repos/o/r/actions/runs",
+    "xh get https://api.github.com/repos/o/r/actions/runs",
+    "https GET https://api.github.com/repos/o/r/actions/runs",
     "curl -s https://api.github.com/repos/o/r/actions/runs/1/logs",
     "curl https://api.github.com/repos/o/r/actions/jobs/2/logs -o log.zip",
     "curl -s https://api.github.com/repos/o/r/check-runs/3",
@@ -210,6 +214,21 @@ class TestTheRuntimeRefusesToo:
     hook. It is the sanctioned way to run anything, so it is the obvious place
     to try when a direct Bash call is refused.
     """
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "http GET https://api.github.com/repos/o/r/actions/runs",
+            "https GET https://api.github.com/repos/o/r/actions/runs",
+            "xh get https://api.github.com/repos/o/r/actions/runs",
+            'ruby -e \'require "net/http"; URI("https://" + "api.github.com" + "/repos/o/r/" + "actions/runs")\'',
+        ],
+    )
+    def test_runtime_refuses_alternate_http_clients_without_execution(self, command: str) -> None:
+        result = run({"command": command, "output_policy": {"max_lines": 1}})
+        assert result["exit_code"] == -1
+        assert result["attempt_count"] == 0, "the command must not have run"
+        assert "blocked" in (result["error"] or "").lower()
 
     @pytest.mark.parametrize("command", ["gh run view 1 --log", "gh pr checks 9"])
     def test_run_refuses_without_executing(self, command: str) -> None:
