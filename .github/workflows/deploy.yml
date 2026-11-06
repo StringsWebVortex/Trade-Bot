@@ -53,9 +53,17 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version-file: .python-version
+
+      # OPS-002: the dispatch input is free text. It must be a bare run id
+      # before any later step uses it.
+      - name: Validate artifact_run_id
+        env:
+          RUN_ID: ${{ inputs.artifact_run_id }}
+        run: |
+          [[ "${RUN_ID}" =~ ^[0-9]+$ ]] || { echo "::error::artifact_run_id must be numeric"; exit 1; }
 
       - name: Install what the checks need
         run: python -m pip install --upgrade pip pyyaml jsonschema
@@ -94,7 +102,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version-file: .python-version
 
@@ -114,7 +122,9 @@ jobs:
       # What is real is everything around it -- the gates, the environment,
       # the promotion condition and the rollback path.
       - name: Deploy canary
-        run: echo "deploy canary from run ${{ inputs.artifact_run_id }}"
+        env:
+          RUN_ID: ${{ inputs.artifact_run_id }}
+        run: echo "deploy canary from run ${RUN_ID}"
 
   promote:
     name: Promote to full exposure
@@ -133,7 +143,9 @@ jobs:
         run: echo "canary halt-trigger state is checked by the deployment target"
 
       - name: Promote
-        run: echo "promote run ${{ inputs.artifact_run_id }} to full exposure"
+        env:
+          RUN_ID: ${{ inputs.artifact_run_id }}
+        run: echo "promote run ${RUN_ID} to full exposure"
 
   rollback:
     name: Rollback drill
@@ -150,7 +162,9 @@ jobs:
       # taken is a hypothesis, and the moment you need it is the worst moment
       # to discover it does not work.
       - name: Roll back to the previous artifact
-        run: echo "roll back from run ${{ inputs.artifact_run_id }}"
+        env:
+          RUN_ID: ${{ inputs.artifact_run_id }}
+        run: echo "roll back from run ${RUN_ID}"
 
       - name: Confirm the rollback changed the running version
         run: echo "verify the deployed version is the previous one"

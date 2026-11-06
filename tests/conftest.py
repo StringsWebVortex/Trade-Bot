@@ -332,3 +332,21 @@ def _clear_mongo_client_caches():
     yield
     kg.db._client_for.cache_clear()
     rag_mongo.db._client_for.cache_clear()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _no_unraisable_at_session_end():
+    """
+    REG-1707. pytest fails a test whose finalizers raise while it runs; this
+    covers what is still alive when the worker's last test ends, where
+    "Event loop is closed" was printed under passing runs with no test named.
+    """
+    from tests.regression.unraisable import collect_unraisable
+
+    yield
+    caught = collect_unraisable()
+    if caught:
+        raise AssertionError(
+            "exceptions raised by finalizers at session end: "
+            + "; ".join(f"{u.object!r}: {u.exc_value!r}" for u in caught)
+        )

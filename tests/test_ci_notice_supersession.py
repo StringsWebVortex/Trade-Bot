@@ -48,20 +48,11 @@ def test_report_identity_is_bound_to_pr_and_head_sha() -> None:
     assert "report is stale or belongs to a different pull request" in source
 
 
-def test_collector_retains_outcomes_and_source_locations() -> None:
+def test_collector_binds_each_line_to_its_run_and_job() -> None:
     source = COLLECTOR.read_text(encoding="utf-8")
-    for field in (
-        "start_line",
-        "start_column",
-        "end_line",
-        "end_column",
-        "workflow_run_id",
-        "job_id",
-    ):
+    for field in ("workflow_run_id", "job_id", "line_number"):
         assert field in source
-    assert "_add_structured_outcomes" in source
-    assert "_add_annotations" in source
-    assert "_add_log_diagnostics" in source
+    assert "_add_failure_lines" in source
 
 
 def test_report_retrieval_has_one_canonical_invocation() -> None:

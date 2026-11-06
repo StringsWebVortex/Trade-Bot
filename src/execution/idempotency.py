@@ -45,6 +45,7 @@ __all__ = [
     "IdempotencyRecord",
     "IdempotencyRegistry",
     "SubmissionState",
+    "attempt_client_order_id",
     "client_order_id_params",
     "derive_idempotency_key",
 ]
@@ -114,6 +115,10 @@ class IdempotencyRecord:
     order_id: str | None = None
     result: dict[str, Any] | None = None
     error: str | None = None
+    #: Number of earlier submissions of this key that ended in a venue-confirmed
+    #: no-fill. A reclaimed key sends a fresh client order id (see
+    #: :func:`attempt_client_order_id`) so the venue cannot refuse it as a reuse.
+    attempts: int = 0
     created_at: float = field(default_factory=time.monotonic)
     updated_at: float = field(default_factory=time.monotonic)
 
@@ -156,6 +161,24 @@ def derive_idempotency_key(
 
     digest = hashlib.sha256("\x1f".join(parts).encode()).hexdigest()
     return f"{_KEY_PREFIX}{digest[:_KEY_HEX_LEN]}"
+
+
+def attempt_client_order_id(idempotency_key: str, attempt: int) -> str:
+    """
+    Client order id for the ``attempt``-th submission of ``idempotency_key``.
+
+    Attempt 0 is the key itself. A later attempt exists only after the venue
+    confirmed the earlier order ended with no fill, and replaces the last two
+    characters so the id keeps the key's length (venues cap client ids at 32-36
+    characters) while differing from the closed order's id.
+    """
+    if attempt <= 0:
+        return idempotency_key
+    # Keep the 32-character cross-venue limit while avoiding the 100-attempt
+    # wraparound collision caused by a two-digit decimal suffix. A 40-bit
+    # digest suffix makes collisions negligible for practical retry counts.
+    suffix = hashlib.sha256(f"{idempotency_key}:{attempt}".encode()).hexdigest()[:10]
+    return f"{idempotency_key[: KEY_MAX_LEN - len(suffix)]}{suffix}"
 
 
 def client_order_id_params(
@@ -212,6 +235,8 @@ class IdempotencyRegistry:
                 raise DuplicateOrderError(key, existing)
 
             record = IdempotencyRecord(key=key)
+            if existing is not None:
+                record.attempts = existing.attempts + 1
             self._records[key] = record
             self._enforce_capacity()
             return record

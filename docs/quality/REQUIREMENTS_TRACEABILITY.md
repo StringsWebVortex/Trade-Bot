@@ -47,28 +47,28 @@ deletion of the thing it points at.
 
 | Status | Entries |
 |---|---|
-| VERIFIED | 235 |
+| VERIFIED | 291 |
 | PARTIAL | 3 |
 | PLANNED | 0 |
 | ACCEPTED GAP | 0 |
-| **Total** | **238** |
+| **Total** | **294** |
 
 ## Summary by subsystem
 
 | Subsystem | Entries | Verified |
 |---|---|---|
-| Risk | 12 | 12 |
-| Execution | 15 | 14 |
-| Portfolio | 1 | 1 |
-| Signal and features | 7 | 7 |
-| Models and leakage | 11 | 11 |
-| Data, money and time | 11 | 10 |
-| API and WebSocket | 22 | 22 |
-| Cryptography and secrets | 32 | 32 |
+| Risk | 13 | 13 |
+| Execution | 21 | 20 |
+| Portfolio | 2 | 2 |
+| Signal and features | 16 | 16 |
+| Models and leakage | 23 | 23 |
+| Data, money and time | 16 | 15 |
+| API and WebSocket | 26 | 26 |
+| Cryptography and secrets | 38 | 38 |
 | Supply chain and artifacts | 7 | 7 |
 | Resilience and recovery | 26 | 26 |
-| Release and production | 14 | 14 |
-| Governance | 67 | 66 |
+| Release and production | 17 | 17 |
+| Governance | 76 | 75 |
 | Terminal and process center | 13 | 13 |
 
 ## Outstanding work by phase
@@ -241,6 +241,20 @@ A tripped capital-preservation floor (halted, peak, reauthorization) and disable
 
 > layer: test-suite
 
+#### `REG-1372` — Slippage calibration ADV is a daily volume
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+adv_20d is the mean bar volume multiplied by bars per day for the configured timeframe.
+
+- **If violated:** On 15m bars participation was overstated about 96x and the tuned impact coefficient was calibrated on the wrong scale.
+- **Owned by:** `src/tuning/scheduler.py`
+- **Verification:**
+  - `tests/test_math_strategies_audit_fixes.py` (regression)
+  - `tests/test_tuning_scheduler.py` (regression)
+
+> audit finding STR-14. layer: test-suite
+
 ## Execution
 
 #### `INV-003` — Unknown exchange order state cannot become FILLED without reconciliation
@@ -408,6 +422,84 @@ When intelligence is enabled, an order from the existing primary timeframe proce
 
 > layer: test-suite
 
+#### `REG-1030` — A venue-confirmed no-fill releases the order idempotency key so exit retries place an order
+
+**VERIFIED** · critical · regression · source: OPS-2026-10-25
+
+When an order ends cancelled, expired or rejected with no fill, or its confirmation times out and the cancel/read-back proves no fill, OrderManager releases the idempotency key and the retried order is sent with a fresh client order id; a stop-loss close is never refused as a duplicate for the key TTL.
+
+- **If violated:** The key was marked COMPLETED when the order was created, so a cancelled close was refused as a duplicate on every 5s retry for up to 3600s and the position could not be exited.
+- **Owned by:** `src/execution/order_manager.py`, `src/execution/idempotency.py`, `src/execution/live.py`
+- **Verification:**
+  - `tests/test_exec_idempotency_fills.py` (regression)
+
+> layer: test-suite
+
+#### `REG-1031` — Entry timeout and partial cancel are reconciled, booked, or block new entries
+
+**VERIFIED** · critical · regression · source: OPS-2026-10-25
+
+On confirmation timeout the order is cancelled and read back and any fill is returned for booking; a terminal cancelled/expired order with a partial fill is returned, not discarded; a placement network error is reconciled by client order id; if the outcome cannot be established the key stays claimed and LiveExecutor blocks new entries until acknowledge_recovery.
+
+- **If violated:** A confirmation timeout or partial-fill cancel was treated as a failed order, cash was restored and the live fill was never tracked or protected by a stop-loss.
+- **Owned by:** `src/execution/order_manager.py`, `src/execution/idempotency.py`, `src/execution/live.py`
+- **Verification:**
+  - `tests/test_exec_idempotency_fills.py` (regression)
+
+> layer: test-suite
+
+#### `REG-1040` — Crypto-box Kelly reduction reaches the order size
+
+**VERIFIED** · high · regression · source: OPS-2026-10-25
+
+A crypto-box scale below 1 reduces the order quantity and notional, and skips the trade when the reduced size is below exchange minimums.
+
+- **If violated:** Only adjusted_fraction was halved; quantity and notional were untouched so the order went out at full size.
+- **Owned by:** `src/engine/orchestrator.py`
+- **Verification:**
+  - `tests/test_exec_accounting_fixes.py` (regression)
+
+> audit finding EXR-006. layer: test-suite
+
+#### `REG-1041` — Partial live close settles only the filled share
+
+**VERIFIED** · high · regression · source: OPS-2026-10-25
+
+A partially filled live close credits cash only for the filled share of the notional and keeps the residual position open and tracked.
+
+- **If violated:** The whole position was removed and the full entry notional credited on a partial fill.
+- **Owned by:** `src/execution/live.py`
+- **Verification:**
+  - `tests/test_exec_accounting_fixes.py` (regression)
+
+> audit finding EXR-007. layer: test-suite
+
+#### `REG-1042` — Spot live executor refuses short entries
+
+**VERIFIED** · high · regression · source: OPS-2026-10-25
+
+LiveExecutor._place_and_record refuses any non-long direction on the spot account without placing an order or touching cash.
+
+- **If violated:** Shorts were sent as spot sells and booked as opened shorts, diverging from the exchange.
+- **Owned by:** `src/execution/live.py`
+- **Verification:**
+  - `tests/test_exec_accounting_fixes.py` (regression)
+
+> audit finding EXR-008. layer: test-suite
+
+#### `REG-1043` — Base-asset entry fees reduce tracked position quantity
+
+**VERIFIED** · high · regression · source: OPS-2026-10-25
+
+A buy fill whose fee is charged in the base asset records the net quantity and the fee in USD at the fill price.
+
+- **If violated:** Base-currency fees were ignored so the position quantity exceeded holdings and the close oversold.
+- **Owned by:** `src/execution/live.py`
+- **Verification:**
+  - `tests/test_exec_accounting_fixes.py` (regression)
+
+> audit finding EXR-012. layer: test-suite
+
 #### `REG-1050` — Open positions are rebuilt from storage on restart
 
 **VERIFIED** · high · regression · source: OPS-2026-10-25
@@ -448,6 +540,19 @@ Aggregate exposure, cross-strategy correlation and portfolio agreement are evalu
   - `tests/portfolio/test_portfolio_limits.py` (risk) — Both scalars asserted on the notional that reaches the sizer rather than on the number the tracker reports, and the small-sample shrinkage pinned as intended behaviour rather than discovered as a surprise.
   - `tests/test_portfolio_correlation.py` (risk)
   - `tests/test_portfolio_agreement.py` (risk)
+
+#### `REG-1371` — Capital allocator does not mix warm-up shares with raw scores
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+Mature scores split the share left after warm-up and floored strategies; warm-up strategies keep their equal share.
+
+- **If violated:** Shares were summed with Sharpe/Sortino or 1/vol units, so allocation depended on unrelated scales.
+- **Owned by:** `src/strategies/capital_allocator.py`
+- **Verification:**
+  - `tests/test_math_strategies_audit_fixes.py` (regression)
+
+> audit finding STR-13. layer: test-suite
 
 ## Signal and features
 
@@ -522,6 +627,122 @@ SOPR, NVT and MVRV are either genuinely computed or NaN; no on-chain metric retu
   - `tests/test_onchain_no_fabricated_values.py` (regression)
 
 > Escaped to production: the constant reached the live feature dict in src/intel.py and was persisted to intelligence_features_history beside measured columns. The test suite could not catch it because the test that existed asserted the placeholder (== 1.0) rather than the requirement, so the layer that should have caught it is the review that accepted a return of a bare literal from a metric together with a docstring describing a computation the body never performed. layer: review
+
+#### `REG-1070` — Live inference scores the latest closed bar
+
+**VERIFIED** · critical · regression · source: OPS-2026-10-25
+
+Live inference scores the feature row of the newest closed bar (label-independent), refuses a matrix whose last row is not the last bar, and the engine slices off a forming bar rather than skipping the tick
+
+- **If violated:** Live path scored an older, lookahead-selected labelled row; HMM fed a gapped series
+- **Verification:**
+  - `tests/features/test_closed_bar_inference.py` (regression)
+
+> Audit DAT-001, EXR-003. layer: test-suite
+
+#### `REG-1362` — Cluster flow score is flagged unavailable when no flow data exists
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+ClusteringResult.flow_available is true only when a whale cluster carries inflow/outflow, and the worker marks cluster validity from it, so a constant 0.0 is not consumed as a signal.
+
+- **If violated:** flow_score was a constant 0.0 because flows were never populated, yet the ensemble consumed it as valid.
+- **Owned by:** `src/ecc/secp256k1_cluster.py`, `src/workers/orchestrator.py`
+- **Verification:**
+  - `tests/test_math_strategies_audit_fixes.py` (regression)
+
+> audit finding MTH-004. layer: test-suite
+
+#### `REG-1363` — UTXO age falls back to confirmations and excludes unknown ages
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+compute_hodler_index derives age from timestamp, else confirmations x 600s, and excludes UTXOs with neither instead of aging them to zero.
+
+- **If violated:** Missing timestamps made every UTXO age 0, pinning hodler_index at 0 and supply_shock_risk False.
+- **Owned by:** `src/ecc/utxo_curve.py`
+- **Verification:**
+  - `tests/test_math_strategies_audit_fixes.py` (regression)
+
+> audit finding MTH-005. layer: test-suite
+
+#### `REG-1364` — Tornado detection handles HexBytes input and matches withdrawals by pool
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+Selectors are read from bytes or str input, and withdrawals join a deposit's cluster by pool contract rather than by transaction value.
+
+- **If violated:** web3 HexBytes input never matched str selectors and withdrawals carry value 0, so dark_pool_pressure was always 0.
+- **Owned by:** `src/ecc/zksnark_detect.py`
+- **Verification:**
+  - `tests/test_math_strategies_audit_fixes.py` (regression)
+
+> audit finding MTH-012. layer: test-suite
+
+#### `REG-1365` — Engine backtest annualises per sample, scores at horizon, applies documented gate
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+signal_sharpe annualises by samples per year, each engine is scored at its declared horizon, and passes_gate requires DA > 0.55 and Sharpe > 1.0.
+
+- **If violated:** Sharpe was overstated by about sqrt(30), every engine was scored on the next hourly close, and the gate ignored Sharpe and used 0.5.
+- **Owned by:** `src/tuning/engine_backtest.py`
+- **Verification:**
+  - `tests/test_math_strategies_audit_fixes.py` (regression)
+
+> audit finding STR-07. layer: test-suite
+
+#### `REG-1367` — E-14 abstains without history and is neutral on a degenerate window
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+E-14 abstains until five readings exist and contrarian_signal returns 0 when max equals min.
+
+- **If violated:** The first reading produced a full-confidence long.
+- **Owned by:** `src/engines/e14_sentiment.py`
+- **Verification:**
+  - `tests/test_math_strategies_audit_fixes.py` (regression)
+
+> audit finding STR-09. layer: test-suite
+
+#### `REG-1368` — Engine rolling state is keyed by symbol
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+E-08, E-12, E-13, E-14 and E-17 keep their rolling history per symbol so one asset is never z-scored against another.
+
+- **If violated:** A shared orchestrator mixed history across symbols and corrupted every z-score and contagion delta.
+- **Owned by:** `src/engines/e08_topology.py`, `src/engines/e12_options.py`, `src/engines/e13_contagion.py`, `src/engines/e14_sentiment.py`, `src/engines/e17_liquidity.py`
+- **Verification:**
+  - `tests/test_math_strategies_audit_fixes.py` (regression)
+
+> audit finding STR-10. layer: test-suite
+
+#### `REG-1369` — Consensus dispersion excludes abstentions and the breaker holds real spot
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+Agreement and outliers are computed over engines with non-zero confidence, and the circuit breaker holds the caller's spot when supplied.
+
+- **If violated:** Abstentions biased agreement toward 1 and the breaker reported E-01's forecast as spot.
+- **Owned by:** `src/engines/consensus.py`, `src/engines/orchestrator.py`
+- **Verification:**
+  - `tests/test_math_strategies_audit_fixes.py` (regression)
+
+> audit finding STR-11. layer: test-suite
+
+#### `REG-1370` — E-07 PCA direction follows the recent PC1 score with a fixed sign
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+The PC1 loading sign is fixed so loadings sum positive and direction is the sign of the mean recent PC1 score.
+
+- **If violated:** The arbitrary SVD sign made the emitted direction effectively random.
+- **Owned by:** `src/engines/e07_linear_algebra.py`
+- **Verification:**
+  - `tests/test_math_strategies_audit_fixes.py` (regression)
+
+> audit finding STR-12. layer: test-suite
 
 #### `REG-1704` — Carry and arbitrage entries clear a measured-cost hurdle, never a fixed threshold
 
@@ -666,6 +887,112 @@ Orchestrator._metrics_payload() builds a complete metrics snapshot for every tic
 
 > Pins payload completeness with and without an executor, the method-vs-property fact the bug turned on, and the original TypeError as a negative case. layer: test-suite
 
+#### `REG-1090` — BOCPD changepoint probability responds to a mean shift
+
+**VERIFIED** · high · regression · source: OPS-2026-10-25
+
+BayesianOnlineChangepointDetector.update reports the relative collapse of the expected run length, which rises well above the hazard rate after a step change in the mean, and the run_length=0 hypothesis always survives pruning.
+
+- **If violated:** With a constant hazard the mass on run_length=0 is identically the hazard rate, so the reported changepoint probability and the ensemble agreement score carried no information; a pruned r=0 hypothesis raised StopIteration.
+- **Owned by:** `src/regime/changepoint.py`
+- **Verification:**
+  - `tests/test_changepoint.py` (regression)
+
+> layer: test-suite
+
+#### `REG-1281` — Predictor labels never fabricate a down move for unlabelable tail rows
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+forward_direction_label returns NaN for the last horizon rows, so they are dropped rather than labelled 0.
+
+- **If violated:** The last horizon rows entered training and test folds as down labels, biasing accuracy and PBO proxies.
+- **Owned by:** `crypto-predictor/indicators.py`, `crypto-predictor/validation.py`
+- **Verification:**
+  - `tests/test_crypto_predictor_regressions.py` (regression)
+
+> Audit SCR-007, SCR-008 and DOC-014 (standalone crypto-predictor). layer: test-suite
+
+#### `REG-1282` — Walk-forward training purges labels that overlap the test window
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+walk_forward_backtest excludes the last horizon training rows before each test block, because their labels use closes inside that block.
+
+- **If violated:** Training labels used prices from the test window, inflating out-of-sample accuracy.
+- **Owned by:** `crypto-predictor/backtest.py`
+- **Verification:**
+  - `tests/test_crypto_predictor_regressions.py` (regression)
+
+> Audit SCR-007, SCR-008 and DOC-014 (standalone crypto-predictor). layer: test-suite
+
+#### `REG-1283` — Backtest P&L uses non-overlapping holds and horizon-correct annualisation
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+evaluate compounds returns only on every horizon-th row and annualises with sqrt(365*24/horizon).
+
+- **If violated:** Overlapping forward returns were compounded and Sharpe used a 252-day factor, so total return and Sharpe were overstated.
+- **Owned by:** `crypto-predictor/backtest.py`
+- **Verification:**
+  - `tests/test_crypto_predictor_regressions.py` (regression)
+
+> Audit SCR-007, SCR-008 and DOC-014 (standalone crypto-predictor). layer: test-suite
+
+#### `REG-1284` — Probability calibration folds are time-ordered
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+calibrate_probabilities uses TimeSeriesSplit so the calibrator never trains on rows later than those it scores.
+
+- **If violated:** An unshuffled KFold calibrated on future rows and scored earlier ones, leaking information into the probabilities that drive Kelly sizing.
+- **Owned by:** `crypto-predictor/risk.py`
+- **Verification:**
+  - `tests/test_crypto_predictor_regressions.py` (regression)
+
+> Audit SCR-007, SCR-008 and DOC-014 (standalone crypto-predictor). layer: test-suite
+
+#### `REG-1360` — HNP key recovery is correct for a non-zero leaked nonce prefix
+
+**VERIFIED** · high · regression · source: OPS-2026-10-25
+
+recover_private_key subtracts the known nonce prefix (u = s^-1 z - a) and checks the leak against nonce_bitlength, so a signer with any known high-bit value is recovered.
+
+- **If violated:** The sign error made recovery work only for known_value == 0, so the defender-side bias audit reported a biased signer as sound.
+- **Owned by:** `src/mathcore/lattice/hnp.py`
+- **Verification:**
+  - `tests/test_math_strategies_audit_fixes.py` (regression)
+
+> audit finding MTH-014. layer: test-suite
+
+#### `REG-1366` — E-09 retrain uses the inference feature set and a held-out gate before saving
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+E-09 features are E-01..E-08 only, and retrain_e09_walkforward saves a model only when a candidate fitted on the head beats the OOS accuracy threshold on the held-out tail.
+
+- **If violated:** Slots for E-10..E-18 were zero in training but live at inference, and an unvalidated model overwrote the artifact.
+- **Owned by:** `src/engines/e09_ml_meta.py`, `src/tuning/engine_backtest.py`
+- **Verification:**
+  - `tests/test_math_strategies_audit_fixes.py` (regression)
+  - `tests/engines/test_backtest_runners.py` (regression)
+
+> audit finding STR-08. layer: test-suite
+
+#### `REG-1373` — Entropy harness does not report an identical win-rate metric
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+run_entropy_threshold_backtest omits win_rate, which is identical for both arms by construction.
+
+- **If violated:** A dead metric cost a slot in the regression check.
+- **Owned by:** `src/tuning/backtest_harness.py`
+- **Verification:**
+  - `tests/test_math_strategies_audit_fixes.py` (regression)
+  - `tests/test_tuning_backtest_harness.py` (regression)
+
+> audit finding STR-15. layer: test-suite
+
 #### `REG-1605` — LLL and the BLS12-381 pairing do not redo work they can update
 
 **VERIFIED** · low · regression · source: OPS-2026-10-25
@@ -678,6 +1005,58 @@ lll_reduce_with_transform updates the Gram-Schmidt coefficients in place after a
   - `tests/test_mth020_lattice_and_pairing_cost.py` (regression)
 
 > Audit MTH-020. The tests pin the results to the old algorithm and the direct exponent, so a faster wrong answer fails. layer: test-suite
+
+#### `SEC-1120` — MLflow registry never promotes and never unpickles without a pinned manifest
+
+**VERIFIED** · high · security_regression · source: OPS-2026-10-25
+
+ModelRegistry.register_model requires an artifact SHA-256, stores it as a version tag and never transitions a stage; load_model refuses without a pinned hash and loads only a downloaded artifact whose hash matches (INT/MTH-006).
+
+- **If violated:** Anyone able to write the MLflow server or artifact store got code execution via pickle, and every registered model silently became Production.
+- **Owned by:** `src/upgrade/registry.py`
+- **Verification:**
+  - `tests/test_upgrade_registry.py` (security)
+
+> layer: test-suite
+
+#### `SEC-1121` — OnlineTrainer persists and loads models only through an atomic, manifest-verified path
+
+**VERIFIED** · high · security_regression · source: OPS-2026-10-25
+
+OnlineTrainer.save writes each model atomically with a SHA-256 manifest and _try_load deserializes only the verified bytes; a missing or mismatched manifest yields fresh models, never an unpickled file (INT-009).
+
+- **If violated:** joblib.load on an unverified pickle in the model directory gave code execution; torn writes were silently accepted.
+- **Owned by:** `src/models/online_trainer.py`
+- **Verification:**
+  - `tests/test_model_loading_integrity.py` (security)
+
+> layer: test-suite
+
+#### `SEC-1122` — HorizonMLPExpert deserializes exactly the bytes it hashed
+
+**VERIFIED** · high · security_regression · source: OPS-2026-10-25
+
+HorizonMLPExpert.load passes the hashed payload to joblib via BytesIO, and activate_candidate copies bytes re-verified against the evaluated version (INT-010).
+
+- **If violated:** A file swap between the hash read and the joblib read bypassed the integrity check.
+- **Owned by:** `src/models/horizon_mlp.py`, `src/models/horizon_learning.py`
+- **Verification:**
+  - `tests/test_model_loading_integrity.py` (security)
+
+> layer: test-suite
+
+#### `SEC-1123` — EnsemblePredictor save is atomic and load deserializes only verified bytes
+
+**VERIFIED** · high · security_regression · source: OPS-2026-10-25
+
+EnsemblePredictor.save writes artifact and manifest via temp-file plus os.replace, and load unpickles the single buffer returned by manifest verification (INT-011).
+
+- **If violated:** Hash-then-reread TOCTOU and non-atomic writes let a swapped or torn file be loaded.
+- **Owned by:** `src/intelligence/ensemble_predictor.py`
+- **Verification:**
+  - `tests/test_model_loading_integrity.py` (security)
+
+> layer: test-suite
 
 ## Data, money and time
 
@@ -809,6 +1188,70 @@ MarketDataFetcher.initialize() must open each venue independently, record an una
   - `tests/test_fetcher_venue_degradation.py` (regression)
 
 > Observed against Binance answering HTTP 451 'Service unavailable from a restricted location' on both mainnet and testnet from an affected network, which made the backend unstartable however healthy OKX and everything else was. initialize() built both venues and loaded their markets in one unisolated sequence. GET /venues and POST /venues/{venue}/reconnect expose the state and the recovery so neither needs a restart. layer: test-suite
+
+#### `REG-1071` — Forming candles are never persisted
+
+**VERIFIED** · critical · regression · source: OPS-2026-10-25
+
+The fetcher drops rows whose ts + timeframe exceeds now, so an unfinished candle is never stored
+
+- **If violated:** Partial candle stored permanently (insert-only storage, gap_fill resumes after it)
+- **Verification:**
+  - `tests/features/test_closed_bar_inference.py` (regression)
+
+> Audit DAT-002, EXR-003. layer: test-suite
+
+#### `REG-1091` — MVRV is NaN without a chain-wide realised-cap source
+
+**VERIFIED** · high · regression · source: OPS-2026-10-25
+
+OnChainFeatureExtractor reports mvrv as NaN; node-wallet listunspent is never used to build a realised cap.
+
+- **If violated:** MVRV was market cap divided by node-wallet BTC times spot, an arbitrary number presented as a bound.
+- **Owned by:** `src/features/onchain.py`
+- **Verification:**
+  - `tests/test_onchain_no_fabricated_values.py` (regression)
+
+> layer: test-suite
+
+#### `REG-1092` — Triple-barrier unresolved tail rows are NaN, not time exits
+
+**VERIFIED** · high · regression · source: OPS-2026-10-25
+
+triple_barrier_labels_with_offsets returns NaN label and offset for rows whose holding window extends past the data and that have not hit a barrier.
+
+- **If violated:** Unresolved tail rows were labelled -1 (time exit), inflating time_exit_fraction and selecting tail rows by whether they happened to resolve early.
+- **Owned by:** `src/features/pipeline.py`
+- **Verification:**
+  - `tests/test_features.py` (regression)
+
+> layer: test-suite
+
+#### `REG-1093` — Lookahead intelligence-feature broadcast helper removed
+
+**VERIFIED** · high · regression · source: OPS-2026-10-25
+
+src/features/intelligence_features.py exposes no add_intelligence_features helper that broadcasts a current IntelligenceMetrics snapshot onto historical rows.
+
+- **If violated:** The unused helper stamped today's on-chain values on every past bar, a lookahead hazard if used for training.
+- **Owned by:** `src/features/intelligence_features.py`
+- **Verification:**
+  - `tests/test_intelligence_features_coverage.py` (regression)
+
+> layer: test-suite
+
+#### `REG-1280` — Standalone predictor drops the still-forming candle
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+crypto-predictor data fetchers never return the still-open candle: Binance rows whose close_time is in the future are removed, and the final uncommitted Kraken OHLC entry is removed.
+
+- **If violated:** A repainting bar entered features and labels, so backtest results looked better than the data available at the time.
+- **Owned by:** `crypto-predictor/data_fetch.py`, `crypto-predictor/data_fetch_kraken.py`
+- **Verification:**
+  - `tests/test_crypto_predictor_regressions.py` (regression)
+
+> Audit SCR-007, SCR-008 and DOC-014 (standalone crypto-predictor). layer: test-suite
 
 #### `REG-1702` — kg/ and rag_mongo/ share one MongoClient factory and one URI check
 
@@ -1091,6 +1534,58 @@ The default API_CORS_ORIGINS allows both loopback spellings of the dashboard dev
   - `tests/test_startup_readiness.py` (regression)
 
 > layer: test-suite
+
+#### `REG-1140` — The risk slider commits one write on release
+
+**VERIFIED** · high · regression · source: OPS-2026-10-25
+
+Slider keeps drag state locally and calls onChange once on pointer/key release or blur, and not at all when the value is unchanged.
+
+- **If violated:** A range input called onChange on every input event, so one drag sent dozens of operator-gated risk-control POSTs, each applying an intermediate risk value live and tripping the rate limit and alert storms.
+- **Owned by:** `frontend/src/components/Controls.jsx`
+- **Verification:**
+  - `frontend/src/components/Controls.test.jsx` (regression)
+
+> Audit finding FE-02. layer: test-suite
+
+#### `REG-1141` — NumberInput writes only a valid, changed value
+
+**VERIFIED** · high · regression · source: OPS-2026-10-25
+
+NumberInput calls onChange on blur or Enter only when the parsed value is in range and differs from the current value; an invalid entry leaves draft mode and reverts to the current value.
+
+- **If violated:** Every blur posted an operator action even with no edit, and an out-of-range value left the field stuck in draft mode with no feedback.
+- **Owned by:** `frontend/src/components/Controls.jsx`
+- **Verification:**
+  - `frontend/src/components/Controls.test.jsx` (regression)
+
+> Audit finding FE-03. layer: test-suite
+
+#### `REG-1142` — High-impact operator actions confirm and block double submission
+
+**VERIFIED** · high · regression · source: OPS-2026-10-25
+
+Switching to automatic mode, approve/reject, self-tuning rollback and strategy re-enable ask for confirmation, and the button is disabled while its request is in flight so it is sent once.
+
+- **If violated:** One-click AUTOMATIC mode, trade approval, rollback and re-enable fired immediately and could be double-clicked before the next poll refreshed the UI.
+- **Owned by:** `frontend/src/components/Controls.jsx`, `frontend/src/components/panels/ApprovalsPanel.jsx`, `frontend/src/components/panels/SelfTuningPanel.jsx`, `frontend/src/components/panels/StrategiesPanel.jsx`
+- **Verification:**
+  - `frontend/src/components/Controls.test.jsx` (regression)
+
+> Audit finding FE-04. layer: test-suite
+
+#### `REG-1143` — A crashing panel is contained by an error boundary
+
+**VERIFIED** · high · regression · source: OPS-2026-10-25
+
+Each workspace panel and the app root render inside an ErrorBoundary that shows the error in place, so one panel throwing does not unmount the dashboard.
+
+- **If violated:** With no error boundary one unexpected null in a panel unmounted the whole dashboard, including approvals and controls.
+- **Owned by:** `frontend/src/components/ErrorBoundary.jsx`, `frontend/src/App.jsx`, `frontend/src/main.jsx`
+- **Verification:**
+  - `frontend/src/components/Controls.test.jsx` (regression)
+
+> Audit finding FE-05. layer: test-suite
 
 #### `REG-1703` — One environment variable never binds two settings fields
 
@@ -1385,6 +1880,19 @@ The LAW12 cipher-suite pattern matches static DH/ECDH, RSA key transport and exp
 
 > The rule shipped with no test of its own, so nothing could tell a true positive from a false one until a PR tripped it. The test added with this entry is that missing check. layer: test-suite
 
+#### `REG-1361` — ECDSA scanner does not report a re-seen transaction as nonce reuse
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+A signature seen again under the same txid and s is ignored; only the same r with a different (txid, s) is reported.
+
+- **If violated:** Re-broadcast or reorged transactions matched themselves and raised a 0.7 nonce-reuse risk score.
+- **Owned by:** `src/ecc/ecdsa_scan.py`
+- **Verification:**
+  - `tests/test_math_strategies_audit_fixes.py` (regression)
+
+> audit finding MTH-002. layer: test-suite
+
 #### `REG-1608` — Prometheus authenticates its /metrics scrape
 
 **VERIFIED** · low · regression · source: OPS-2026-10-25
@@ -1479,6 +1987,19 @@ The integrated terminal adds a command-execution surface; nothing reaches it exc
 
 > layer: test-suite
 
+#### `SEC-0011` — The frontend lockfile resolves dependencies outside their high advisory ranges
+
+**VERIFIED** · high · security_regression · source: OPS-2026-10-25
+
+frontend's npm tree resolves electron >= 44.9.1, follow-redirects >= 1.16.2, joi >= 18.3.1 and undici >= 7.30.1 (>= 8.12.2 on the 8.x line), so npm audit at --audit-level=high reports no fixable advisory.
+
+- **If violated:** Security gate (npm audit) failed on pull requests that do not touch frontend (#498, #499) because the lockfile resolved vulnerable electron, follow-redirects and undici versions, all with fixAvailable true. GHSA-mrwp-f3q8-3g9p affects follow-redirects 1.16.0-1.16.1 and is fixed in 1.16.2. GHSA-4528-x5fx-h6hg affects joi 18.0.0-18.3.0 and is fixed in 18.3.1. The lockfile floors clear these findings; 4 moderate vitest advisories remain below the gate threshold.
+- **Owned by:** `frontend/package.json`, `.github/workflows/security.yml`
+- **Verification:**
+  - `tests/test_frontend_audit_scope.py` (unit)
+
+> Lockfile refresh via npm install --package-lock-only plus npm update of vulnerable transitive packages; the manifest is unchanged. follow-redirects is kept at 1.16.2 for GHSA-mrwp-f3q8-3g9p and joi at 18.3.1 for GHSA-4528-x5fx-h6hg. The gate was not changed. layer: supply-chain
+
 #### `SEC-0012` — The runtime manifest never resolves a vulnerable filelock
 
 **VERIFIED** · high · security_regression · source: OPS-2026-10-25
@@ -1491,6 +2012,58 @@ requirements.txt declares filelock>=4.2.1, and every Dockerfile install into the
   - `tests/security/test_filelock_cve_floor.py` (security)
 
 > The advisory was published against a release nobody here chose, so no commit or review could have seen it arrive. layer: supply-chain
+
+#### `SEC-1020` — The auto-resolve job never exposes its PAT to pull-request branch code
+
+**VERIFIED** · high · security_regression · source: OPS-2026-10-10
+
+pr-auto-update's resolve-next job checks out with persist-credentials false and the default token; the PR_AUTOUPDATE_TOKEN is present only in the final push step, which runs no repository file.
+
+- **If violated:** A same-repo branch edits a script the job runs and exfiltrates the repo-scope PAT, bypassing branch protection.
+- **Owned by:** `.github/workflows/pr-auto-update.yml`
+- **Verification:**
+  - `tests/test_pr_auto_update_workflow.py` (security)
+
+> layer: test-suite
+
+#### `SEC-1021` — Deploy dispatch inputs are never interpolated into shell
+
+**VERIFIED** · high · security_regression · source: OPS-2026-10-10
+
+deploy.yml passes inputs.artifact_run_id to run steps only through env and rejects a non-numeric value in preflight.
+
+- **If violated:** A dispatcher injects shell into jobs holding production environment secrets.
+- **Owned by:** `.github/workflows/deploy.yml`
+- **Verification:**
+  - `tests/test_deploy_workflow_inputs.py` (security)
+
+> layer: test-suite
+
+#### `SEC-1022` — The CI patch validator refuses sections without a validated git header
+
+**VERIFIED** · high · security_regression · source: OPS-2026-10-10
+
+apply_ci_patch._validate_patch rejects traditional ---/+++ sections outside a validated diff --git section, before or after one.
+
+- **If violated:** A header-less section rewrites a protected control-plane file that path validation never saw.
+- **Owned by:** `scripts/apply_ci_patch.py`
+- **Verification:**
+  - `tests/test_apply_ci_patch.py` (security)
+
+> layer: test-suite
+
+#### `SEC-1023` — Command output is redacted before it is truncated
+
+**VERIFIED** · high · security_regression · source: OPS-2026-10-10
+
+shell_exec.run masks secrets in the whole raw output before filtering and capping, and an unterminated PEM private key block is masked to the end of the text.
+
+- **If violated:** A PEM key cut by max_lines or max_bytes no longer matches the redaction pattern and reaches model context verbatim.
+- **Owned by:** `common/shell_exec.py`, `common/command_schema.py`
+- **Verification:**
+  - `tests/test_shell_exec.py` (security)
+
+> layer: test-suite
 
 ## Supply chain and artifacts
 
@@ -2021,7 +2594,7 @@ The production workflow can return to the previous trusted artifact, and a drill
 
 **VERIFIED** · medium · regression · source: OPS-2026-09-30
 
-The autonomous collector waits for every applicable watched workflow, job, and step to terminate on the same PR head SHA. Failure, cancellation, timeout, neutral, action_required, stale, and skipped outcomes are retained. The collector does not cancel source runs or publish PR comments; incomplete collection never becomes a finalized report.
+The autonomous collector waits for every pull-request workflow run and job to terminate on the same PR head SHA before it publishes. Runs still going leave the report waiting, never finalized with partial results. The collector does not cancel source runs or publish PR comments.
 
 - **If violated:** The previous notice consolidated multiple failed jobs and cancellation fallout into a large comment. Agents had to sift through irrelevant failures, and cancellation from a superseded commit could overwrite the current PR state. The fail-fast notice surfaces one actionable check, cancels sibling runs, and refuses to overwrite a newer head's comment.
 - **Owned by:** `.github/workflows/ci-diagnostics.yml`, `scripts/ci_diagnostics.py`
@@ -2030,16 +2603,17 @@ The autonomous collector waits for every applicable watched workflow, job, and s
 
 > One mutable comment is the subscription surface. Its hidden SHA marker binds the notice to the current PR head; failure comments name one actionable check, success is reported only after all watched workflows finish green, and merge updates the same comment. layer: test-suite
 
-#### `REG-0020` — The collector extracts diagnostics server-side and discards ordinary success noise
+#### `REG-0020` — The collector extracts failure lines server-side and discards everything else
 
 **VERIFIED** · medium · regression · source: OPS-2026-09-30
 
-The collector scans completed job logs on its GitHub-hosted runner and retains recognized error/warning formats, source-attributed diagnostics, and structured non-success outcomes. It discards ordinary successful output, redacts common credentials, and does not send raw workflow logs to the agent.
+The collector reads job logs on its GitHub-hosted runner, only for jobs that are not green, and keeps only lines containing error, failed, failure, skipped, cancelled or canceled. It discards every other line, redacts common credentials, and does not send raw workflow logs to the agent.
 
 - **If violated:** pip-audit's vulnerability table matched none of the patterns, so the notice on #385 named the failing step and no error, and the failing lines had to be pasted by hand.
 - **Owned by:** `scripts/ci_diagnostics.py`
 - **Verification:**
   - `tests/test_ci_diagnostics.py` (unit)
+  - `tests/test_prfail_exact_lines.py` (regression)
 
 > Escaped because the notice's extraction was only ever tested against pytest-shaped output. layer: test-suite
 
@@ -2056,16 +2630,17 @@ A diagnostic report is published only after the triggering workflow is correlate
 
 > A silent notice is the one failure this channel cannot have: CLAUDE.md section 9 makes it the sole CI failure interface, so when it posts nothing every pull request looks stuck for no visible reason. layer: test-suite
 
-#### `REG-0023` — A source diagnostic retains its exact file, line, and column when provided
+#### `REG-0023` — A failure line is copied exactly, so the location it names is kept
 
 **VERIFIED** · medium · regression · source: OPS-2026-10-07
 
-GitHub annotations and recognized compiler, pytest, and Python traceback formats retain their source path and reported line/column. The collector never invents a location; workflow, infrastructure, and cancellation failures remain actionable structured records even when no source location exists.
+Each failure line is copied as logged, with only GitHub's per-line timestamp removed, so a file, line and column the tool printed stay exactly as printed. The collector never adds or invents a location.
 
 - **If violated:** A dying worker takes the short summary with it: the run ends with no FAILED line, so every SIGNAL pattern missed and the REG-0020 fallback published the step's last stdout instead. On PR 423 that made the whole notice the words 'Event loop is closed', with no node id, no file and no test. Section 8 of the directives makes the notice the only failure channel a session may read, so a failure this channel cannot name is a failure nobody can diagnose: the branch is blocked and the only remaining move is to guess.
 - **Owned by:** `scripts/ci_diagnostics.py`
 - **Verification:**
   - `tests/test_ci_diagnostics.py` (unit)
+  - `tests/test_prfail_exact_lines.py` (regression)
 
 > The crash lines rank above the summary line deliberately. When a run produces both, the crash is the one that explains the rest, and the summary is still reachable from the run itself. layer: test-suite
 
@@ -2085,6 +2660,46 @@ GitHub Actions is the sole execution path for tests, builds, lint, security scan
   - `tests/test_apply_ci_patch.py` (contract)
 
 > The old prepare/comment-notice subscription is retired. Only the finalized ./scripts/prfail --pr <PR_NUMBER> report route is allowed; the report-bound patch applier revalidates PR/head/report identity and leaves edits uncommitted. The run subcommand remains disabled. Tests, builds, lint, security scans, and quality gates are validated only by GitHub Actions. layer: test-suite
+
+#### `REG-1705` — A merge elsewhere never breaks the knowledge-index gate on an open pull request
+
+**VERIFIED** · high · regression · source: OPS-2026-10-26
+
+The pull-request gate (`codebase_knowledge_index.py --check`) validates structure only: every FILE_INDEX path is tracked, every CHUNK_INDEX/CODEBASE_KNOWLEDGE anchor names an existing file and a range inside it, and every API_REFERENCE route matches by method, path and handler. SHA8s, line counts, row numbers and route line numbers are checked by `--check --strict`, which no pull request is gated on.
+
+- **If violated:** The gate demanded a byte-identical regeneration of FILE_INDEX (a SHA8 and line count for ~1,229 files) and whole-file hashes behind every anchor on ~50 hot files. Any merge, even a dependency bump, made every other open pull request fail 'Codebase knowledge indexes are current' (PRs 500, 502, 504, 505, 508), and all 29 open pull requests carried conflicting edits to the same index. Fixing it in one pull request fixed nothing for the next.
+- **Owned by:** `scripts/codebase_knowledge_index.py`
+- **Verification:**
+  - `tests/test_codebase_knowledge_index.py` (regression)
+
+> layer: ci-gate-design
+
+#### `REG-1706` — One failing test shard never hides the failures of the others
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-26
+
+The sharded pytest matrix in ci.yml runs with fail-fast disabled, so every shard runs to completion and a single CI run reports every failing test.
+
+- **If violated:** With fail-fast: true the first failing shard cancelled the other five ('The strategy configuration was canceled because python-tests._4_6 failed' on PRs 500-508). Each run showed one shard's failures; the rest surfaced one push later and read as new failures every time.
+- **Owned by:** `.github/workflows/ci.yml`
+- **Verification:**
+  - `tests/regression/test_ci_failure_locks.py` (regression)
+
+> layer: ci-gate-design
+
+#### `REG-1707` — A test that leaks an async resource fails instead of passing with 'Event loop is closed'
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-26
+
+pytest treats PytestUnraisableExceptionWarning as an error, so an exception raised where no caller can catch it (a transport or client finalised after its event loop closed) fails the test that leaked it and names it; a session-scoped guard collects what outlives the last test and fails the worker, naming the finalizer.
+
+- **If violated:** 'RuntimeError: Event loop is closed' recurred on PR 423 and again on PRs 501, 505, 507, 508, 519 and 521, including fully green runs. REG-0023 locked the diagnostic reporter so it could name the crash; nothing locked the leak, and an unraisable exception was only a warning, so the leaking test passed every time.
+- **Owned by:** `pyproject.toml`, `tests/regression/unraisable.py`
+- **Depends on:** `REG-0023`
+- **Verification:**
+  - `tests/regression/test_ci_failure_locks.py` (regression)
+
+> layer: test-suite
 
 ## Governance
 
@@ -2228,7 +2843,7 @@ Following a CI run -- gh run watch, --watch, tail -f, docker or kubectl logs -f,
 
 **VERIFIED** · medium · requirement · source: OPS-2026-09-20
 
-When a watched pull-request workflow completes, an autonomous GitHub Actions collector waits until every applicable workflow, job, and step reaches a terminal state for the exact PR head SHA, then publishes a filtered, SHA-bound Check Run report. The collector never cancels sibling workflows, and agents retrieve diagnostics only through ./scripts/prfail --pr <PR_NUMBER>.
+When any workflow completes for a pull request, an autonomous GitHub Actions collector finds every workflow run GitHub started for the exact PR head SHA (no fixed workflow list), waits until every run and job is terminal, then publishes one SHA-bound Check Run report. The collector never cancels sibling workflows, and agents never poll workflow logs: they read the report through ./scripts/prfail.
 
 - **If violated:** Without a push notice the only way to learn a pull request failed is to poll or to read logs, which is exactly what GOV-011 and GOV-012 forbid.
 - **Owned by:** `.github/workflows/ci-diagnostics.yml`, `scripts/ci_diagnostics.py`, `scripts/prfail`
@@ -2310,11 +2925,11 @@ No CI log, job record, step annotation, artifact, cache entry or check result ca
   - `tests/test_ci_log_access.py` (contract)
   - `tests/test_pre_tool_use_hook.py` (contract)
 
-#### `GOV-020` — One SHA-bound report carries filtered diagnostics and exact source locations
+#### `GOV-020` — One SHA-bound report carries the exact failure lines of every non-green run
 
 **VERIFIED** · high · requirement · source: OPS-2026-09-22
 
-After all applicable watched workflows terminate for a PR head, one finalized Check Run manifest and its integrity-verified pages contain structured non-success outcomes and filtered diagnostics. Records include workflow/job/step identity and exact path, line, and column when supplied by the source evidence. Ordinary successful output is discarded, and the report is retrieved only by the canonical PR-number command.
+After every pull-request run for a PR head has terminated, one finalized Check Run manifest and its integrity-verified pages carry, for each non-green job of each non-green run, the exact log lines that name an error, failure, skip or cancellation, bound to their workflow run, job and line number. Green runs and green jobs contribute nothing.
 
 - **If violated:** A contributor or agent with no route to the cause of a red pull request. Since GOV-019 makes CI logs permanently unreadable, this comment is the only channel, so each of its failure modes is total: one comment per workflow means five to read and four chances to read a stale one; posting before every workflow finishes announces green on a commit that failed; and reporting 'Process completed with exit code 1' -- which is what the notice actually said on a failing shard of PR 313 -- names no test, no file and no assertion, leaving nothing to act on at all.
 - **Owned by:** `.github/workflows/ci-diagnostics.yml`, `scripts/ci_diagnostics.py`, `scripts/prfail`
@@ -2715,13 +3330,60 @@ scripts/agent_control.py exits 0 only when a check passes, 1 when a check ran an
 
 **PARTIAL → PR-013** · medium · requirement · source: OPS-2026-10-13
 
-The knowledge-index utility checks complete tracked-file coverage and current FILE_INDEX metadata, validates CHUNK_INDEX and CODEBASE_KNOWLEDGE source hashes and line ranges, verifies API_REFERENCE method/path/handler/line rows against AST-derived routes, and offers a safe refresh operation that preserves existing notes/priorities without rewriting semantic anchor ranges.
+The knowledge-index utility gates pull requests on structure (every FILE_INDEX path is tracked, every CHUNK_INDEX and CODEBASE_KNOWLEDGE anchor names an existing file and an in-range span, every API_REFERENCE route matches by method, path and handler) and, with --strict, verifies full FILE_INDEX metadata, anchor source hashes and route line numbers; it offers a safe refresh operation that preserves existing notes/priorities without rewriting semantic anchor ranges.
 
 - **If violated:** A stale index sends an agent to wrong code or makes old line ranges look authoritative, and no reproducible check identifies the drift before the index is trusted.
 - **Owned by:** `scripts/codebase_knowledge_index.py`
 - **Depends on:** `GOV-005`
 - **Verification:**
   - `tests/test_codebase_knowledge_index.py` (unit)
+
+#### `GOV-067` — A pull request Claude opened is handed to ChatGPT Codex, once per head, with a hard cap
+
+**VERIFIED** · medium · requirement · source: OPS-2026-10-26
+
+After Claude opens a pull request it stops touching it, and ChatGPT Codex carries it to merge. The handoff workflow runs the default branch's script with the owner's token and comments `@codex fix` only for a failed same-repository pull-request run of CI, CodeQL, Security or Workflow lint, or a Codex review with inline findings, on the pull request's current open head; it asks once per kind and head, at most five times per pull request, then posts one notice and stops. It never merges, arms auto-merge, or runs Claude, and a missing token fails without posting.
+
+- **If violated:** Without the cap and per-head dedupe, each Codex push re-triggers a failing check or review and the handoff loops on the owner's plan; without the default-branch checkout, a pull request could rewrite the script that holds the owner's token.
+- **Owned by:** `scripts/codex_pr_handoff.py`, `.github/workflows/codex-pr-handoff.yml`
+- **Depends on:** `GOV-036`, `GOV-037`
+- **Verification:**
+  - `tests/test_codex_pr_handoff.py` (contract)
+
+#### `GOV-068` — prfail prints only the exact failure lines of every non-green PR run, or wait
+
+**VERIFIED** · medium · requirement · source: OPS-2026-10-26
+
+./scripts/prfail --pr N prints, one per line and nothing else, the failure lines of the current PR head's finished report, then one `path:line: first line of the opening comment` line per review conversation that is still unresolved, outdated ones included, read fresh from GitHub's reviewThreads because resolving a conversation fires no Actions event (empty when nothing failed and nothing is unresolved). While any pull-request run is unfinished or the report is not yet published it prints `wait`, and a call made while another prfail for the same PR is running prints `wait` without reading anything. A workflow added to the repository is included without editing the collector, because the collector triggers on every workflow and lists the PR's runs from the API.
+
+- **If violated:** prfail returned 266 lines of JSON for a green PR head: twelve records of steps skipped by their own `if:` (durations refresh), each with twenty fields, and no failure. The collector also listed four workflows by name, so a fifth would have been silently left out of the report. A required unresolved review conversation blocked PR 521 while prfail had no way to show it.
+- **Owned by:** `scripts/ci_diagnostics.py`, `scripts/prfail`, `.github/workflows/ci-diagnostics.yml`, `scripts/apply_ci_patch.py`
+- **Depends on:** `GOV-013`, `GOV-020`
+- **Verification:**
+  - `tests/test_prfail_exact_lines.py` (contract)
+
+#### `GOV-069` — A ChatGPT push waits up to 12 minutes for prfail's answer on that commit
+
+**VERIFIED** · medium · requirement · source: OPS-2026-10-27
+
+With .githooks/reference-transaction installed by scripts/install_push_wait_hook.sh, a push whose process ancestry contains Desktop Commander (ChatGPT's terminal on the owner's machine) does not return until ./scripts/prfail answers for exactly the pushed commit: no lines releases it as green, failure lines are printed for ChatGPT to fix and push again, and no answer within 12 minutes is reported as a stuck workflow. A fetch, a push by anyone else, or a branch without exactly one open pull request is never held. TB_PUSH_WAIT=1 forces the hold and TB_PUSH_WAIT=0 disables it.
+
+- **If violated:** ChatGPT pushed fixes through Desktop Commander and returned before CI finished, so failures were seen only when someone ran prfail by hand, and a workflow hung for four hours unnoticed. No control held the agent on its own push; the hook and its 12-minute ceiling now do, and tests/test_push_wait.py fails if a report for the previous commit, a person's push, or an unbounded wait is accepted.
+- **Owned by:** `scripts/push_wait.py`, `.githooks/reference-transaction`, `scripts/install_push_wait_hook.sh`, `scripts/ci_diagnostics.py`
+- **Depends on:** `GOV-068`
+- **Verification:**
+  - `tests/test_push_wait.py` (contract)
+
+#### `GOV-070` — Duplicate-delivery prevention stays disabled until enforcement is verifiable
+
+**VERIFIED** · high · requirement · source: OPS-2026-10-27
+
+The repository must not advertise duplicate-delivery enforcement as enabled until a registry-backed deciding test verifies the actual enforcement point and persistent-index failure behavior; an external host hook without repository-verifiable coverage is insufficient evidence.
+
+- **If violated:** The repository advertises duplicate-delivery enforcement that CI cannot decide, allowing duplicate content through while a policy-only test passes.
+- **Owned by:** `config/command_policy.json`, `tests/test_diagnostic_route_boundary.py`
+- **Verification:**
+  - `tests/test_diagnostic_route_boundary.py` (contract) — Pins the policy disabled and verifies the registry-backed requirement until actual enforcement can be decided in CI.
 
 #### `REG-0005` — A test's result never depends on which tests ran before it
 
@@ -2806,6 +3468,19 @@ Every scripts/ path named in the README, in src/ comments or in a test's skip me
 
 > scripts/timescaledb.sh was referenced from six call sites -- README.md three times, src/config.py, src/data/storage.py and the skip message in tests/test_timescale_storage.py -- and did not exist; removed by the config purge (#144) without the references going with it. The test guards the general form (a named scripts/ path that is absent) as well as this one file, and pins the script to ci.yml's service block so the local and CI databases cannot drift apart silently. layer: test-suite
 
+#### `REG-1374` — Strategy selector exposes no dead funding-carry parameter
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+select_strategy has no allow_funding_carry parameter and no unused STRATEGY_FUNDING_CARRY constant.
+
+- **If violated:** The documented overlay was never implemented, misleading callers.
+- **Owned by:** `src/strategies/regime_strategy_selector.py`
+- **Verification:**
+  - `tests/test_math_strategies_audit_fixes.py` (regression)
+
+> audit finding STR-16. layer: test-suite
+
 #### `REG-1600` — The CPU torch pre-pass uses the same version spec as requirements.txt
 
 **VERIFIED** · low · regression · source: OPS-2026-10-25
@@ -2865,7 +3540,7 @@ check_import_cycles and the layering edges resolve relative imports; the route c
 
 **VERIFIED** · medium · regression · source: OPS-2026-10-25
 
-The collector retries the signed job-log download and names the final cause; a green job whose log cannot be fetched adds nothing, and a failed job's gets a log_unavailable record, so the report still finalizes and says which failure lines are missing.
+The collector retries the signed job-log download and names the final cause; a green job whose log cannot be fetched adds nothing, and a failed job's gets one line saying its log is unavailable, so the report still finalizes and says which failure lines are missing.
 
 - **If violated:** A single failed signed-URL log download raised through the collector, so the report was published as collection failed and ./scripts/prfail showed no job's failures at all (PR #512).
 - **Owned by:** `scripts/ci_diagnostics.py`
@@ -2874,6 +3549,32 @@ The collector retries the signed job-log download and names the final cause; a g
   - `tests/test_ci_diagnostics_log_unavailable.py` (regression)
 
 > Follow-up to REG-1604: once failures were published, the first one seen was this. No test fed the collector a failing log download. layer: test-suite
+
+#### `REG-1610` — Repository scripts do what their names and docs say (resolver add/add, fixture --check, coverage metric, index refresh)
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+resolve_registry_merge.py merges an add/add conflict against an empty base instead of calling it unconflicted; generate_signal_fixtures.py --check creates nothing and reports a fixture whose case was removed, and a write removes it; collect_quality_metrics.py names coverage's combined line and branch total line_and_branch_coverage_pct; codebase_knowledge_index.py --refresh-file-index keeps content after the file table.
+
+- **If violated:** An add/add registry conflict was left for a person with a misleading message; --check wrote a directory and missed stale golden fixtures; a combined coverage figure was read as branch coverage; a refresh silently deleted anything written after the index table.
+- **Owned by:** `scripts/resolve_registry_merge.py`, `scripts/generate_signal_fixtures.py`, `scripts/collect_quality_metrics.py`, `scripts/codebase_knowledge_index.py`
+- **Verification:**
+  - `tests/test_script_fixes_scr018.py` (regression)
+
+> Audit SCR-018 (rest). The provenance traversal part is in #502 and the validation.py empty-list part in #501. layer: test-suite
+
+#### `REG-1611` — jsonschema and cryptography tests fail in CI when the dependency is missing
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+The registry-schema, QE-skill, ID-allocation and API-signer tests import jsonschema and cryptography through required_import.require, which skips only when CI is unset; in CI a missing module fails collection.
+
+- **If violated:** pytest.importorskip turned a broken CI install into skips, so security and quality tests stopped running while the job stayed green.
+- **Owned by:** `tests/required_import.py`
+- **Verification:**
+  - `tests/test_required_import_in_ci.py` (regression)
+
+> Audit TSA-07 (rest). The arch-baseline skip is in #502. py_ecc stays optional: it is not in requirements.txt. layer: test-suite
 
 #### `REG-1700` — The CI TimescaleDB service and scripts/timescaledb.sh pin the image by digest
 
@@ -2902,6 +3603,35 @@ The CPU-index torch pre-pass in rag-ingest.yml carries exactly the torch spec re
   - `tests/test_phase7_ops_findings.py` (regression)
 
 > Audit OPS-011 leftover after #509: rag-ingest.yml kept torch>=2.3. nightly-quality.yml has the same drift but is in open PR #507 and is fixed after it merges. layer: test-suite
+
+#### `SEC-1130` — The git guard sees nested, aliased and repeated guarded operations
+
+**VERIFIED** · high · security_regression · source: OPS-2026-10-25
+
+Guarded Git operations are detected inside backtick substitutions, xargs, find -exec/-execdir, inline -c alias.* and configured aliases, and every occurrence of an operation spends its own single-use authorization; the guard applies only while a task is active (the irreversible forms stay refused by common.command_schema regardless).
+
+- **If violated:** An agent runs checkout, reset, clean or a force push through a shell form the guard does not parse, or chains the same operation behind one authorization, losing uncommitted work without the recorded reason and checkpoint.
+- **Owned by:** `src/agent_control/git_safety.py`, `src/agent_control/workspace.py`
+- **Depends on:** `GOV-061`
+- **Verification:**
+  - `tests/agent_control/test_git_safety.py` (security)
+  - `tests/agent_control/test_hooks.py` (security)
+
+> layer: test-suite
+
+#### `SEC-1131` — The PreToolUse hook fails closed when its guards cannot load or run
+
+**VERIFIED** · high · security_regression · source: OPS-2026-10-25
+
+If common.command_schema cannot be imported the PreToolUse hook denies the call instead of running on stub patterns, and a failure inside the git guard denies the git command instead of allowing it.
+
+- **If violated:** An import or guard error silently disables the CI-log, local-check and git guards, and the fallback patterns (double-escaped) never matched anything.
+- **Owned by:** `.claude/hooks/pre_tool_use.py`
+- **Depends on:** `GOV-061`
+- **Verification:**
+  - `tests/test_pre_tool_use_hook.py` (security)
+
+> layer: test-suite
 
 ## Terminal and process center
 
@@ -3095,4 +3825,4 @@ To add or change an entry, edit the registry and regenerate this file. See
 `docs/quality/TEST_STRATEGY.md` for the taxonomy the `test_type` column draws
 on, and `docs/quality/IMPLEMENTATION_PLAN.md` for what each phase delivers.
 
-Registry version: 1.0.0 — 238 entries.
+Registry version: 1.0.0 — 294 entries.

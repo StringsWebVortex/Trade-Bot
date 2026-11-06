@@ -401,6 +401,7 @@ class ConsensusLayer:
         outputs: list[EngineOutput],
         regime: str,
         entropy_score: float = 0.5,
+        spot: float | None = None,
     ) -> ConsensusResult:
         if not outputs:
             return ConsensusResult(
@@ -417,11 +418,13 @@ class ConsensusLayer:
         # Check circuit breaker
         e16 = next((o for o in outputs if o.engine_id == "E-16"), None)
         if self._circuit_breaker.check(e16):
-            spot = outputs[0].predicted_price
+            # Fall back to E-01's forecast only when the caller supplied no
+            # real spot (STR-11).
+            hold = float(spot) if spot is not None and spot > 0 else outputs[0].predicted_price
             return ConsensusResult(
-                consensus_price=spot,
-                ci_low=spot,
-                ci_high=spot,
+                consensus_price=hold,
+                ci_low=hold,
+                ci_high=hold,
                 agreement_score=0.0,
                 outlier_ids=[],
                 spoof_penalty_applied=True,
@@ -433,14 +436,19 @@ class ConsensusLayer:
         spoof_conf = e16.metadata.get("spoof_confidence", 0.0) if e16 else 0.0
         spoof_penalty = float(spoof_conf)
 
-        # Halve outlier engine weights (Chauvenet)
-        outlier_ids = chauvenet_outliers(outputs)
+        # Dispersion statistics describe engines that actually forecast:
+        # an abstention (confidence 0) carries spot as its price and would
+        # bias agreement toward 1 and hide real outliers (STR-11).
+        informative = [o for o in outputs if o.confidence > 0] or outputs
+
+        # Outliers (Chauvenet-style) are reported only; they are not re-weighted.
+        outlier_ids = chauvenet_outliers(informative)
 
         price, weights = compute_consensus_price(outputs, regime, spoof_penalty)
         ci_low, ci_high = bootstrap_ci(outputs, weights)
-        agreement = compute_agreement_score(outputs)
+        agreement = compute_agreement_score(informative)
 
-        # Dampen all confidences if agreement < 0.5
+        # Low agreement is logged only; confidences are not dampened.
         if agreement < 0.5:
             log.info("consensus_low_agreement", agreement=agreement)
 

@@ -233,3 +233,15 @@ class TestKillSwitchRestart:
         m.enable_persistence(path)
         m.register_strategy("s1", _baseline())
         assert not m.is_enabled("s1")
+
+    def test_corrupt_file_disables_already_registered_strategies(self) -> None:
+        """A singleton manager may already have strategies when state is loaded."""
+        path = state_file("ks_existing_corrupt")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("garbage", encoding="utf-8")
+        manager = StrategyKillSwitchManager()
+        manager.register_strategy("s1", _baseline())
+        assert manager.is_enabled("s1")
+        manager.enable_persistence(path)
+        assert not manager.is_enabled("s1")
+        assert manager.disabled_reason("s1") == "kill-switch state unreadable, failing closed"
