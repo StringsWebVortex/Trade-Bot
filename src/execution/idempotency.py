@@ -45,6 +45,7 @@ __all__ = [
     "IdempotencyRecord",
     "IdempotencyRegistry",
     "SubmissionState",
+    "attempt_client_order_id",
     "client_order_id_params",
     "derive_idempotency_key",
 ]

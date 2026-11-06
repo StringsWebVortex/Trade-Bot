@@ -11,10 +11,11 @@ audit.
 from __future__ import annotations
 
 import pytest
+from required_import import require
 
 from src.security.api_signer import ApiSigner, SignerAudit, audit_signer
 
-pytest.importorskip("cryptography")
+require("cryptography")
 
 _REQUEST = ("POST", "/v1/audit", '{"probe":true}', 1_700_000_000)
 

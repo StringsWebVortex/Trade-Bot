@@ -728,7 +728,11 @@ class SignalEngine:
         now_ms = int(datetime.now(tz=UTC).timestamp() * 1000)
         last_bar_ts_ms = int(bars.index[-1])
         if now_ms - last_bar_ts_ms < tf_ms:
-            return self._skip("last_bar_not_yet_closed")
+            # EXR-003: slice off the forming bar and trade on the last closed
+            # one instead of skipping the tick.
+            bars = bars.iloc[:-1]
+            if len(bars) < _MIN_BARS_FOR_SIGNAL:
+                return self._skip("insufficient_bars")
 
         # DATA-001 / INV-008: the data-quality gate, wired.
         #
@@ -884,9 +888,10 @@ class SignalEngine:
             return self._skip("insufficient_features_with_ofi")
 
         # Extract GARCH vol early so it can feed both Kelly sizing and SignalContext.
+        _gv_src = fm.features_all if fm.features_all is not None else fm.features
         _garch_vol_early = (
-            float(fm.features[COL_GARCH_VOL].iloc[-1])
-            if COL_GARCH_VOL in fm.features.columns and fm.features[COL_GARCH_VOL].iloc[-1] > 0
+            float(_gv_src[COL_GARCH_VOL].iloc[-1])
+            if COL_GARCH_VOL in _gv_src.columns and _gv_src[COL_GARCH_VOL].iloc[-1] > 0
             else 0.0
         )
 
@@ -902,10 +907,13 @@ class SignalEngine:
 
         # Regime history DataFrame — full feature matrix (>=50 rows required)
         history_df: pd.DataFrame | None = None
-        if len(fm.features) >= 50:
-            cols = [c for c in FEATURE_COLUMNS if c in fm.features.columns]
+        # DAT-001: contiguous, label-independent history (not the gapped
+        # labelled frame, which drops time exits and the newest bars).
+        _hist_src = fm.features_all if fm.features_all is not None else fm.features
+        if len(_hist_src) >= 50:
+            cols = [c for c in FEATURE_COLUMNS if c in _hist_src.columns]
             if len(cols) >= 3:
-                history_df = fm.features[cols]
+                history_df = _hist_src[cols]
 
         # 6. Direction prediction — read models under lock (fix #14)
         async with self._model_lock:

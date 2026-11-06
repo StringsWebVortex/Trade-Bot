@@ -8,6 +8,8 @@ existing suite only reached their abstain guards.
 
 from __future__ import annotations
 
+import json
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -211,7 +213,11 @@ class TestE17:
         from src.engines.e17_liquidity import E17Liquidity
 
         df = make_ohlcv()
-        data = {"ohlcv": df, "spot": float(df["close"].iloc[-1]), "bids": _bids()}
+        spot = float(df["close"].iloc[-1])
+        book = pd.DataFrame(
+            {"bids_json": [json.dumps([[b["price"], b["size"]] for b in _bids(spot)])]}
+        )
+        data = {"ohlcv": df, "spot": spot, "orderbook": book}
         out = await E17Liquidity().run("BTC/USDT", data)
 
         assert out.direction == 0  # liquidity stress is not directional

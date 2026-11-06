@@ -54,7 +54,6 @@ class RegimePredictionLike(Protocol):
 # Strategy identifiers returned by the selector
 STRATEGY_MEAN_REVERSION: Final[str] = "mean_reversion"
 STRATEGY_BREAKOUT: Final[str] = "breakout"
-STRATEGY_FUNDING_CARRY: Final[str] = "funding_carry"
 STRATEGY_NEUTRAL: Final[str] = "neutral"
 
 # Default thresholds
@@ -92,7 +91,6 @@ def select_strategy(
     min_confidence: float = _DEFAULT_MIN_CONFIDENCE,
     max_entropy: float = _DEFAULT_MAX_ENTROPY,
     transition_guard: bool = _DEFAULT_TRANSITION_GUARD,
-    allow_funding_carry: bool = True,
 ) -> StrategySelection:
     """
     Select the appropriate trading strategy for the current regime.
@@ -109,8 +107,6 @@ def select_strategy(
     min_confidence  : below this threshold, return NEUTRAL (uncertain regime).
     max_entropy     : above this threshold, return NEUTRAL (high uncertainty).
     transition_guard: when True, return NEUTRAL during detected transitions.
-    allow_funding_carry: when True, funding_carry is available as an overlay
-                      in trending or ranging (not volatile) regimes.
 
     Returns
     -------
@@ -238,7 +234,6 @@ def select_strategy_from_prediction(
     min_confidence: float = _DEFAULT_MIN_CONFIDENCE,
     max_entropy: float = _DEFAULT_MAX_ENTROPY,
     transition_guard: bool = _DEFAULT_TRANSITION_GUARD,
-    allow_funding_carry: bool = True,
 ) -> StrategySelection:
     """
     Convenience wrapper accepting an EnsembleRegimePrediction directly.
@@ -260,7 +255,6 @@ def select_strategy_from_prediction(
         min_confidence=min_confidence,
         max_entropy=max_entropy,
         transition_guard=transition_guard,
-        allow_funding_carry=allow_funding_carry,
     )
 
 

@@ -1218,10 +1218,21 @@ def _raw_to_bar_records(
     ccxt format: [timestamp_ms, open, high, low, close, volume]
     Extended Binance format includes quote_volume and taker_buy_vol at indices 6-7
     when fetched with params={'quoteVolume': True} — handled gracefully.
+
+    DAT-002 / EXR-003: the candle still forming (``ts + tf_ms > now_ms``) is
+    dropped.  Storage is insert-only and gap_fill resumes after the newest
+    stored bar, so a partial candle kept here would never be corrected.
     """
     records: list[BarRecord] = []
+    try:
+        tf_ms = TIMEFRAME_SECONDS[Timeframe(timeframe)] * 1000
+    except (ValueError, KeyError):
+        tf_ms = 0
+    now_ms = int(datetime.now(tz=UTC).timestamp() * 1000)
     for row in raw:
         if len(row) < 6:
+            continue
+        if tf_ms and int(row[0]) + tf_ms > now_ms:
             continue
         records.append(
             BarRecord(

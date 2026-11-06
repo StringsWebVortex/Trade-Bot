@@ -198,12 +198,17 @@ class TestTimeframeLoop:
         orch = _make_orch()
         orch._running = True
 
-        with patch.object(
-            orch, "_sleep_until_next_bar", new=AsyncMock(side_effect=asyncio.CancelledError)
+        sleep = AsyncMock(side_effect=asyncio.CancelledError)
+        tick = AsyncMock()
+        with (
+            patch.object(orch, "_sleep_until_next_bar", new=sleep),
+            patch.object(orch, "_tick", tick),
         ):
             # CancelledError is caught inside the loop, which then breaks — no exception propagates
             await orch._timeframe_loop(Timeframe.INTRADAY)
-        # Reaching here means the loop exited cleanly
+
+        sleep.assert_awaited_once()
+        tick.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_timeframe_loop_error_then_stops(self):
@@ -271,6 +276,11 @@ class TestTickUncoveredBranches:
             ),
         ):
             await orch._tick(Timeframe.INTRADAY)
+
+        # Both stored gates passed, so the engine is told both pass.
+        gates = mock_engine.tick.await_args.kwargs
+        assert gates["direction_gate_pass"] is True
+        assert gates["meta_gate_pass"] is True
 
     @pytest.mark.asyncio
     async def test_tick_with_latest_close_updates_correlation(self):
@@ -602,6 +612,9 @@ class TestTickUpdateMetricsFailure:
     async def test_update_metrics_exception_is_swallowed(self):
         orch = _make_orch()
         executor = _make_executor()
+        # open_positions() is sync; an AsyncMock child would hand the payload a
+        # coroutine, which failed before update_metrics was ever reached.
+        executor.open_positions = MagicMock(return_value=[])
         orch._executor = executor
         orch._storage = _make_storage()
         orch._tick_counts = {Timeframe.INTRADAY.value: 0}
@@ -622,9 +635,14 @@ class TestTickUpdateMetricsFailure:
             patch(
                 "src.engine.orchestrator.compute_win_loss_stats", return_value=(0, 0.0, 0.0, 0.0)
             ),
-            patch("src.engine.orchestrator.update_metrics", side_effect=RuntimeError("prom down")),
+            patch(
+                "src.engine.orchestrator.update_metrics", side_effect=RuntimeError("prom down")
+            ) as metrics,
         ):
             await orch._tick(Timeframe.INTRADAY)  # must not raise
+
+        metrics.assert_called_once()
+        mock_engine.tick.assert_awaited_once()
 
 
 # ---------------------------------------------------------------------------
@@ -735,7 +753,7 @@ class TestPositionMonitorDriftRecordOnClose:
 
     @pytest.mark.asyncio
     async def test_drift_record_exception_is_logged_not_raised(self):
-        orch, _executor = self._make_orch_with_position()
+        orch, executor = self._make_orch_with_position()
         orch._drift_adapter.record_closed_trade = AsyncMock(side_effect=RuntimeError("boom"))
 
         async def _fake_sleep(_s):
@@ -750,6 +768,9 @@ class TestPositionMonitorDriftRecordOnClose:
             ),
         ):
             await orch._position_monitor_loop()  # must not raise
+
+        orch._drift_adapter.record_closed_trade.assert_awaited_once()
+        executor.close_position.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_no_drift_detector_skips_record(self):
@@ -1267,6 +1288,10 @@ class TestPositionMonitorRemainingBranches:
         ):
             await orch._position_monitor_loop()  # must not raise
 
+        executor.close_position.assert_awaited_once_with(
+            trade_id="t1", exit_price=50_000.0, exit_reason="stop_loss"
+        )
+
     @pytest.mark.asyncio
     async def test_close_position_generic_exception_logged(self):
         orch = self._make_orch()
@@ -1463,7 +1488,10 @@ class TestMonitorPositionsFor:
             ),
         ):
             await orch._monitor_positions_for(executor, price=50_000.0)
-        # No exception raised — KeyError swallowed
+
+        executor.close_position.assert_awaited_once_with(
+            trade_id="t1", exit_price=50_000.0, exit_reason="stop_loss"
+        )
 
     @pytest.mark.asyncio
     async def test_generic_exception_during_close_is_logged_not_raised(self):
@@ -1492,7 +1520,10 @@ class TestMonitorPositionsFor:
             ),
         ):
             await orch._monitor_positions_for(executor, price=50_000.0)
-        # RuntimeError swallowed — loop continues
+
+        executor.close_position.assert_awaited_once_with(
+            trade_id="t2", exit_price=50_000.0, exit_reason="profit_target"
+        )
 
     @pytest.mark.asyncio
     async def test_no_exit_reason_does_not_call_close(self):
