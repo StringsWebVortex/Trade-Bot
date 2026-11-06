@@ -1,5 +1,5 @@
 import { usePolling } from '../../hooks/useApi';
-import { Toggle } from '../Controls';
+import { Toggle, ActionButton } from '../Controls';
 import { fmt } from '../../utils/format';
 
 export function SelfTuningPanel({ action }) {
@@ -63,13 +63,14 @@ export function SelfTuningPanel({ action }) {
                     {p.probation_status?.replace(/_/g, ' ')}
                   </td>
                   <td>
-                    <button
+                    <ActionButton
                       className="btn btn-red"
                       style={{ padding: '2px 8px', fontSize: 9 }}
-                      onClick={() => action(`/self-tuning/rollback/${encodeURIComponent(p.name)}`, 'POST', {})}
+                      confirmMessage={`Roll back ${p.name}?`}
+                      onAction={() => action(`/self-tuning/rollback/${encodeURIComponent(p.name)}`, 'POST', {})}
                     >
                       Rollback
-                    </button>
+                    </ActionButton>
                   </td>
                 </tr>
               ))}

@@ -143,6 +143,11 @@ async def test_shutdown_with_no_positions():
     ex._storage.latest_equity = AsyncMock(return_value=None)
     await ex.shutdown()
 
+    ex._storage.insert_equity.assert_awaited_once()
+    record = ex._storage.insert_equity.await_args.args[0]
+    assert record.cash_usd == 100_000.0
+    assert record.unrealized_pnl == 0.0
+
 
 @pytest.mark.asyncio
 async def test_shutdown_with_open_positions():
@@ -151,6 +156,11 @@ async def test_shutdown_with_open_positions():
     ex._storage.insert_equity = AsyncMock()
     ex._storage.latest_equity = AsyncMock(return_value=None)
     await ex.shutdown()
+
+    ex._storage.insert_equity.assert_awaited_once()
+    assert ex._storage.insert_equity.await_args.args[0].cash_usd == 90_000.0
+    # Shutdown reports open positions; it never closes them.
+    assert list(ex._positions) == ["t1"]
 
 
 # ---------------------------------------------------------------------------

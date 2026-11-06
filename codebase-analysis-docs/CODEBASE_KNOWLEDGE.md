@@ -513,11 +513,11 @@ Use these anchors with the matching current hash in codebase-analysis-docs/CHUNK
 - API key validation and role selection: [[F:src/api/auth.py#94-133#c9a226cf]]
 - Primary configuration model: [[F:src/config.py#1013-1050#566fc015]]
 - Atomic live risk-control update: [[F:src/config.py#1419-1458#566fc015]]
-- Main orchestrator startup: [[F:src/engine/orchestrator.py#433-470#10c49738]]
-- Main trading tick: [[F:src/engine/orchestrator.py#1195-1232#10c49738]]
-- Retraining and model routing: [[F:src/engine/orchestrator.py#1963-2000#10c49738]]
+- Main orchestrator startup: [[F:src/engine/orchestrator.py#433-470#144441a5]]
+- Main trading tick: [[F:src/engine/orchestrator.py#1195-1232#144441a5]]
+- Retraining and model routing: [[F:src/engine/orchestrator.py#1963-2000#144441a5]]
 - Signal computation: [[F:src/engine/signal_engine.py#663-700#c4c078db]]
-- Training features and labels: [[F:src/features/pipeline.py#771-808#32403b07]]
+- Training features and labels: [[F:src/features/pipeline.py#779-816#bcd874ac]]
 - Ordered first-failure risk evaluation: [[F:src/risk/gates.py#669-706#36a7f38f]]
 - Order state machine: [[F:src/execution/order_fsm.py#149-186#14f635a5]]
 - SQLite initialization/migrations: [[F:src/data/storage.py#745-761#b1db7068]]
@@ -526,7 +526,7 @@ Use these anchors with the matching current hash in codebase-analysis-docs/CHUNK
 - Runtime discovery/reconciliation: [[F:src/runtime/production.py#266-303#55696d76]]
 - Browser transport handshake and dispatch: [[F:src/terminal/server.py#218-230#10681519]]
 - Headless runtime ownership: [[F:src/workers/trader.py#53-90#687738d8]]
-- Positional E-01…E-18 orchestration: [[F:src/engines/orchestrator.py#311-348#cc2c5110]]
+- Positional E-01…E-18 orchestration: [[F:src/engines/orchestrator.py#308-345#5384b7a9]]
 
 **Decisions / findings:** these anchors point into inspected source files by relative path, inclusive line range and full-file hash prefix.  
 **Open questions:** any source modification can shift ranges or invalidate a hash.  

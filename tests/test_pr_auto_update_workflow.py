@@ -11,6 +11,7 @@ touches only branches that are genuinely stale.
 Decides:
   - GOV-017 — The last manual step in the merge path presses itself, one pull request at a tim
   - GOV-029 — A conflict confined to generated files resolves itself, and is gated before it is pushed
+  - SEC-1020 — The auto-resolve job never exposes its PAT to pull-request branch code
 """
 
 from __future__ import annotations
@@ -166,7 +167,7 @@ def resolve(spec: dict) -> dict:
 
 @pytest.fixture(scope="module")
 def resolve_script(resolve: dict) -> str:
-    (only,) = [s for s in resolve["steps"] if "run" in s]
+    (only,) = [s for s in resolve["steps"] if s.get("id") == "merge"]
     return only["run"]
 
 
@@ -214,8 +215,23 @@ class TestResolveNext:
         workflow run, so the pull request would end up resolved, green against
         its previous head, and unmergeable.
         """
+        (push,) = [s for s in resolve["steps"] if s.get("name") == "Push"]
+        assert push["env"]["PAT"] == "${{ secrets.PR_AUTOUPDATE_TOKEN }}"
+
+    def test_the_pat_never_meets_branch_code(self, resolve):
+        """
+        OPS-001: this job runs scripts taken from the pull request branch, so
+        the PAT must not be persisted by checkout nor present in any step that
+        runs them. Only the final push step may hold it.
+        """
         (checkout,) = [s for s in resolve["steps"] if "actions/checkout" in s.get("uses", "")]
-        assert checkout["with"]["token"] == "${{ secrets.PR_AUTOUPDATE_TOKEN }}"
+        assert checkout["with"]["persist-credentials"] is False
+        assert "token" not in checkout["with"]
+        holders = [s for s in resolve["steps"] if "PR_AUTOUPDATE_TOKEN" in str(s)]
+        assert [s.get("name") for s in holders] == ["Push"]
+        (push,) = holders
+        assert ".py" not in push["run"]
+        assert resolve["steps"][-1] is push
 
     def test_it_checks_out_the_whole_history(self, resolve):
         """A merge needs the merge base, and a shallow checkout has not got it."""
@@ -284,7 +300,8 @@ class TestResolveNext:
         through the strict loader, which is what catches that; a push before
         the gate would put it on the head branch and eventually on main.
         """
-        assert resolve_script.rindex("git push origin") > resolve_script.index("qe_gate.py")
+        assert "git push" not in resolve_script
+        assert resolve_script.rindex("push=true") > resolve_script.index("qe_gate.py")
 
     def test_a_clean_merge_is_gated_too(self, resolve_script):
         """
@@ -293,7 +310,7 @@ class TestResolveNext:
         never saw a conflict must reach the same gate -- there is exactly one
         `git push` to the head branch, and it is after the gate.
         """
-        assert resolve_script.count("git push origin") == 1
+        assert resolve_script.count("push=true") == 1
 
     def test_a_refused_gate_pushes_nothing(self, resolve_script):
         """

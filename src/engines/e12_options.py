@@ -7,6 +7,7 @@ Gap G-05: LTC/XMR → returns None; consensus redistributes weight to E-01.
 
 from __future__ import annotations
 
+from collections import defaultdict
 from datetime import UTC, datetime
 
 import pandas as pd
@@ -79,7 +80,8 @@ def max_pain(options_df: pd.DataFrame) -> float:
 class E12Options:
     def __init__(self, horizon_hours: int = 4) -> None:
         self._horizon = horizon_hours
-        self._max_hist_skew: float = 0.1
+        # Per-symbol running max |skew| used for normalisation (STR-10).
+        self._max_hist_skew: defaultdict[str, float] = defaultdict(lambda: 0.1)
 
     async def run(self, symbol: str, data: dict) -> EngineOutput:
         spot: float = data.get("spot", 0.0)
@@ -102,8 +104,8 @@ class E12Options:
             mp = max_pain(options_df)
 
             # Update historical max skew for normalization
-            self._max_hist_skew = max(self._max_hist_skew, abs(skew))
-            confidence = float(abs(skew) / (self._max_hist_skew + 1e-9))
+            self._max_hist_skew[symbol] = max(self._max_hist_skew[symbol], abs(skew))
+            confidence = float(abs(skew) / (self._max_hist_skew[symbol] + 1e-9))
 
             direction = 1 if pc < 0.8 else (-1 if pc > 1.2 else 0)
 

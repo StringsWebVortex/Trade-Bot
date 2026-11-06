@@ -24,6 +24,8 @@ from __future__ import annotations
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
 
 import structlog
 
@@ -39,6 +41,7 @@ from src.risk.performance_drift import (
     PerformanceBaseline,
     PerformanceDriftDetector,
 )
+from src.risk.state_persistence import StateUnreadableError, load_state, save_state
 from src.risk.strategy_decay import CusumDecayDetector
 from src.tuning.promotion_gauntlet import (
     GauntletCriteria,
@@ -92,6 +95,64 @@ class StrategyKillSwitchManager:
 
     def __init__(self) -> None:
         self._states: dict[str, StrategyRuntimeState] = {}
+        # EXR-013: disabled-strategy state survives a restart once a path is set.
+        self._state_path: Path | None = None
+        self._persisted_disabled: dict[str, dict[str, Any]] = {}
+        self._state_unreadable: bool = False
+
+    def enable_persistence(self, path: Path) -> None:
+        """Load previously disabled strategies from *path* and persist future changes.
+
+        Call before register_strategy(). An unreadable file disables every
+        strategy registered afterwards (fail closed).
+        """
+        self._state_path = path
+        self._persisted_disabled = {}
+        self._state_unreadable = False
+        try:
+            state = load_state(path)
+            if state is not None:
+                disabled = state["disabled"]
+                if not isinstance(disabled, dict):
+                    raise StateUnreadableError("disabled is not an object")
+                self._persisted_disabled = {str(k): dict(v) for k, v in disabled.items()}
+        except (StateUnreadableError, KeyError, TypeError, ValueError) as exc:
+            self._state_unreadable = True
+            log.critical("strategy_kill_switch.state_unreadable", error=str(exc))
+        if self._state_unreadable:
+            # The manager is process-wide and can already contain strategies
+            # when persistence is reconfigured (for example, a second
+            # orchestrator startup). Fail closed for those existing entries
+            # too; protecting only subsequently registered strategies leaves
+            # an already-live strategy able to trade through corrupt state.
+            for state_obj in self._states.values():
+                state_obj.enabled = False
+                state_obj.disabled_reason = "kill-switch state unreadable, failing closed"
+        else:
+            for sid, entry in self._persisted_disabled.items():
+                state_obj = self._states.get(sid)
+                if state_obj is not None:
+                    self._apply_persisted(state_obj, entry)
+
+    @staticmethod
+    def _apply_persisted(state: StrategyRuntimeState, entry: dict[str, Any]) -> None:
+        state.enabled = False
+        state.disabled_reason = str(entry.get("reason", "disabled before restart"))
+        state.disabled_at_ms = int(entry.get("at_ms", 0))
+
+    def _persist(self) -> None:
+        if self._state_path is None:
+            return
+        disabled = {
+            sid: {"reason": st.disabled_reason, "at_ms": st.disabled_at_ms}
+            for sid, st in self._states.items()
+            if not st.enabled
+        }
+        # Entries for strategies not registered yet must not be lost.
+        for sid, entry in self._persisted_disabled.items():
+            if sid not in self._states:
+                disabled[sid] = entry
+        save_state(self._state_path, {"disabled": disabled})
 
     def register_strategy(self, strategy_id: str, baseline: PerformanceBaseline) -> None:
         if strategy_id in self._states:
@@ -107,6 +168,12 @@ class StrategyKillSwitchManager:
             decay_detector=CusumDecayDetector(baseline_mean=baseline.oos_sharpe),
         )
         log.info("strategy_kill_switch.registered", strategy_id=strategy_id)
+        if strategy_id in self._persisted_disabled:
+            self._apply_persisted(self._states[strategy_id], self._persisted_disabled[strategy_id])
+        elif self._state_unreadable:
+            st = self._states[strategy_id]
+            st.enabled = False
+            st.disabled_reason = "kill-switch state unreadable, failing closed"
 
     def record_trade_outcome(
         self,
@@ -215,6 +282,7 @@ class StrategyKillSwitchManager:
         state.enabled = False
         state.disabled_reason = reason
         state.disabled_at_ms = now_ms
+        self._persist()
         log.warning(
             "strategy_kill_switch.disabled",
             strategy_id=strategy_id,
@@ -366,6 +434,8 @@ class StrategyKillSwitchManager:
         state.enabled = True
         state.disabled_reason = ""
         state.disabled_at_ms = 0
+        self._persisted_disabled.pop(strategy_id, None)
+        self._persist()
         log_fn = log.warning if force else log.info
         log_fn(
             "strategy_kill_switch.re_enabled",
