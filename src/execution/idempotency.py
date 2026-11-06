@@ -173,7 +173,11 @@ def attempt_client_order_id(idempotency_key: str, attempt: int) -> str:
     """
     if attempt <= 0:
         return idempotency_key
-    return f"{idempotency_key[:-2]}{attempt % 100:02d}"
+    # Keep the 32-character cross-venue limit while avoiding the 100-attempt
+    # wraparound collision caused by a two-digit decimal suffix. A 40-bit
+    # digest suffix makes collisions negligible for practical retry counts.
+    suffix = hashlib.sha256(f"{idempotency_key}:{attempt}".encode()).hexdigest()[:10]
+    return f"{idempotency_key[: KEY_MAX_LEN - len(suffix)]}{suffix}"
 
 
 def client_order_id_params(

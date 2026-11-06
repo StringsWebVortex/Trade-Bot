@@ -525,6 +525,44 @@ class TestClosePosition:
         assert "trade-s" not in ex._positions
 
     @pytest.mark.asyncio
+    async def test_partial_close_tracks_residual_and_aggregates_final_pnl(self):
+        ex = _make_executor(cash=95_000.0)
+        pos = _make_position(
+            trade_id="trade-partial",
+            entry_price=50_000.0,
+            quantity=0.1,
+            notional_usd=5_000.0,
+            direction=1,
+        )
+        ex._positions[pos.trade_id] = pos
+        ex._place_market_order = AsyncMock(
+            side_effect=[
+                _filled_order(price=51_000.0, qty=0.04, fee_usd=1.02),
+                _filled_order(price=52_000.0, qty=0.06, fee_usd=1.56),
+            ]
+        )
+        ex._storage.update_trade_exit = AsyncMock()
+        ex._storage.insert_equity = AsyncMock()
+
+        with pytest.raises(RuntimeError, match="remains open and tracked"):
+            await ex.close_position(pos.trade_id, exit_price=51_000.0, exit_reason="sl")
+
+        assert ex._positions[pos.trade_id] is pos
+        assert pos.quantity == pytest.approx(0.06)
+        assert pos.notional_usd == pytest.approx(3_000.0)
+        assert pos.fee_usd == pytest.approx(1.5)
+        assert pos.realized_partial_pnl_usd == pytest.approx(37.98)
+        assert ex.cash_usd == pytest.approx(97_038.98)
+        ex._storage.update_trade_exit.assert_not_awaited()
+
+        net_pnl = await ex.close_position(pos.trade_id, exit_price=52_000.0, exit_reason="sl")
+        assert net_pnl == pytest.approx(154.92)
+        assert pos.trade_id not in ex._positions
+        ex._storage.update_trade_exit.assert_awaited_once()
+        assert ex._storage.update_trade_exit.await_args.kwargs["fee_usd"] == pytest.approx(2.58)
+        assert ex._storage.update_trade_exit.await_args.kwargs["pnl_pct"] == pytest.approx(0.030984)
+
+    @pytest.mark.asyncio
     async def test_exchange_error_propagates_position_intact(self):
         import ccxt
 

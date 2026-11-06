@@ -112,6 +112,11 @@ class LivePosition:
     unrealized_pnl: float = field(default=0.0)
     current_price: float = field(default=0.0)
     peak_unrealized_pct: float = field(default=0.0)
+    # Partial exits are realized immediately but remain part of this trade's
+    # eventual persisted outcome until the residual quantity is closed.
+    realized_partial_pnl_usd: float = field(default=0.0)
+    realized_partial_exit_fee_usd: float = field(default=0.0)
+    realized_partial_notional_usd: float = field(default=0.0)
 
     def mark(self, price: float) -> float:
         self.current_price = price
@@ -626,20 +631,6 @@ class LiveExecutor(AbstractExecutor):
                     f"Close order for {pos.symbol} ({trade_id}) filled 0; position not closed."
                 )
 
-            if filled_qty < pos.quantity * 0.999:
-                # Booking the whole position closed on a partial fill leaves
-                # untracked residual exposure. Splitting the position is a
-                # larger change than this path can safely make mid-close, so
-                # the discrepancy is surfaced rather than buried.
-                self._log.critical(
-                    "live.close_order_partial_fill_UNTRACKED_RESIDUAL",
-                    trade_id=trade_id,
-                    symbol=pos.symbol,
-                    requested_qty=pos.quantity,
-                    filled_qty=filled_qty,
-                    residual_qty=pos.quantity - filled_qty,
-                    action="position booked closed at the filled size; residual is untracked",
-                )
             exchange_fee = self._extract_fee(order, actual_exit_price, filled_qty)
 
             exit_ts = int(datetime.now(tz=UTC).timestamp() * 1000)
@@ -649,14 +640,68 @@ class LiveExecutor(AbstractExecutor):
             else:
                 gross_pnl = (pos.entry_price - actual_exit_price) * filled_qty
 
-            # Both legs. pos.fee_usd is the fee the exchange charged on entry;
-            # leaving it out overstated every recorded trade by half its
-            # round-trip cost, and that number drives compute_win_loss_stats
-            # into Kelly, the Sharpe and Sortino behind capital allocation,
-            # and the out-of-sample bar the live gate checks.
-            total_fee = pos.fee_usd + exchange_fee
-            net_pnl = gross_pnl - total_fee
-            pnl_pct = net_pnl / pos.notional_usd if pos.notional_usd > 0 else 0.0
+            if filled_qty < pos.quantity * 0.999:
+                # A cancelled/expired order can still have a real partial fill.
+                # Reduce the in-memory position and release only the closed
+                # portion of its cost basis; never delete the residual or
+                # credit the full original notional to cash.
+                fraction = filled_qty / pos.quantity
+                closed_notional = pos.notional_usd * fraction
+                allocated_entry_fee = pos.fee_usd * fraction
+                partial_net_pnl = gross_pnl - allocated_entry_fee - exchange_fee
+                remaining_fraction = 1.0 - fraction
+                async with self._lock:
+                    pos.quantity -= filled_qty
+                    pos.notional_usd -= closed_notional
+                    pos.fee_usd -= allocated_entry_fee
+                    pos.realized_partial_pnl_usd += partial_net_pnl
+                    pos.realized_partial_exit_fee_usd += exchange_fee
+                    pos.realized_partial_notional_usd += closed_notional
+                    pos.unrealized_pnl *= remaining_fraction
+                    self._cash += closed_notional + gross_pnl - exchange_fee
+                    equity = self._equity_usd()
+                    self._peak_equity = max(self._peak_equity, equity)
+                    self._drawdown_tracker.update(equity)
+                    snap_unrealized = sum(p.unrealized_pnl for p in self._positions.values())
+                    snap_cash = self._cash
+                    snap_equity = equity
+                    snap_daily_pnl = self._drawdown_tracker.daily_pnl_usd
+                    snap_daily_pct = self._drawdown_tracker.daily_pnl_pct
+                    snap_dd_pct = self._drawdown_tracker.drawdown_from_peak_pct
+                    snap_peak = self._peak_equity
+
+                await self._snapshot_equity_with_values(
+                    equity=snap_equity,
+                    cash=snap_cash,
+                    unrealized=snap_unrealized,
+                    daily_pnl=snap_daily_pnl,
+                    daily_pct=snap_daily_pct,
+                    dd_pct=snap_dd_pct,
+                    peak_equity=snap_peak,
+                )
+                self._log.warning(
+                    "live.position_partially_closed",
+                    trade_id=trade_id,
+                    symbol=pos.symbol,
+                    filled_qty=filled_qty,
+                    remaining_qty=pos.quantity,
+                    realized_partial_pnl_usd=round(partial_net_pnl, 8),
+                    action="residual position retained; next close targets remaining quantity",
+                )
+                # The orchestrator must not count this as a completed trade or
+                # feed a partial outcome to drift/kill-switch accounting.
+                raise RuntimeError(
+                    f"Close for {pos.symbol} ({trade_id}) partially filled {filled_qty}; "
+                    f"{pos.quantity} remains open and tracked."
+                )
+
+            # The entry fee for the remaining quantity plus all exit fees are
+            # included exactly once. The database already contains the entry
+            # fee, so update_trade_exit receives exit fees only.
+            total_exit_fee = pos.realized_partial_exit_fee_usd + exchange_fee
+            net_pnl = pos.realized_partial_pnl_usd + gross_pnl - pos.fee_usd - exchange_fee
+            original_notional = pos.notional_usd + pos.realized_partial_notional_usd
+            pnl_pct = net_pnl / original_notional if original_notional > 0 else 0.0
 
             async with self._lock:
                 self._positions.pop(trade_id, None)
@@ -684,7 +729,7 @@ class LiveExecutor(AbstractExecutor):
                 pnl_pct=round(pnl_pct, 8),
                 exit_reason=exit_reason,
                 # Both legs, matching pnl_usd above.
-                fee_usd=round(total_fee, 8),
+                fee_usd=round(total_exit_fee, 8),
             )
             await self._snapshot_equity_with_values(
                 equity=snap_equity,
