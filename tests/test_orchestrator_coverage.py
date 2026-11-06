@@ -1371,19 +1371,26 @@ class TestTickCorrelationFallback:
 
     @pytest.mark.asyncio
     async def test_tick_drift_does_not_block_paper_signal(self):
-        """EXR-004: drift is live-only; a drifted detector must not stop paper trading."""
+        """EXR-004: live mode's paper-only secondary timeframe must not drift-halt."""
         orch = self._make_orch()
-        orch._cfg.trading_mode = TradingMode.PAPER
+        # The global mode is LIVE, but this non-primary timeframe is paper-only.
+        orch._cfg.trading_mode = TradingMode.LIVE
+        orch._primary_tf = Timeframe.SCALPING
         executor = _make_executor()
         executor.open_positions_safe = AsyncMock(return_value=[])
-        orch._executor = executor
+        orch._non_primary_executor = executor
+        orch._executor = _make_executor()
 
         signal = MagicMock()
         signal.tradeable = True
         signal.regime = None
         signal.p_long = 0.8
         signal.p_bet = 0.8
+        signal.direction = 1
         signal.kelly_result = MagicMock()
+        signal.kelly_result.entry_price = 65_000.0
+        signal.ensemble_point_estimate = None
+        executor.submit_signal = AsyncMock(return_value=("paper-trade", "opened"))
         engine = AsyncMock()
         engine.tick = AsyncMock(return_value=signal)
         orch._engines[Timeframe.INTRADAY.value] = engine
@@ -1407,6 +1414,7 @@ class TestTickCorrelationFallback:
             await orch._tick(Timeframe.INTRADAY)
 
         chk.assert_not_called()
+        executor.submit_signal.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_drift_triggers_retrain_task(self):

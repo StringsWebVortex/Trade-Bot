@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import json
 import os
 import tempfile
@@ -299,7 +300,8 @@ class HorizonMLPExpert:
             raise ValueError("horizon model artifact provenance is incomplete")
         if provenance.artifact_sha256 != manifest.get("sha256"):
             raise ValueError("horizon model provenance checksum mismatch")
-        artifact = joblib.load(artifact_path)
+        # INT-010: deserialize the exact bytes that were hashed, never re-read.
+        artifact = joblib.load(io.BytesIO(payload))
         if artifact.get("format_version") != 3 or artifact.get("architecture") != "mlp":
             raise ValueError("unsupported horizon model artifact")
         expert = cls(

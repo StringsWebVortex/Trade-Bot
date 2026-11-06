@@ -84,6 +84,7 @@ from src.risk.macro_exposure_budget import (
 from src.risk.performance_drift import PerformanceBaseline, PerformanceDriftDetector
 from src.risk.portfolio_agreement import portfolio_agreement_scalar
 from src.risk.portfolio_correlation import get_portfolio_correlation
+from src.risk.state_persistence import state_file
 from src.risk.strategy_correlation import (
     combined_correlation_scalar,
     get_strategy_correlation,
@@ -257,34 +258,60 @@ class _NoBaseline(Exception):
 
 
 def baseline_from_training(result: Any) -> PerformanceBaseline | None:
-    """
-    Build the drift/kill-switch baseline from a measured CPCV TrainingResult.
-
-    Returns None (so callers skip drift + kill-switch registration) when the
-    result is missing or any metric is non-finite / out of range. Only OOS
-    metrics are measured, so the train_* fields reuse them (accuracy doubles
-    as the directional win rate); nothing is a hard-coded default.
-    """
+    """Build a drift baseline from measured CPCV results; return None if invalid."""
     if result is None:
         return None
     try:
         sharpe = float(result.oos_sharpe)
         acc = float(result.accuracy)
         dd = float(result.max_drawdown) / 100.0  # TrainingResult reports percent
-        n = int(result.n_trades)
-        if not all(math.isfinite(v) for v in (sharpe, acc, dd)) or n <= 0:
+        n_raw = float(result.n_trades)
+        if (
+            not all(math.isfinite(v) for v in (sharpe, acc, dd, n_raw))
+            or not 0.0 <= acc <= 1.0
+            or not 0.0 <= dd <= 1.0
+            or n_raw <= 0
+            or not n_raw.is_integer()
+        ):
             return None
+        n = int(n_raw)
         return PerformanceBaseline(
             train_sharpe=sharpe,
             oos_sharpe=sharpe,
             train_accuracy=acc,
             oos_accuracy=acc,
-            train_win_rate=acc,
+            train_win_rate=None,  # CPCV measures directional accuracy, not trade win rate
             max_drawdown_pct=dd,
             trades_in_backtest=n,
         )
-    except (AttributeError, TypeError, ValueError):
+    except (AttributeError, TypeError, ValueError, OverflowError):
         return None
+
+
+def _apply_crypto_box_scale(
+    result: Any,
+    scale: float,
+    price: float,
+    precision: dict[str, float],
+) -> Any:
+    """Shrink the sized order by the crypto-box scale; reject below-minimum size."""
+    kelly = result.kelly_result
+    if kelly is None:
+        return result
+    scale = min(scale, 1.0)
+    if scale >= 1.0:
+        return result
+    reduced = apply_size_scalar(
+        kelly,
+        max(scale, 1e-9),
+        price,
+        amount_precision=precision["amount_precision"],
+        min_amount=precision["min_amount"],
+        min_cost=precision["min_cost"],
+    )
+    if reduced is None:
+        return _dc_replace(result, tradeable=False, skip_reason="crypto_box_size_below_minimum")
+    return _dc_replace(result, kelly_result=reduced)
 
 
 class Orchestrator:
@@ -1457,15 +1484,12 @@ class Orchestrator:
                             cb_signal.direction == 0 or cb_signal.direction == result.direction
                         )
                         scale = cb_signal.kelly_multiplier if direction_match else 0.5
-                        new_adj = max(
-                            0.0,
-                            min(
-                                _entry_kelly.adjusted_fraction * scale,
-                                _entry_kelly.adjusted_fraction,
-                            ),
+                        result = _apply_crypto_box_scale(
+                            result,
+                            scale,
+                            spot or _entry_kelly.entry_price,
+                            getattr(self, "_symbol_precision", _DEFAULT_SYMBOL_PRECISION),
                         )
-                        new_kelly = _dc_replace(_entry_kelly, adjusted_fraction=new_adj)
-                        result = _dc_replace(result, kelly_result=new_kelly)
                     try:
                         from src.diagnostics.audit_trail import get_audit_trail
 
@@ -1568,7 +1592,7 @@ class Orchestrator:
             # paper on drift would stop the run that gathers the evidence.
             drift_status = (
                 self._drift_adapter.check_drift()
-                if self._cfg.trading_mode == TradingMode.LIVE
+                if self._cfg.trading_mode == TradingMode.LIVE and executor is self._executor
                 else {}
             )
             if drift_status.get("drifted"):
@@ -2454,6 +2478,8 @@ class Orchestrator:
         strategies are skipped — startup can run twice in a process.
         """
         manager = get_strategy_kill_switch_manager()
+        # EXR-013: restore strategies disabled before a restart.
+        manager.enable_persistence(state_file("strategy_kill_switch"))
         for strategy in get_default_registry().all():
             try:
                 if manager.is_registered(strategy.strategy_id):

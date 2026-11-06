@@ -170,7 +170,11 @@ def _non_finite_fields(ctx: object) -> list[str]:
         for x in vals:
             if isinstance(x, bool) or not isinstance(x, (int, float)):
                 continue
-            if not math.isfinite(x):
+            try:
+                finite = math.isfinite(x)
+            except OverflowError:
+                finite = False
+            if not finite:
                 bad.append(f.name)
                 break
     return bad

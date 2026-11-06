@@ -44,10 +44,10 @@ def _detector() -> PerformanceDriftDetector:
     return PerformanceDriftDetector(PerformanceBaseline(1.0, 1.0, 0.6, 0.6, 0.55, 0.1, 100))
 
 
-def _record(det, n, prob, direction=1):
+def _record(det, n, prob, direction=1, pnl_usd=10.0):
     for _ in range(n):
         det.record_trade_outcome(
-            pnl_usd=10.0,
+            pnl_usd=pnl_usd,
             predicted_prob=prob,
             actual_direction=direction,
             current_equity=10_000.0,
@@ -74,6 +74,12 @@ def test_nan_prob_skips_accuracy_sample():
     assert len(det._live_predictions) == 0
 
 
+def test_out_of_range_prob_skips_accuracy_sample():
+    det = _detector()
+    _record(det, 3, 1.5, 1)
+    assert len(det._live_predictions) == 0
+
+
 def _result(**kw):
     base = {"oos_sharpe": 1.2, "accuracy": 0.57, "max_drawdown": 8.0, "n_trades": 300}
     base.update(kw)
@@ -85,6 +91,15 @@ def test_baseline_comes_from_measured_metrics():
     assert b is not None
     assert (b.oos_sharpe, b.oos_accuracy, b.trades_in_backtest) == (1.2, 0.57, 300)
     assert b.max_drawdown_pct == pytest.approx(0.08)
+    assert b.train_win_rate is None  # CPCV does not measure trade win rate
+
+
+def test_unmeasured_win_rate_does_not_create_a_false_drift_halt():
+    baseline = baseline_from_training(_result())
+    assert baseline is not None
+    detector = PerformanceDriftDetector(baseline)
+    _record(detector, 30, 0.7, 1, pnl_usd=-10.0)
+    assert detector._check_winrate_drift().drifted is False
 
 
 @pytest.mark.parametrize(
@@ -94,6 +109,7 @@ def test_baseline_comes_from_measured_metrics():
         object(),
         _result(oos_sharpe=float("nan")),
         _result(accuracy=float("inf")),
+        _result(accuracy=1.2),
         _result(n_trades=0),
         _result(max_drawdown=100.0 * 5),
     ],

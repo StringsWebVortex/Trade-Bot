@@ -88,64 +88,6 @@ INTELLIGENCE_FEATURE_COLUMNS = [
 ]
 
 
-def add_intelligence_features(
-    df: pd.DataFrame,
-    intelligence_metrics: IntelligenceMetrics,
-) -> pd.DataFrame:
-    """
-    Add intelligence metrics columns to OHLCV feature DataFrame.
-
-    Args:
-        df: Feature DataFrame (result of build_feature_matrix())
-        intelligence_metrics: Computed metrics from IntelligenceAnalyzer
-
-    Returns:
-        DataFrame with 18 additional intelligence columns
-    """
-    if df.empty:
-        log.warning("add_intelligence_features_empty_input")
-        return df
-
-    # Create a copy to avoid mutation
-    result = df.copy()
-
-    # Add all 18 intelligence features
-    # (Using last row timestamp, or broadcast if needed)
-    result[COL_EXCHANGE_NETFLOW_7D_ZSCORE] = intelligence_metrics.exchange_netflow_7d_zscore
-    result[COL_WHALE_BUY_SELL_RATIO] = intelligence_metrics.whale_buy_sell_ratio
-    result[COL_EXCHANGE_RESERVE_RATIO] = intelligence_metrics.exchange_reserve_ratio
-    result[COL_MINER_NETFLOW_SIGNAL] = intelligence_metrics.miner_netflow_signal
-    result[COL_STAKING_UNLOCK_RISK] = intelligence_metrics.staking_unlock_risk
-    result[COL_ENTITY_EXCHANGE_IMBALANCE] = intelligence_metrics.entity_exchange_imbalance
-    result[COL_BINANCE_FUNDING_RATE_PCT] = intelligence_metrics.binance_funding_rate_pct
-    result[COL_LIQUIDATION_PRESSURE_24H_ZSCORE] = (
-        intelligence_metrics.liquidation_pressure_24h_zscore
-    )
-    result[COL_FUTURES_OI_CHANGE_PCT] = intelligence_metrics.futures_oi_change_pct
-    result[COL_LIQUIDATION_CASCADE_RISK_USD] = intelligence_metrics.liquidation_cascade_risk_usd
-    result[COL_BTC_DOMINANCE_REGIME] = intelligence_metrics.btc_dominance_regime
-    result[COL_STABLECOIN_RESERVE_RATIO] = intelligence_metrics.stablecoin_reserve_ratio
-    result[COL_NETWORK_ACTIVITY_SCORE] = intelligence_metrics.network_activity_score
-    result[COL_EXCHANGE_STRESS_SCORE] = intelligence_metrics.exchange_stress_score
-    result[COL_CROSS_EXCHANGE_BASIS_SPREAD_BPS] = (
-        intelligence_metrics.cross_exchange_basis_spread_bps
-    )
-    # OCI-012 fields
-    result[COL_DEFI_TVL_7D_CHANGE_PCT] = intelligence_metrics.defi_tvl_7d_change_pct
-    result[COL_MVRV_Z_SCORE] = intelligence_metrics.mvrv_z_score
-    result[COL_SOPR] = intelligence_metrics.sopr
-    result[COL_INTELLIGENCE_CONFIDENCE] = intelligence_metrics.confidence
-
-    log.info(
-        "intelligence_features_added",
-        num_rows=len(result),
-        num_cols_added=18,
-        confidence=intelligence_metrics.confidence,
-    )
-
-    return result
-
-
 @dataclass
 class IntelligenceFeatureMatrix:
     """
@@ -161,7 +103,7 @@ class IntelligenceFeatureMatrix:
 
     @property
     def feature_count(self) -> int:
-        """Total number of features (should be 24)."""
+        """Total number of features (27)."""
         return self.X.shape[1] if self.X is not None else 0
 
     @property
