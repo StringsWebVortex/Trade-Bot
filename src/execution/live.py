@@ -594,6 +594,8 @@ class LiveExecutor(AbstractExecutor):
                     strategy_id=pos.strategy_id,
                 )
             except (ccxt.NetworkError, ccxt.ExchangeError) as exc:
+                if isinstance(exc, ccxt.NetworkError):
+                    self._block_entries_unreconciled(pos.symbol, "close_network_error")
                 self._log.error(
                     "live.close_order_failed",
                     trade_id=trade_id,
@@ -627,9 +629,7 @@ class LiveExecutor(AbstractExecutor):
             # A base-denominated sell fee also consumes inventory. Track the
             # actual remaining balance, not just the order's filled field.
             base_asset = pos.symbol.split("/")[0].upper()
-            base_fee_qty = (
-                self._base_fee_qty(order, base_asset) if pos.direction == 1 else 0.0
-            )
+            base_fee_qty = self._base_fee_qty(order, base_asset) if pos.direction == 1 else 0.0
             fill_tolerance = max(1e-12, pos.quantity * 1e-9)
             if filled_qty > pos.quantity + fill_tolerance:
                 raise RuntimeError(
@@ -671,9 +671,8 @@ class LiveExecutor(AbstractExecutor):
 
             if pos.direction == 1:
                 gross_pnl = (
-                    (actual_exit_price - pos.entry_price) * filled_qty
-                    - pos.entry_price * base_fee_qty
-                )
+                    actual_exit_price - pos.entry_price
+                ) * filled_qty - pos.entry_price * base_fee_qty
             else:
                 gross_pnl = (pos.entry_price - actual_exit_price) * filled_qty
 
@@ -1012,6 +1011,10 @@ class LiveExecutor(AbstractExecutor):
                     strategy_id=strategy_id,
                 )
             except (ccxt.NetworkError, ccxt.ExchangeError) as exc:
+                if isinstance(exc, ccxt.NetworkError):
+                    # A placement request may have reached the venue despite
+                    # the lost response; freeze new entries until reconciled.
+                    self._block_entries_unreconciled(symbol, "entry_network_error")
                 # Restore reserved cash on order failure
                 async with self._lock:
                     self._cash += notional_estimate + fee_estimate
@@ -1352,6 +1355,7 @@ class LiveExecutor(AbstractExecutor):
                 f"{idempotency_key} already submitted as order {exc.record.order_id!r}."
             ) from exc
         except TimeoutError as exc:
+            self._block_entries_unreconciled(symbol, "order_confirmation_unresolved")
             self._log.error(
                 "live.order_confirmation_timeout",
                 symbol=symbol,
@@ -1580,3 +1584,17 @@ class LiveExecutor(AbstractExecutor):
             raise RuntimeError(
                 "LiveExecutor not initialized — call await executor.initialize() first."
             )
+
+    def _block_entries_unreconciled(self, symbol: str, reason: str) -> None:
+        """Block new entries when an order's venue outcome remains unknown."""
+        self._recovery_discrepancies.append(
+            Discrepancy(
+                symbol=symbol,
+                discrepancy_type=DiscrepancyType.MISSING_LOCALLY,
+                local_quantity=0.0,
+                reference_quantity=0.0,
+            )
+        )
+        self._log.critical(
+            "live.ambiguous_execution", symbol=symbol, reason=reason, entries_blocked=True
+        )

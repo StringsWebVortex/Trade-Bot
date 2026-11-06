@@ -712,6 +712,7 @@ SHA8 14f635a5; total lines 375.
 
 ## src/execution/live.py
 
+
 SHA8 86d1f94b; total lines 1553.
 
 - LivePosition (class, lines 92-126): CHUNK_ID = src/execution/live.py#92-126#86d1f94b — [[F:src/execution/live.py#92-126#86d1f94b]].
@@ -817,6 +818,7 @@ SHA8 86d1f94b; total lines 1553.
 - LiveExecutor._base_fee_qty (method, lines 1509-1516): CHUNK_ID = src/execution/live.py#1509-1516#86d1f94b — [[F:src/execution/live.py#1509-1516#86d1f94b]].
 - LiveExecutor._extract_fee (method, lines 1518-1547): CHUNK_ID = src/execution/live.py#1518-1547#86d1f94b — [[F:src/execution/live.py#1518-1547#86d1f94b]].
 - LiveExecutor._require_initialized (method, lines 1549-1553): CHUNK_ID = src/execution/live.py#1549-1553#86d1f94b — [[F:src/execution/live.py#1549-1553#86d1f94b]].
+
 
 ## src/execution/unified_ledger.py
 
