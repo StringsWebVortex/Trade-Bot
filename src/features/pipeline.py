@@ -593,6 +593,14 @@ def triple_barrier_labels_with_offsets(
         offsets[hit_upper | hit_lower] = float(k)
         resolved |= hit_upper | hit_lower
 
+    # DAT-005: a row whose holding window runs past the end of the data and that
+    # has not hit a barrier is unresolved, not a time exit. Leaving it at -1
+    # counted truncated windows as time exits (and kept resolved tail peers
+    # while dropping unresolved ones). Rows that did hit a barrier keep their label.
+    unresolved_tail = valid_mask & ~resolved & ((np.arange(n) + max_holding) >= n)
+    labels[unresolved_tail] = np.nan
+    offsets[unresolved_tail] = np.nan
+
     label_series = pd.Series(labels, index=close.index, dtype=np.float64).rename(COL_LABEL)
     offset_series = pd.Series(offsets, index=close.index, dtype=np.float64)
     return label_series, offset_series
@@ -708,6 +716,10 @@ class FeatureMatrix:
     log_returns: pd.Series
     dropped_rows: int = field(default=0)
     forward_returns: pd.Series | None = None
+    # DAT-001: label-independent features (burn-in NaNs dropped only). Unlike
+    # ``features`` this keeps the newest bars, which cannot have hit a barrier
+    # yet, so live inference and the regime HMM read the latest closed bar.
+    features_all: pd.DataFrame | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -745,8 +757,6 @@ def bar_gap_report(index: pd.Index) -> dict[str, float | int]:
         return empty
 
     diffs = pd.Series(index.astype("int64")).diff().dropna()
-    if diffs.empty:
-        return empty
     expected = int(diffs.mode().iloc[0])
     if expected <= 0:
         return empty
@@ -963,6 +973,8 @@ def build_feature_matrix(
     # Drop rows with NaN in any feature (burn-in) or where label is NaN
     # (tail rows where holding window extends beyond data)
     before = len(feature_df)
+    # DAT-001: keep a label-independent view for inference before filtering.
+    features_all = feature_df.dropna(subset=list(FEATURE_COLUMNS))[list(FEATURE_COLUMNS)]
     feature_df = feature_df.dropna(subset=[*FEATURE_COLUMNS, COL_LABEL])
     dropped = before - len(feature_df)
 
@@ -999,6 +1011,7 @@ def build_feature_matrix(
         log_returns=feature_df_dir[COL_RETURN],
         dropped_rows=dropped,
         forward_returns=feature_df_dir[COL_FORWARD_RETURN],
+        features_all=features_all,
     )
 
 
@@ -1046,8 +1059,24 @@ def build_inference_features(
     """
     # Fast path — reuse pre-built feature matrix (SCAN2-007)
     if feature_matrix is not None and feature_matrix.features is not None:
-        fm = feature_matrix.features
+        # DAT-001: score the latest closed bar, never the last *labelled* row.
+        fm = (
+            feature_matrix.features_all
+            if feature_matrix.features_all is not None
+            else feature_matrix.features
+        )
         if len(fm) < 1:
+            return None
+        if (
+            feature_matrix.features_all is not None
+            and len(history) > 0
+            and fm.index[-1] != history.index[-1]
+        ):
+            log.warning(
+                "pipeline.inference_stale_row_skip",
+                row_ts=str(fm.index[-1]),
+                last_bar_ts=str(history.index[-1]),
+            )
             return None
         vec = fm.iloc[-1][list(FEATURE_COLUMNS)].astype(np.float64)
         if live_ofi is not None:

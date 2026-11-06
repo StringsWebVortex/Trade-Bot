@@ -118,8 +118,9 @@ def recover_private_key(
     # Each signature contributes t_i and u_i with k_i = a_i + (small), where
     # a_i is the known part and the unknown part is bounded by 2**(bitlen - b_i).
     # Following HGS: k = s^-1 z + s^-1 r d, so writing d as the hidden number,
-    #   t_i = s_i^-1 r_i (mod n),  u_i = s_i^-1 z_i + a_i (mod n)
-    # and the unknown nonce remainder is small.
+    #   t_i = s_i^-1 r_i (mod n),  u_i = s_i^-1 z_i - a_i (mod n)
+    # and the unknown nonce remainder e_i = k_i - a_i is small. (The sign of
+    # a_i matters only when the known prefix is non-zero: MTH-014.)
     scale = 1 << nonce_bitlength
     ts: list[int] = []
     us: list[int] = []
@@ -128,7 +129,7 @@ def recover_private_key(
         s_inv = pow(sig.s, -1, order)
         a_i = sig.known_value % order
         ts.append((s_inv * sig.r) % order)
-        us.append((s_inv * sig.z + a_i) % order)
+        us.append((s_inv * sig.z - a_i) % order)
         bounds.append(1 << (nonce_bitlength - sig.known_high_bits))
 
     # Common denominator so the bound weights are integers: the lattice wants
@@ -155,12 +156,12 @@ def recover_private_key(
             continue
         candidate = (-row[-2] * scale // row[-1]) % order if row[-1] else 0
         for guess in (candidate, (order - candidate) % order):
-            if 1 <= guess < order and _verifies(signatures, guess, order):
+            if 1 <= guess < order and _verifies(signatures, guess, order, nonce_bitlength):
                 return guess
     return None
 
 
-def _verifies(signatures: list[Signature], key: int, order: int) -> bool:
+def _verifies(signatures: list[Signature], key: int, order: int, nonce_bitlength: int) -> bool:
     """
     Whether ``key`` reproduces every signature's nonce consistently.
 
@@ -176,7 +177,10 @@ def _verifies(signatures: list[Signature], key: int, order: int) -> bool:
         k = (s_inv * (sig.z + sig.r * key)) % order
         # Its known high bits must match what the signature claims leaked.
         shift = sig.known_high_bits
-        if (k >> (order.bit_length() - shift)) != (sig.known_value >> (order.bit_length() - shift)):
+        # The leak is positioned against the nonce's own width, which need not
+        # equal the group order's bit length.
+        offset = nonce_bitlength - shift
+        if (k >> offset) != (sig.known_value >> offset):
             return False
     return True
 

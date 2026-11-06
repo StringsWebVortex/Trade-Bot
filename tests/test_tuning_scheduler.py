@@ -1,4 +1,8 @@
-"""Tests for src/tuning/scheduler.py -- AutoTuningScheduler."""
+"""Tests for src/tuning/scheduler.py -- AutoTuningScheduler.
+
+Decides:
+  - REG-1372 — Slippage calibration ADV is a daily volume
+"""
 
 from __future__ import annotations
 
@@ -459,7 +463,7 @@ class TestBuildSlippageSamples:
         sample = samples[0]
         assert sample.reference_price == pytest.approx(100.0)
         assert sample.fill_price == pytest.approx(101.0)
-        assert sample.adv_20d == pytest.approx(20.0)
+        assert sample.adv_20d == pytest.approx(20.0 * 96)  # 15m bars: 96 per day (STR-14)
         assert sample.direction == 1
 
     def test_skips_trades_with_non_positive_price_or_qty(self) -> None:

@@ -18,6 +18,7 @@ Authority:
 from __future__ import annotations
 
 import asyncio
+import math
 import os
 import time
 import uuid
@@ -83,6 +84,7 @@ from src.risk.macro_exposure_budget import (
 from src.risk.performance_drift import PerformanceBaseline, PerformanceDriftDetector
 from src.risk.portfolio_agreement import portfolio_agreement_scalar
 from src.risk.portfolio_correlation import get_portfolio_correlation
+from src.risk.state_persistence import state_file
 from src.risk.strategy_correlation import (
     combined_correlation_scalar,
     get_strategy_correlation,
@@ -251,6 +253,67 @@ def _aggregate_venue_positions(
     ]
 
 
+class _NoBaseline(Exception):
+    """Internal control flow: no measured drift baseline exists."""
+
+
+def baseline_from_training(result: Any) -> PerformanceBaseline | None:
+    """Build a drift baseline from measured CPCV results; return None if invalid."""
+    if result is None:
+        return None
+    try:
+        sharpe = float(result.oos_sharpe)
+        acc = float(result.accuracy)
+        dd = float(result.max_drawdown) / 100.0  # TrainingResult reports percent
+        n_raw = float(result.n_trades)
+        if (
+            not all(math.isfinite(v) for v in (sharpe, acc, dd, n_raw))
+            or not 0.0 <= acc <= 1.0
+            or not 0.0 <= dd <= 1.0
+            or n_raw <= 0
+            or not n_raw.is_integer()
+        ):
+            return None
+        n = int(n_raw)
+        return PerformanceBaseline(
+            train_sharpe=sharpe,
+            oos_sharpe=sharpe,
+            train_accuracy=acc,
+            oos_accuracy=acc,
+            train_win_rate=None,  # CPCV measures directional accuracy, not trade win rate
+            max_drawdown_pct=dd,
+            trades_in_backtest=n,
+        )
+    except (AttributeError, TypeError, ValueError, OverflowError):
+        return None
+
+
+def _apply_crypto_box_scale(
+    result: Any,
+    scale: float,
+    price: float,
+    precision: dict[str, float],
+) -> Any:
+    """Shrink the sized order by the crypto-box scale; reject below-minimum size."""
+    kelly = result.kelly_result
+    if kelly is None:
+        return result
+    scale = min(scale, 1.0)
+    if scale >= 1.0:
+        return result
+    reduced = apply_size_scalar(
+        kelly,
+        max(scale, 1e-9),
+        price,
+        amount_precision=precision["amount_precision"],
+        min_amount=precision["min_amount"],
+        min_cost=precision["min_cost"],
+    )
+    if reduced is None:
+        return _dc_replace(result, tradeable=False, skip_reason="crypto_box_size_below_minimum")
+    return _dc_replace(result, kelly_result=reduced)
+
+
 class Orchestrator:
     """
     Top-level async coordinator for the trading bot.
@@ -329,6 +392,8 @@ class Orchestrator:
 
         # GAP-003: Performance drift detector (initialized in startup after models trained)
         self._drift_detector: PerformanceDriftDetector | None = None
+        # Primary-direction TrainingResult per timeframe (EXR-005 baseline source).
+        self._training_results: dict[str, Any] = {}
         self._drift_adapter = DriftIntegrationAdapter(self._drift_detector)
 
         # Dedicated single-thread executor for CPU-bound training (NEW-002).
@@ -571,19 +636,16 @@ class Orchestrator:
         # Initialize drift detector with baseline from trained models (GAP-003)
         # Extract OOS Sharpe, accuracy, win rate, max DD from primary model
         if self._primary_tf in self._trainers:
-            trainer = self._trainers[self._primary_tf]
-            # Attempt to read OOS metrics from trainer's internal cache
-            # If available, create baseline; otherwise skip drift detection
+            # EXR-005: only a baseline measured by the CPCV run is used.
+            # Missing/invalid metrics => no drift detector, no kill switches.
             try:
-                baseline = PerformanceBaseline(
-                    train_sharpe=getattr(trainer, "train_sharpe", 2.0),
-                    oos_sharpe=getattr(trainer, "oos_sharpe", 1.5),
-                    train_accuracy=getattr(trainer, "train_accuracy", 0.60),
-                    oos_accuracy=getattr(trainer, "oos_accuracy", 0.58),
-                    train_win_rate=getattr(trainer, "train_win_rate", 0.55),
-                    max_drawdown_pct=getattr(trainer, "max_drawdown_pct", 0.10),
-                    trades_in_backtest=getattr(trainer, "trades_count", 400),
-                )
+                baseline = baseline_from_training(self._training_results.get(self._primary_tf))
+                if baseline is None:
+                    self._log.warning(
+                        "orchestrator.drift_baseline_unavailable",
+                        action="continuing_without_drift_detection_or_kill_switches",
+                    )
+                    raise _NoBaseline
                 self._drift_detector = PerformanceDriftDetector(baseline)
                 self._drift_adapter = DriftIntegrationAdapter(self._drift_detector)
                 self._log.info(
@@ -592,6 +654,8 @@ class Orchestrator:
                     baseline_accuracy=baseline.oos_accuracy,
                 )
                 self._register_kill_switches(baseline)
+            except _NoBaseline:
+                pass
             except Exception as exc:
                 self._log.warning(
                     "orchestrator.drift_detector_init_failed",
@@ -1420,15 +1484,12 @@ class Orchestrator:
                             cb_signal.direction == 0 or cb_signal.direction == result.direction
                         )
                         scale = cb_signal.kelly_multiplier if direction_match else 0.5
-                        new_adj = max(
-                            0.0,
-                            min(
-                                _entry_kelly.adjusted_fraction * scale,
-                                _entry_kelly.adjusted_fraction,
-                            ),
+                        result = _apply_crypto_box_scale(
+                            result,
+                            scale,
+                            spot or _entry_kelly.entry_price,
+                            getattr(self, "_symbol_precision", _DEFAULT_SYMBOL_PRECISION),
                         )
-                        new_kelly = _dc_replace(_entry_kelly, adjusted_fraction=new_adj)
-                        result = _dc_replace(result, kelly_result=new_kelly)
                     try:
                         from src.diagnostics.audit_trail import get_audit_trail
 
@@ -1527,7 +1588,13 @@ class Orchestrator:
         # Route to executor if tradeable
         if result.tradeable and result.kelly_result is not None:
             # Check Gate 6: Performance drift (GAP-003)
-            drift_status = self._drift_adapter.check_drift()
+            # EXR-004: live-only, consistent with evaluate_all_gates; halting
+            # paper on drift would stop the run that gathers the evidence.
+            drift_status = (
+                self._drift_adapter.check_drift()
+                if self._cfg.trading_mode == TradingMode.LIVE and executor is self._executor
+                else {}
+            )
             if drift_status.get("drifted"):
                 self._log.warning(
                     "orchestrator.signal_blocked_drift",
@@ -2068,6 +2135,8 @@ class Orchestrator:
                     dir_result.model, meta_result.model, self._cfg.storage.model_dir, version
                 )
 
+            self._training_results[tf.value] = dir_result
+
             # Diversified prediction ensemble (ARIMA/XGBoost/LSTM/GP/TreeEnsemble) --
             # additive to direction/meta training, never blocks it. A failure here
             # (e.g. an optional dependency missing) must not prevent the direction/
@@ -2409,6 +2478,8 @@ class Orchestrator:
         strategies are skipped — startup can run twice in a process.
         """
         manager = get_strategy_kill_switch_manager()
+        # EXR-013: restore strategies disabled before a restart.
+        manager.enable_persistence(state_file("strategy_kill_switch"))
         for strategy in get_default_registry().all():
             try:
                 if manager.is_registered(strategy.strategy_id):
@@ -2835,6 +2906,7 @@ class Orchestrator:
         actual_direction: int,
         current_equity: float,
         now_ms: int,
+        predicted_prob: float | None = None,
     ) -> None:
         """
         Feed one closed trade to that strategy's kill switch, then evaluate.
@@ -2848,9 +2920,8 @@ class Orchestrator:
         baseline was ever measured for it (see _register_kill_switches),
         and there is nothing to compare against.
 
-        predicted_prob is 0.5 for the same reason the global drift feed
-        uses it: the confidence that produced the entry is not carried on
-        the position record. PnL, direction and equity are still exact.
+        predicted_prob is the entry P(long) carried on the position record;
+        None (unknown) skips the accuracy sample rather than scoring 0.5.
 
         Never raises: a kill-switch fault must not turn a completed exit
         into an error path.
@@ -2864,7 +2935,7 @@ class Orchestrator:
             manager.record_trade_outcome(
                 strategy_id=strategy_id,
                 pnl_usd=pnl_usd,
-                predicted_prob=0.5,
+                predicted_prob=predicted_prob,
                 actual_direction=actual_direction,
                 current_equity=current_equity,
                 starting_equity=self._cfg.starting_capital_usd,
@@ -3431,17 +3502,16 @@ class Orchestrator:
                 )
 
                 # Record trade outcome for drift detection (GAP-003).
-                # predicted_prob is not tracked on the position record, so a
-                # neutral 0.5 is used — drift detection still gets accurate
-                # PnL/direction/equity signal, just without confidence-weighted
-                # prediction tracking for auto-closed trades.
+                # EXR-004: predicted_prob is the entry P(long) stored on the
+                # position (raw_signal); None when unknown, which skips the
+                # accuracy sample instead of scoring a placeholder 0.5.
                 if self._drift_detector:
                     try:
                         await self._drift_adapter.record_closed_trade(
                             trade_id=str(pos["trade_id"]),
                             exit_price=price,
                             pnl_usd=net_pnl,
-                            predicted_prob=0.5,
+                            predicted_prob=pos.get("raw_signal"),
                             actual_direction=(1 if pos["direction"] == "long" else -1),
                             current_equity=executor.equity_usd,
                             starting_equity=self._cfg.starting_capital_usd,
@@ -3464,6 +3534,7 @@ class Orchestrator:
                     actual_direction=(1 if pos["direction"] == "long" else -1),
                     current_equity=executor.equity_usd,
                     now_ms=now_ms,
+                    predicted_prob=pos.get("raw_signal"),
                 )
             except KeyError:
                 # Position was already closed by another path (e.g. a manual
