@@ -179,7 +179,7 @@ class StrategyKillSwitchManager:
         self,
         strategy_id: str,
         pnl_usd: float,
-        predicted_prob: float,
+        predicted_prob: float | None,
         actual_direction: int,
         current_equity: float,
         starting_equity: float,

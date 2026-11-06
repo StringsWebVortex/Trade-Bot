@@ -47,26 +47,26 @@ deletion of the thing it points at.
 
 | Status | Entries |
 |---|---|
-| VERIFIED | 297 |
+| VERIFIED | 301 |
 | PARTIAL | 3 |
 | PLANNED | 0 |
 | ACCEPTED GAP | 0 |
-| **Total** | **300** |
+| **Total** | **304** |
 
 ## Summary by subsystem
 
 | Subsystem | Entries | Verified |
 |---|---|---|
-| Risk | 13 | 13 |
+| Risk | 15 | 15 |
 | Execution | 21 | 20 |
 | Portfolio | 2 | 2 |
 | Signal and features | 20 | 20 |
-| Models and leakage | 25 | 25 |
+| Models and leakage | 26 | 26 |
 | Data, money and time | 16 | 15 |
 | API and WebSocket | 26 | 26 |
 | Cryptography and secrets | 38 | 38 |
 | Supply chain and artifacts | 7 | 7 |
-| Resilience and recovery | 26 | 26 |
+| Resilience and recovery | 27 | 27 |
 | Release and production | 17 | 17 |
 | Governance | 76 | 75 |
 | Terminal and process center | 13 | 13 |
@@ -240,6 +240,33 @@ A tripped capital-preservation floor (halted, peak, reauthorization) and disable
   - `tests/test_restart_persistence.py` (regression)
 
 > layer: test-suite
+
+#### `REG-1060` — Drift accuracy uses the real entry P(long); unknown is skipped
+
+**VERIFIED** · high · regression · source: OPS-2026-10-25
+
+The drift detector and per-strategy kill switch score prediction accuracy from the entry P(long) stored on the position; an unknown probability skips the accuracy sample instead of booking every long as wrong. The orchestrator drift block applies in LIVE mode only, matching evaluate_all_gates.
+
+- **If violated:** Placeholder 0.5 made every long a wrong prediction and halted a long-biased book.
+- **Owned by:** `src/risk/performance_drift.py`
+- **Verification:**
+  - `tests/regression/test_halts_drift_failclosed.py` (regression)
+  - `tests/test_orchestrator_coverage.py` (regression) — Paper-mode ticks never consult the drift adapter; live-mode drift still blocks.
+
+> Audit EXR-004. layer: test-suite
+
+#### `REG-1062` — Cognitive engine vetoes non-finite inputs
+
+**VERIFIED** · high · regression · source: OPS-2026-10-25
+
+Any NaN or infinite numeric SignalContext field yields a VETO with zero size before validators run.
+
+- **If violated:** NaN comparisons are False so all validators passed a trade with NaN vol/p_bet/hurst/atr.
+- **Owned by:** `src/risk/cognitive_engine.py`
+- **Verification:**
+  - `tests/regression/test_halts_drift_failclosed.py` (regression)
+
+> Audit EXR-011. layer: test-suite
 
 #### `REG-1372` — Slippage calibration ADV is a daily volume
 
@@ -938,6 +965,19 @@ Orchestrator._metrics_payload() builds a complete metrics snapshot for every tic
   - `tests/regression/test_metrics_payload.py` (regression)
 
 > Pins payload completeness with and without an executor, the method-vs-property fact the bug turned on, and the original TypeError as a negative case. layer: test-suite
+
+#### `REG-1061` — Drift and kill-switch baseline is built only from measured CPCV metrics
+
+**VERIFIED** · high · regression · source: OPS-2026-10-25
+
+The drift baseline derives from the trained direction model's measured OOS metrics; missing or non-finite metrics register no drift detector and no kill switches.
+
+- **If violated:** Hard-coded default baseline produced fabricated drift and disabled strategies on unmeasured evidence.
+- **Owned by:** `src/engine/orchestrator.py`
+- **Verification:**
+  - `tests/regression/test_halts_drift_failclosed.py` (regression)
+
+> Audit EXR-005. layer: test-suite
 
 #### `REG-1083` — Ensemble members that error are excluded, not voted as 0.0
 
@@ -2537,6 +2577,19 @@ When the lifespan raises -- the fetcher reaching no exchange venue, the orchestr
 
 > layer: test-suite
 
+#### `REG-1063` — Halt triggers fire on non-finite readings
+
+**VERIFIED** · high · regression · source: OPS-2026-10-25
+
+A NaN or infinite staleness, position deviation, drawdown or clock skew makes its halt trigger fire; the halt-trigger docstring states it is not wired into the live path.
+
+- **If violated:** NaN passed every halt trigger, and docs claimed enforcement that does not exist (AGT-010).
+- **Owned by:** `src/diagnostics/halt_triggers.py`
+- **Verification:**
+  - `tests/regression/test_halts_drift_failclosed.py` (regression)
+
+> Audit AGT-011/AGT-010. layer: test-suite
+
 #### `REG-1602` — The runtime control plane's in-memory state is bounded
 
 **VERIFIED** · low · regression · source: OPS-2026-10-25
@@ -3903,4 +3956,4 @@ To add or change an entry, edit the registry and regenerate this file. See
 `docs/quality/TEST_STRATEGY.md` for the taxonomy the `test_type` column draws
 on, and `docs/quality/IMPLEMENTATION_PLAN.md` for what each phase delivers.
 
-Registry version: 1.0.0 — 300 entries.
+Registry version: 1.0.0 — 304 entries.

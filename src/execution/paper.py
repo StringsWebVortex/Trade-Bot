@@ -88,7 +88,7 @@ class PaperPosition:
     kelly_fraction: float
     regime_at_entry: int
     meta_label_prob: float
-    raw_signal: float
+    raw_signal: float | None
     approved_by: str
     execution_mode: str
     fee_usd: float
@@ -182,7 +182,7 @@ class ApprovalRequest:
             "kelly_fraction": round(self.kelly_fraction, 4),
             "regime_state": self.regime_state,
             "meta_label_prob": round(self.meta_label_prob, 4),
-            "raw_signal": round(self.raw_signal, 4),
+            "raw_signal": round(self.raw_signal, 4) if self.raw_signal is not None else None,
         }
 
 
@@ -286,7 +286,7 @@ class PaperExecutor(AbstractExecutor):
                 kelly_fraction=t.kelly_fraction,
                 regime_at_entry=t.regime_at_entry,
                 meta_label_prob=t.meta_label_prob,
-                raw_signal=t.raw_signal if t.raw_signal is not None else 0.0,
+                raw_signal=t.raw_signal,
                 approved_by=t.approved_by or "restored",
                 execution_mode=t.execution_mode,
                 fee_usd=t.fee_usd,
@@ -825,6 +825,7 @@ class PaperExecutor(AbstractExecutor):
                     else 0.0,
                     "peak_unrealized_pct": round(p.peak_unrealized_pct, 3),
                     "regime_at_entry": p.regime_at_entry,
+                    "raw_signal": p.raw_signal,
                     "strategy_id": p.strategy_id,
                     "entry_ts": p.entry_ts,
                 }
@@ -866,6 +867,7 @@ class PaperExecutor(AbstractExecutor):
                 else 0.0,
                 "peak_unrealized_pct": round(p.peak_unrealized_pct, 3),
                 "regime_at_entry": p.regime_at_entry,
+                "raw_signal": p.raw_signal,
                 "strategy_id": p.strategy_id,
                 "entry_ts": p.entry_ts,
             }
