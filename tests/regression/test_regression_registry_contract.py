@@ -248,6 +248,13 @@ class TestTheRegistryHasAPlaceForDefects:
             # REG-1704: audit STR-21 -- carry and arbitrage entries gated on
             # fixed thresholds no cost measurement produced.
             "REG-1704",
+            # REG-1100..1105: model evaluation leakage audit findings.
+            "REG-1100",
+            "REG-1101",
+            "REG-1102",
+            "REG-1103",
+            "REG-1104",
+            "REG-1105",
             # REG-1060..1063: halts and drift fail closed on unmeasured input.
             "REG-1060",
             "REG-1061",
@@ -641,6 +648,8 @@ class TestTheMetricsCollector:
         # test-suite, 43.
         # REG-1704 adds the fixed-threshold carry/arbitrage regression (STR-21):
         # no test asked what the thresholds cost to clear -- test-suite, 44.
+        # REG-1100..1105 add six model-eval leakage findings on top of the
+        # current main baseline; merge preserves both sides' filed defects.
         # REG-1610 and REG-1611 add the section D script and CI-skip regressions.
         # REG-1707 adds the async-resource regression; main also adds the CI gate
         # and supply-chain findings. REG-1280..1284 add five crypto-predictor
@@ -657,7 +666,7 @@ class TestTheMetricsCollector:
         # REG-1060..1063 add four halt/drift and REG-1080..1085 add six engine/signal regressions -- test-suite, 106.
         # SEC-1010..1015 add six API authorization/secret regressions.
         assert metric["value"] == {
-            "test-suite": 112,
+            "test-suite": 118,
             "review": 1,
             "supply-chain": 4,
             "ci-gate-design": 2,

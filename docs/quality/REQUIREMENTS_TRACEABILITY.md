@@ -47,11 +47,11 @@ deletion of the thing it points at.
 
 | Status | Entries |
 |---|---|
-| VERIFIED | 307 |
+| VERIFIED | 313 |
 | PARTIAL | 3 |
 | PLANNED | 0 |
 | ACCEPTED GAP | 0 |
-| **Total** | **310** |
+| **Total** | **316** |
 
 ## Summary by subsystem
 
@@ -61,7 +61,7 @@ deletion of the thing it points at.
 | Execution | 21 | 20 |
 | Portfolio | 2 | 2 |
 | Signal and features | 20 | 20 |
-| Models and leakage | 26 | 26 |
+| Models and leakage | 32 | 32 |
 | Data, money and time | 16 | 15 |
 | API and WebSocket | 32 | 32 |
 | Cryptography and secrets | 38 | 38 |
@@ -1015,6 +1015,84 @@ BayesianOnlineChangepointDetector.update reports the relative collapse of the ex
 - **Owned by:** `src/regime/changepoint.py`
 - **Verification:**
   - `tests/test_changepoint.py` (regression)
+
+> layer: test-suite
+
+#### `REG-1100` — OOS Sharpe and drawdown are scored on the forward label return
+
+**VERIFIED** · high · regression · source: OPS-2026-10-25
+
+build_feature_matrix carries forward_returns (log return from entry to the barrier exit) and ModelTrainer scores every CPCV prediction on it, never on the concurrent bar return.
+
+- **If violated:** The live gate scored a prediction made at bar t on the t-1 to t move, which the features already contain, inflating Sharpe and deflating drawdown (INT-001).
+- **Owned by:** `src/features/pipeline.py`, `src/models/trainer.py`, `src/tuning/backtest_harness.py`
+- **Verification:**
+  - `tests/test_model_eval_leakage.py` (regression)
+
+> layer: test-suite
+
+#### `REG-1101` — The ensemble regresses on the forward label return
+
+**VERIFIED** · high · regression · source: OPS-2026-10-25
+
+train_ensemble fits EnsemblePredictor on fm.forward_returns and passes the label horizon so validation is purged.
+
+- **If violated:** Members learned to reconstruct the concurrent bar return from features and the nowcast was blended into live p_long as a forecast (INT-002).
+- **Owned by:** `src/models/trainer.py`, `src/intelligence/ensemble_predictor.py`
+- **Verification:**
+  - `tests/test_model_eval_leakage.py` (regression)
+
+> layer: test-suite
+
+#### `REG-1102` — Meta-labels are built from out-of-fold primary predictions
+
+**VERIFIED** · high · regression · source: OPS-2026-10-25
+
+train_meta_label and the cache-provenance path derive p_long, confidence and meta-labels from purged k-fold out-of-fold predictions, never from the final direction model's in-sample output.
+
+- **If violated:** The meta model learned to bet on optimistic in-sample confidence that does not hold out of sample (INT-003).
+- **Owned by:** `src/models/trainer.py`
+- **Verification:**
+  - `tests/test_model_eval_leakage.py` (regression)
+
+> layer: test-suite
+
+#### `REG-1103` — CPCV purges and embargoes every contiguous test block
+
+**VERIFIED** · high · regression · source: OPS-2026-10-25
+
+build_cpcv_folds removes training samples within purge_gap before and embargo after each contiguous block of test groups, including non-adjacent groups.
+
+- **If violated:** Purge and embargo were measured from the min and max of all test groups, leaving the boundaries of interior test blocks unprotected so labels leaked (INT-004).
+- **Owned by:** `src/models/trainer.py`
+- **Verification:**
+  - `tests/test_model_eval_leakage.py` (regression)
+
+> layer: test-suite
+
+#### `REG-1104` — CPCV counts each test sample once
+
+**VERIFIED** · high · regression · source: OPS-2026-10-25
+
+OOS Sharpe, drawdown and n_trades are computed over unique test samples (majority-voted) with a fixed per-timeframe annualisation factor, not over the concatenation of all folds.
+
+- **If violated:** Each sample appeared in about 9 folds, so n_trades passed min_trades_live_gate by a large overcount and the Sharpe scaled with the duplicated sample count (INT-005).
+- **Owned by:** `src/models/trainer.py`
+- **Verification:**
+  - `tests/test_model_eval_leakage.py` (regression)
+
+> layer: test-suite
+
+#### `REG-1105` — Ensemble member weights and uncertainty come from out-of-sample error
+
+**VERIFIED** · high · regression · source: OPS-2026-10-25
+
+EnsemblePredictor.fit scores members on a purged chronological holdout; members without a finite holdout score receive zero weight, and prediction refuses to fall back to equal weights after a completed fit when no scored member is available.
+
+- **If violated:** Inverse in-sample RMSE gave most weight to the member that overfit most, while the all-scores-missing cold-start fallback could still emit an equally weighted, unvalidated forecast with an unjustifiably narrow interval (INT-007).
+- **Owned by:** `src/intelligence/ensemble_predictor.py`
+- **Verification:**
+  - `tests/test_model_eval_leakage.py` (regression)
 
 > layer: test-suite
 
@@ -4034,4 +4112,4 @@ To add or change an entry, edit the registry and regenerate this file. See
 `docs/quality/TEST_STRATEGY.md` for the taxonomy the `test_type` column draws
 on, and `docs/quality/IMPLEMENTATION_PLAN.md` for what each phase delivers.
 
-Registry version: 1.0.0 — 310 entries.
+Registry version: 1.0.0 — 316 entries.

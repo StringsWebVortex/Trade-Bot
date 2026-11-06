@@ -295,6 +295,7 @@ class AutoTuningScheduler:
                             challenger_threshold=proposal.challenger_value,
                             challenger_floor=champion_floor,
                             features_cfg=self._settings.features,
+                            timeframe=self._timeframe,
                         )
                     return run_entropy_threshold_backtest(
                         samples,
