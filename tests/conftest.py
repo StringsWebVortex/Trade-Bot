@@ -315,6 +315,14 @@ def _isolate_parameter_registry():
 
 
 @pytest.fixture(autouse=True)
+def _isolate_risk_state_dir(tmp_path, monkeypatch):
+    """EXR-013: capital-floor and kill-switch state files go to a per-test dir,
+    so a halt persisted by one test can never be restored by another."""
+    monkeypatch.setenv("RISK_STATE_DIR", str(tmp_path / "risk_state"))
+    yield
+
+
+@pytest.fixture(autouse=True)
 def _clear_mongo_client_caches():
     import kg.db
     import rag_mongo.db

@@ -251,6 +251,10 @@ class TestTheRegistryHasAPlaceForDefects:
             # REG-1030/1031: idempotency key release and ambiguous-fill reconciliation.
             "REG-1030",
             "REG-1031",
+            # REG-1050..1052: restart persistence of risk and strategy state.
+            "REG-1050",
+            "REG-1051",
+            "REG-1052",
             # REG-1040..1043: audit EXR-006/007/008/012 (execution accounting).
             "REG-1040",
             "REG-1041",
@@ -630,8 +634,9 @@ class TestTheMetricsCollector:
         # REG-1070/1071 add two closed-bar regressions -- test-suite, 89 including EXR-006/007/008/012.
         # SEC-1130 and SEC-1131 add the two agent-guard findings -- test-suite, 91.
         # REG-1030 and REG-1031 add two execution regressions -- test-suite, 93.
+        # REG-1050..1052 add three restart-persistence regressions -- test-suite, 96.
         assert metric["value"] == {
-            "test-suite": 93,
+            "test-suite": 96,
             "review": 1,
             "supply-chain": 4,
             "ci-gate-design": 2,

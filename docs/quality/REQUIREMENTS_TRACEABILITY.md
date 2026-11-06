@@ -47,18 +47,18 @@ deletion of the thing it points at.
 
 | Status | Entries |
 |---|---|
-| VERIFIED | 288 |
+| VERIFIED | 291 |
 | PARTIAL | 3 |
 | PLANNED | 0 |
 | ACCEPTED GAP | 0 |
-| **Total** | **291** |
+| **Total** | **294** |
 
 ## Summary by subsystem
 
 | Subsystem | Entries | Verified |
 |---|---|---|
-| Risk | 12 | 12 |
-| Execution | 19 | 18 |
+| Risk | 13 | 13 |
+| Execution | 21 | 20 |
 | Portfolio | 2 | 2 |
 | Signal and features | 16 | 16 |
 | Models and leakage | 23 | 23 |
@@ -225,6 +225,19 @@ When RiskGate.check_drift reports drift for the contributing horizon, CryptoInte
 - **Owned by:** `src/intel.py`, `src/risk/gate.py`
 - **Verification:**
   - `tests/test_crypto_intel_signal_path.py` (regression)
+
+> layer: test-suite
+
+#### `REG-1052` — Capital-floor halt and kill switches survive a restart
+
+**VERIFIED** · high · regression · source: OPS-2026-10-25
+
+A tripped capital-preservation floor (halted, peak, reauthorization) and disabled strategy kill switches are persisted atomically and restored at startup; an unreadable state file fails closed.
+
+- **If violated:** A process restart silently cleared the whole-book halt and re-enabled disabled strategies (EXR-013).
+- **Owned by:** `src/risk/capital_preservation_floor.py`, `src/risk/strategy_kill_switch.py`, `src/risk/state_persistence.py`
+- **Verification:**
+  - `tests/test_restart_persistence.py` (regression)
 
 > layer: test-suite
 
@@ -486,6 +499,32 @@ A buy fill whose fee is charged in the base asset records the net quantity and t
   - `tests/test_exec_accounting_fixes.py` (regression)
 
 > audit finding EXR-012. layer: test-suite
+
+#### `REG-1050` — Open positions are rebuilt from storage on restart
+
+**VERIFIED** · high · regression · source: OPS-2026-10-25
+
+On initialize(), both executors rebuild their open positions from stored trades with exit_ts NULL, so they are marked, stopped out and closed after a restart.
+
+- **If violated:** After a restart positions were empty while cash had open notional removed, so trades stayed open forever and equity was understated (EXR-009).
+- **Owned by:** `src/execution/paper.py`, `src/execution/live.py`
+- **Verification:**
+  - `tests/test_restart_persistence.py` (regression)
+
+> layer: test-suite
+
+#### `REG-1051` — Daily drawdown baseline and peak survive a restart
+
+**VERIFIED** · high · regression · source: OPS-2026-10-25
+
+After initialize() the drawdown tracker's daily start is today's first stored equity (or the latest) and its peak is the stored peak, not the configured starting capital.
+
+- **If violated:** The daily baseline reset to starting capital, so the daily drawdown halt could not fire on a profitable account until UTC midnight (EXR-010).
+- **Owned by:** `src/execution/paper.py`, `src/execution/live.py`, `src/risk/gates.py`
+- **Verification:**
+  - `tests/test_restart_persistence.py` (regression)
+
+> layer: test-suite
 
 ## Portfolio
 
@@ -3786,4 +3825,4 @@ To add or change an entry, edit the registry and regenerate this file. See
 `docs/quality/TEST_STRATEGY.md` for the taxonomy the `test_type` column draws
 on, and `docs/quality/IMPLEMENTATION_PLAN.md` for what each phase delivers.
 
-Registry version: 1.0.0 — 291 entries.
+Registry version: 1.0.0 — 294 entries.
