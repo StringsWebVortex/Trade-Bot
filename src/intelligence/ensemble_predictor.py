@@ -647,6 +647,9 @@ class EnsemblePredictor:
         # column-order-sensitive; a mismatch silently mispredicts rather
         # than raising). Set by fit(); None until then.
         self._feature_cols: list[str] | None = None
+        # Distinguish a never-fitted cold start (equal weights are a harmless
+        # constructor default) from a completed fit with no valid OOS scores.
+        self._fit_completed = False
         self._update_weights()
 
     # Fraction of the (chronologically last) rows held out to score members.
@@ -694,6 +697,7 @@ class EnsemblePredictor:
         for name, member in self.models.items():
             if member.is_fitted:
                 member.rmse = oos_rmse.get(name, np.inf)
+        self._fit_completed = True
         self._update_weights()
 
     @staticmethod
@@ -870,8 +874,13 @@ class EnsemblePredictor:
             )
             ensemble_point = weighted / live_weight
         else:
-            # Survivors carry no weight yet (cold start). Equal-weight them
-            # rather than returning zero, which would be a prediction.
+            # Equal weighting is only a pre-fit cold-start behavior. After a
+            # completed fit, zero weights mean no member earned an OOS score;
+            # promoting those members equally would undo the fail-closed gate.
+            if getattr(self, "_fit_completed", False):
+                raise RuntimeError(
+                    "no ensemble member has a valid out-of-sample score; refusing to predict"
+                )
             ensemble_point = float(np.mean(list(individual_predictions.values())))
 
         # Aleatoric uncertainty: average of individual model uncertainties
@@ -952,19 +961,24 @@ class EnsemblePredictor:
         total = sum(inverse_rmse.values())
 
         if total <= 0.0:
-            # Cold start: no model has finite performance data yet (e.g.
-            # immediately after construction, before .fit() is called, or
-            # if every model's optional dependency -- statsmodels/xgboost/
-            # tensorflow -- is missing). There is no performance signal to
-            # differentiate models on, so fall back to equal weighting
-            # rather than crashing or silently producing NaN weights.
-            n = len(self.models)
-            self.weights = dict.fromkeys(self.models, 1.0 / n)
-            log.warning(
-                "ensemble_weights_cold_start_fallback",
-                reason="no model has finite RMSE yet; using equal weights",
-                n_models=n,
-            )
+            if getattr(self, "_fit_completed", False):
+                # No holdout score is not a cold start: no member is eligible
+                # to contribute to a forecast.
+                self.weights = dict.fromkeys(self.models, 0.0)
+                log.error(
+                    "ensemble_weights_no_oos_scores",
+                    reason="all fitted members lack a finite holdout score; all weights set to zero",
+                    n_models=len(self.models),
+                )
+            else:
+                # Constructor cold start only. This is never used after fit().
+                n = len(self.models)
+                self.weights = dict.fromkeys(self.models, 1.0 / n)
+                log.warning(
+                    "ensemble_weights_cold_start_fallback",
+                    reason="not fitted yet; using equal placeholder weights",
+                    n_models=n,
+                )
         else:
             self.weights = {name: w / total for name, w in inverse_rmse.items()}
 
@@ -984,6 +998,7 @@ class EnsemblePredictor:
             "models": self.models,
             "weights": self.weights,
             "feature_cols": self._feature_cols,
+            "fit_completed": self._fit_completed,
             "symbol": symbol,
             "timeframe": timeframe,
         }
@@ -1020,4 +1035,5 @@ class EnsemblePredictor:
         instance.models = payload["models"]
         instance.weights = payload["weights"]
         instance._feature_cols = payload["feature_cols"]
+        instance._fit_completed = bool(payload.get("fit_completed", False))
         return instance

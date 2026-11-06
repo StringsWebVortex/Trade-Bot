@@ -52,6 +52,7 @@ from src.features.pipeline import (
 from src.models.trainer import (
     _FEATURE_COLUMNS_ATTR,
     ModelTrainer,
+    bars_per_year,
     evaluation_returns,
     oos_sharpe_and_drawdown,
 )
@@ -396,6 +397,7 @@ def run_feature_window_backtest(
     challenger_window: int,
     direction_model: XGBClassifier,
     features_cfg: FeatureSettings | None = None,
+    timeframe: str = "15m",
 ) -> list[MetricComparison]:
     """
     Recalibrate one of the rolling-window feature parameters (Phase 8
@@ -453,6 +455,10 @@ def run_feature_window_backtest(
     challenger_pred = _predict_direction_batch(direction_model, challenger_features)
 
     folds = _make_folds(len(log_ret), features_cfg.cpcv_n_splits, features_cfg.purge_gap_bars)
+    bpy = bars_per_year(timeframe)
+    periods_per_year = (
+        None if bpy is None else bpy / max(1, int(features_cfg.triple_barrier_max_holding_bars))
+    )
 
     champion_fold_sharpes: list[float] = []
     challenger_fold_sharpes: list[float] = []
@@ -467,8 +473,12 @@ def run_feature_window_backtest(
         fold_champion_pred = champion_pred[start:end]
         fold_challenger_pred = challenger_pred[start:end]
 
-        champion_sharpe, _ = oos_sharpe_and_drawdown(fold_champion_pred, fold_ret)
-        challenger_sharpe, _ = oos_sharpe_and_drawdown(fold_challenger_pred, fold_ret)
+        champion_sharpe, _ = oos_sharpe_and_drawdown(
+            fold_champion_pred, fold_ret, periods_per_year=periods_per_year
+        )
+        challenger_sharpe, _ = oos_sharpe_and_drawdown(
+            fold_challenger_pred, fold_ret, periods_per_year=periods_per_year
+        )
         champion_fold_sharpes.append(champion_sharpe)
         challenger_fold_sharpes.append(challenger_sharpe)
 
