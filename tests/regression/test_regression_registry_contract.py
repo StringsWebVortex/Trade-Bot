@@ -341,6 +341,9 @@ class TestTheRegistryHasAPlaceForDefects:
             "SEC-1121",
             "SEC-1122",
             "SEC-1123",
+            # SEC-1130, SEC-1131: git guard and PreToolUse fail-closed findings.
+            "SEC-1130",
+            "SEC-1131",
         }
 
     def test_every_filed_defect_names_a_permanent_test(self, registry):
@@ -622,8 +625,9 @@ class TestTheMetricsCollector:
         # SEC-1020..1023 add four CI tooling security findings -- test-suite, +4.
         # SEC-1120..1123 add four model-loading integrity findings -- test-suite, 83.
         # REG-1070/1071 add two closed-bar regressions -- test-suite, 89 including EXR-006/007/008/012.
+        # SEC-1130 and SEC-1131 add the two agent-guard findings -- test-suite, 91.
         assert metric["value"] == {
-            "test-suite": 89,
+            "test-suite": 91,
             "review": 1,
             "supply-chain": 4,
             "ci-gate-design": 2,

@@ -47,11 +47,11 @@ deletion of the thing it points at.
 
 | Status | Entries |
 |---|---|
-| VERIFIED | 284 |
+| VERIFIED | 286 |
 | PARTIAL | 3 |
 | PLANNED | 0 |
 | ACCEPTED GAP | 0 |
-| **Total** | **287** |
+| **Total** | **289** |
 
 ## Summary by subsystem
 
@@ -68,7 +68,7 @@ deletion of the thing it points at.
 | Supply chain and artifacts | 7 | 7 |
 | Resilience and recovery | 26 | 26 |
 | Release and production | 17 | 17 |
-| Governance | 74 | 73 |
+| Governance | 76 | 75 |
 | Terminal and process center | 13 | 13 |
 
 ## Outstanding work by phase
@@ -3539,6 +3539,35 @@ The CPU-index torch pre-pass in rag-ingest.yml carries exactly the torch spec re
 
 > Audit OPS-011 leftover after #509: rag-ingest.yml kept torch>=2.3. nightly-quality.yml has the same drift but is in open PR #507 and is fixed after it merges. layer: test-suite
 
+#### `SEC-1130` — The git guard sees nested, aliased and repeated guarded operations
+
+**VERIFIED** · high · security_regression · source: OPS-2026-10-25
+
+Guarded Git operations are detected inside backtick substitutions, xargs, find -exec/-execdir, inline -c alias.* and configured aliases, and every occurrence of an operation spends its own single-use authorization; the guard applies only while a task is active (the irreversible forms stay refused by common.command_schema regardless).
+
+- **If violated:** An agent runs checkout, reset, clean or a force push through a shell form the guard does not parse, or chains the same operation behind one authorization, losing uncommitted work without the recorded reason and checkpoint.
+- **Owned by:** `src/agent_control/git_safety.py`, `src/agent_control/workspace.py`
+- **Depends on:** `GOV-061`
+- **Verification:**
+  - `tests/agent_control/test_git_safety.py` (security)
+  - `tests/agent_control/test_hooks.py` (security)
+
+> layer: test-suite
+
+#### `SEC-1131` — The PreToolUse hook fails closed when its guards cannot load or run
+
+**VERIFIED** · high · security_regression · source: OPS-2026-10-25
+
+If common.command_schema cannot be imported the PreToolUse hook denies the call instead of running on stub patterns, and a failure inside the git guard denies the git command instead of allowing it.
+
+- **If violated:** An import or guard error silently disables the CI-log, local-check and git guards, and the fallback patterns (double-escaped) never matched anything.
+- **Owned by:** `.claude/hooks/pre_tool_use.py`
+- **Depends on:** `GOV-061`
+- **Verification:**
+  - `tests/test_pre_tool_use_hook.py` (security)
+
+> layer: test-suite
+
 ## Terminal and process center
 
 #### `TERM-001` — Terminal sessions are real PTYs that every client shares
@@ -3731,4 +3760,4 @@ To add or change an entry, edit the registry and regenerate this file. See
 `docs/quality/TEST_STRATEGY.md` for the taxonomy the `test_type` column draws
 on, and `docs/quality/IMPLEMENTATION_PLAN.md` for what each phase delivers.
 
-Registry version: 1.0.0 — 287 entries.
+Registry version: 1.0.0 — 289 entries.

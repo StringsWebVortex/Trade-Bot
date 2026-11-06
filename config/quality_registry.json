@@ -7192,6 +7192,59 @@
         }
       ],
       "depends_on": []
+    },
+    {
+      "id": "SEC-1130",
+      "kind": "security_regression",
+      "title": "The git guard sees nested, aliased and repeated guarded operations",
+      "statement": "Guarded Git operations are detected inside backtick substitutions, xargs, find -exec/-execdir, inline -c alias.* and configured aliases, and every occurrence of an operation spends its own single-use authorization; the guard applies only while a task is active (the irreversible forms stay refused by common.command_schema regardless).",
+      "criticality": "high",
+      "subsystem": "governance",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "An agent runs checkout, reset, clean or a force push through a shell form the guard does not parse, or chains the same operation behind one authorization, losing uncommitted work without the recorded reason and checkpoint.",
+      "owning_modules": [
+        "src/agent_control/git_safety.py",
+        "src/agent_control/workspace.py"
+      ],
+      "depends_on": [
+        "GOV-061"
+      ],
+      "verification": [
+        {
+          "test": "tests/agent_control/test_git_safety.py",
+          "test_type": "security"
+        },
+        {
+          "test": "tests/agent_control/test_hooks.py",
+          "test_type": "security"
+        }
+      ],
+      "notes": "layer: test-suite"
+    },
+    {
+      "id": "SEC-1131",
+      "kind": "security_regression",
+      "title": "The PreToolUse hook fails closed when its guards cannot load or run",
+      "statement": "If common.command_schema cannot be imported the PreToolUse hook denies the call instead of running on stub patterns, and a failure inside the git guard denies the git command instead of allowing it.",
+      "criticality": "high",
+      "subsystem": "governance",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "An import or guard error silently disables the CI-log, local-check and git guards, and the fallback patterns (double-escaped) never matched anything.",
+      "owning_modules": [
+        ".claude/hooks/pre_tool_use.py"
+      ],
+      "depends_on": [
+        "GOV-061"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_pre_tool_use_hook.py",
+          "test_type": "security"
+        }
+      ],
+      "notes": "layer: test-suite"
     }
   ]
 }
