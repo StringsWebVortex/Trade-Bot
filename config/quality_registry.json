@@ -7453,6 +7453,132 @@
         }
       ],
       "notes": "Audit AGT-011/AGT-010. layer: test-suite"
+    },
+    {
+      "id": "REG-1080",
+      "kind": "regression",
+      "title": "E-10 emits spot, not the S2F level, as predicted_price",
+      "statement": "E10Supply.run emits predicted_price equal to spot and keeps the S2F fair value in metadata only.",
+      "criticality": "critical",
+      "subsystem": "signal",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "The S2F model price (hundreds of thousands of USD) was averaged into consensus price, so the trade signal came from the S2F artefact.",
+      "owning_modules": [
+        "src/engines/e10_supply.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_engine_signal_plumbing_fixes.py",
+          "test_type": "regression"
+        }
+      ],
+      "notes": "audit finding STR-01. layer: test-suite"
+    },
+    {
+      "id": "REG-1081",
+      "kind": "regression",
+      "title": "Meta-engines receive prior engine outputs",
+      "statement": "EngineOrchestrator.run runs E-08, E-09 and E-15 after the other engines and passes engine_outputs and e07_direction in their data.",
+      "criticality": "high",
+      "subsystem": "signal",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "engine_outputs was set after gather and discarded, so E-08/E-09/E-15 ran on empty inputs and were constant functions of nothing.",
+      "owning_modules": [
+        "src/engines/orchestrator.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_engine_signal_plumbing_fixes.py",
+          "test_type": "regression"
+        }
+      ],
+      "notes": "audit finding STR-02. layer: test-suite"
+    },
+    {
+      "id": "REG-1082",
+      "kind": "regression",
+      "title": "TTL hysteresis holds state in the mid band",
+      "statement": "TtlManager.compute returns the same TTL for repeated mid-band entropy values and switches only past the outer thresholds.",
+      "criticality": "high",
+      "subsystem": "signal",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "Inverted hysteresis thresholds flipped the signal TTL between 1h and 24h on every call for entropy in (0.35, 0.65).",
+      "owning_modules": [
+        "src/engines/consensus.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_engine_signal_plumbing_fixes.py",
+          "test_type": "regression"
+        }
+      ],
+      "notes": "audit finding STR-03. layer: test-suite"
+    },
+    {
+      "id": "REG-1083",
+      "kind": "regression",
+      "title": "Ensemble members that error are excluded, not voted as 0.0",
+      "statement": "Ensemble member predict raises on error so EnsemblePredictor lists the member in failed_models and excludes it from the estimate.",
+      "criticality": "high",
+      "subsystem": "model",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "Members swallowed exceptions and returned 0.0, which entered the weighted mean and disagreement as a real forecast.",
+      "owning_modules": [
+        "src/intelligence/ensemble_predictor.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_engine_signal_plumbing_fixes.py",
+          "test_type": "regression"
+        }
+      ],
+      "notes": "audit finding INT-006. layer: test-suite"
+    },
+    {
+      "id": "REG-1084",
+      "kind": "regression",
+      "title": "IntelligenceAdapter persists the fused decision when no signal is sized",
+      "statement": "When CryptoIntelligence.on_bar returns None, IntelligenceAdapter persists the last fused decision with zero direction and size.",
+      "criticality": "high",
+      "subsystem": "model",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "on_bar returned None without a risk_context so nothing was ever persisted to intelligence_features_history.",
+      "owning_modules": [
+        "src/intelligence/intelligence_adapter.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_engine_signal_plumbing_fixes.py",
+          "test_type": "regression"
+        }
+      ],
+      "notes": "audit finding INT-008. layer: test-suite"
+    },
+    {
+      "id": "REG-1085",
+      "kind": "regression",
+      "title": "Nonce scanner skips the 0x21 push opcode before the pubkey",
+      "statement": "extract_ecdsa_signatures finds a signature whose sighash byte is followed by a 0x21 push and a compressed pubkey.",
+      "criticality": "high",
+      "subsystem": "signal",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "The pubkey offset landed on 0x21 so real P2PKH/P2WPKH transactions yielded no signatures and nonce-reuse detection never fired.",
+      "owning_modules": [
+        "src/ecc/ecdsa_scan.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_engine_signal_plumbing_fixes.py",
+          "test_type": "regression"
+        }
+      ],
+      "notes": "audit finding MTH-001. layer: test-suite"
     }
   ]
 }

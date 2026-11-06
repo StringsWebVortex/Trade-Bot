@@ -47,11 +47,11 @@ deletion of the thing it points at.
 
 | Status | Entries |
 |---|---|
-| VERIFIED | 295 |
+| VERIFIED | 301 |
 | PARTIAL | 3 |
 | PLANNED | 0 |
 | ACCEPTED GAP | 0 |
-| **Total** | **298** |
+| **Total** | **304** |
 
 ## Summary by subsystem
 
@@ -60,8 +60,8 @@ deletion of the thing it points at.
 | Risk | 15 | 15 |
 | Execution | 21 | 20 |
 | Portfolio | 2 | 2 |
-| Signal and features | 16 | 16 |
-| Models and leakage | 24 | 24 |
+| Signal and features | 20 | 20 |
+| Models and leakage | 26 | 26 |
 | Data, money and time | 16 | 15 |
 | API and WebSocket | 26 | 26 |
 | Cryptography and secrets | 38 | 38 |
@@ -667,6 +667,58 @@ Live inference scores the feature row of the newest closed bar (label-independen
 
 > Audit DAT-001, EXR-003. layer: test-suite
 
+#### `REG-1080` — E-10 emits spot, not the S2F level, as predicted_price
+
+**VERIFIED** · critical · regression · source: OPS-2026-10-25
+
+E10Supply.run emits predicted_price equal to spot and keeps the S2F fair value in metadata only.
+
+- **If violated:** The S2F model price (hundreds of thousands of USD) was averaged into consensus price, so the trade signal came from the S2F artefact.
+- **Owned by:** `src/engines/e10_supply.py`
+- **Verification:**
+  - `tests/test_engine_signal_plumbing_fixes.py` (regression)
+
+> audit finding STR-01. layer: test-suite
+
+#### `REG-1081` — Meta-engines receive prior engine outputs
+
+**VERIFIED** · high · regression · source: OPS-2026-10-25
+
+EngineOrchestrator.run runs E-08, E-09 and E-15 after the other engines and passes engine_outputs and e07_direction in their data.
+
+- **If violated:** engine_outputs was set after gather and discarded, so E-08/E-09/E-15 ran on empty inputs and were constant functions of nothing.
+- **Owned by:** `src/engines/orchestrator.py`
+- **Verification:**
+  - `tests/test_engine_signal_plumbing_fixes.py` (regression)
+
+> audit finding STR-02. layer: test-suite
+
+#### `REG-1082` — TTL hysteresis holds state in the mid band
+
+**VERIFIED** · high · regression · source: OPS-2026-10-25
+
+TtlManager.compute returns the same TTL for repeated mid-band entropy values and switches only past the outer thresholds.
+
+- **If violated:** Inverted hysteresis thresholds flipped the signal TTL between 1h and 24h on every call for entropy in (0.35, 0.65).
+- **Owned by:** `src/engines/consensus.py`
+- **Verification:**
+  - `tests/test_engine_signal_plumbing_fixes.py` (regression)
+
+> audit finding STR-03. layer: test-suite
+
+#### `REG-1085` — Nonce scanner skips the 0x21 push opcode before the pubkey
+
+**VERIFIED** · high · regression · source: OPS-2026-10-25
+
+extract_ecdsa_signatures finds a signature whose sighash byte is followed by a 0x21 push and a compressed pubkey.
+
+- **If violated:** The pubkey offset landed on 0x21 so real P2PKH/P2WPKH transactions yielded no signatures and nonce-reuse detection never fired.
+- **Owned by:** `src/ecc/ecdsa_scan.py`
+- **Verification:**
+  - `tests/test_engine_signal_plumbing_fixes.py` (regression)
+
+> audit finding MTH-001. layer: test-suite
+
 #### `REG-1362` — Cluster flow score is flagged unavailable when no flow data exists
 
 **VERIFIED** · medium · regression · source: OPS-2026-10-25
@@ -926,6 +978,32 @@ The drift baseline derives from the trained direction model's measured OOS metri
   - `tests/regression/test_halts_drift_failclosed.py` (regression)
 
 > Audit EXR-005. layer: test-suite
+
+#### `REG-1083` — Ensemble members that error are excluded, not voted as 0.0
+
+**VERIFIED** · high · regression · source: OPS-2026-10-25
+
+Ensemble member predict raises on error so EnsemblePredictor lists the member in failed_models and excludes it from the estimate.
+
+- **If violated:** Members swallowed exceptions and returned 0.0, which entered the weighted mean and disagreement as a real forecast.
+- **Owned by:** `src/intelligence/ensemble_predictor.py`
+- **Verification:**
+  - `tests/test_engine_signal_plumbing_fixes.py` (regression)
+
+> audit finding INT-006. layer: test-suite
+
+#### `REG-1084` — IntelligenceAdapter persists the fused decision when no signal is sized
+
+**VERIFIED** · high · regression · source: OPS-2026-10-25
+
+When CryptoIntelligence.on_bar returns None, IntelligenceAdapter persists the last fused decision with zero direction and size.
+
+- **If violated:** on_bar returned None without a risk_context so nothing was ever persisted to intelligence_features_history.
+- **Owned by:** `src/intelligence/intelligence_adapter.py`
+- **Verification:**
+  - `tests/test_engine_signal_plumbing_fixes.py` (regression)
+
+> audit finding INT-008. layer: test-suite
 
 #### `REG-1090` — BOCPD changepoint probability responds to a mean shift
 
@@ -3878,4 +3956,4 @@ To add or change an entry, edit the registry and regenerate this file. See
 `docs/quality/TEST_STRATEGY.md` for the taxonomy the `test_type` column draws
 on, and `docs/quality/IMPLEMENTATION_PLAN.md` for what each phase delivers.
 
-Registry version: 1.0.0 — 298 entries.
+Registry version: 1.0.0 — 304 entries.

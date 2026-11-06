@@ -117,6 +117,10 @@ def extract_ecdsa_signatures(raw_tx_hex: str) -> list[tuple[int, int, bytes, str
                         r, s = parsed
                         # Try to find 33-byte compressed pubkey after the sig
                         pubkey_offset = i + 2 + total_len + 1  # skip sighash byte
+                        # In P2PKH scriptSig and P2WPKH witness the pubkey is
+                        # preceded by a 0x21 (33-byte) push opcode; skip it.
+                        if pubkey_offset < len(raw) and raw[pubkey_offset] == 0x21:
+                            pubkey_offset += 1
                         if pubkey_offset + 33 <= len(raw) and raw[pubkey_offset] in (0x02, 0x03):
                             pubkey = raw[pubkey_offset : pubkey_offset + 33]
                             # A 0x02/0x03 prefix and the right length are not a

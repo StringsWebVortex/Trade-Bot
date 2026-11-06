@@ -268,7 +268,7 @@ class ARIMAPredictor(PredictionModel):
             return float(forecast)
         except Exception as e:
             log.error("arima_prediction_failed", error=str(e), exc_info=True)
-            return 0.0
+            raise  # INT-006: let the ensemble exclude this member
 
     def predict_with_uncertainty(self, features: pd.DataFrame) -> tuple[float, float]:
         point = self.predict(features)
@@ -315,7 +315,7 @@ class XGBoostPredictor(PredictionModel):
             return float(self.model.predict(features)[0])
         except Exception as e:
             log.error("xgboost_prediction_failed", error=str(e), exc_info=True)
-            return 0.0
+            raise  # INT-006: let the ensemble exclude this member
 
     def predict_with_uncertainty(self, features: pd.DataFrame) -> tuple[float, float]:
         point = self.predict(features)
@@ -427,7 +427,7 @@ class LSTMPredictor(PredictionModel):
             return float(out.numpy().flatten()[0])
         except Exception as e:
             log.error("lstm_prediction_failed", error=str(e), exc_info=True)
-            return 0.0
+            raise  # INT-006: let the ensemble exclude this member
 
     def predict_with_uncertainty(self, features: pd.DataFrame) -> tuple[float, float]:
         point = self.predict(features)
@@ -519,7 +519,7 @@ class GaussianProcessPredictor(PredictionModel):
             return float(mean[0]), float(std[0])
         except Exception as e:
             log.error("gp_prediction_failed", error=str(e), exc_info=True)
-            return 0.0, 0.2
+            raise  # INT-006: let the ensemble exclude this member
 
     def get_performance_metrics(self) -> dict[str, Any]:
         return {"rmse": self.rmse, "model_type": "GaussianProcess"}
@@ -615,7 +615,7 @@ class TreeEnsemblePredictor(PredictionModel):
             return float(self.model.predict(features)[0])
         except Exception as e:
             log.error("tree_ensemble_prediction_failed", error=str(e), exc_info=True)
-            return 0.0
+            raise  # INT-006: let the ensemble exclude this member
 
     def predict_with_uncertainty(self, features: pd.DataFrame) -> tuple[float, float]:
         point = self.predict(features)
