@@ -962,8 +962,10 @@ def test_websocket_rejects_bad_key(mock_state):
 
 
 def test_websocket_full_tick_cycle(mock_state):
+    from src.api.access_control import Role
+
     async def _allow_ws(ws):
-        return None
+        return Role.TRADE_AUTHORIZING
 
     with patch("src.api.main.verify_ws_key", side_effect=_allow_ws):
         client = _get_client()
