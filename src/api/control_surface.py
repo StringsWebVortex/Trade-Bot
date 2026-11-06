@@ -259,7 +259,11 @@ _NEVER_WRITABLE_LEAF_MARKERS: tuple[str, ...] = ("url", "host", "path", "dir", "
 
 
 def is_operator_writable(dotted: str) -> bool:
-    """True only for allow-listed groups, and never for URL/path-like leaves."""
+    """True only for explicit operator controls, never URL/path-like leaves."""
+    # The top-level paper/live selector is deliberately operator-controlled;
+    # it has no dotted group because it is a root Settings field.
+    if dotted == "trading_mode":
+        return True
     if "." not in dotted:
         return False
     group, leaf = dotted.split(".")[0], dotted.split(".")[-1].lower()
