@@ -308,6 +308,27 @@ def test_malformed_baseline_is_an_input_error(va, in_tmp: Path, monkeypatch) -> 
     )
 
 
+@pytest.mark.parametrize(
+    "baseline_payload",
+    [
+        '{"fingerprints": [], "counts": []}',
+        '{"fingerprints": [], "counts": {"LAW5|x|a.py": -1}}',
+        '{"fingerprints": "not-an-array"}',
+        '{"fingerprints": [3]}',
+    ],
+)
+def test_malformed_baseline_counts_are_input_errors(
+    va, in_tmp: Path, monkeypatch, baseline_payload
+):
+    src = in_tmp / "m.py"
+    src.write_text("X = 1\n", encoding="utf-8")
+    baseline = in_tmp / "b.json"
+    baseline.write_text(baseline_payload, encoding="utf-8")
+    assert _main(
+        va, monkeypatch, "--non-interactive", "--file", str(src), "--baseline", str(baseline)
+    ) == 2
+
+
 def test_baseline_count_does_not_hide_a_new_instance_in_a_baselined_file(va) -> None:
     """DOC-022: a fingerprint has no line, so a 2nd identical finding used to be suppressed too."""
     old = va.Finding("LAW5", "verify=False", False, va.Severity.CRITICAL, "e", file="a.py", line=3)

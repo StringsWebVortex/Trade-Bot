@@ -100,6 +100,12 @@ from src.tuning.meta_allocator import get_allocation_controller
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
 
+def _watch_background_task(task: asyncio.Task[Any]) -> asyncio.Task[Any]:
+    """Register a long-lived engine task with the runtime health monitor."""
+    get_monitor().watch_task(task)
+    return task
+
+
 def _blend_audit(result: SignalResult) -> BlendAudit | None:
     """
     The tick's ensemble-blend inputs, or None when no blend happened.
@@ -834,15 +840,22 @@ class Orchestrator:
         self._log.info("orchestrator.run_start")
 
         tasks = [
-            asyncio.create_task(self._midnight_reset_loop(), name="midnight_reset"),
-            asyncio.create_task(self._position_monitor_loop(), name="position_monitor"),
-            asyncio.create_task(self._allocation_rebalance_loop(), name="allocation_rebalance"),
+            _watch_background_task(
+                asyncio.create_task(self._midnight_reset_loop(), name="midnight_reset")
+            ),
+            _watch_background_task(
+                asyncio.create_task(self._position_monitor_loop(), name="position_monitor")
+            ),
+            _watch_background_task(
+                asyncio.create_task(self._allocation_rebalance_loop(), name="allocation_rebalance")
+            ),
         ]
 
         # Crypto-Box background data provider loops (no-op when CRYPTO_BOX!=true)
         provider_tasks: list[asyncio.Task[None]] = []
         if self._crypto_box.enabled:
             provider_tasks = self._crypto_box_provider_tasks()
+            provider_tasks = [_watch_background_task(task) for task in provider_tasks]
 
         # The sub-second price path. src/data/orderbook_stream.py is a working
         # Binance depth + aggTrade client that, until now, nothing in src/
@@ -850,9 +863,15 @@ class Orchestrator:
         # nothing, while mark-to-market waited on a 5s REST poll.
         if self._cfg.binance.orderbook_stream_enabled:
             tasks.append(
-                asyncio.create_task(self._orderbook_stream_loop(), name="orderbook_stream")
+                _watch_background_task(
+                    asyncio.create_task(self._orderbook_stream_loop(), name="orderbook_stream")
+                )
             )
-            tasks.append(asyncio.create_task(self._price_preview_loop(), name="price_preview"))
+            tasks.append(
+                _watch_background_task(
+                    asyncio.create_task(self._price_preview_loop(), name="price_preview")
+                )
+            )
 
         self._run_tasks = tuple(tasks)
         tasks.extend(provider_tasks)
@@ -862,7 +881,9 @@ class Orchestrator:
         try:
             if await self._warm_up_unless_stopped():
                 loops = [
-                    asyncio.create_task(self._timeframe_loop(tf), name=f"loop_{tf.value}")
+                    _watch_background_task(
+                        asyncio.create_task(self._timeframe_loop(tf), name=f"loop_{tf.value}")
+                    )
                     for tf in self._timeframes
                     if tf.value in self._engines
                 ]
@@ -1359,12 +1380,14 @@ class Orchestrator:
         if tf == Timeframe.SCALPING and (
             self._intelligence_task is None or self._intelligence_task.done()
         ):
-            self._intelligence_task = asyncio.create_task(
-                self._process_intelligence_bar(
-                    tf,
-                    regime_id=result.regime.state if result.regime is not None else None,
-                ),
-                name="intelligence_source_bar",
+            self._intelligence_task = _watch_background_task(
+                asyncio.create_task(
+                    self._process_intelligence_bar(
+                        tf,
+                        regime_id=result.regime.state if result.regime is not None else None,
+                    ),
+                    name="intelligence_source_bar",
+                )
             )
 
         # When V6 is enabled, its fused horizon decision is an additional
@@ -1544,9 +1567,11 @@ class Orchestrator:
                         "orchestrator.drift_triggered_retrain",
                         timeframe=tf.value,
                     )
-                    task = asyncio.create_task(
-                        self._train_models(tf),
-                        name=f"retrain_{tf.value}_drift",
+                    task = _watch_background_task(
+                        asyncio.create_task(
+                            self._train_models(tf),
+                            name=f"retrain_{tf.value}_drift",
+                        )
                     )
 
                     def _drift_retrain_done(t: asyncio.Task, _tf: str = tf.value) -> None:
@@ -1721,9 +1746,11 @@ class Orchestrator:
         if tf == self._primary_tf and self._tick_counts[tf.value] % _RETRAIN_INTERVAL_TICKS == 0:
             prior = self._retrain_tasks.get(tf.value)
             if prior is None or prior.done():
-                task = asyncio.create_task(
-                    self._train_models(tf),
-                    name=f"retrain_{tf.value}",
+                task = _watch_background_task(
+                    asyncio.create_task(
+                        self._train_models(tf),
+                        name=f"retrain_{tf.value}",
+                    )
                 )
 
                 # SCAN2-003: log exceptions from the fire-and-forget retrain task;
@@ -1770,7 +1797,9 @@ class Orchestrator:
             self._log.warning("orchestrator.manual_retrain_skipped", timeframe=tf.value)
             return "already_running"
 
-        task = asyncio.create_task(self._train_models(tf), name=f"manual_retrain_{tf.value}")
+        task = _watch_background_task(
+            asyncio.create_task(self._train_models(tf), name=f"manual_retrain_{tf.value}")
+        )
 
         def _done(t: asyncio.Task, _tf: str = tf.value) -> None:
             if not t.cancelled() and t.exception() is not None:

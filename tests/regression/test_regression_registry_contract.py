@@ -225,6 +225,8 @@ class TestTheRegistryHasAPlaceForDefects:
             "REG-1223",
             "REG-1226",
             "REG-1227",
+            "REG-1229",
+            "REG-1230",
             # REG-1600..1603: audit OPS-011, OPS-012, API-021 and OPS-009 --
             # each a defect no test exercised, filed with its deciding test.
             "REG-1600",
@@ -285,6 +287,9 @@ class TestTheRegistryHasAPlaceForDefects:
             "SEC-1224",
             "SEC-1225",
             "SEC-1228",
+            "SEC-1231",
+            "SEC-1232",
+            "SEC-1233",
         }
 
     def test_every_filed_defect_names_a_permanent_test(self, registry):

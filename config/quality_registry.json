@@ -6217,6 +6217,118 @@
         }
       ],
       "depends_on": []
+    },
+    {
+      "id": "REG-1229",
+      "kind": "regression",
+      "title": "Runtime monitor watches production engine tasks",
+      "statement": "Long-lived engine loops, provider loops, intelligence tasks and retraining tasks are registered with RuntimeMonitor so failures become dead-task alerts.",
+      "criticality": "medium",
+      "subsystem": "resilience",
+      "status": "verified",
+      "source": "OPS-2026-11-07",
+      "failure_mode": "watch_task existed only as an uncalled API, so the production monitor never observed any engine task failure.",
+      "owning_modules": [
+        "src/engine/orchestrator.py",
+        "src/diagnostics/runtime_monitor.py"
+      ],
+      "depends_on": [],
+      "verification": [
+        {
+          "test": "tests/test_runtime_monitor_coverage.py",
+          "test_type": "regression"
+        }
+      ],
+      "notes": "PR #498 review follow-up. layer: test-suite"
+    },
+    {
+      "id": "REG-1230",
+      "kind": "regression",
+      "title": "Worker scale-down cooperatively stops only the selected worker",
+      "statement": "A targeted stop event lets the selected model worker finish its current task and exit without consuming a shared-queue sentinel or being terminated while idle.",
+      "criticality": "medium",
+      "subsystem": "resilience",
+      "status": "verified",
+      "source": "OPS-2026-11-07",
+      "failure_mode": "scale-down joined a process without sending it a targeted shutdown signal, then terminated it after five seconds; idle workers waited forever and in-flight inference could be killed.",
+      "owning_modules": [
+        "src/workers/orchestrator.py"
+      ],
+      "depends_on": [],
+      "verification": [
+        {
+          "test": "tests/test_workers_orchestrator_coverage.py",
+          "test_type": "regression"
+        }
+      ],
+      "notes": "PR #498 review follow-up. layer: test-suite"
+    },
+    {
+      "id": "SEC-1231",
+      "kind": "security_regression",
+      "title": "Explicit terminal environments are scrubbed before reaching PTYs",
+      "statement": "SessionManager applies the terminal environment allowlist to both inherited and explicitly supplied base environments before creating child PTYs.",
+      "criticality": "high",
+      "subsystem": "terminal",
+      "status": "verified",
+      "source": "OPS-2026-11-07",
+      "failure_mode": "Supplying base_env bypassed scrubbed_environment and could pass exchange credentials or operator secrets directly to an interactive shell.",
+      "owning_modules": [
+        "src/terminal/sessions.py",
+        "src/terminal/config.py"
+      ],
+      "depends_on": [],
+      "verification": [
+        {
+          "test": "tests/terminal/test_terminal_cli.py",
+          "test_type": "security"
+        }
+      ],
+      "notes": "PR #498 review follow-up. layer: test-suite"
+    },
+    {
+      "id": "SEC-1232",
+      "kind": "security_regression",
+      "title": "Malformed architecture baseline counts fail closed",
+      "statement": "Architecture baseline fingerprints and counts are type-checked; malformed count maps, negative values and non-array fingerprints are reported as input errors.",
+      "criticality": "high",
+      "subsystem": "governance",
+      "status": "verified",
+      "source": "OPS-2026-11-07",
+      "failure_mode": "Malformed count data could raise an uncaught AttributeError or silently accept negative suppression budgets instead of failing with a controlled baseline error.",
+      "owning_modules": [
+        ".claude/skills/crypto-architect/scripts/validate_arch.py"
+      ],
+      "depends_on": [],
+      "verification": [
+        {
+          "test": "tests/test_crypto_architect_skill.py",
+          "test_type": "security"
+        }
+      ],
+      "notes": "PR #498 review follow-up. layer: test-suite"
+    },
+    {
+      "id": "SEC-1233",
+      "kind": "security_regression",
+      "title": "CI completion checks fail closed on malformed verdict stores",
+      "statement": "ci_is_green returns false for absent or malformed CI verdict sections and accepts only an object recording green for the exact commit SHA.",
+      "criticality": "high",
+      "subsystem": "governance",
+      "status": "verified",
+      "source": "OPS-2026-11-07",
+      "failure_mode": "A malformed ci section such as null caused completion validation to raise instead of safely rejecting the attestation.",
+      "owning_modules": [
+        "src/agent_control/reliability.py"
+      ],
+      "depends_on": [],
+      "verification": [
+        {
+          "test": "tests/agent_control/test_reliability.py",
+          "test_type": "security"
+        }
+      ],
+      "notes": "PR #498 review follow-up. layer: test-suite"
     }
   ]
 }

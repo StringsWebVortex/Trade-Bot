@@ -300,7 +300,11 @@ def ci_is_green(sha: str | None) -> bool:
         return False
     with _locked() as path:
         data = _load(path)
-    return data.get("ci", {}).get(sha, {}).get("status") == "green"
+    ci = data.get("ci")
+    if not isinstance(ci, dict):
+        return False
+    verdict = ci.get(sha)
+    return isinstance(verdict, dict) and verdict.get("status") == "green"
 
 
 def snapshot() -> dict[str, Any]:

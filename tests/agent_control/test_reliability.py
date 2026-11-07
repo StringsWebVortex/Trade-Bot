@@ -253,3 +253,11 @@ def test_ci_is_green_only_for_a_recorded_green_verdict_on_that_sha(monkeypatch, 
     assert not reliability.ci_is_green("a" * 40)
     assert not reliability.ci_is_green("c" * 40)
     assert not reliability.ci_is_green(None)
+
+
+def test_ci_is_green_fails_closed_for_malformed_store(monkeypatch, tmp_path):
+    monkeypatch.setattr(reliability, "_git_common_dir", lambda: tmp_path)
+    path = reliability.state_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text('{"ci": null}', encoding="utf-8")
+    assert not reliability.ci_is_green("a" * 40)

@@ -196,7 +196,7 @@ class SessionManager:
         self._registry = registry
         self._on_session = on_session
         self._on_output = on_output
-        self._base_env = dict(scrubbed_environment() if base_env is None else base_env)
+        self._base_env = scrubbed_environment(base_env)
         self._shell = shell or self._base_env.get("SHELL") or "/bin/bash"
         self._proc = proc_root
         self._clock = clock

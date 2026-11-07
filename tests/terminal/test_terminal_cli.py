@@ -518,6 +518,30 @@ class TestLifecycleHelpers:
         assert "EXCHANGE_API_KEY" not in env
         assert env["LANG"] == "C.UTF-8"
 
+    def test_session_manager_scrubs_explicit_environment(self, tmp_path):
+        from src.terminal.config import TerminalConfig
+        from src.terminal.registry import ProcessRegistry
+        from src.terminal.sessions import SessionManager
+
+        manager = SessionManager(
+            TerminalConfig.from_env({}),
+            ProcessRegistry(history_limit=10, output_limit=1024),
+            base_env={
+                "PATH": "/usr/bin",
+                "HOME": str(tmp_path),
+                "LANG": "C.UTF-8",
+                "BINANCE_API_SECRET": "must-not-reach-pty",
+                "OPERATOR_SECRET": "must-not-reach-pty",
+                "UNRELATED_VAR": "must-not-reach-pty",
+            },
+        )
+        child_env = manager._child_env("s-12345678")
+        assert child_env["PATH"] == "/usr/bin"
+        assert child_env["HOME"] == str(tmp_path)
+        assert "BINANCE_API_SECRET" not in child_env
+        assert "OPERATOR_SECRET" not in child_env
+        assert "UNRELATED_VAR" not in child_env
+
 
 class TestHelpers:
     @pytest.mark.parametrize(

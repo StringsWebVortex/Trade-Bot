@@ -172,6 +172,38 @@ def test_model_worker_emits_error_result_when_inference_raises():
     assert result.algo == "TWAP"
 
 
+def test_model_worker_cooperatively_exits_after_current_task():
+    import threading
+
+    q_in: queue.Queue = queue.Queue()
+    q_out: queue.Queue = queue.Queue()
+    stop = threading.Event()
+    q_in.put(_task(task_id="in-flight"))
+    q_in.put(_task(task_id="must-remain-queued"))
+
+    def finish_and_stop(task):
+        stop.set()
+        return WorkerResult(
+            task_id=task.task_id,
+            horizon_id=task.horizon_id,
+            direction=0,
+            confidence=0.0,
+            magnitude_mu=0.0,
+            magnitude_sigma=1.0,
+            timing=0.5,
+            algo="TWAP",
+        )
+
+    with (
+        patch("src.workers.orchestrator.signal.signal"),
+        patch("src.workers.orchestrator._run_horizon_inference", side_effect=finish_and_stop),
+    ):
+        _model_worker(worker_id=5, queue_in=q_in, queue_out=q_out, stop_event=stop)
+
+    assert q_out.get_nowait().task_id == "in-flight"
+    assert q_in.get_nowait().task_id == "must-remain-queued"
+
+
 def test_model_worker_installs_sigterm_handler():
     q_in: queue.Queue = queue.Queue()
     q_in.put(None)
@@ -433,15 +465,20 @@ def test_scale_down_stops_the_removed_processes_themselves() -> None:
 
     orchestrator = WorkerOrchestrator(n_workers=5, ecc_enabled=False)
     workers = [_live_worker() for _ in range(4)]
+    stop_events = [MagicMock() for _ in workers]
     orchestrator._queue_in = SentinelQueue()
     orchestrator._workers = list(workers)
+    orchestrator._worker_stop_events = list(stop_events)
 
     orchestrator.scale(3)
 
     assert orchestrator._queue_in.items == []
     assert orchestrator._workers == workers[:2]
+    assert orchestrator._worker_stop_events == stop_events[:2]
     for worker in workers[2:]:
         worker.join.assert_any_call(timeout=5)
+    for stop_event in stop_events[2:]:
+        stop_event.set.assert_called_once_with()
 
 
 def test_stuck_worker_is_terminated_then_killed() -> None:

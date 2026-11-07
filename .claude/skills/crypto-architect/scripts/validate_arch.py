@@ -1557,11 +1557,24 @@ def main() -> None:
             sys.exit(2)
         try:
             data = json.loads(args.baseline.read_text(encoding="utf-8"))
+            if not isinstance(data, dict) or not isinstance(data.get("fingerprints"), list):
+                raise ValueError("baseline must contain a fingerprints array")
+            if not all(isinstance(value, str) for value in data["fingerprints"]):
+                raise ValueError("baseline fingerprints must contain only strings")
             known = set(data["fingerprints"])
             raw_counts = data.get("counts")
-            counts = (
-                {str(k): int(v) for k, v in raw_counts.items()} if raw_counts is not None else None
-            )
+            if raw_counts is None:
+                counts = None  # legacy baseline format
+            else:
+                if not isinstance(raw_counts, dict):
+                    raise ValueError("baseline counts must be an object")
+                counts = {}
+                for key, value in raw_counts.items():
+                    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+                        raise ValueError(
+                            f"baseline count for {key!r} must be a non-negative integer"
+                        )
+                    counts[str(key)] = value
         except (OSError, ValueError, KeyError, TypeError) as exc:
             print(f"ERROR: Malformed baseline {args.baseline}: {exc}", file=sys.stderr)
             sys.exit(2)

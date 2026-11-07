@@ -430,3 +430,24 @@ def test_get_monitor_returns_singleton():
     m2 = get_monitor()
     assert m1 is m2
     assert isinstance(m1, RuntimeMonitor)
+
+
+def test_engine_background_task_helper_registers_task_with_runtime_monitor(monkeypatch):
+    from src.engine import orchestrator as engine_orchestrator
+
+    watched = []
+    monkeypatch.setattr(
+        engine_orchestrator,
+        "get_monitor",
+        lambda: MagicMock(watch_task=watched.append),
+    )
+
+    async def work():
+        return None
+
+    task = asyncio.create_task(work(), name="engine-background-test")
+    try:
+        assert engine_orchestrator._watch_background_task(task) is task
+        assert watched == [task]
+    finally:
+        task.cancel()

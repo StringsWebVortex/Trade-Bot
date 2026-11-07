@@ -47,11 +47,11 @@ deletion of the thing it points at.
 
 | Status | Entries |
 |---|---|
-| VERIFIED | 241 |
+| VERIFIED | 246 |
 | PARTIAL | 3 |
 | PLANNED | 0 |
 | ACCEPTED GAP | 0 |
-| **Total** | **244** |
+| **Total** | **249** |
 
 ## Summary by subsystem
 
@@ -66,10 +66,10 @@ deletion of the thing it points at.
 | API and WebSocket | 22 | 22 |
 | Cryptography and secrets | 33 | 33 |
 | Supply chain and artifacts | 7 | 7 |
-| Resilience and recovery | 29 | 29 |
+| Resilience and recovery | 31 | 31 |
 | Release and production | 14 | 14 |
-| Governance | 71 | 70 |
-| Terminal and process center | 14 | 14 |
+| Governance | 73 | 72 |
+| Terminal and process center | 15 | 15 |
 
 ## Outstanding work by phase
 
@@ -1899,6 +1899,32 @@ scale(n) targets n-1 model workers, spawns the difference, stops popped processe
 
 > layer: test-suite
 
+#### `REG-1229` — Runtime monitor watches production engine tasks
+
+**VERIFIED** · medium · regression · source: OPS-2026-11-07
+
+Long-lived engine loops, provider loops, intelligence tasks and retraining tasks are registered with RuntimeMonitor so failures become dead-task alerts.
+
+- **If violated:** watch_task existed only as an uncalled API, so the production monitor never observed any engine task failure.
+- **Owned by:** `src/engine/orchestrator.py`, `src/diagnostics/runtime_monitor.py`
+- **Verification:**
+  - `tests/test_runtime_monitor_coverage.py` (regression)
+
+> PR #498 review follow-up. layer: test-suite
+
+#### `REG-1230` — Worker scale-down cooperatively stops only the selected worker
+
+**VERIFIED** · medium · regression · source: OPS-2026-11-07
+
+A targeted stop event lets the selected model worker finish its current task and exit without consuming a shared-queue sentinel or being terminated while idle.
+
+- **If violated:** scale-down joined a process without sending it a targeted shutdown signal, then terminated it after five seconds; idle workers waited forever and in-flight inference could be killed.
+- **Owned by:** `src/workers/orchestrator.py`
+- **Verification:**
+  - `tests/test_workers_orchestrator_coverage.py` (regression)
+
+> PR #498 review follow-up. layer: test-suite
+
 #### `REG-1602` — The runtime control plane's in-memory state is bounded
 
 **VERIFIED** · low · regression · source: OPS-2026-10-25
@@ -2970,6 +2996,32 @@ A baselined fingerprint suppresses at most its recorded number of findings, so a
 
 > layer: test-suite
 
+#### `SEC-1232` — Malformed architecture baseline counts fail closed
+
+**VERIFIED** · high · security_regression · source: OPS-2026-11-07
+
+Architecture baseline fingerprints and counts are type-checked; malformed count maps, negative values and non-array fingerprints are reported as input errors.
+
+- **If violated:** Malformed count data could raise an uncaught AttributeError or silently accept negative suppression budgets instead of failing with a controlled baseline error.
+- **Owned by:** `.claude/skills/crypto-architect/scripts/validate_arch.py`
+- **Verification:**
+  - `tests/test_crypto_architect_skill.py` (security)
+
+> PR #498 review follow-up. layer: test-suite
+
+#### `SEC-1233` — CI completion checks fail closed on malformed verdict stores
+
+**VERIFIED** · high · security_regression · source: OPS-2026-11-07
+
+ci_is_green returns false for absent or malformed CI verdict sections and accepts only an object recording green for the exact commit SHA.
+
+- **If violated:** A malformed ci section such as null caused completion validation to raise instead of safely rejecting the attestation.
+- **Owned by:** `src/agent_control/reliability.py`
+- **Verification:**
+  - `tests/agent_control/test_reliability.py` (security)
+
+> PR #498 review follow-up. layer: test-suite
+
 ## Terminal and process center
 
 #### `TERM-001` — Terminal sessions are real PTYs that every client shares
@@ -3147,6 +3199,19 @@ The terminal daemon and session shells inherit only allowlisted variables and ne
 
 > layer: test-suite
 
+#### `SEC-1231` — Explicit terminal environments are scrubbed before reaching PTYs
+
+**VERIFIED** · high · security_regression · source: OPS-2026-11-07
+
+SessionManager applies the terminal environment allowlist to both inherited and explicitly supplied base environments before creating child PTYs.
+
+- **If violated:** Supplying base_env bypassed scrubbed_environment and could pass exchange credentials or operator secrets directly to an interactive shell.
+- **Owned by:** `src/terminal/sessions.py`, `src/terminal/config.py`
+- **Verification:**
+  - `tests/terminal/test_terminal_cli.py` (security)
+
+> PR #498 review follow-up. layer: test-suite
+
 
 ---
 
@@ -3175,4 +3240,4 @@ To add or change an entry, edit the registry and regenerate this file. See
 `docs/quality/TEST_STRATEGY.md` for the taxonomy the `test_type` column draws
 on, and `docs/quality/IMPLEMENTATION_PLAN.md` for what each phase delivers.
 
-Registry version: 1.0.0 — 244 entries.
+Registry version: 1.0.0 — 249 entries.
