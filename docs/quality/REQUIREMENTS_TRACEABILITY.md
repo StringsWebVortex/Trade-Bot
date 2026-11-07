@@ -47,24 +47,24 @@ deletion of the thing it points at.
 
 | Status | Entries |
 |---|---|
-| VERIFIED | 320 |
+| VERIFIED | 332 |
 | PARTIAL | 3 |
 | PLANNED | 0 |
 | ACCEPTED GAP | 0 |
-| **Total** | **323** |
+| **Total** | **335** |
 
 ## Summary by subsystem
 
 | Subsystem | Entries | Verified |
 |---|---|---|
-| Risk | 16 | 16 |
+| Risk | 20 | 20 |
 | Execution | 21 | 20 |
 | Portfolio | 2 | 2 |
-| Signal and features | 20 | 20 |
+| Signal and features | 22 | 22 |
 | Models and leakage | 38 | 38 |
 | Data, money and time | 16 | 15 |
 | API and WebSocket | 32 | 32 |
-| Cryptography and secrets | 38 | 38 |
+| Cryptography and secrets | 44 | 44 |
 | Supply chain and artifacts | 7 | 7 |
 | Resilience and recovery | 27 | 27 |
 | Release and production | 17 | 17 |
@@ -294,6 +294,58 @@ adv_20d is the mean bar volume multiplied by bars per day for the configured tim
   - `tests/test_tuning_scheduler.py` (regression)
 
 > audit finding STR-14. layer: test-suite
+
+#### `REG-1460` — Dead ECDSA r-registry prune helper removed
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+ECDSAScanner exposes no unused clear_old_entries; the LRU bound in scan_transaction is the only prune.
+
+- **If violated:** Dead redundant code invited divergence from the LRU bound.
+- **Owned by:** `src/ecc/ecdsa_scan.py`
+- **Verification:**
+  - `tests/regression/test_phase6_math_strategy_lows.py` (regression)
+
+> audit finding MTH-003; layer: test-suite
+
+#### `REG-1461` — Failed model artifact log returns no run id
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+ModelRegistry.log_model returns None when the artifact upload fails.
+
+- **If violated:** A run id for a missing artifact let register_model register a model that does not exist.
+- **Owned by:** `src/upgrade/registry.py`
+- **Verification:**
+  - `tests/regression/test_phase6_math_strategy_lows.py` (regression)
+
+> audit finding MTH-007; layer: test-suite
+
+#### `REG-1464` — Non-finite Mosca inputs rejected
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+migration_verdict raises QuantumAssessmentError for NaN or infinite years.
+
+- **If violated:** A NaN overshoot gave a silent safe verdict.
+- **Owned by:** `src/mathcore/quantum/shor.py`
+- **Verification:**
+  - `tests/regression/test_phase6_math_strategy_lows.py` (regression)
+
+> audit finding MTH-023; layer: test-suite
+
+#### `REG-1465` — Fourier engine detrends and derives direction after adjustments
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+E04 detrends before the FFT, skips the halving overlay when block_height <= 0 and computes direction from the final price.
+
+- **If violated:** Direction and price could disagree and a default block height gave a constant bullish overlay.
+- **Owned by:** `src/engines/e04_fourier.py`
+- **Verification:**
+  - `tests/regression/test_phase6_math_strategy_lows.py` (regression)
+
+> audit finding STR-17; layer: test-suite
 
 ## Execution
 
@@ -835,6 +887,32 @@ The PC1 loading sign is fixed so loadings sum positive and direction is the sign
   - `tests/test_math_strategies_audit_fixes.py` (regression)
 
 > audit finding STR-12. layer: test-suite
+
+#### `REG-1470` — GBM Monte Carlo default RNG is seeded
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+gbm_mc is deterministic for identical inputs when no rng is given.
+
+- **If violated:** Unseeded RNG flipped direction near the band.
+- **Owned by:** `src/engines/e11_stochastic.py`
+- **Verification:**
+  - `tests/regression/test_phase6_math_strategy_lows.py` (regression)
+
+> audit finding STR-18; layer: test-suite
+
+#### `REG-1471` — Filters reject invalid direction values
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+Trend/OBV/MTF/ADX filters raise on a direction outside {1,0,-1}.
+
+- **If violated:** Any non-1 value was silently treated as short.
+- **Owned by:** `src/strategies/filters.py`
+- **Verification:**
+  - `tests/regression/test_phase6_math_strategy_lows.py` (regression)
+
+> audit finding STR-19; layer: test-suite
 
 #### `REG-1704` — Carry and arbitrage entries clear a measured-cost hurdle, never a fixed threshold
 
@@ -2257,6 +2335,84 @@ A signature seen again under the same txid and s is ignored; only the same r wit
   - `tests/test_math_strategies_audit_fixes.py` (regression)
 
 > audit finding MTH-002. layer: test-suite
+
+#### `REG-1462` — DVC git tag name is validated
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+ModelRegistry.tag_dvc rejects tag names outside [A-Za-z0-9._/-]+ or with a leading dash and runs git/dvc in the repo root.
+
+- **If violated:** A tag name beginning with - was parsed by git as an option.
+- **Owned by:** `src/upgrade/registry.py`
+- **Verification:**
+  - `tests/regression/test_phase6_math_strategy_lows.py` (regression)
+
+> audit finding MTH-008; layer: test-suite
+
+#### `REG-1463` — Negative DH public values rejected
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+is_valid_public_value requires 2 <= y <= p-2.
+
+- **If violated:** A negative y was reduced by pow and accepted.
+- **Owned by:** `src/mathcore/numbertheory/safe_primes.py`
+- **Verification:**
+  - `tests/regression/test_phase6_math_strategy_lows.py` (regression)
+
+> audit finding MTH-021; layer: test-suite
+
+#### `REG-1466` — Pohlig-Hellman trial division is bounded
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+pohlig_hellman_security_bits raises instead of looping on orders with no small factor.
+
+- **If violated:** A 256-bit prime order looped ~2^128 steps.
+- **Owned by:** `src/mathcore/numbertheory/dlp_bounds.py`
+- **Verification:**
+  - `tests/regression/test_phase6_math_strategy_lows.py` (regression)
+
+> audit finding MTH-015; layer: test-suite
+
+#### `REG-1467` — Committee size uses a closed form
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+min_committee_size seeds from the closed form and adjusts to the exact crossing.
+
+- **If violated:** Linear walk took millions of iterations for tiny KL.
+- **Owned by:** `src/mathcore/probability/committee.py`
+- **Verification:**
+  - `tests/regression/test_phase6_math_strategy_lows.py` (regression)
+
+> audit finding MTH-016; layer: test-suite
+
+#### `REG-1468` — Birthday minimum draws is exact for huge spaces
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+The minimum draw count is found by bracketing and bisection, exact beyond float precision.
+
+- **If violated:** Float seeding returned non-minimal counts for N >= 2^64.
+- **Owned by:** `src/mathcore/probability/birthday.py`
+- **Verification:**
+  - `tests/regression/test_phase6_math_strategy_lows.py` (regression)
+
+> audit finding MTH-017; layer: test-suite
+
+#### `REG-1469` — Constants module does not mutate the global decimal context
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+nutms derives constants in a local 120-digit context.
+
+- **If violated:** Import set the importing thread's decimal precision globally.
+- **Owned by:** `src/mathcore/constants/nutms.py`
+- **Verification:**
+  - `tests/regression/test_phase6_math_strategy_lows.py` (regression)
+
+> audit finding MTH-018; layer: test-suite
 
 #### `REG-1608` — Prometheus authenticates its /metrics scrape
 
@@ -4203,4 +4359,4 @@ To add or change an entry, edit the registry and regenerate this file. See
 `docs/quality/TEST_STRATEGY.md` for the taxonomy the `test_type` column draws
 on, and `docs/quality/IMPLEMENTATION_PLAN.md` for what each phase delivers.
 
-Registry version: 1.0.0 — 323 entries.
+Registry version: 1.0.0 — 335 entries.

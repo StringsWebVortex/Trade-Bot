@@ -3637,28 +3637,6 @@
       "notes": "layer: test-suite"
     },
     {
-      "id": "SEC-0012",
-      "kind": "security_regression",
-      "title": "The runtime manifest never resolves a vulnerable filelock",
-      "statement": "requirements.txt declares filelock>=4.2.1, and every Dockerfile install into the build prefix after the CPU torch pre-pass runs with that prefix on PYTHONPATH, so neither the runtime nor the container image carries filelock 3.32.3 (CVE-2026-112940).",
-      "criticality": "high",
-      "subsystem": "security",
-      "status": "verified",
-      "source": "OPS-2026-10-25",
-      "failure_mode": "filelock was only a transitive dependency of torch and huggingface-hub, both unbounded, so pip kept filelock 3.32.3; the container scan reported CVE-2026-112940 and every PR's Security gate went red. The floor alone did not clear the image: pip does not see packages inside --prefix, so the requirements pass installed filelock 4.x beside the pre-pass's 3.32.3 and the stale dist-info stayed in the image.",
-      "owning_modules": [
-        "requirements.txt",
-        "Dockerfile"
-      ],
-      "verification": [
-        {
-          "test": "tests/security/test_filelock_cve_floor.py",
-          "test_type": "security"
-        }
-      ],
-      "notes": "The advisory was published against a release nobody here chose, so no commit or review could have seen it arrive. layer: supply-chain"
-    },
-    {
       "id": "GOV-022",
       "kind": "requirement",
       "title": "diagnostics stays within its layer",
@@ -5790,6 +5768,292 @@
         }
       ],
       "depends_on": []
+    },
+    {
+      "id": "REG-1460",
+      "kind": "regression",
+      "title": "Dead ECDSA r-registry prune helper removed",
+      "statement": "ECDSAScanner exposes no unused clear_old_entries; the LRU bound in scan_transaction is the only prune.",
+      "criticality": "low",
+      "subsystem": "risk",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "audit finding MTH-003; layer: test-suite",
+      "failure_mode": "Dead redundant code invited divergence from the LRU bound.",
+      "owning_modules": [
+        "src/ecc/ecdsa_scan.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/regression/test_phase6_math_strategy_lows.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1461",
+      "kind": "regression",
+      "title": "Failed model artifact log returns no run id",
+      "statement": "ModelRegistry.log_model returns None when the artifact upload fails.",
+      "criticality": "low",
+      "subsystem": "risk",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "audit finding MTH-007; layer: test-suite",
+      "failure_mode": "A run id for a missing artifact let register_model register a model that does not exist.",
+      "owning_modules": [
+        "src/upgrade/registry.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/regression/test_phase6_math_strategy_lows.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1462",
+      "kind": "regression",
+      "title": "DVC git tag name is validated",
+      "statement": "ModelRegistry.tag_dvc rejects tag names outside [A-Za-z0-9._/-]+ or with a leading dash and runs git/dvc in the repo root.",
+      "criticality": "low",
+      "subsystem": "security",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "audit finding MTH-008; layer: test-suite",
+      "failure_mode": "A tag name beginning with - was parsed by git as an option.",
+      "owning_modules": [
+        "src/upgrade/registry.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/regression/test_phase6_math_strategy_lows.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1463",
+      "kind": "regression",
+      "title": "Negative DH public values rejected",
+      "statement": "is_valid_public_value requires 2 <= y <= p-2.",
+      "criticality": "low",
+      "subsystem": "security",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "audit finding MTH-021; layer: test-suite",
+      "failure_mode": "A negative y was reduced by pow and accepted.",
+      "owning_modules": [
+        "src/mathcore/numbertheory/safe_primes.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/regression/test_phase6_math_strategy_lows.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1464",
+      "kind": "regression",
+      "title": "Non-finite Mosca inputs rejected",
+      "statement": "migration_verdict raises QuantumAssessmentError for NaN or infinite years.",
+      "criticality": "low",
+      "subsystem": "risk",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "audit finding MTH-023; layer: test-suite",
+      "failure_mode": "A NaN overshoot gave a silent safe verdict.",
+      "owning_modules": [
+        "src/mathcore/quantum/shor.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/regression/test_phase6_math_strategy_lows.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1465",
+      "kind": "regression",
+      "title": "Fourier engine detrends and derives direction after adjustments",
+      "statement": "E04 detrends before the FFT, skips the halving overlay when block_height <= 0 and computes direction from the final price.",
+      "criticality": "low",
+      "subsystem": "risk",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "audit finding STR-17; layer: test-suite",
+      "failure_mode": "Direction and price could disagree and a default block height gave a constant bullish overlay.",
+      "owning_modules": [
+        "src/engines/e04_fourier.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/regression/test_phase6_math_strategy_lows.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1466",
+      "kind": "regression",
+      "title": "Pohlig-Hellman trial division is bounded",
+      "statement": "pohlig_hellman_security_bits raises instead of looping on orders with no small factor.",
+      "criticality": "low",
+      "subsystem": "security",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "audit finding MTH-015; layer: test-suite",
+      "failure_mode": "A 256-bit prime order looped ~2^128 steps.",
+      "owning_modules": [
+        "src/mathcore/numbertheory/dlp_bounds.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/regression/test_phase6_math_strategy_lows.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1467",
+      "kind": "regression",
+      "title": "Committee size uses a closed form",
+      "statement": "min_committee_size seeds from the closed form and adjusts to the exact crossing.",
+      "criticality": "low",
+      "subsystem": "security",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "audit finding MTH-016; layer: test-suite",
+      "failure_mode": "Linear walk took millions of iterations for tiny KL.",
+      "owning_modules": [
+        "src/mathcore/probability/committee.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/regression/test_phase6_math_strategy_lows.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1468",
+      "kind": "regression",
+      "title": "Birthday minimum draws is exact for huge spaces",
+      "statement": "The minimum draw count is found by bracketing and bisection, exact beyond float precision.",
+      "criticality": "low",
+      "subsystem": "security",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "audit finding MTH-017; layer: test-suite",
+      "failure_mode": "Float seeding returned non-minimal counts for N >= 2^64.",
+      "owning_modules": [
+        "src/mathcore/probability/birthday.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/regression/test_phase6_math_strategy_lows.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1469",
+      "kind": "regression",
+      "title": "Constants module does not mutate the global decimal context",
+      "statement": "nutms derives constants in a local 120-digit context.",
+      "criticality": "low",
+      "subsystem": "security",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "audit finding MTH-018; layer: test-suite",
+      "failure_mode": "Import set the importing thread's decimal precision globally.",
+      "owning_modules": [
+        "src/mathcore/constants/nutms.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/regression/test_phase6_math_strategy_lows.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1470",
+      "kind": "regression",
+      "title": "GBM Monte Carlo default RNG is seeded",
+      "statement": "gbm_mc is deterministic for identical inputs when no rng is given.",
+      "criticality": "low",
+      "subsystem": "signal",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "audit finding STR-18; layer: test-suite",
+      "failure_mode": "Unseeded RNG flipped direction near the band.",
+      "owning_modules": [
+        "src/engines/e11_stochastic.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/regression/test_phase6_math_strategy_lows.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1471",
+      "kind": "regression",
+      "title": "Filters reject invalid direction values",
+      "statement": "Trend/OBV/MTF/ADX filters raise on a direction outside {1,0,-1}.",
+      "criticality": "low",
+      "subsystem": "signal",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "audit finding STR-19; layer: test-suite",
+      "failure_mode": "Any non-1 value was silently treated as short.",
+      "owning_modules": [
+        "src/strategies/filters.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/regression/test_phase6_math_strategy_lows.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "SEC-0012",
+      "kind": "security_regression",
+      "title": "The runtime manifest never resolves a vulnerable filelock",
+      "statement": "requirements.txt declares filelock>=4.2.1, and every Dockerfile install into the build prefix after the CPU torch pre-pass runs with that prefix on PYTHONPATH, so neither the runtime nor the container image carries filelock 3.32.3 (CVE-2026-112940).",
+      "criticality": "high",
+      "subsystem": "security",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "filelock was only a transitive dependency of torch and huggingface-hub, both unbounded, so pip kept filelock 3.32.3; the container scan reported CVE-2026-112940 and every PR's Security gate went red. The floor alone did not clear the image: pip does not see packages inside --prefix, so the requirements pass installed filelock 4.x beside the pre-pass's 3.32.3 and the stale dist-info stayed in the image.",
+      "owning_modules": [
+        "requirements.txt",
+        "Dockerfile"
+      ],
+      "verification": [
+        {
+          "test": "tests/security/test_filelock_cve_floor.py",
+          "test_type": "security"
+        }
+      ],
+      "notes": "The advisory was published against a release nobody here chose, so no commit or review could have seen it arrive. layer: supply-chain"
     },
     {
       "id": "REG-1604",

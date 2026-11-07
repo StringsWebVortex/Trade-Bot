@@ -4,6 +4,10 @@ Engine Orchestrator — parallel execution of all 18 Crypto-Box engines.
 All engines run concurrently via asyncio.gather with per-engine SLA timeouts.
 Engines that time-out or error are removed from consensus (graceful degradation).
 
+Naming (STR-23): this is the 18-engine Crypto-Box orchestrator in ``src/engines``.
+It is NOT ``src/engine/orchestrator.py`` (the live trading orchestrator); the two
+are bridged by ``src/engine/crypto_box_adapter.py``. Import by full path.
+
 Registry: SIG-004 (config/quality_registry.json).
 """
 
