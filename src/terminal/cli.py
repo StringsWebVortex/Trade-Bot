@@ -45,7 +45,11 @@ from typing import Any, TextIO
 from src.terminal import SERVICE_VERSION, auth, install
 from src.terminal.client import TerminalClient, TerminalClientError
 from src.terminal.config import (
-    REPO_ROOT, TerminalConfig, TerminalConfigError, ensure_managed_state_dir, ensure_private_dir,
+    REPO_ROOT,
+    TerminalConfig,
+    TerminalConfigError,
+    ensure_managed_state_dir,
+    scrubbed_environment,
 )
 from src.terminal.protocol import PROCESS_ID_RE, SESSION_ID_RE, SIGNALS
 
@@ -173,7 +177,7 @@ def _spawn_detached(config: TerminalConfig) -> None:
     if log_path.exists() and log_path.stat().st_size > LOG_ROTATE_BYTES:
         log_path.unlink()
     descriptor = os.open(log_path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
-    env = dict(os.environ)
+    env = scrubbed_environment()
     existing = env.get("PYTHONPATH")
     env["PYTHONPATH"] = f"{REPO_ROOT}{os.pathsep}{existing}" if existing else str(REPO_ROOT)
     try:

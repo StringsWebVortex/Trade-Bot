@@ -1,9 +1,6 @@
 """GOV-057 / GOV-063 -- deterministic agent reliability controls.
 
-Decides:
-  - REG-1491 — CI failure fingerprint normalises whitespace
-  - REG-1497 — Agent reliability state fails closed and follows the state dir
-"""
+Decides: SEC-1220, REG-1491, REG-1497"""
 
 from __future__ import annotations
 
@@ -246,6 +243,24 @@ def test_active_context_survives_task_store_failure(monkeypatch, tmp_path):
     monkeypatch.setattr(reliability.subprocess, "run", fake_run)
 
     assert reliability._active_context() == (None, "a" * 40)
+
+
+def test_ci_is_green_only_for_a_recorded_green_verdict_on_that_sha(monkeypatch, tmp_path):
+    monkeypatch.setattr(reliability, "_git_common_dir", lambda: tmp_path)
+    reliability.record_ci_verdict(sha="a" * 40, pr=1, status="failed", failed_checks=["lint"])
+    reliability.record_ci_verdict(sha="b" * 40, pr=1, status="green")
+    assert reliability.ci_is_green("b" * 40)
+    assert not reliability.ci_is_green("a" * 40)
+    assert not reliability.ci_is_green("c" * 40)
+    assert not reliability.ci_is_green(None)
+
+
+def test_ci_is_green_fails_closed_for_malformed_store(monkeypatch, tmp_path):
+    monkeypatch.setattr(reliability, "_git_common_dir", lambda: tmp_path)
+    path = reliability.state_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text('{"ci": null}', encoding="utf-8")
+    assert not reliability.ci_is_green("a" * 40)
 
 
 def test_ci_fingerprint_ignores_whitespace_differences(monkeypatch, tmp_path):

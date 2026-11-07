@@ -47,11 +47,11 @@ deletion of the thing it points at.
 
 | Status | Entries |
 |---|---|
-| VERIFIED | 347 |
+| VERIFIED | 361 |
 | PARTIAL | 3 |
 | PLANNED | 0 |
 | ACCEPTED GAP | 0 |
-| **Total** | **350** |
+| **Total** | **364** |
 
 ## Summary by subsystem
 
@@ -64,12 +64,12 @@ deletion of the thing it points at.
 | Models and leakage | 38 | 38 |
 | Data, money and time | 17 | 16 |
 | API and WebSocket | 34 | 34 |
-| Cryptography and secrets | 46 | 46 |
+| Cryptography and secrets | 47 | 47 |
 | Supply chain and artifacts | 7 | 7 |
-| Resilience and recovery | 30 | 30 |
+| Resilience and recovery | 35 | 35 |
 | Release and production | 17 | 17 |
-| Governance | 79 | 78 |
-| Terminal and process center | 17 | 17 |
+| Governance | 85 | 84 |
+| Terminal and process center | 19 | 19 |
 
 ## Outstanding work by phase
 
@@ -2629,6 +2629,19 @@ shell_exec.run masks secrets in the whole raw output before filtering and cappin
 
 > layer: test-suite
 
+#### `SEC-1225` — Orchestrator workers default to read-only tools
+
+**VERIFIED** · high · security_regression · source: OPS-2026-10-25
+
+WORKER_ALLOWED_TOOLS defaults to Read,Grep,Glob; shell access is an explicit opt-in.
+
+- **If violated:** LLM-authored subtasks ran with pre-approved Bash, so injected content became shell execution.
+- **Owned by:** `orchestrator/config.py`
+- **Verification:**
+  - `tests/test_orchestrator_pkg_run.py` (security)
+
+> layer: test-suite
+
 #### `SEC-1490` — Agent git remote is never parsed as a git option
 
 **VERIFIED** · low · security_regression · source: OPS-2026-10-25
@@ -3061,6 +3074,71 @@ A NaN or infinite staleness, position deviation, drawdown or clock skew makes it
   - `tests/regression/test_halts_drift_failclosed.py` (regression)
 
 > Audit AGT-011/AGT-010. layer: test-suite
+
+#### `REG-1221` — Dead-task scan observes watched tasks
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+RuntimeMonitor reports a watched asyncio task that ends with an exception and ignores cancelled or clean ones.
+
+- **If violated:** asyncio.all_tasks() never returns finished tasks, so the dead-task probe could not fire.
+- **Owned by:** `src/diagnostics/runtime_monitor.py`
+- **Verification:**
+  - `tests/test_runtime_monitor_coverage.py` (regression)
+
+> layer: test-suite
+
+#### `REG-1222` — ECC worker thread stops and never blocks on a full queue
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+The ECC worker exits when its stop event is set and drops a result instead of blocking when the output queue is full.
+
+- **If violated:** The loop was while True with an unbounded put, so shutdown always timed out and the thread leaked.
+- **Owned by:** `src/workers/orchestrator.py`
+- **Verification:**
+  - `tests/test_workers_orchestrator_coverage.py` (regression)
+
+> layer: test-suite
+
+#### `REG-1223` — scale() counts the ECC slot and stops the exact process
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+scale(n) targets n-1 model workers, spawns the difference, stops popped processes directly, and shutdown terminates any survivor.
+
+- **If violated:** scale compared n with model workers only (spawned none after start(n)) and sentinels on a shared queue left popped processes alive and untracked.
+- **Owned by:** `src/workers/orchestrator.py`
+- **Verification:**
+  - `tests/test_workers_orchestrator_coverage.py` (regression)
+
+> layer: test-suite
+
+#### `REG-1229` — Runtime monitor watches production engine tasks
+
+**VERIFIED** · medium · regression · source: OPS-2026-11-07
+
+Long-lived engine loops, provider loops, intelligence tasks and retraining tasks are registered with RuntimeMonitor so failures become dead-task alerts.
+
+- **If violated:** watch_task existed only as an uncalled API, so the production monitor never observed any engine task failure.
+- **Owned by:** `src/engine/orchestrator.py`, `src/diagnostics/runtime_monitor.py`
+- **Verification:**
+  - `tests/test_runtime_monitor_coverage.py` (regression)
+
+> PR #498 review follow-up. layer: test-suite
+
+#### `REG-1230` — Worker scale-down cooperatively stops only the selected worker
+
+**VERIFIED** · medium · regression · source: OPS-2026-11-07
+
+A targeted stop event lets the selected model worker finish its current task and exit without consuming a shared-queue sentinel or being terminated while idle.
+
+- **If violated:** scale-down joined a process without sending it a targeted shutdown signal, then terminated it after five seconds; idle workers waited forever and in-flight inference could be killed.
+- **Owned by:** `src/workers/orchestrator.py`
+- **Verification:**
+  - `tests/test_workers_orchestrator_coverage.py` (regression)
+
+> PR #498 review follow-up. layer: test-suite
 
 #### `REG-1492` — Tick-stall failures accumulate toward escalation
 
@@ -4110,6 +4188,33 @@ Every scripts/ path named in the README, in src/ comments or in a test's skip me
 
 > scripts/timescaledb.sh was referenced from six call sites -- README.md three times, src/config.py, src/data/storage.py and the skip message in tests/test_timescale_storage.py -- and did not exist; removed by the config purge (#144) without the references going with it. The test guards the general form (a named scripts/ path that is absent) as well as this one file, and pins the script to ci.yml's service block so the local and CI databases cannot drift apart silently. layer: test-suite
 
+#### `REG-1226` — Orchestrator survives a failing worker and prose-wrapped plans
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+A failing worker becomes an error digest without discarding the others, concurrency is capped, and the planner uses a JSON schema with a lenient fallback.
+
+- **If violated:** fut.result() raised and discarded every other digest; planner json.loads failed on fence or prose variants.
+- **Owned by:** `orchestrator/run.py`, `orchestrator/planner.py`
+- **Verification:**
+  - `tests/test_orchestrator_pkg_run.py` (regression)
+  - `tests/test_orchestrator_pkg_planner.py` (regression)
+
+> layer: test-suite
+
+#### `REG-1227` — prfail report is not truncated to three lines
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+The observation gate applies the larger diagnostic budget to the exact ./scripts/prfail --pr N command.
+
+- **If violated:** All Bash output was cut to 3 lines, hiding most CI diagnostics.
+- **Owned by:** `.claude/hooks/observation_gate.py`
+- **Verification:**
+  - `tests/test_observation_gate.py` (regression)
+
+> layer: test-suite
+
 #### `REG-1374` — Strategy selector exposes no dead funding-carry parameter
 
 **VERIFIED** · low · regression · source: OPS-2026-10-25
@@ -4314,6 +4419,59 @@ If common.command_schema cannot be imported the PreToolUse hook denies the call 
 
 > layer: test-suite
 
+#### `SEC-1220` — Attested CI evidence only counts with a prfail verdict
+
+**VERIFIED** · high · security_regression · source: OPS-2026-10-25
+
+A CI_NOTICE evidence record satisfies a required validation only when the reliability store holds a green prfail verdict for that exact HEAD.
+
+- **If violated:** The gated agent could record_ci --state success with any SHA and satisfy completion by attesting to it.
+- **Owned by:** `src/agent_control/completion.py`, `src/agent_control/reliability.py`
+- **Verification:**
+  - `tests/agent_control/test_completion.py` (security)
+  - `tests/agent_control/test_reliability.py` (security)
+
+> layer: test-suite
+
+#### `SEC-1228` — Arch baseline bounds suppression by count
+
+**VERIFIED** · high · security_regression · source: OPS-2026-10-25
+
+A baselined fingerprint suppresses at most its recorded number of findings, so a new instance in an already-baselined file fails the gate.
+
+- **If violated:** Fingerprints have no line or evidence, so any new instance of a baselined check in that file was silently suppressed.
+- **Owned by:** `.claude/skills/crypto-architect/scripts/validate_arch.py`, `config/arch_baseline.json`
+- **Verification:**
+  - `tests/test_crypto_architect_skill.py` (security)
+
+> layer: test-suite
+
+#### `SEC-1232` — Malformed architecture baseline counts fail closed
+
+**VERIFIED** · high · security_regression · source: OPS-2026-11-07
+
+Architecture baseline fingerprints and counts are type-checked; malformed count maps, negative values and non-array fingerprints are reported as input errors.
+
+- **If violated:** Malformed count data could raise an uncaught AttributeError or silently accept negative suppression budgets instead of failing with a controlled baseline error.
+- **Owned by:** `.claude/skills/crypto-architect/scripts/validate_arch.py`
+- **Verification:**
+  - `tests/test_crypto_architect_skill.py` (security)
+
+> PR #498 review follow-up. layer: test-suite
+
+#### `SEC-1233` — CI completion checks fail closed on malformed verdict stores
+
+**VERIFIED** · high · security_regression · source: OPS-2026-11-07
+
+ci_is_green returns false for absent or malformed CI verdict sections and accepts only an object recording green for the exact commit SHA.
+
+- **If violated:** A malformed ci section such as null caused completion validation to raise instead of safely rejecting the attestation.
+- **Owned by:** `src/agent_control/reliability.py`
+- **Verification:**
+  - `tests/agent_control/test_reliability.py` (security)
+
+> PR #498 review follow-up. layer: test-suite
+
 ## Terminal and process center
 
 #### `TERM-001` — Terminal sessions are real PTYs that every client shares
@@ -4517,6 +4675,32 @@ The dashboard keeps the terminal daemon token in memory only and removes any cop
 
 > Audit FE-15. layer: test-suite
 
+#### `SEC-1224` — Terminal daemon and PTYs get an allowlisted environment
+
+**VERIFIED** · high · security_regression · source: OPS-2026-10-25
+
+The terminal daemon and session shells inherit only allowlisted variables and never names that look secret.
+
+- **If violated:** The daemon inherited the caller's full environment, handing exchange keys and OPERATOR_SECRET to every terminal session.
+- **Owned by:** `src/terminal/config.py`, `src/terminal/cli.py`, `src/terminal/sessions.py`
+- **Verification:**
+  - `tests/terminal/test_terminal_cli.py` (security)
+
+> layer: test-suite
+
+#### `SEC-1231` — Explicit terminal environments are scrubbed before reaching PTYs
+
+**VERIFIED** · high · security_regression · source: OPS-2026-11-07
+
+SessionManager applies the terminal environment allowlist to both inherited and explicitly supplied base environments before creating child PTYs.
+
+- **If violated:** Supplying base_env bypassed scrubbed_environment and could pass exchange credentials or operator secrets directly to an interactive shell.
+- **Owned by:** `src/terminal/sessions.py`, `src/terminal/config.py`
+- **Verification:**
+  - `tests/terminal/test_terminal_cli.py` (security)
+
+> PR #498 review follow-up. layer: test-suite
+
 #### `SEC-1502` — Terminal purge and peer-uid checks fail closed
 
 **VERIFIED** · low · security_regression · source: OPS-2026-10-25
@@ -4559,4 +4743,4 @@ To add or change an entry, edit the registry and regenerate this file. See
 `docs/quality/TEST_STRATEGY.md` for the taxonomy the `test_type` column draws
 on, and `docs/quality/IMPLEMENTATION_PLAN.md` for what each phase delivers.
 
-Registry version: 1.0.0 — 350 entries.
+Registry version: 1.0.0 — 364 entries.

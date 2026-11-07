@@ -20,6 +20,7 @@ import hashlib
 import math
 import multiprocessing as mp
 import os
+import queue
 import signal
 import threading
 import time
@@ -97,18 +98,33 @@ def _model_worker(
     worker_id: int,
     queue_in: mp.Queue[WorkerTask | None],
     queue_out: mp.Queue[WorkerResult | dict],
+    stop_event: Any | None = None,
 ) -> None:
     """
     Horizon model worker process.
 
     Listens on queue_in for WorkerTask objects; processes and puts
-    WorkerResult on queue_out.  Exits cleanly on None sentinel.
+    WorkerResult on queue_out. Exits on a None sentinel or its targeted stop event.
     """
     signal.signal(signal.SIGTERM, _handle_worker_sigterm)
     log.info("model_worker_started", worker_id=worker_id, pid=os.getpid())
 
-    while True:
-        task = queue_in.get()
+    while stop_event is None or not stop_event.is_set():
+        try:
+            task = queue_in.get(timeout=0.5)
+        except queue.Empty:
+            continue
+        # The stop event can be set between the loop condition and get(). Put
+        # that just-dequeued task back so scale-down never steals queued work.
+        if stop_event is not None and stop_event.is_set() and task is not None:
+            try:
+                queue_in.put_nowait(task)
+            except queue.Full:
+                # A producer filled the freed slot concurrently; process rather
+                # than lose the task, then the next loop condition exits.
+                pass
+            else:
+                break
         if task is None:
             log.info("model_worker_stopping", worker_id=worker_id)
             break
@@ -509,6 +525,7 @@ def _ecc_worker(
     rpc_user: str,
     rpc_pass: str,
     interval_seconds: float = 60.0,
+    stop_event: threading.Event | None = None,
 ) -> None:
     """
     Dedicated ECC worker thread.
@@ -519,6 +536,7 @@ def _ecc_worker(
     Uses coincurve C bindings which release the GIL, so this runs in a thread
     without blocking the asyncio event loop.
     """
+    stop = stop_event if stop_event is not None else threading.Event()
     log.info("ecc_worker_started", rpc_url=redact_url(rpc_url))
 
     from src.ecc.ecdsa_scan import ECDSAScanner
@@ -531,7 +549,7 @@ def _ecc_worker(
     # r-value against ones seen in earlier blocks.
     ecdsa_scanner = ECDSAScanner()
 
-    while True:
+    while not stop.is_set():
         ecc_result = _run_ecc_cycle(
             clusterer=clusterer,
             zk_detector=zk_detector,
@@ -540,8 +558,12 @@ def _ecc_worker(
             rpc_user=rpc_user,
             rpc_pass=rpc_pass,
         )
-        queue_out.put({"type": "ecc", "result": ecc_result})
-        time.sleep(interval_seconds)
+        try:
+            # Bounded put: a full, uncollected queue must not wedge shutdown (AGT-018).
+            queue_out.put({"type": "ecc", "result": ecc_result}, timeout=1.0)
+        except queue.Full:
+            log.warning("ecc_result_dropped_output_queue_full")
+        stop.wait(interval_seconds)
 
 
 def _run_ecc_cycle(
@@ -694,30 +716,35 @@ class WorkerOrchestrator:
         self._queue_out: mp.Queue = mp.Queue(maxsize=1000)
         self._dropped_tasks = 0
         self._workers: list[mp.Process] = []
+        self._worker_stop_events: list[Any] = []
         self._ecc_thread: threading.Thread | None = None
+        self._ecc_stop = threading.Event()
         self._started = False
 
     def start(self) -> None:
         """Spawn worker processes and ECC thread."""
         if self._started:
             return
-        self._spawn(self._n_workers)
+        self._spawn(max(0, self._n_workers - 1))
         self._started = True
         log.info("worker_orchestrator_started", n_workers=len(self._workers))
 
-    def _spawn(self, n: int) -> None:
-        model_workers = max(0, n - 1)
+    def _spawn(self, model_workers: int) -> None:
+        """Start ``model_workers`` model processes (the ECC thread is not counted)."""
         for i in range(model_workers):
+            stop_event = mp.Event()
             p = mp.Process(
                 target=_model_worker,
-                args=(i, self._queue_in, self._queue_out),
+                args=(i, self._queue_in, self._queue_out, stop_event),
                 daemon=True,
             )
             p.start()
             self._pin_cpu(p.pid, i)
             self._workers.append(p)
+            self._worker_stop_events.append(stop_event)
 
         if self._ecc_enabled and (self._ecc_thread is None or not self._ecc_thread.is_alive()):
+            self._ecc_stop = threading.Event()
             self._ecc_thread = threading.Thread(
                 target=_ecc_worker,
                 args=(
@@ -726,6 +753,7 @@ class WorkerOrchestrator:
                     self._btc_rpc_user,
                     self._btc_rpc_pass,
                     self._ecc_interval,
+                    self._ecc_stop,
                 ),
                 daemon=True,
             )
@@ -771,23 +799,43 @@ class WorkerOrchestrator:
     def scale(self, n: int) -> None:
         """Scale worker pool up or down to exactly `n` total workers."""
         n = max(self.MIN_WORKERS, min(n, self.MAX_WORKERS))
-        delta = n - len(self._workers)
+        # n counts every worker, including the ECC slot; _workers holds model workers only.
+        delta = (n - 1) - len(self._workers)
         if delta > 0:
             self._spawn(delta)
             log.info("workers_scaled_up", new_total=len(self._workers))
         elif delta < 0:
             for _ in range(-delta):
-                self._queue_in.put(None)  # graceful SIGTERM
+                # Signal this exact worker. A shared-queue None could be consumed
+                # by another worker; the per-process event lets it finish its
+                # current task and exit without stealing queued work (AGT-019).
                 proc = self._workers.pop()
-                proc.join(timeout=5)
+                stop_event = self._worker_stop_events.pop()
+                stop_event.set()
+                self._stop_process(proc, grace_s=5)
             log.info("workers_scaled_down", new_total=len(self._workers))
+
+    @staticmethod
+    def _stop_process(proc: mp.Process, grace_s: float) -> None:
+        """Join ``proc``; escalate to terminate() then kill() if it is still alive."""
+        proc.join(timeout=grace_s)
+        if proc.is_alive():
+            proc.terminate()
+            proc.join(timeout=5)
+            if proc.is_alive():
+                proc.kill()
+                proc.join(timeout=5)
 
     def shutdown(self) -> None:
         """Drain queues and join all workers."""
+        self._ecc_stop.set()
+        # All workers are stopping, so one poison pill per process can safely
+        # drain behind queued work; unlike scale-down, no particular worker is targeted.
         for _ in self._workers:
             self._queue_in.put(None)
         for w in self._workers:
-            w.join(timeout=10)
+            self._stop_process(w, grace_s=10)
+        self._worker_stop_events.clear()
         if self._ecc_thread and self._ecc_thread.is_alive():
             self._ecc_thread.join(timeout=5)
         self._workers.clear()

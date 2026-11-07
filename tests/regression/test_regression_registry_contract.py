@@ -220,6 +220,13 @@ class TestTheRegistryHasAPlaceForDefects:
             "REG-0029",
             "REG-0030",
             "REG-0031",
+            "REG-1221",
+            "REG-1222",
+            "REG-1223",
+            "REG-1226",
+            "REG-1227",
+            "REG-1229",
+            "REG-1230",
             # REG-1600..1603: audit OPS-011, OPS-012, API-021 and OPS-009 --
             # each a defect no test exercised, filed with its deciding test.
             "REG-1600",
@@ -415,6 +422,13 @@ class TestTheRegistryHasAPlaceForDefects:
             # SEC-1130, SEC-1131: git guard and PreToolUse fail-closed findings.
             "SEC-1130",
             "SEC-1131",
+            "SEC-1220",
+            "SEC-1224",
+            "SEC-1225",
+            "SEC-1228",
+            "SEC-1231",
+            "SEC-1232",
+            "SEC-1233",
             # SEC-1490, SEC-1499, SEC-1502: phase 6 agent/frontend low findings.
             "SEC-1490",
             "SEC-1499",
@@ -690,10 +704,10 @@ class TestTheMetricsCollector:
         # test-suite, 43.
         # REG-1704 adds the fixed-threshold carry/arbitrage regression (STR-21):
         # no test asked what the thresholds cost to clear -- test-suite, 44.
-        # REG-1491..1503 and SEC-1490/1499/1502 add 14 phase 6 agent/frontend
-        # regressions on top of main -- test-suite, 152.
+        # Main includes the phase 6 agent/frontend audit entries; this PR and
+        # its review follow-up add 14 further verified tests to that baseline.
         assert metric["value"] == {
-            "test-suite": 152,
+            "test-suite": 166,
             "review": 1,
             "supply-chain": 4,
             "ci-gate-design": 2,
