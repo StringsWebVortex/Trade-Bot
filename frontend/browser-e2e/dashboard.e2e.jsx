@@ -71,6 +71,8 @@ vi.mock('../src/hooks/useApi.js', () => {
     apiProblem: (code) => ({ status: code, message: `API error ${code}` }),
     postJson: emptyAction,
     reconnectDelay: () => 500,
+    setSessionApiKey: () => {},
+    useStalePolls: () => [],
     useWebSocket: () => ({ connected: true, lagMs: 35 }),
     useStream: () => [],
     usePolling,
