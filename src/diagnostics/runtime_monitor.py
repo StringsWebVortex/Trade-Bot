@@ -180,6 +180,10 @@ class RuntimeMonitor:
                 await self._task
         log.info("runtime_monitor.stopped")
 
+    def _prior_failures(self, name: str) -> int:
+        prior = self._results.get(name)
+        return prior.consecutive_failures if prior is not None and not prior.passed else 0
+
     def get_snapshot(self) -> HealthSnapshot | None:
         return self._snapshot
 
@@ -297,7 +301,7 @@ class RuntimeMonitor:
                         passed=False,
                         value=None,
                         detail="invalid_tick_timestamp",
-                        consecutive_failures=1,
+                        consecutive_failures=self._prior_failures(pr_name) + 1,
                     )
                     log.error("health_probe.invalid_tick_timestamp", timeframe=tf)
                     alerts.append(f"tick_stall_{tf}: invalid_tick_timestamp")
@@ -319,7 +323,7 @@ class RuntimeMonitor:
                         passed=False,
                         value=round(stale_s, 1),
                         detail=failed_detail,
-                        consecutive_failures=1,
+                        consecutive_failures=self._prior_failures(pr_name) + 1,
                         last_ok_ts=since,
                     )
                     log.critical(

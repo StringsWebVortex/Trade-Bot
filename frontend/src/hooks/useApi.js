@@ -32,6 +32,17 @@ export function apiFetch(path, opts = {}) {
  * credential the server never checks. Returns the parsed body, or null
  * after alerting.
  */
+// FE-16: failures are reported through a registered notifier (the app shows a
+// banner); alert() is only the fallback when nothing is listening.
+let _errorNotifier = null;
+export function setErrorNotifier(fn) {
+  _errorNotifier = fn;
+}
+function reportError(message) {
+  if (_errorNotifier) _errorNotifier(message);
+  else alert(message);
+}
+
 export async function postJson(path, body) {
   try {
     const res = await apiFetch(path, {
@@ -41,12 +52,12 @@ export async function postJson(path, body) {
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      alert(`Request failed: ${err.detail || res.status}`);
+      reportError(`Request failed: ${err.detail || res.status}`);
       return null;
     }
     return await res.json();
   } catch (e) {
-    alert(`Request failed: ${e.message || 'network error'}`);
+    reportError(`Request failed: ${e.message || 'network error'}`);
     return null;
   }
 }
@@ -152,8 +163,10 @@ export function useWebSocket(onTick, onEvent) {
 
     function connect() {
       if (closed) return;
-      const wsUrl = API_KEY ? `${WS_URL}?api_key=${encodeURIComponent(API_KEY)}` : WS_URL;
-      const ws = new WebSocket(wsUrl);
+      // The key rides the Sec-WebSocket-Protocol header (hex-encoded), never the
+      // URL: the server logs every handshake URL (API-005).
+      const hex = Array.from(new TextEncoder().encode(API_KEY || ''), (b) => b.toString(16).padStart(2, '0')).join('');
+      const ws = API_KEY ? new WebSocket(WS_URL, ['tradebot.v1', `apikey.${hex}`]) : new WebSocket(WS_URL);
       socket = ws;
       wsRef.current = ws;
       _liveSocket = ws;
@@ -392,7 +405,7 @@ export function useReadiness(interval = 5000) {
   return { report: data, problem };
 }
 
-export function usePolling(path, interval, transform) {
+export function usePolling(path, interval, transform, refreshKey) {
   const [data, setData] = useState(null);
 
   // REG-0022. The effect's dependency array is [path, interval] but the body
@@ -411,6 +424,8 @@ export function usePolling(path, interval, transform) {
 
   useEffect(() => {
     let inFlight = false;
+    // FE-19: a response that lands after unmount / path change is dropped.
+    let live = true;
     async function poll() {
       if (inFlight) return;
       inFlight = true;
@@ -419,15 +434,18 @@ export function usePolling(path, interval, transform) {
         if (res.ok) {
           const body = await res.json();
           const fn = transformRef.current;
-          setData(fn ? fn(body) : body);
+          if (live) setData(fn ? fn(body) : body);
         }
       } catch (_) {}
       finally { inFlight = false; }
     }
     poll();
     const id = setInterval(poll, interval);
-    return () => clearInterval(id);
-  }, [path, interval]);
+    return () => {
+      live = false;
+      clearInterval(id);
+    };
+  }, [path, interval, refreshKey]);
 
   return data;
 }
@@ -438,7 +456,7 @@ export function useOperatorAction() {
 
   const action = useCallback(async (path, method, body) => {
     if (!operatorSecret) {
-      alert('Enter the operator secret first.');
+      reportError('Enter the operator secret first.');
       return null;
     }
     try {
@@ -449,12 +467,12 @@ export function useOperatorAction() {
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        alert(`Action failed: ${err.detail || res.status}`);
+        reportError(`Action failed: ${err.detail || res.status}`);
         return null;
       }
       return await res.json();
     } catch (e) {
-      alert(`Action failed: ${e.message || 'network error'}`);
+      reportError(`Action failed: ${e.message || 'network error'}`);
       return null;
     }
   }, [operatorId, operatorSecret]);

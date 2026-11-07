@@ -236,12 +236,11 @@ log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 _DDL: Final[str] = """
 PRAGMA journal_mode=WAL;
 PRAGMA foreign_keys=ON;
--- Gap-006: synchronous=NORMAL is safe with WAL (data durability is preserved;
--- only the WAL header may be lost on OS crash, not committed data). FULL
--- adds an extra fsync per commit; NORMAL gives 2-4x write throughput benefit
--- with no practical durability loss on modern kernels with battery-backed SSD.
+-- DAT-021: FULL is the connection default so durability of financial writes
+-- does not depend on whether a bulk write ran earlier. _bulk_write_ctx lowers
+-- to NORMAL only for non-financial bulk writes and restores FULL afterwards.
 -- Ref: https://www.sqlite.org/pragma.html#pragma_synchronous
-PRAGMA synchronous=NORMAL;
+PRAGMA synchronous=FULL;
 PRAGMA busy_timeout=5000;
 -- Gap-006: 64MB page cache (~8192 pages x 8KB). Reduces read I/O for
 -- the bars + trades tables during signal generation ticks.
@@ -1420,6 +1419,34 @@ class StorageBackend:
             direction=trade.direction,
         )
 
+    async def record_trade_partial_exit(
+        self,
+        trade_id: str,
+        exit_price: float,
+        pnl_usd: float,
+        fee_usd: float,
+    ) -> None:
+        """Persist realised PnL/fees while leaving the trade open."""
+        conn = self._require_conn()
+        async with self._write_ctx():
+            cursor = await conn.execute(
+                """
+                UPDATE trades
+                SET exit_price=?,
+                    pnl_usd=COALESCE(pnl_usd, 0.0)+?,
+                    pnl_pct=(COALESCE(pnl_usd, 0.0)+?)/notional_usd,
+                    fee_usd=fee_usd+?
+                WHERE id=? AND exit_ts IS NULL
+                """,
+                (exit_price, pnl_usd, pnl_usd, fee_usd, trade_id),
+            )
+            await conn.commit()
+        if cursor.rowcount == 0:
+            raise ValueError(
+                f"No open trade found with id={trade_id!r} (already closed or id not found)"
+            )
+        self._log.info("trade.partial_exit_recorded", trade_id=trade_id, pnl_usd=pnl_usd)
+
     async def update_trade_exit(
         self,
         trade_id: str,
@@ -1430,21 +1457,19 @@ class StorageBackend:
         exit_reason: str,
         fee_usd: float,
     ) -> None:
-        """Patch exit fields on an existing trade row."""
+        """Persist the final fill, accumulating any earlier partial fills."""
         conn = self._require_conn()
         async with self._write_ctx():
             cursor = await conn.execute(
                 """
                 UPDATE trades
-                SET exit_price=?, exit_ts=?, pnl_usd=?, pnl_pct=?,
+                SET exit_price=?, exit_ts=?,
+                    pnl_usd=COALESCE(pnl_usd, 0.0)+?,
+                    pnl_pct=(COALESCE(pnl_usd, 0.0)+?)/notional_usd,
                     exit_reason=?, fee_usd=fee_usd+?
                 WHERE id=? AND exit_ts IS NULL
                 """,
-                # SCAN2-002: fee_usd+? intentionally accumulates entry_fee (stored at
-                # insert_trade) + exit_fee_usd (passed here). The parameter is named
-                # exit_fee_usd at the call site to prevent misreading as total fee.
-                # AND exit_ts IS NULL prevents double-exit writes on the same trade.
-                (exit_price, exit_ts, pnl_usd, pnl_pct, exit_reason, fee_usd, trade_id),
+                (exit_price, exit_ts, pnl_usd, pnl_usd, exit_reason, fee_usd, trade_id),
             )
             await conn.commit()
         if cursor.rowcount == 0:

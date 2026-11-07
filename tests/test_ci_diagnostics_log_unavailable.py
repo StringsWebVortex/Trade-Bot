@@ -8,8 +8,8 @@ nothing to show for any job (PR #512, "Redirected job log download failed").
 * the signed download is retried, and its final error names the cause;
 * a green job whose log cannot be fetched adds nothing, since its log could
   only add warnings;
-* a failed job whose log cannot be fetched gets a ``log_unavailable`` record,
-  so the report says its failure lines are missing instead of looking whole.
+* a failed job whose log cannot be fetched gets one line saying so, so the
+  report says its failure lines are missing instead of looking whole.
 
 Decides: REG-1609"""
 
@@ -23,7 +23,7 @@ import pytest
 from scripts import ci_diagnostics
 from scripts.ci_diagnostics import JobLogUnavailable
 
-RUN = {"id": 7, "run_attempt": 1, "conclusion": "failure"}
+RUN = {"id": 7, "name": "CI", "run_attempt": 1, "conclusion": "failure"}
 
 
 class _Body(io.BytesIO):
@@ -92,19 +92,18 @@ def no_log(monkeypatch: pytest.MonkeyPatch) -> None:
 @pytest.mark.parametrize("conclusion", ["success", "skipped"])
 def test_a_green_job_without_its_log_adds_nothing(conclusion: str) -> None:
     records: dict = {}
-    ci_diagnostics._add_log_diagnostics(records, "o/r", 512, "a" * 40, "CI", RUN, _job(conclusion))
+    ci_diagnostics._add_failure_lines(records, "o/r", 512, "a" * 40, RUN, _job(conclusion))
     assert records == {}
 
 
 @pytest.mark.usefixtures("no_log")
 def test_a_failed_job_without_its_log_says_its_lines_are_missing() -> None:
     records: dict = {}
-    ci_diagnostics._add_log_diagnostics(records, "o/r", 512, "a" * 40, "CI", RUN, _job("failure"))
+    ci_diagnostics._add_failure_lines(records, "o/r", 512, "a" * 40, RUN, _job("failure"))
     (record,) = records.values()
-    assert record["category"] == "log_unavailable"
-    assert record["conclusion"] == "failure"
     assert record["job_id"] == 11
-    assert "HTTP 404" in record["message"] and "missing from the report" in record["message"]
+    assert record["message"].startswith("Python (lint + governance docs): job log unavailable")
+    assert "HTTP 404" in record["message"] and "its lines are missing" in record["message"]
 
 
 def test_a_server_error_on_the_log_request_is_unavailable_not_fatal(monkeypatch) -> None:

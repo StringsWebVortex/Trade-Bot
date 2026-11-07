@@ -472,6 +472,21 @@ def _utxos_with_ages(utxos: list[dict]) -> list[dict]:
     return converted
 
 
+def redact_url(url: str) -> str:
+    """Drop any ``user:pass@`` userinfo before a URL is logged (AGT-020)."""
+    from urllib.parse import urlsplit
+
+    parts = urlsplit(url)
+    if parts.username is None and parts.password is None:
+        return url
+    host = parts.hostname or ""
+    if ":" in host and not host.startswith("["):
+        host = f"[{host}]"
+    if parts.port is not None:
+        host = f"{host}:{parts.port}"
+    return parts._replace(netloc=f"***@{host}").geturl()
+
+
 def _fetch_recent_block_transactions(
     rpc_url: str,
     rpc_user: str,
@@ -493,6 +508,7 @@ def _fetch_recent_block_transactions(
             auth=(rpc_user, rpc_pass),
             timeout=timeout,
         )
+        resp.raise_for_status()
         payload = resp.json()
         if payload.get("error"):
             raise RuntimeError(f"{method} failed: {payload['error']}")
@@ -521,7 +537,7 @@ def _ecc_worker(
     without blocking the asyncio event loop.
     """
     stop = stop_event if stop_event is not None else threading.Event()
-    log.info("ecc_worker_started", rpc_url=rpc_url)
+    log.info("ecc_worker_started", rpc_url=redact_url(rpc_url))
 
     from src.ecc.ecdsa_scan import ECDSAScanner
     from src.ecc.secp256k1_cluster import Secp256k1ClusterWorker
@@ -584,7 +600,9 @@ def _run_ecc_cycle(
             whale_count=cluster_result.whale_count,
             total_whale_btc=cluster_result.total_whale_btc,
         )
-        ecc_validity["cluster"] = True
+        # A flow score computed from clusters with no flow data is a constant
+        # zero, not a measurement (MTH-004); only vouch for it when real.
+        ecc_validity["cluster"] = cluster_result.flow_available is True
     except Exception as exc:
         log.warning("ecc_cluster_failed", exc=str(exc))
         cluster_result = None
@@ -681,8 +699,8 @@ class WorkerOrchestrator:
         self,
         n_workers: int = 8,
         btc_rpc_url: str = "http://127.0.0.1:8332",
-        btc_rpc_user: str = "crypto",
-        btc_rpc_pass: str = "crypto",
+        btc_rpc_user: str = "",
+        btc_rpc_pass: str = "",
         ecc_interval: float = 60.0,
         ecc_enabled: bool = True,
     ) -> None:

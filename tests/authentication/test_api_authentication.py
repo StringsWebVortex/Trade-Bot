@@ -157,14 +157,14 @@ class TestTheWebSocketUpgrade:
         socket = self._Socket(headers={"x-api-key": PRIMARY})
         assert await verify_ws_key(socket) is Role.TRADE_AUTHORIZING
 
-    async def test_a_query_parameter_key_authenticates(self, keys):
-        # Browsers cannot set headers on a WebSocket upgrade -- the API is
-        # fixed by the WHATWG spec -- so the dashboard sends the key as a
-        # query parameter. Accepting it is deliberate, and weaker: query
-        # strings routinely appear in proxy and access logs where headers do
-        # not.
+    async def test_a_query_parameter_key_is_refused(self, keys):
+        # API-005: the query string is written to uvicorn's log in cleartext,
+        # so a key there is not accepted any more; browsers use the
+        # Sec-WebSocket-Protocol subprotocol instead.
         socket = self._Socket(query={"api_key": PRIMARY})
-        assert await verify_ws_key(socket) is Role.TRADE_AUTHORIZING
+        with pytest.raises(HTTPException):
+            await verify_ws_key(socket)
+        assert socket.closed_with == 4401
 
     async def test_the_header_wins_over_the_query_parameter(self, keys):
         # A client that *can* set a header gets the stronger path.

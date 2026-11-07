@@ -36,8 +36,9 @@ from src.eventbus import get_event_bus
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
-# KS drift threshold — if D-statistic exceeds this, feature may have drifted
-# Aronson (2006) recommends p<0.05; D≈0.19 corresponds to p≈0.05 for n≈500
+# Drift threshold on the standardised mean shift |live_mean - train_mean| / train_std.
+# This is a heuristic, NOT a Kolmogorov-Smirnov D-statistic; 0.19 is the KS critical
+# value for p≈0.05 at n≈500 and is reused here as an uncalibrated cut-off.
 KS_DRIFT_THRESHOLD: Final[float] = 0.19
 
 # Rolling window for live feature statistics (bars)
@@ -204,7 +205,7 @@ class FeatureDriftMonitor:
             train_mean = baseline["mean"]
             train_std = baseline["std"]
 
-            # Approximate KS D-statistic via normalised mean shift
+            # Standardised mean shift (a KS-like heuristic, not a real KS statistic)
             # (Aronson 2006 — signal stationarity check)
             denom = max(train_std, 1e-9)
             ks_approx = abs(live_mean - train_mean) / denom

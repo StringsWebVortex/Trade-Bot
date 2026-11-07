@@ -1,15 +1,17 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import {
-  useWebSocket, useStream, usePolling, useOperatorAction, postJson, useReadiness,
+  setErrorNotifier, useWebSocket, useStream, usePolling, useOperatorAction, postJson, useReadiness,
 } from './hooks/useApi';
 import { ControlHubPanel } from './components/panels/ControlHubPanel';
 import { Panel } from './components/Panel';
 import { StartupBanner } from './components/StartupBanner';
 import { ModeSwitcher, StatCard } from './components/Controls';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { EquityChart, DrawdownChart } from './components/panels/EquityChart';
 import { PositionsTable } from './components/panels/PositionsPanel';
 import { TradesTable, MissedTradesTable } from './components/panels/TradesPanel';
 import { ApprovalsPanel } from './components/panels/ApprovalsPanel';
+import { applyApproval } from './approvals';
 import { RiskControlsPanel } from './components/panels/RiskControlsPanel';
 import { ConfigPanel } from './components/panels/ConfigPanel';
 import { SelfTuningPanel } from './components/panels/SelfTuningPanel';
@@ -68,6 +70,13 @@ function Dashboard() {
 
   const { operatorId, setOperatorId, operatorSecret, setOperatorSecret, action } = useOperatorAction();
 
+  // FE-16: operator-action failures show as a dismissible banner, not alert().
+  const [actionError, setActionError] = useState(null);
+  useEffect(() => {
+    setErrorNotifier(setActionError);
+    return () => setErrorNotifier(null);
+  }, []);
+
   const onTick = useCallback((msg) => setTick(msg), []);
   // A control_changed frame carries no tick fields, so it advances its own
   // counter rather than being pushed through setTick; the hub re-reads on it.
@@ -106,16 +115,15 @@ function Dashboard() {
   // approval event describes one request, not the queue.
   const approvals = useStream('approval', '/approvals', {
     transform: (b) => b?.approvals ?? [],
-    apply: (prev, ev) => {
-      const list = prev ?? [];
-      if (ev.action === 'resolved') {
-        return list.filter((a) => a.request_id !== ev.request_id);
-      }
-      if (list.some((a) => a.request_id === ev.request_id)) return list;
-      return [...list, ev];
-    },
+    apply: applyApproval,
   });
-  const riskControls = usePolling('/risk-controls', 10000, (b) => b?.risk_controls ?? null);
+  // FE-12: feed the Electron tray/taskbar badge (no-op in a plain browser).
+  const pendingApprovals = approvals?.length ?? 0;
+  useEffect(() => {
+    window.tradeBotDesktop?.setPendingApprovals?.(pendingApprovals);
+  }, [pendingApprovals]);
+  const [riskTick, setRiskTick] = useState(0);
+  const riskControls = usePolling('/risk-controls', 10000, (b) => b?.risk_controls ?? null, riskTick);
   // Polled here only for the backfill timeframe options; ModelTrainingPanel
   // polls the same endpoint for its own display.
   const modelsStatus = usePolling('/models/status', 30000);
@@ -132,6 +140,7 @@ function Dashboard() {
   // {"[object Object]": undefined} that the endpoint rejected.
   const handleRiskUpdate = async (patch) => {
     await action('/risk-controls', 'POST', patch);
+    setRiskTick((n) => n + 1); // FE-11: re-read instead of waiting for the next 10s poll
   };
 
   const handleApprovalResolve = async (id, approved) => {
@@ -227,7 +236,7 @@ function Dashboard() {
         onMove={(dx, dy) => updateLayout((l) => moveBy(l, id, dx, dy))}
         onResize={(dw, dh) => updateLayout((l) => resizeBy(l, id, dw, dh, spec))}
       >
-        {panel.render()}
+        <ErrorBoundary label={spec.label}>{panel.render()}</ErrorBoundary>
       </Panel>
     );
   };
@@ -239,6 +248,16 @@ function Dashboard() {
 
   return (
     <div className="app-shell">
+      {actionError && (
+        <div
+          role="alert"
+          style={{ color: 'var(--c-red)', fontSize: 12, padding: '6px 12px', cursor: 'pointer' }}
+          onClick={() => setActionError(null)}
+          title="Click to dismiss"
+        >
+          {actionError}
+        </div>
+      )}
       <Header
         wsConnected={wsConnected}
         lagMs={lagMs}
@@ -363,6 +382,7 @@ function Header({
             value={operatorId}
             onChange={(e) => setOperatorId(e.target.value)}
             placeholder="Operator"
+            aria-label="Operator ID"
           />
           <input
             className="input-sm"
@@ -371,6 +391,7 @@ function Header({
             value={operatorSecret}
             onChange={(e) => setOperatorSecret(e.target.value)}
             placeholder="Secret"
+            aria-label="Operator secret"
           />
         </div>
       </div>

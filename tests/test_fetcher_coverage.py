@@ -407,6 +407,9 @@ async def test_close_without_initialize():
     f = _make_fetcher()
     await f.close()  # should not raise
 
+    assert f._binance is None
+    assert f._okx is None
+
 
 @pytest.mark.asyncio
 async def test_initialize_and_close():

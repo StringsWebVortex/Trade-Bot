@@ -88,6 +88,18 @@ def build_feature_matrix(df: pd.DataFrame) -> pd.DataFrame:
     return feats
 
 
+def forward_direction_label(close: pd.Series, horizon: int) -> pd.Series:
+    """
+    1.0 if the close `horizon` candles ahead is higher, else 0.0.
+
+    The last `horizon` rows have no future close. They stay NaN rather than
+    being coded as "down": NaN > 0 is False, so a plain comparison would
+    fabricate a label for every row the model is trained or scored on.
+    """
+    future_return = close.shift(-horizon) / close - 1
+    return (future_return > 0).astype(float).where(future_return.notna())
+
+
 if __name__ == "__main__":
     from data_fetch_kraken import fetch_ohlcv
 
