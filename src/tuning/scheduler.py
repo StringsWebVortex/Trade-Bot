@@ -558,6 +558,21 @@ class AutoTuningScheduler:
         except Exception as exc:
             log.error("e09_retrain_failed", error=str(exc), exc_info=True)
 
+    def _direction_model_trained_at_ms(self) -> int:
+        """Return the saved direction artifact's modification time in Unix ms.
+
+        The feature-window backtest reuses this frozen model, so its OOS
+        sample must start strictly after the artifact could have been
+        produced. Use the same canonical path as ModelTrainer.load_direction
+        rather than reconstructing the filename here. A missing artifact is
+        an error: silently returning no cutoff would reintroduce in-sample
+        scoring.
+        """
+        path = ModelTrainer.direction_model_path(
+            self._settings.storage.model_dir, self._symbol, self._timeframe
+        )
+        return path.stat().st_mtime_ns // 1_000_000
+
     def _load_direction_model(self) -> XGBClassifier | None:
         try:
             return ModelTrainer.load_direction(

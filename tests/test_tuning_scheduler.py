@@ -677,6 +677,20 @@ class TestFeatureWindowAttempt:
         scheduler = AutoTuningScheduler(_FakeStorage([], {}), settings, "BTC/USDT", "15m")  # type: ignore[arg-type]
         assert scheduler._load_direction_model() is not None
 
+    def test_direction_model_trained_at_ms_uses_artifact_mtime(self, tmp_path) -> None:
+        settings = get_settings().model_copy(
+            update={"storage": StorageSettings(model_dir=tmp_path)}
+        )
+        trainer = ModelTrainer(symbol="BTC/USDT", timeframe="15m")
+        direction_path, _ = trainer.save(
+            _fitted_direction_model(), _fitted_meta_model(), tmp_path, version="v1"
+        )
+        scheduler = AutoTuningScheduler(_FakeStorage([], {}), settings, "BTC/USDT", "15m")  # type: ignore[arg-type]
+        assert (
+            scheduler._direction_model_trained_at_ms()
+            == direction_path.stat().st_mtime_ns // 1_000_000
+        )
+
     def test_build_feature_bars_df_none_when_no_bars(self) -> None:
         settings = get_settings()
         scheduler = AutoTuningScheduler(_FakeStorage([], {}), settings, "BTC/USDT", "15m")  # type: ignore[arg-type]
@@ -692,7 +706,9 @@ class TestFeatureWindowAttempt:
         assert list(df.index) == sorted(df.index)
         assert len(df) == 29
 
-    def test_attempt_all_runs_feature_window_attempts_with_trained_model(self, tmp_path) -> None:
+    def test_attempt_all_runs_feature_window_attempts_with_trained_model(
+        self, monkeypatch, tmp_path
+    ) -> None:
         settings = get_settings().model_copy(
             update={"storage": StorageSettings(model_dir=tmp_path)}
         )
@@ -706,6 +722,7 @@ class TestFeatureWindowAttempt:
         ]
         storage = _FakeStorage([], {}, bars=bars)
         scheduler = AutoTuningScheduler(storage, settings, "BTC/USDT", "15m")  # type: ignore[arg-type]
+        monkeypatch.setattr(scheduler, "_direction_model_trained_at_ms", lambda: 0)
         # This test targets the feature-window path specifically; skip the
         # (default-settings, slow) xgboost block by advancing past cycle 0 --
         # see TestXGBoostHyperparamAttempt for dedicated xgboost coverage
@@ -960,6 +977,7 @@ class TestSchedulerEvaluateClosuresInvoked:
         ]
         storage = _FakeStorage([], {}, bars=bars)
         scheduler = AutoTuningScheduler(storage, settings, "BTC/USDT", "15m")  # type: ignore[arg-type]
+        monkeypatch.setattr(scheduler, "_direction_model_trained_at_ms", lambda: 0)
         scheduler._cycle_count = 1  # skip the (slow) xgboost block this test doesn't cover
 
         async def _run():
@@ -996,6 +1014,7 @@ class TestSchedulerEvaluateClosuresInvoked:
         ]
         storage = _FakeStorage([], {}, bars=bars)
         scheduler = AutoTuningScheduler(storage, settings, "BTC/USDT", "15m")  # type: ignore[arg-type]
+        monkeypatch.setattr(scheduler, "_direction_model_trained_at_ms", lambda: 0)
         scheduler._cycle_count = 1
 
         async def _run():
@@ -1030,6 +1049,7 @@ class TestSchedulerEvaluateClosuresInvoked:
         ]
         storage = _FakeStorage([], {}, bars=bars)
         scheduler = AutoTuningScheduler(storage, settings, "BTC/USDT", "15m")  # type: ignore[arg-type]
+        monkeypatch.setattr(scheduler, "_direction_model_trained_at_ms", lambda: 0)
         assert scheduler._cycle_count == 0  # cycle 0 -> xgboost block is attempted, hits the stub
 
         async def _run():
@@ -1073,6 +1093,7 @@ class TestSchedulerEvaluateClosuresInvoked:
         ]
         storage = _FakeStorage([], {}, bars=bars)
         scheduler = AutoTuningScheduler(storage, settings, "BTC/USDT", "15m")  # type: ignore[arg-type]
+        monkeypatch.setattr(scheduler, "_direction_model_trained_at_ms", lambda: 0)
 
         async def _run():
             scheduler.start()
