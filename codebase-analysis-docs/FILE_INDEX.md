@@ -317,7 +317,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 247 | P1 | src/diagnostics/disaster_recovery.py | Python | 91 | 54f9957e |  |
 | 248 | P1 | src/diagnostics/failsafe_policy.py | Python | 241 | 6e4d0912 |  |
 | 249 | P1 | src/diagnostics/halt_triggers.py | Python | 228 | de941e38 |  |
-| 250 | P1 | src/diagnostics/instrumentation.py | Python | 178 | bd148cee |  |
+| 250 | P1 | src/diagnostics/instrumentation.py | Python | 198 | a05e500e |  |
 | 251 | P1 | src/diagnostics/metrics.py | Python | 243 | 08c13694 |  |
 | 252 | P1 | src/diagnostics/performance_baseline.py | Python | 215 | 3d567cf7 |  |
 | 253 | P1 | src/diagnostics/recovery_objectives.py | Python | 208 | 826b2e23 |  |
@@ -950,7 +950,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 880 | P1 | tests/test_horizons_endpoint.py | Python | 179 | e9ba0580 |  |
 | 881 | P1 | tests/test_idempotency.py | Python | 449 | 064037c3 |  |
 | 882 | P1 | tests/test_ingest_keeps_previous_index.py | Python | 147 | ea50b2bc |  |
-| 883 | P1 | tests/test_instrumentation.py | Python | 230 | 98bd4609 |  |
+| 883 | P1 | tests/test_instrumentation.py | Python | 252 | 43f71e47 |  |
 | 884 | P1 | tests/test_integration_full_pipeline.py | Python | 291 | f49fa5aa |  |
 | 885 | P1 | tests/test_intelligence_adapter.py | Python | 189 | 5ebab68c |  |
 | 886 | P1 | tests/test_intelligence_client_coverage.py | Python | 721 | 4a9e428c |  |

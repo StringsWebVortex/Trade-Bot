@@ -129,6 +129,28 @@ async def test_task_factory_still_produces_working_tasks():
         loop.set_task_factory(original)
 
 
+async def test_task_factory_preserves_an_existing_factory():
+    loop = asyncio.get_running_loop()
+    original = loop.get_task_factory()
+    calls = []
+
+    def previous(inner_loop, coro, **kwargs):
+        calls.append(True)
+        return asyncio.Task(coro, loop=inner_loop, **kwargs)
+
+    try:
+        loop.set_task_factory(previous)
+        inst._install_asyncio_task_factory(loop)
+
+        async def _answer():
+            return 42
+
+        assert await loop.create_task(_answer(), name="preserved") == 42
+        assert calls
+    finally:
+        loop.set_task_factory(original)
+
+
 async def test_task_factory_install_failure_is_logged_not_raised():
     class _RefusingLoop:
         def get_task_factory(self):
