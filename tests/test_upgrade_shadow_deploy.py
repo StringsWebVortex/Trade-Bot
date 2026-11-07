@@ -113,8 +113,8 @@ def test_evaluate_promotes_challenger_when_meaningfully_better():
     deployer.start()
     _seed_returns(
         deployer,
-        incumbent_returns=[0.001, -0.001, 0.001, -0.001, 0.001],
-        challenger_returns=[0.02, 0.01, 0.03, 0.02, 0.01],
+        incumbent_returns=[0.001, -0.001] * 20,
+        challenger_returns=[0.02, 0.01, 0.03, 0.02] * 10,
     )
     with patch.dict(sys.modules, {"evidently": None}):
         result = deployer.evaluate()

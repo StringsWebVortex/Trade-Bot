@@ -117,6 +117,10 @@ def extract_ecdsa_signatures(raw_tx_hex: str) -> list[tuple[int, int, bytes, str
                         r, s = parsed
                         # Try to find 33-byte compressed pubkey after the sig
                         pubkey_offset = i + 2 + total_len + 1  # skip sighash byte
+                        # In P2PKH scriptSig and P2WPKH witness the pubkey is
+                        # preceded by a 0x21 (33-byte) push opcode; skip it.
+                        if pubkey_offset < len(raw) and raw[pubkey_offset] == 0x21:
+                            pubkey_offset += 1
                         if pubkey_offset + 33 <= len(raw) and raw[pubkey_offset] in (0x02, 0x03):
                             pubkey = raw[pubkey_offset : pubkey_offset + 33]
                             # A 0x02/0x03 prefix and the right length are not a
@@ -229,6 +233,11 @@ class ECDSAScanner:
                     self._evicted_r += 1
             if registry_entry:
                 for s_prev, _pk_prev, txid_prev, z_prev in registry_entry:
+                    # The same transaction seen again (re-broadcast, reorg,
+                    # overlapping feeds) matches itself on r and s. That is
+                    # not a reused nonce across two signatures (MTH-002).
+                    if txid_prev == txid and s_prev == s:
+                        continue
                     # Same r value = same nonce k used → potential private key recovery
                     privkey = _extract_privkey_from_nonce_reuse(r, s, s_prev, z, z_prev)
                     weakness = ECDSAWeakness(
@@ -251,7 +260,10 @@ class ECDSAScanner:
             # thousands of times is itself the weakness and is reported on
             # the second sighting; retaining every later one adds no
             # detection and is the shape a spam stream would exploit.
-            if len(registry_entry) < _MAX_SIGS_PER_R:
+            already_seen = any(
+                txid_prev == txid and s_prev == s for s_prev, _pk, txid_prev, _z in registry_entry
+            )
+            if not already_seen and len(registry_entry) < _MAX_SIGS_PER_R:
                 registry_entry.append((s, pubkey_hex, txid, z))
 
         return found

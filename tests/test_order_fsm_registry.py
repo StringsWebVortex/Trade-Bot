@@ -25,7 +25,6 @@ These tests cover:
 
 from __future__ import annotations
 
-import os
 from collections import OrderedDict
 from typing import Any
 
@@ -112,9 +111,9 @@ class TestOrderFSMRegistry:
 
 
 @pytest.fixture()
-def api_client():
-    os.environ["API_SECRET_KEY"] = "test-key-" + "a" * 32
-    os.environ["OPERATOR_SECRET"] = "test-operator-secret"
+def api_client(monkeypatch):
+    monkeypatch.setenv("API_SECRET_KEY", "test-key-" + "a" * 32)
+    monkeypatch.setenv("OPERATOR_SECRET", "test-operator-secret")
 
     from fastapi.testclient import TestClient
 

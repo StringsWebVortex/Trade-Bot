@@ -152,8 +152,10 @@ export function useWebSocket(onTick, onEvent) {
 
     function connect() {
       if (closed) return;
-      const wsUrl = API_KEY ? `${WS_URL}?api_key=${encodeURIComponent(API_KEY)}` : WS_URL;
-      const ws = new WebSocket(wsUrl);
+      // The key rides the Sec-WebSocket-Protocol header (hex-encoded), never the
+      // URL: the server logs every handshake URL (API-005).
+      const hex = Array.from(new TextEncoder().encode(API_KEY || ''), (b) => b.toString(16).padStart(2, '0')).join('');
+      const ws = API_KEY ? new WebSocket(WS_URL, ['tradebot.v1', `apikey.${hex}`]) : new WebSocket(WS_URL);
       socket = ws;
       wsRef.current = ws;
       _liveSocket = ws;

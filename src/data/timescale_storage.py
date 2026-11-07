@@ -866,6 +866,37 @@ class TimescaleBackend:
             direction=trade.direction,
         )
 
+    async def record_trade_partial_exit(
+        self,
+        trade_id: str,
+        exit_price: float,
+        pnl_usd: float,
+        fee_usd: float,
+    ) -> None:
+        """Persist realised PnL/fees while leaving the trade open."""
+        pool = self._require_pool()
+        async with pool.acquire() as conn:
+            status = await conn.execute(
+                """
+                UPDATE trades
+                SET exit_price=$1,
+                    pnl_usd=COALESCE(pnl_usd, 0.0)+$2,
+                    pnl_pct=(COALESCE(pnl_usd, 0.0)+$3)/notional_usd,
+                    fee_usd=fee_usd+$4
+                WHERE id=$5 AND exit_ts IS NULL
+                """,
+                exit_price,
+                pnl_usd,
+                pnl_usd,
+                fee_usd,
+                trade_id,
+            )
+        if _rows_from_status(status) == 0:
+            raise ValueError(
+                f"No open trade found with id={trade_id!r} (already closed or id not found)"
+            )
+        self._log.info("trade.partial_exit_recorded", trade_id=trade_id, pnl_usd=pnl_usd)
+
     async def update_trade_exit(
         self,
         trade_id: str,
@@ -876,22 +907,22 @@ class TimescaleBackend:
         exit_reason: str,
         fee_usd: float,
     ) -> None:
-        """Patch exit fields on an existing trade row."""
+        """Persist the final fill, accumulating any earlier partial fills."""
         pool = self._require_pool()
         async with pool.acquire() as conn:
             status = await conn.execute(
                 """
                 UPDATE trades
-                SET exit_price=$1, exit_ts=$2, pnl_usd=$3, pnl_pct=$4,
+                SET exit_price=$1, exit_ts=$2,
+                    pnl_usd=COALESCE(pnl_usd, 0.0)+$3,
+                    pnl_pct=(COALESCE(pnl_usd, 0.0)+$4)/notional_usd,
                     exit_reason=$5, fee_usd=fee_usd+$6
                 WHERE id=$7 AND exit_ts IS NULL
                 """,
-                # SCAN2-002 parity: fee_usd+$6 accumulates entry fee + exit fee.
-                # AND exit_ts IS NULL prevents double-exit writes on the same trade.
                 exit_price,
                 exit_ts,
                 pnl_usd,
-                pnl_pct,
+                pnl_usd,
                 exit_reason,
                 fee_usd,
                 trade_id,
