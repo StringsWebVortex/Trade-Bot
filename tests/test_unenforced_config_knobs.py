@@ -8,6 +8,7 @@ in addition to the wall-clock cooldown.
 
 Decides:
   - REL-006 — Configuration drift is detected and DEBUG never reaches production
+  - REG-1116 — Bar-driven tuning waits for new bars between attempts
 """
 
 from __future__ import annotations

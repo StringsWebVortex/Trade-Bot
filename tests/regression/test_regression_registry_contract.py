@@ -248,6 +248,8 @@ class TestTheRegistryHasAPlaceForDefects:
             # REG-1704: audit STR-21 -- carry and arbitrage entries gated on
             # fixed thresholds no cost measurement produced.
             "REG-1704",
+            # REG-1430: audit DAT/INT low findings (phase 6).
+            "REG-1430",
 
             # REG-1460..1471: phase 6 math/strategy low findings.
             "REG-1460",
@@ -675,7 +677,7 @@ class TestTheMetricsCollector:
         # REG-1460..1471 add twelve phase 6 math/strategy regressions on top of main.
         # The main branch's 125 test-suite findings plus these 12 total 137.
         assert metric["value"] == {
-            "test-suite": 137,
+            "test-suite": 138,
             "review": 1,
             "supply-chain": 4,
             "ci-gate-design": 2,

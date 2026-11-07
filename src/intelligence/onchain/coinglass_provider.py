@@ -55,7 +55,8 @@ class CoinglassProvider(OnChainProvider):
 
     _BASE_URL = _BASE
     _CACHE_TTL_S = 60
-    _RATE = 30.0 / 60.0  # 30 req/min expressed as req/s for window_s=1.0
+    _RATE = 30.0  # 30 req/min; burst capacity of 30 tokens
+    _RATE_WINDOW_S = 60.0
 
     def __init__(self, api_key: str, cache_ttl_s: int = 60) -> None:
         super().__init__()

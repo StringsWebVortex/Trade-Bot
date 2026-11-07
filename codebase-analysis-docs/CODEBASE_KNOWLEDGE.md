@@ -520,7 +520,7 @@ Use these anchors with the matching current hash in codebase-analysis-docs/CHUNK
 - Training features and labels: [[F:src/features/pipeline.py#779-816#bcd874ac]]
 - Ordered first-failure risk evaluation: [[F:src/risk/gates.py#669-706#36a7f38f]]
 - Order state machine: [[F:src/execution/order_fsm.py#149-186#14f635a5]]
-- SQLite initialization/migrations: [[F:src/data/storage.py#745-761#b1db7068]]
+- SQLite initialization/migrations: [[F:src/data/storage.py#744-760#8ce4ed97]]
 - TimescaleDB storage backend: [[F:src/data/timescale_storage.py#394-431#1aa58429]]
 - Runtime change validation and policy: [[F:src/runtime/changes.py#302-339#310891d5]]
 - Runtime discovery/reconciliation: [[F:src/runtime/production.py#266-303#55696d76]]

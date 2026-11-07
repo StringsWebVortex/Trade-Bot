@@ -47,11 +47,11 @@ deletion of the thing it points at.
 
 | Status | Entries |
 |---|---|
-| VERIFIED | 332 |
+| VERIFIED | 333 |
 | PARTIAL | 3 |
 | PLANNED | 0 |
 | ACCEPTED GAP | 0 |
-| **Total** | **335** |
+| **Total** | **336** |
 
 ## Summary by subsystem
 
@@ -62,7 +62,7 @@ deletion of the thing it points at.
 | Portfolio | 2 | 2 |
 | Signal and features | 22 | 22 |
 | Models and leakage | 38 | 38 |
-| Data, money and time | 16 | 15 |
+| Data, money and time | 17 | 16 |
 | API and WebSocket | 32 | 32 |
 | Cryptography and secrets | 44 | 44 |
 | Supply chain and artifacts | 7 | 7 |
@@ -1617,6 +1617,20 @@ crypto-predictor data fetchers never return the still-open candle: Binance rows 
   - `tests/test_crypto_predictor_regressions.py` (regression)
 
 > Audit SCR-007, SCR-008 and DOC-014 (standalone crypto-predictor). layer: test-suite
+
+#### `REG-1430` — Data and intelligence low-severity defects: bus drop total, naive now, funding units, NaN guards
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+EventBus.total_dropped retains drops of detached subscribers; the quality gate refuses a naive now with ClockError; OKX/Bybit single-rate funding is in percent; the probabilistic adapter and value_at_risk reject non-finite inputs; the Granger update is skipped without close_history; the SQLite DDL defaults to synchronous=FULL. Also: feed publish carries published_ts and an unstarted consumer raises; DatetimeIndex bars are rejected and extreme-return limits scale with timeframe; registry ::node selectors must exist; reserve ratios use no hardcoded price; on-chain rate limiters allow per-minute bursts; PatchTST tolerates short input and Chomp1d(0) is identity; brier/prior/regime guards.
+
+- **If violated:** Heartbeat under-reported drops, a naive clock raised TypeError, funding was off by 100x, NaN metrics let gates pass, and Granger consumed fabricated zero returns.
+- **Owned by:** `src/eventbus/bus.py`, `src/data/quality_gate.py`, `src/intel.py`
+- **Verification:**
+  - `tests/test_data_intel_low_findings.py` (regression)
+  - `tests/test_crypto_intel_signal_path.py` (regression)
+
+> Low-severity audit findings DAT-020..DAT-036 that no test exercised. layer: test-suite
 
 #### `REG-1702` — kg/ and rag_mongo/ share one MongoClient factory and one URI check
 
@@ -4359,4 +4373,4 @@ To add or change an entry, edit the registry and regenerate this file. See
 `docs/quality/TEST_STRATEGY.md` for the taxonomy the `test_type` column draws
 on, and `docs/quality/IMPLEMENTATION_PLAN.md` for what each phase delivers.
 
-Registry version: 1.0.0 — 335 entries.
+Registry version: 1.0.0 — 336 entries.

@@ -30,7 +30,6 @@ log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
 _COINGECKO_GLOBAL_URL: Final[str] = "https://api.coingecko.com/api/v3/global"
 _CACHE_TTL_S: Final[int] = 900  # 15-min cache; data updates ~1/min but stale is fine
-_STABLECOIN_COINS: Final[tuple[str, ...]] = ("tether", "usd-coin", "dai", "frax", "usdd")
 # BTC dominance z-score window (approximate: stored as last N fetches, 15-min cadence)
 _BTC_DOM_WINDOW: Final[int] = 96  # 96 x 15min = 24h rolling window for z-score
 _CONFIDENCE_PENALTY: Final[float] = 0.05

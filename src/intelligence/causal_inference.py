@@ -427,9 +427,10 @@ class CausalInferenceEngine:
         """
         n = min(len(treatment), 1000)  # Limit to avoid long compute
         bootstrap_effects = []
+        rng = np.random.default_rng(0)  # local, seeded: never the global RNG
 
         for _ in range(200):  # 200 bootstrap resamples
-            idx = np.random.choice(len(treatment), n, replace=True)
+            idx = rng.choice(len(treatment), n, replace=True)
             boot_effect = self._backdoor_adjustment(treatment[idx], outcome[idx], confounders[idx])
             bootstrap_effects.append(boot_effect)
 
