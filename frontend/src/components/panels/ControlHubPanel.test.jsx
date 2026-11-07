@@ -13,7 +13,7 @@ vi.mock('../../hooks/useApi', async (importOriginal) => ({
   apiFetch: (...args) => api.fetch(...args),
 }));
 
-const SURFACE = { controls: [{ name: 'a b/c', group: 'g', kind: 'text', value: 'x' }] };
+const SURFACE = { counts: { live: 1, protected: 0 }, controls: [{ name: 'a b/c', group: 'g', kind: 'text', value: 'x', live: true, protected: false }] };
 
 afterEach(() => vi.restoreAllMocks());
 

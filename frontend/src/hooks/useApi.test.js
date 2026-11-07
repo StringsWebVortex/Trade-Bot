@@ -231,12 +231,16 @@ describe('REG-0022: callbacks are read from the current render', () => {
     const pending = {};
     vi.stubGlobal(
       'fetch',
-      vi.fn((url) => new Promise((resolve) => { pending[url] = resolve; })),
+      vi.fn((url) => new Promise((resolve) => { pending[new URL(url).pathname] = resolve; })),
     );
     const { result, rerender } = renderHook(({ p }) => usePolling(p, 10_000), {
       initialProps: { p: '/old' },
     });
-    rerender({ p: '/new' });
+    await act(async () => {
+      rerender({ p: '/new' });
+      await Promise.resolve();
+    });
+    expect(pending['/new']).toBeDefined();
     await act(async () => {
       pending['/new']({ ok: true, json: () => Promise.resolve('new') });
       await vi.advanceTimersByTimeAsync(0);
