@@ -44,7 +44,9 @@ from typing import Any, TextIO
 
 from src.terminal import SERVICE_VERSION, auth, install
 from src.terminal.client import TerminalClient, TerminalClientError
-from src.terminal.config import REPO_ROOT, TerminalConfig, TerminalConfigError, ensure_private_dir
+from src.terminal.config import (
+    REPO_ROOT, TerminalConfig, TerminalConfigError, ensure_managed_state_dir, ensure_private_dir,
+)
 from src.terminal.protocol import PROCESS_ID_RE, SESSION_ID_RE, SIGNALS
 
 # Only `daemon` needs asyncio, websockets, structlog and the trading logging
@@ -166,7 +168,7 @@ def _unit_installed(env: dict[str, str]) -> bool:
 
 
 def _spawn_detached(config: TerminalConfig) -> None:
-    ensure_private_dir(config.state_dir)
+    ensure_managed_state_dir(config.state_dir)
     log_path = config.log_path
     if log_path.exists() and log_path.stat().st_size > LOG_ROTATE_BYTES:
         log_path.unlink()
@@ -217,14 +219,22 @@ def ensure_running(
     )
 
 
+def _is_daemon_process(pid: int, proc: Path = Path("/proc")) -> bool:
+    try:
+        cmdline = (proc / str(pid) / "cmdline").read_bytes()
+    except OSError:
+        return False
+    # A stale pid file can name a recycled pid; only signal our own daemon.
+    argv = cmdline.split(b"\0")
+    return b"src.terminal" in cmdline and b"daemon" in argv
+
+
 def _daemon_pid(config: TerminalConfig, proc: Path = Path("/proc")) -> int | None:
     try:
         pid = int(config.pid_path.read_text(encoding="utf-8").strip())
-        cmdline = (proc / str(pid) / "cmdline").read_bytes()
     except (OSError, ValueError):
         return None
-    # A stale pid file can name a recycled pid; only signal our own daemon.
-    return pid if b"src.terminal" in cmdline else None
+    return pid if _is_daemon_process(pid, proc) else None
 
 
 def stop_daemon(
@@ -238,16 +248,38 @@ def stop_daemon(
     """Stop the daemon (which closes every session). True if it was running."""
     if _ping(config) is None:
         return False
-    if _unit_active(run):
+    managed_by_systemd = _unit_active(run)
+    pid = _daemon_pid(config, proc)
+    if managed_by_systemd:
         run(["systemctl", "--user", "stop", install.UNIT_NAME])
     else:
-        pid = _daemon_pid(config, proc)
         if pid is None:
             raise CliError("the daemon answers but its pid file is missing; stop it by hand")
         kill(pid, signal.SIGTERM)
+
     deadline = time.monotonic() + timeout_s
-    while time.monotonic() < deadline and config.socket_path.exists():
+    while time.monotonic() < deadline:
+        # The socket can be unlinked during shutdown before the process has
+        # actually exited. Keep waiting for the daemon itself, not just its
+        # listening pathname; systemd is the fallback when no pid is known.
+        if pid is not None:
+            still_running = _is_daemon_process(pid, proc)
+        elif managed_by_systemd:
+            still_running = _unit_active(run)
+        else:
+            still_running = config.socket_path.exists()
+        if not still_running and not config.socket_path.exists():
+            break
         time.sleep(0.1)
+
+    if pid is not None:
+        still_running = _is_daemon_process(pid, proc)
+    elif managed_by_systemd:
+        still_running = _unit_active(run)
+    else:
+        still_running = False
+    if config.socket_path.exists() or still_running:
+        raise CliError(f"the terminal daemon did not stop within {timeout_s:.0f}s")
     return True
 
 
@@ -382,6 +414,8 @@ def _collect_session_output(client: TerminalClient, sid: str) -> bytes:
 
 
 def cmd_output(config: TerminalConfig, args: argparse.Namespace, out: TextIO) -> int:
+    if args.tail is not None and args.tail <= 0:
+        raise CliError("--tail must be a positive number of bytes")
     with _client(config) as client:
         if PROCESS_ID_RE.match(args.target):
             process = client.request("process.output", process_id=args.target)["process"]
@@ -621,7 +655,7 @@ def cmd_close(config: TerminalConfig, args: argparse.Namespace, out: TextIO) -> 
 
 
 def cmd_token(config: TerminalConfig, args: argparse.Namespace, out: TextIO) -> int:
-    ensure_private_dir(config.state_dir)
+    ensure_managed_state_dir(config.state_dir)
     if args.rotate:
         value = auth.rotate_token(config.token_path)
     else:
