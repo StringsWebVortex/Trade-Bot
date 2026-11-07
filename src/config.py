@@ -120,6 +120,21 @@ class OKXSettings(BaseSettings):
     rate_limit_per_second: int = Field(default=10, ge=1)
 
 
+class PaperQualificationSettings(BaseSettings):
+    """Secret that authenticates the paper-qualification record (EXR-020).
+
+    Deliberately not a field of ``Settings`` and never cached: the live gate
+    reads it fresh on every call so a rotated or removed key takes effect at
+    once, and the qualification module needs no direct environment access.
+    """
+
+    model_config = SettingsConfigDict(
+        env_prefix="PAPER_QUALIFICATION_", env_file=".env", extra="ignore"
+    )
+
+    hmac_key: str = Field(default="", description="HMAC key signing the qualification record")
+
+
 # ---------------------------------------------------------------------------
 # Risk constants — López de Prado (2018) AFML + Kelly (1956)
 # ---------------------------------------------------------------------------
@@ -193,7 +208,7 @@ class RiskSettings(BaseSettings):
     approval_timeout_s: float = Field(
         default=30.0,
         ge=1.0,
-        description="Seconds to wait for manual approval before auto-skip in RESTRICTED mode",
+        description="Seconds to wait for manual approval before auto-skip (RESTRICTED and MANUAL modes)",
     )
 
     # GAP-001 — Almgren-Chriss slippage / market-impact model

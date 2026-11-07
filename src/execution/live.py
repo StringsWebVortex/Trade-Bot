@@ -519,7 +519,9 @@ class LiveExecutor(AbstractExecutor):
                 regime_state,
                 meta_label_prob,
                 raw_signal,
-                timeout_s=None,
+                # EXR-018: bounded, so an unattended approval cannot stall the
+                # tick loop or execute an arbitrarily old order.
+                timeout_s=self._risk_cfg.approval_timeout_s,
                 denied_outcome="rejected",
                 strategy_id=strategy_id,
                 blend_audit=blend_audit,

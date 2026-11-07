@@ -348,6 +348,15 @@ class TestTheRegistryHasAPlaceForDefects:
             "REG-1141",
             "REG-1142",
             "REG-1143",
+            # REG-1300..1305 and REG-1307: phase 5 execution audit,
+            # EXR-014..EXR-019 and EXR-021 (EXR-020 is SEC-1306 below).
+            "REG-1300",
+            "REG-1301",
+            "REG-1302",
+            "REG-1303",
+            "REG-1304",
+            "REG-1305",
+            "REG-1307",
             # REG-1280..1284: standalone crypto-predictor audit findings (SCR-007,
             # SCR-008, DOC-014), each filed with its deciding test.
             "REG-1280",
@@ -405,6 +414,7 @@ class TestTheRegistryHasAPlaceForDefects:
             "SEC-0010",
             "SEC-0011",
             "SEC-0012",
+            "SEC-1306",
             # SEC-1010..1015: API authorization and secret-handling audit findings.
             "SEC-1010",
             "SEC-1011",
@@ -711,11 +721,10 @@ class TestTheMetricsCollector:
         # test-suite, 43.
         # REG-1704 adds the fixed-threshold carry/arbitrage regression (STR-21):
         # no test asked what the thresholds cost to clear -- test-suite, 44.
-        # Main includes the phase 6 agent/frontend audit entries; this PR and
-        # its review follow-up add 14 further verified tests to that baseline.
-        # This PR adds five further filed frontend findings to main's baseline.
+        # Main carries the phase 6 registry regressions; this PR adds eight
+        # execution audit regressions (REG-1300..1307 / SEC-1306).
         assert metric["value"] == {
-            "test-suite": 171,
+            "test-suite": 179,
             "review": 1,
             "supply-chain": 4,
             "ci-gate-design": 2,

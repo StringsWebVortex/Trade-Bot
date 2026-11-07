@@ -749,6 +749,8 @@ class Orchestrator:
                 ensemble=ensemble,
                 online_trainer=online_trainer,
             )
+            if getattr(self, "_symbol_precision", None):
+                self._engines[tf.value].set_symbol_precision(self._symbol_precision)  # EXR-016
             self._model_state[tf.value] = "ready"
             # Direction/meta readiness is required; the ensemble and online
             # learner are additive. Keep the core model ready when an optional
@@ -3198,6 +3200,8 @@ class Orchestrator:
             value = fetched.get(key)
             if value is not None:
                 self._symbol_precision[key] = float(value)
+        for _eng in getattr(self, "_engines", {}).values():
+            _eng.set_symbol_precision(self._symbol_precision)  # EXR-016
         self._log.info(
             "orchestrator.symbol_precision_loaded",
             symbol=self._symbol,

@@ -124,6 +124,12 @@ class PerformanceBaseline:
     # with callers that built the baseline before this field existed.
     train_sortino: float = 0.0
     oos_sortino: float = 0.0
+    # EXR-021: the live Sharpe is a per-trade ratio (mean/std of trade PnL, not
+    # annualised) and the live win rate is out-of-sample, so the baselines it is
+    # compared with must be in the same units. Both default to None, which
+    # falls back to the legacy oos_sharpe / train_win_rate.
+    oos_sharpe_per_trade: float | None = None
+    oos_win_rate: float | None = None
     set_at_ms: int = field(default_factory=lambda: int(datetime.now(tz=UTC).timestamp() * 1000))
 
     def __post_init__(self) -> None:
@@ -134,6 +140,16 @@ class PerformanceBaseline:
         so a unit mistake made here surfaces at the first drift check — by
         which time the message has nothing to do with the mistake.
         """
+        if self.oos_sharpe_per_trade is not None and not math.isfinite(
+            self.oos_sharpe_per_trade
+        ):
+            raise ValueError("PerformanceBaseline.oos_sharpe_per_trade must be finite when set")
+        if self.oos_win_rate is not None and not (
+            math.isfinite(self.oos_win_rate) and 0.0 <= self.oos_win_rate <= 1.0
+        ):
+            raise ValueError(
+                f"PerformanceBaseline.oos_win_rate={self.oos_win_rate} must be a fraction in [0, 1]"
+            )
         for name in self._FRACTION_FIELDS:
             value = float(getattr(self, name))
             if not math.isfinite(value):
@@ -157,8 +173,20 @@ class PerformanceBaseline:
                     "This field is a FRACTION, not a percentage."
                 )
 
+    @property
+    def sharpe_baseline_per_trade(self) -> float:
+        """Baseline in the live statistic's units (per-trade), else legacy oos_sharpe."""
+        return self.oos_sharpe if self.oos_sharpe_per_trade is None else self.oos_sharpe_per_trade
+
+    @property
+    def win_rate_baseline(self) -> float | None:
+        """Out-of-sample win rate when known, else a measured training win rate."""
+        return self.train_win_rate if self.oos_win_rate is None else self.oos_win_rate
+
     def to_dict(self) -> dict[str, Any]:
         return {
+            "oos_sharpe_per_trade": self.oos_sharpe_per_trade,
+            "oos_win_rate": self.oos_win_rate,
             "train_sharpe": self.train_sharpe,
             "oos_sharpe": self.oos_sharpe,
             "train_sortino": self.train_sortino,
@@ -406,7 +434,7 @@ class PerformanceDriftDetector:
             return DriftDetected(drifted=False)
 
         std_pnl = statistics.stdev(pnl_list)
-        baseline_sharpe = self._baseline.oos_sharpe
+        baseline_sharpe = self._baseline.sharpe_baseline_per_trade
 
         # Sharpe = mean / std (annualization skipped for rolling window)
         if std_pnl > 0:
@@ -510,9 +538,9 @@ class PerformanceDriftDetector:
         live_wins = sum(1 for w in self._live_wins_window if w)
         live_winrate = live_wins / len(self._live_wins_window)
 
-        baseline_winrate = self._baseline.train_win_rate
+        baseline_winrate = self._baseline.win_rate_baseline
         if baseline_winrate is None:
-            return DriftDetected(drifted=False, reason="No measured training win-rate baseline")
+            return DriftDetected(drifted=False, reason="No measured out-of-sample or training win-rate baseline")
         drift_pp = baseline_winrate - live_winrate
         is_significant = _proportion_drop_significant(
             baseline_winrate,
