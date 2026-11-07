@@ -28,12 +28,13 @@ import sys
 from pathlib import Path
 
 import pytest
+from required_import import require
 
 REPO = Path(__file__).resolve().parents[2]
 SCRIPTS = REPO / ".claude" / "skills" / "quality-engineering" / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 
-pytest.importorskip("jsonschema")
+require("jsonschema")
 
 import qe_gate  # noqa: E402
 import qe_new_requirement as scaffold  # noqa: E402

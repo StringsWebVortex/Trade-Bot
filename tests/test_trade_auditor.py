@@ -60,7 +60,7 @@ class TestAuditRecord:
 
         r = _rec()
         d = r.to_dict()
-        json.dumps(d)
+        assert json.loads(json.dumps(d)) == d
 
     def test_to_dict_contains_key_fields(self):
         r = _rec(gate_status="HALT_DRAWDOWN", outcome="skipped")

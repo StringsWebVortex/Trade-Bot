@@ -144,7 +144,11 @@ describe('starting the service', () => {
   it('runs the CLI from the repository with the repository importable', async () => {
     const exec = fakeExec([{ stdout: 'ok' }]);
     const result = await runTerminalCli(['status'], {
-      repoRoot: '/repo', env: { TB_TERMINAL_PYTHON: '/opt/python', PYTHONPATH: '/lib' }, execFileImpl: exec.execFile,
+      repoRoot: '/repo', env: {
+        TB_TERMINAL_PYTHON: '/opt/python',
+        PYTHONPATH: '/lib',
+        TRADEBOT_DESKTOP_API_KEY: 'desktop-secret',
+      }, execFileImpl: exec.execFile,
     });
     expect(result).toEqual({ code: 0, stdout: 'ok', stderr: '' });
     const [call] = exec.calls;
@@ -152,6 +156,7 @@ describe('starting the service', () => {
     expect(call.args).toEqual(['-m', 'src.terminal', 'status']);
     expect(call.options.cwd).toBe('/repo');
     expect(call.options.env.PYTHONPATH.split(':')).toEqual(['/repo', '/lib']);
+    expect(call.options.env.TRADEBOT_DESKTOP_API_KEY).toBeUndefined();
   });
 
   it.each([
@@ -194,8 +199,22 @@ describe('TerminalBridge', () => {
     expect(Object.keys(ipcMain.listened).sort()).toEqual(['terminal:disconnect', 'terminal:send']);
 
     const sender = fakeSender();
-    ipcMain.listened['terminal:send']({ sender, senderFrame: { url: 'file:///app/dist/index.html' } }, { t: 'job.begin', id: 4 });
+    ipcMain.listened['terminal:send']({ sender, senderFrame: { url: 'file:///repo/frontend/dist/index.html' } }, { t: 'job.begin', id: 4 });
     expect(sender.sent[0][1]).toMatchObject({ t: 'error', id: 4, code: 'refused_by_bridge' });
+  });
+
+  it('refuses terminal IPC from arbitrary local files', async () => {
+    const ipcMain = { handled: {}, listened: {}, handle(c, f) { this.handled[c] = f; }, on(c, f) { this.listened[c] = f; } };
+    const ctx = makeBridge();
+    ctx.bridge.ipcMain = ipcMain;
+    ctx.bridge.register();
+    const sender = fakeSender(8);
+    const reply = await ipcMain.handled['terminal:connect']({
+      sender,
+      senderFrame: { url: 'file:///etc/passwd' },
+    });
+    expect(reply).toEqual({ ok: false, error: 'untrusted sender' });
+    expect(ctx.exec.calls).toHaveLength(0);
   });
 
   it('connects to the service socket and relays complete lines only', async () => {

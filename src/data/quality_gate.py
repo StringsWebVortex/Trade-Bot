@@ -60,6 +60,8 @@ import numpy as np
 import pandas as pd
 import structlog
 
+from src.data.clock import ensure_utc
+
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
 #: The minimum a frame must carry to be checkable at all. OHLC columns are
@@ -105,7 +107,14 @@ class FreshnessBudget:
         """
         if not math.isfinite(timeframe_s) or timeframe_s <= 0:
             raise ValueError(f"timeframe_s must be a positive number, got {timeframe_s!r}")
-        return cls(label=f"ohlcv_{int(timeframe_s)}s_x{bars:g}", max_age_s=timeframe_s * bars)
+        # Extreme-return ceiling scales with bar length: 15% is a corruption
+        # signal on short bars but a real move on a 4h bar in a crash (DAT-022).
+        max_abs_return = min(0.5, max(0.15, 0.15 * math.sqrt(timeframe_s / 3600.0)))
+        return cls(
+            label=f"ohlcv_{int(timeframe_s)}s_x{bars:g}",
+            max_age_s=timeframe_s * bars,
+            max_abs_return=max_abs_return,
+        )
 
 
 #: The historical default: a realtime tick feed, five minutes.
@@ -165,6 +174,9 @@ class DataQualityGate:
         """
         if bars.empty:
             return QualityResult(False, "empty_dataframe")
+        if not pd.api.types.is_integer_dtype(bars.index.dtype):
+            # A DatetimeIndex would be reinterpreted ns->ms by astype("int64").
+            return self._reject(f"index_not_integer_ms: dtype={bars.index.dtype}")
         try:
             timestamps = pd.to_datetime(bars.index.astype("int64"), unit="ms", utc=True)
         except (ValueError, TypeError, OverflowError) as exc:
@@ -303,7 +315,7 @@ class DataQualityGate:
         budget: FreshnessBudget,
         now: datetime | None,
     ) -> str | None:
-        reference = now if now is not None else datetime.now(UTC)
+        reference = ensure_utc(now) if now is not None else datetime.now(UTC)
         age = reference - timestamps.iloc[-1].to_pydatetime()
         if age > timedelta(seconds=budget.max_age_s):
             return (

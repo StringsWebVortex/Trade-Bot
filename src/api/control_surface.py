@@ -462,6 +462,13 @@ async def apply_control(
             operator_secret=operator_secret,
         )
     if parameter_registry.is_registered(name):
+        # The tuning registry is not an authorization boundary. Keep the
+        # operator allow-list in front of every write path, including newly
+        # registered tunables (API-003).
+        if not is_operator_writable(name):
+            raise ControlWriteError(
+                403, f"{name} is not operator-tunable through this API; change it in configuration."
+            )
         return _apply_tunable(name, value)
 
     try:

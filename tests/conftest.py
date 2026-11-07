@@ -315,6 +315,14 @@ def _isolate_parameter_registry():
 
 
 @pytest.fixture(autouse=True)
+def _isolate_risk_state_dir(tmp_path, monkeypatch):
+    """EXR-013: capital-floor and kill-switch state files go to a per-test dir,
+    so a halt persisted by one test can never be restored by another."""
+    monkeypatch.setenv("RISK_STATE_DIR", str(tmp_path / "risk_state"))
+    yield
+
+
+@pytest.fixture(autouse=True)
 def _clear_mongo_client_caches():
     import kg.db
     import rag_mongo.db
@@ -328,10 +336,23 @@ def _clear_mongo_client_caches():
 
 @pytest.fixture(autouse=True)
 def _reset_operator_secret_lockout():
-    """SEC-1015: the lockout budget is process-global; a test that sends a wrong
-    secret on purpose must not lock out the next test's correct one."""
+    """SEC-1015: reset the process-global secret lockout budget around each test."""
     from src.api.operator_secret import reset_failures
 
     reset_failures()
     yield
     reset_failures()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _no_unraisable_at_session_end():
+    """REG-1707: fail if async-resource finalizers raise at session shutdown."""
+    from tests.regression.unraisable import collect_unraisable
+
+    yield
+    caught = collect_unraisable()
+    if caught:
+        raise AssertionError(
+            "exceptions raised by finalizers at session end: "
+            + "; ".join(f"{u.object!r}: {u.exc_value!r}" for u in caught)
+        )

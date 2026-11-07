@@ -3,6 +3,7 @@
 // and native OS integration (dock/taskbar icon, single-instance lock).
 const { app, BrowserWindow, Tray, Menu, nativeImage, shell, ipcMain } = require("electron");
 const path = require("path");
+const { pathToFileURL } = require("url");
 const { TerminalBridge } = require("./terminalBridge.cjs");
 const { isSafeExternalUrl, isAppUrl, apiKeyHeaderHook } = require("./security.cjs");
 
@@ -12,6 +13,7 @@ const isDev = !app.isPackaged;
 const REPO_ROOT = path.join(__dirname, "..", "..");
 let terminalBridge = null;
 const DEV_URL = process.env.VITE_DEV_URL || "http://127.0.0.1:5173";
+const APP_FILE_URL = pathToFileURL(path.join(__dirname, "..", "dist", "index.html")).href;
 
 const BUILD_DIR = path.join(__dirname, "..", "build");
 const ICON_PATH = path.join(BUILD_DIR, "icon.png");
@@ -70,7 +72,7 @@ function createWindow() {
   // FE-07: the preload exposes a shell bridge, so the window must never leave
   // the app origin. Block every in-window navigation elsewhere.
   mainWindow.webContents.on("will-navigate", (event, url) => {
-    if (!isAppUrl(url, DEV_URL)) event.preventDefault();
+    if (!isAppUrl(url, DEV_URL, APP_FILE_URL)) event.preventDefault();
   });
 
   // FE-01: the API key is held here, not in the renderer bundle.
@@ -156,7 +158,7 @@ app.whenReady().then(() => {
   // Start the terminal service alongside the window (not before it): the
   // dashboard shows "connecting" until it answers, and a missing Python
   // environment degrades the terminal, never the rest of the app.
-  terminalBridge = new TerminalBridge({ ipcMain, repoRoot: REPO_ROOT, env: process.env });
+  terminalBridge = new TerminalBridge({ ipcMain, repoRoot: REPO_ROOT, env: process.env, appFileUrl: APP_FILE_URL });
   terminalBridge.register();
   terminalBridge.startService();
   createWindow();
