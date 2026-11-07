@@ -119,20 +119,13 @@ class TestNoControlAppearsTwice:
         assert rows[0]["live"] is True
         assert rows[0]["protected"] is False
 
-    async def test_trading_mode_is_the_operators_to_set(self, surface_fields):
-        """
-        It was listed protected because it is in EXCLUDED_PARAMS. That list
-        keeps the *autotuner* away from it, which is right -- nothing should
-        self-tune its way from paper into live. The owner switching their own
-        bot is a different act, and it is theirs to make, behind the operator
-        secret like every other write.
-        """
+    async def test_trading_mode_is_read_only_without_a_runtime_setter(self, surface_fields):
+        """The startup trading_mode setting is not the live execution_mode control."""
         surface = await build_control_surface(surface_fields)
         row = next(c for c in surface["controls"] if c["name"] == "trading_mode")
 
-        assert row["live"] is True
-        assert row["protected"] is False
-        assert row["kind"] == "select"
+        assert row["live"] is False
+        assert row["protected"] is True
 
 
 class TestCredentialsAreTheOnlyThingNeverShown:

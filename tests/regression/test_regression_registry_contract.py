@@ -255,6 +255,9 @@ class TestTheRegistryHasAPlaceForDefects:
             # REG-1704: audit STR-21 -- carry and arbitrage entries gated on
             # fixed thresholds no cost measurement produced.
             "REG-1704",
+            # REG-1243 and REG-1244: frontend stale-poll and live-config findings.
+            "REG-1243",
+            "REG-1244",
             # REG-1491..1503: phase 6 agent/frontend low findings.
             "REG-1491",
             "REG-1492",
@@ -409,6 +412,10 @@ class TestTheRegistryHasAPlaceForDefects:
             "SEC-1013",
             "SEC-1014",
             "SEC-1015",
+            # SEC-1240..1242: frontend secret, Electron and CSP findings.
+            "SEC-1240",
+            "SEC-1241",
+            "SEC-1242",
             # SEC-1020..1023: CI tooling and workflow security findings.
             "SEC-1020",
             "SEC-1021",
@@ -706,8 +713,9 @@ class TestTheMetricsCollector:
         # no test asked what the thresholds cost to clear -- test-suite, 44.
         # Main includes the phase 6 agent/frontend audit entries; this PR and
         # its review follow-up add 14 further verified tests to that baseline.
+        # This PR adds five further filed frontend findings to main's baseline.
         assert metric["value"] == {
-            "test-suite": 166,
+            "test-suite": 171,
             "review": 1,
             "supply-chain": 4,
             "ci-gate-design": 2,
