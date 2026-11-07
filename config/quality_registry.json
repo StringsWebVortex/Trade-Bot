@@ -7840,6 +7840,159 @@
         }
       ],
       "depends_on": []
+    },
+    {
+      "id": "REG-1110",
+      "kind": "regression",
+      "title": "Watchdog rollback restores the live registry and the runner starts probation",
+      "statement": "After a live promotion the runner starts post-promotion probation; a watchdog rollback restores the rolled-back value in the parameter registry that live_overrides reads, and the runner refuses new attempts on a watchdog-locked parameter.",
+      "criticality": "high",
+      "subsystem": "risk",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "start_probation was never called, and a rollback only appended to the version store, so the bad promoted value kept driving live trading until restart.",
+      "owning_modules": [
+        "src/tuning/watchdog.py",
+        "src/tuning/runner.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_tuning_promotion_rollback_wiring.py",
+          "test_type": "regression"
+        }
+      ],
+      "notes": "audit finding STR-04. layer: test-suite"
+    },
+    {
+      "id": "REG-1111",
+      "kind": "regression",
+      "title": "Promotion gate deflates for the number of prior attempts",
+      "statement": "The promotion gate corrects for all prior PROPOSED attempts: it uses a deflated Sharpe ratio only when the primary comparison explicitly carries raw challenger returns, otherwise it uses a Bonferroni-adjusted p-value. Continuous champion/challenger fold metrics are compared with a paired one-sided t-test over the same folds.",
+      "criticality": "high",
+      "subsystem": "model",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "Hourly attempts each tested at nominal alpha 0.05 against the same data, so a false promotion became near certain over time.",
+      "owning_modules": [
+        "src/tuning/gate.py",
+        "src/tuning/runner.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_tuning_gate_multiple_testing.py",
+          "test_type": "regression"
+        }
+      ],
+      "notes": "audit finding STR-05. layer: test-suite"
+    },
+    {
+      "id": "REG-1112",
+      "kind": "regression",
+      "title": "Feature-window backtest excludes training bars",
+      "statement": "run_feature_window_backtest scores only bars after oos_start_ms (the frozen model's training end) and the scheduler passes the model artifact's training time, so the reported oos_sharpe is out-of-sample.",
+      "criticality": "high",
+      "subsystem": "model",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "The deployed model was scored on bars it was trained on, so the OOS Sharpe was in-sample and biased toward the champion window.",
+      "owning_modules": [
+        "src/tuning/backtest_harness.py",
+        "src/tuning/scheduler.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_tuning_feature_window_oos.py",
+          "test_type": "regression"
+        }
+      ],
+      "notes": "audit finding STR-06. layer: test-suite"
+    },
+    {
+      "id": "REG-1113",
+      "kind": "regression",
+      "title": "Optuna walk-forward is embargoed and prunes failed folds",
+      "statement": "WalkForwardStudy leaves an embargo gap between train and test, keeps remainder rows, annualises with a configurable periods_per_year, rejects too-short data and prunes the trial when a fold fails instead of scoring -999.",
+      "criticality": "high",
+      "subsystem": "model",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "Labels leaked across the train/test boundary, sqrt(252) misstated crypto Sharpe, and one transient fold error injected -999 into the TPE objective.",
+      "owning_modules": [
+        "src/upgrade/optuna_wf.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_upgrade_optuna_wf_leakage.py",
+          "test_type": "regression"
+        }
+      ],
+      "notes": "audit finding MTH-009. layer: test-suite"
+    },
+    {
+      "id": "REG-1114",
+      "kind": "regression",
+      "title": "Shadow deployment promotes only on a significant paired improvement",
+      "statement": "ShadowDeployer promotes only with at least min_samples paired returns, a Sharpe margin and a one-sided paired t-test below alpha; record_return requires both predictions.",
+      "criticality": "high",
+      "subsystem": "model",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "An absolute 0.05 Sharpe margin on about 5 samples promoted noise, and defaulted predictions recorded zero returns for both arms.",
+      "owning_modules": [
+        "src/upgrade/shadow_deploy.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_upgrade_shadow_deploy_significance.py",
+          "test_type": "regression"
+        }
+      ],
+      "notes": "audit finding MTH-010. layer: test-suite"
+    },
+    {
+      "id": "REG-1115",
+      "kind": "regression",
+      "title": "ModelRegistry promotion needs paired windows and a minimum improvement",
+      "statement": "ModelRegistry.evaluate_shadow requires equal-length shadow and live windows and an accuracy gain of at least min_improvement, and promote_shadow re-runs the evaluation and refuses otherwise.",
+      "criticality": "high",
+      "subsystem": "model",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "Any accuracy difference, including against an empty live window scored 0.0, made a shadow ready, and promote_shadow did not re-check.",
+      "owning_modules": [
+        "src/models/model_registry.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_model_registry_promotion_gate.py",
+          "test_type": "regression"
+        }
+      ],
+      "notes": "audit finding INT-024. layer: test-suite"
+    },
+    {
+      "id": "REG-1116",
+      "kind": "regression",
+      "title": "Bar-driven tuning waits for new bars between attempts",
+      "statement": "Feature-window tuning records a monotonic bar ordinal at proposal time and requires min_bars_between_attempts new bars, as well as the wall-clock cooldown, before proposing again; the ordinal advances even when the scheduler fetches a fixed-size rolling bar window. Trade-driven parameters retain their separate closed-trade evidence guard.",
+      "criticality": "high",
+      "subsystem": "model",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "Feature-window tuning omitted the trade counter by design but had no bar counter replacement, so the cadence guard silently degraded to wall-clock-only; using the rolling window length would also saturate at the fetch limit and block all later attempts.",
+      "owning_modules": [
+        "src/config.py",
+        "src/tuning/runner.py",
+        "src/tuning/scheduler.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_unenforced_config_knobs.py",
+          "test_type": "regression"
+        }
+      ],
+      "notes": "audit follow-up: bar-driven tuning cadence. layer: test-suite",
+      "depends_on": []
     }
   ]
 }

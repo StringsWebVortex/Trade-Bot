@@ -1399,6 +1399,14 @@ class ModelTrainer:
         return dir_path, meta_path
 
     @staticmethod
+    def direction_model_path(model_dir: str | Path, symbol: str, timeframe: str) -> Path:
+        """Where the direction model artifact lives for this symbol/timeframe."""
+        _validate_timeframe(timeframe)
+        return Path(model_dir) / _DIRECTION_FILENAME.format(
+            symbol=symbol.replace("/", "_"), timeframe=timeframe
+        )
+
+    @staticmethod
     def load_direction(
         model_dir: str | Path,
         symbol: str,

@@ -249,6 +249,14 @@ class TestTheRegistryHasAPlaceForDefects:
             # fixed thresholds no cost measurement produced.
             "REG-1704",
             # REG-1100..1105: model evaluation leakage audit findings.
+            # REG-1110..1115: tuning promotion safety and significance findings.
+            "REG-1110",
+            "REG-1111",
+            "REG-1112",
+            "REG-1113",
+            "REG-1114",
+            "REG-1115",
+            "REG-1116",
             "REG-1100",
             "REG-1101",
             "REG-1102",
@@ -665,8 +673,9 @@ class TestTheMetricsCollector:
         # REG-1050..1052 add three restart-persistence regressions -- test-suite, 96.
         # REG-1060..1063 add four halt/drift and REG-1080..1085 add six engine/signal regressions -- test-suite, 106.
         # SEC-1010..1015 add six API authorization/secret regressions.
+        # REG-1110..1116 add seven tuning-promotion regressions (125 total).
         assert metric["value"] == {
-            "test-suite": 118,
+            "test-suite": 125,
             "review": 1,
             "supply-chain": 4,
             "ci-gate-design": 2,

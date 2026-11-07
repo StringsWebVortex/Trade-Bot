@@ -679,6 +679,11 @@ class SelfTuningSettings(BaseSettings):
         ge=1,
         description="Minimum closed trades between tuning attempts for the same parameter.",
     )
+    min_bars_between_attempts: int = Field(
+        default=1_000,
+        ge=1,
+        description="Minimum newly closed bars between bar-driven tuning attempts for the same parameter.",
+    )
     min_hours_between_attempts: float = Field(
         default=24.0,
         ge=1.0,

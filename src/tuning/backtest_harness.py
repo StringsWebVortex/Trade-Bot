@@ -386,6 +386,7 @@ def run_feature_window_backtest(
     direction_model: XGBClassifier,
     features_cfg: FeatureSettings | None = None,
     timeframe: str = "15m",
+    oos_start_ms: int | None = None,
 ) -> list[MetricComparison]:
     """
     Recalibrate one of the rolling-window feature parameters (Phase 8
@@ -431,6 +432,10 @@ def run_feature_window_backtest(
     # production-window default -- align both variants to rows valid under
     # BOTH before folding, so champion and challenger see identical bars.
     valid = champion_features[column].notna() & challenger_features[column].notna()
+    # The frozen model has already seen every bar through its artifact training
+    # timestamp. Exclude those bars before any fold is formed (STR-06).
+    if oos_start_ms is not None:
+        valid = valid & (idx > oos_start_ms)
     # list(...) rather than the constant directly: .loc reads a tuple key as a
     # MultiIndex lookup rather than a column selection, so this stays correct
     # whichever sequence type FEATURE_COLUMNS is.

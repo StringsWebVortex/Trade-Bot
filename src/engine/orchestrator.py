@@ -97,6 +97,7 @@ from src.strategies.signal_engine_adapter import (
     STRATEGY_ID_SIGNAL_ENGINE,
     SignalEngineStrategy,
 )
+from src.tuning import state as tuning_state
 from src.tuning.meta_allocator import get_allocation_controller
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
@@ -654,6 +655,12 @@ class Orchestrator:
                     baseline_accuracy=baseline.oos_accuracy,
                 )
                 self._register_kill_switches(baseline)
+                # Promotions made from here on are watched against this same
+                # measured baseline (STR-04). The tuning singleton is always
+                # constructed, even while its master switch is disabled.
+                tuning_state.runner.set_probation_detector_factory(
+                    lambda: PerformanceDriftDetector(baseline)
+                )
             except _NoBaseline:
                 pass
             except Exception as exc:
