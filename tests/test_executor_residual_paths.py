@@ -129,12 +129,15 @@ def test_a_missing_fill_quantity_is_read_as_fully_filled():
     assert "trade-1" not in executor._positions
 
 
-def test_a_partial_close_is_still_booked_but_flagged():
-    executor, _ = _executor_with_position(_close_order(filled=0.05))
+def test_a_partial_close_settles_only_the_filled_share_and_keeps_the_residual():
+    # EXR-007: the unfilled remainder is still live exposure, so it stays tracked.
+    executor, position = _executor_with_position(_close_order(filled=0.05))
+    original_qty = position.quantity
 
     asyncio.run(executor.close_position("trade-1", 50_500.0, "take_profit"))
 
-    assert "trade-1" not in executor._positions
+    assert "trade-1" in executor._positions
+    assert executor._positions["trade-1"].quantity == pytest.approx(original_qty - 0.05)
 
 
 def test_closing_an_unknown_trade_is_an_error():
@@ -267,7 +270,8 @@ class TestEmergencyFlatten:
             )
         )
 
-    def test_a_stranded_short_entry_books_the_flatten_the_other_way_round(self):
+    def test_a_short_entry_is_refused_on_the_spot_account_without_touching_the_exchange(self):
+        # EXR-008: spot has no borrowing, so a short entry never reaches the exchange.
         order = {
             "id": "ord-1",
             "status": "closed",
@@ -280,8 +284,8 @@ class TestEmergencyFlatten:
         cash_before = executor._cash
 
         assert self._place(executor, direction=0) is None
-        # entry and flatten filled at the same price, so only the two fees move
-        assert executor._cash == pytest.approx(cash_before - 2.0)
+        executor._place_market_order.assert_not_called()
+        assert executor._cash == cash_before
 
     def test_a_flatten_that_the_exchange_refuses_leaves_the_fill_stranded(self):
         order = {

@@ -192,6 +192,8 @@ def test_exr021_baselines_use_matching_units():
     legacy = _baseline()
     assert legacy.sharpe_baseline_per_trade == 1.5
     assert legacy.win_rate_baseline == 0.9
+    with pytest.raises(ValueError, match="oos_sharpe_per_trade must be finite"):
+        _baseline(oos_sharpe_per_trade=float("nan"))
     fixed = _baseline(oos_sharpe_per_trade=0.2, oos_win_rate=0.5)
     assert fixed.sharpe_baseline_per_trade == 0.2
     assert fixed.win_rate_baseline == 0.5

@@ -56,7 +56,7 @@ PASSING = PaperRecord(
 
 @pytest.fixture(autouse=True)
 def _hmac_key(monkeypatch):
-    monkeypatch.setenv("PAPER_QUALIFICATION_HMAC_KEY", "unit-test-key")
+    monkeypatch.setenv("PAPER_QUALIFICATION_HMAC_KEY", "unit-test-key-for-paper-qualification-32-byte-minimum")
 
 
 def _resign(path, stored):
@@ -346,3 +346,9 @@ class TestRecordIsAuthenticated:
         monkeypatch.delenv("PAPER_QUALIFICATION_HMAC_KEY")
         with pytest.raises(NotQualifiedError, match="PAPER_QUALIFICATION_HMAC_KEY"):
             assert_qualified_for_live(path)
+
+
+def test_short_hmac_key_fails_closed(monkeypatch):
+    monkeypatch.setenv("PAPER_QUALIFICATION_HMAC_KEY", "short")
+    with pytest.raises(NotQualifiedError, match="at least 32 bytes"):
+        save_qualification(evaluate(PASSING))

@@ -4,18 +4,16 @@ Derivatives features: Open Interest, funding rate, liquidations.
 Consolidates the derivatives fields the exchange providers already return
 (src/intelligence/providers/*_provider.py) into a single typed bundle.
 
-This docstring previously said it consolidated a Deribit provider module
-that has never existed in this repository. That is worth stating rather
-than quietly deleting, because the missing module is the reason one
-strategy is inert: options_carry_v1 needs an implied-vol surface to compute
-OptionsCarryContext.implied_vol_zscore, and no provider here fetches one.
-The fields below — open interest, funding rate, liquidation pressure — are
-the derivatives data this process actually has, and none of them is an IV.
+A Deribit provider exists (src/data/deribit_provider.py) and writes
+``options_{coin}`` rows to the provider cache, but this module does not
+consume them: the fields below -- open interest, funding rate, liquidation
+pressure -- are not implied volatilities. options_carry_v1 needs an
+implied-vol surface and a rolling IV history for
+OptionsCarryContext.implied_vol_zscore; until that is wired the family
+abstains with an explicit reason rather than being fed a fabricated vol.
 
-Wiring options carry therefore needs a real options-venue provider (Deribit
-is the obvious source, and ccxt supports it), plus a rolling IV history for
-the z-score. Until that exists the family abstains with an explicit reason
-rather than being fed a fabricated vol.
+Units: ``funding_rate`` is the per-interval (8h) exchange rate as the
+fetcher returns it, not annualised.
 """
 
 from __future__ import annotations

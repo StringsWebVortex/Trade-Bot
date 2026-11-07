@@ -1,4 +1,8 @@
-"""Tests for src/tuning/scheduler.py -- AutoTuningScheduler."""
+"""Tests for src/tuning/scheduler.py -- AutoTuningScheduler.
+
+Decides:
+  - REG-1372 — Slippage calibration ADV is a daily volume
+"""
 
 from __future__ import annotations
 
@@ -328,7 +332,7 @@ class TestAutoTuningSchedulerAttempts:
             # argument and returns (blocked, reason) so the caller can log WHICH
             # half of the cadence guard fired.
             "_cooldown_active",
-            lambda param_name, closed_trade_count=None: (False, ""),
+            lambda param_name, closed_trade_count=None, bar_count=None: (False, ""),
         )
 
         async def _run():
@@ -375,7 +379,9 @@ class TestAutoTuningSchedulerAttempts:
         # closed_trade_count is supplied by the trade-driven parameter groups so
         # the runner can enforce min_trades_between_attempts. Accepted and
         # ignored: this test isolates intra-cycle champion visibility.
-        def _fake_attempt(param_name, evaluate_fn, primary_metric, closed_trade_count=None):
+        def _fake_attempt(
+            param_name, evaluate_fn, primary_metric, closed_trade_count=None, bar_count=None
+        ):
             # Bypasses the real proposer/gate entirely -- this test isolates
             # ONLY the evaluate() closure's registry-read timing, not
             # promotion logic (already covered by tests/test_tuning_runner.py).
@@ -459,7 +465,7 @@ class TestBuildSlippageSamples:
         sample = samples[0]
         assert sample.reference_price == pytest.approx(100.0)
         assert sample.fill_price == pytest.approx(101.0)
-        assert sample.adv_20d == pytest.approx(20.0)
+        assert sample.adv_20d == pytest.approx(20.0 * 96)  # 15m bars: 96 per day (STR-14)
         assert sample.direction == 1
 
     def test_skips_trades_with_non_positive_price_or_qty(self) -> None:
@@ -671,6 +677,20 @@ class TestFeatureWindowAttempt:
         scheduler = AutoTuningScheduler(_FakeStorage([], {}), settings, "BTC/USDT", "15m")  # type: ignore[arg-type]
         assert scheduler._load_direction_model() is not None
 
+    def test_direction_model_trained_at_ms_uses_artifact_mtime(self, tmp_path) -> None:
+        settings = get_settings().model_copy(
+            update={"storage": StorageSettings(model_dir=tmp_path)}
+        )
+        trainer = ModelTrainer(symbol="BTC/USDT", timeframe="15m")
+        direction_path, _ = trainer.save(
+            _fitted_direction_model(), _fitted_meta_model(), tmp_path, version="v1"
+        )
+        scheduler = AutoTuningScheduler(_FakeStorage([], {}), settings, "BTC/USDT", "15m")  # type: ignore[arg-type]
+        assert (
+            scheduler._direction_model_trained_at_ms()
+            == direction_path.stat().st_mtime_ns // 1_000_000
+        )
+
     def test_build_feature_bars_df_none_when_no_bars(self) -> None:
         settings = get_settings()
         scheduler = AutoTuningScheduler(_FakeStorage([], {}), settings, "BTC/USDT", "15m")  # type: ignore[arg-type]
@@ -686,7 +706,9 @@ class TestFeatureWindowAttempt:
         assert list(df.index) == sorted(df.index)
         assert len(df) == 29
 
-    def test_attempt_all_runs_feature_window_attempts_with_trained_model(self, tmp_path) -> None:
+    def test_attempt_all_runs_feature_window_attempts_with_trained_model(
+        self, monkeypatch, tmp_path
+    ) -> None:
         settings = get_settings().model_copy(
             update={"storage": StorageSettings(model_dir=tmp_path)}
         )
@@ -700,6 +722,7 @@ class TestFeatureWindowAttempt:
         ]
         storage = _FakeStorage([], {}, bars=bars)
         scheduler = AutoTuningScheduler(storage, settings, "BTC/USDT", "15m")  # type: ignore[arg-type]
+        monkeypatch.setattr(scheduler, "_direction_model_trained_at_ms", lambda: 0)
         # This test targets the feature-window path specifically; skip the
         # (default-settings, slow) xgboost block by advancing past cycle 0 --
         # see TestXGBoostHyperparamAttempt for dedicated xgboost coverage
@@ -817,7 +840,7 @@ def _enable_runner_for_test(monkeypatch) -> None:
         # argument and returns (blocked, reason) so the caller can log WHICH
         # half of the cadence guard fired.
         "_cooldown_active",
-        lambda param_name, closed_trade_count=None: (False, ""),
+        lambda param_name, closed_trade_count=None, bar_count=None: (False, ""),
     )
 
 
@@ -954,6 +977,7 @@ class TestSchedulerEvaluateClosuresInvoked:
         ]
         storage = _FakeStorage([], {}, bars=bars)
         scheduler = AutoTuningScheduler(storage, settings, "BTC/USDT", "15m")  # type: ignore[arg-type]
+        monkeypatch.setattr(scheduler, "_direction_model_trained_at_ms", lambda: 0)
         scheduler._cycle_count = 1  # skip the (slow) xgboost block this test doesn't cover
 
         async def _run():
@@ -990,6 +1014,7 @@ class TestSchedulerEvaluateClosuresInvoked:
         ]
         storage = _FakeStorage([], {}, bars=bars)
         scheduler = AutoTuningScheduler(storage, settings, "BTC/USDT", "15m")  # type: ignore[arg-type]
+        monkeypatch.setattr(scheduler, "_direction_model_trained_at_ms", lambda: 0)
         scheduler._cycle_count = 1
 
         async def _run():
@@ -1024,6 +1049,7 @@ class TestSchedulerEvaluateClosuresInvoked:
         ]
         storage = _FakeStorage([], {}, bars=bars)
         scheduler = AutoTuningScheduler(storage, settings, "BTC/USDT", "15m")  # type: ignore[arg-type]
+        monkeypatch.setattr(scheduler, "_direction_model_trained_at_ms", lambda: 0)
         assert scheduler._cycle_count == 0  # cycle 0 -> xgboost block is attempted, hits the stub
 
         async def _run():
@@ -1067,6 +1093,7 @@ class TestSchedulerEvaluateClosuresInvoked:
         ]
         storage = _FakeStorage([], {}, bars=bars)
         scheduler = AutoTuningScheduler(storage, settings, "BTC/USDT", "15m")  # type: ignore[arg-type]
+        monkeypatch.setattr(scheduler, "_direction_model_trained_at_ms", lambda: 0)
 
         async def _run():
             scheduler.start()

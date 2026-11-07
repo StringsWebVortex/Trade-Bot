@@ -1,5 +1,7 @@
 """Tests for orchestrator/planner.py (the new plan-big/execute-small package,
-distinct from src/engine/orchestrator.py covered by tests/test_orchestrator*.py)."""
+distinct from src/engine/orchestrator.py covered by tests/test_orchestrator*.py).
+
+Decides: REG-1226"""
 
 from __future__ import annotations
 
@@ -40,4 +42,20 @@ def test_plan_truncates_to_max_subtasks():
         patch("orchestrator.planner.MAX_SUBTASKS", 2),
         patch("orchestrator.planner.run_claude", return_value={"result": '["a", "b", "c"]'}),
     ):
+        assert plan("goal") == ["a", "b"]
+
+
+def test_plan_prefers_structured_output():
+    out = {"result": "", "structured_output": {"subtasks": ["x", "y", "z"]}}
+    with (
+        patch("orchestrator.planner.MAX_SUBTASKS", 2),
+        patch("orchestrator.planner.run_claude", return_value=out) as run_claude,
+    ):
+        assert plan("goal") == ["x", "y"]
+    assert run_claude.call_args.kwargs["json_schema"]["required"] == ["subtasks"]
+
+
+def test_plan_tolerates_prose_around_the_json_array():
+    text = 'Here you go:\n```json\n["a", "b"]\n```\nHope that helps!'
+    with patch("orchestrator.planner.run_claude", return_value={"result": text}):
         assert plan("goal") == ["a", "b"]

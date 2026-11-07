@@ -220,6 +220,13 @@ class TestTheRegistryHasAPlaceForDefects:
             "REG-0029",
             "REG-0030",
             "REG-0031",
+            "REG-1221",
+            "REG-1222",
+            "REG-1223",
+            "REG-1226",
+            "REG-1227",
+            "REG-1229",
+            "REG-1230",
             # REG-1600..1603: audit OPS-011, OPS-012, API-021 and OPS-009 --
             # each a defect no test exercised, filed with its deciding test.
             "REG-1600",
@@ -248,6 +255,86 @@ class TestTheRegistryHasAPlaceForDefects:
             # REG-1704: audit STR-21 -- carry and arbitrage entries gated on
             # fixed thresholds no cost measurement produced.
             "REG-1704",
+            # REG-1243 and REG-1244: frontend stale-poll and live-config findings.
+            "REG-1243",
+            "REG-1244",
+            # REG-1491..1503: phase 6 agent/frontend low findings.
+            "REG-1491",
+            "REG-1492",
+            "REG-1493",
+            "REG-1494",
+            "REG-1495",
+            "REG-1496",
+            "REG-1497",
+            "REG-1498",
+            "REG-1500",
+            "REG-1501",
+            "REG-1503",
+            # REG-1430: audit DAT/INT low findings (phase 6).
+            "REG-1430",
+
+            # REG-1460..1471: phase 6 math/strategy low findings.
+            "REG-1460",
+            "REG-1461",
+            "REG-1462",
+            "REG-1463",
+            "REG-1464",
+            "REG-1465",
+            "REG-1466",
+            "REG-1467",
+            "REG-1468",
+            "REG-1469",
+            "REG-1470",
+            "REG-1471",
+
+            # REG-1100..1105: model evaluation leakage audit findings.
+            # REG-1110..1115: tuning promotion safety and significance findings.
+            "REG-1110",
+            "REG-1111",
+            "REG-1112",
+            "REG-1113",
+            "REG-1114",
+            "REG-1115",
+            "REG-1116",
+            "REG-1100",
+            "REG-1101",
+            "REG-1102",
+            "REG-1103",
+            "REG-1104",
+            "REG-1105",
+            # REG-1060..1063: halts and drift fail closed on unmeasured input.
+            "REG-1060",
+            "REG-1061",
+            "REG-1062",
+            "REG-1063",
+            # REG-1080..1085: engine and signal audit fixes (STR-01..03, INT-006, INT-008, MTH-001).
+            "REG-1080",
+            "REG-1081",
+            "REG-1082",
+            "REG-1083",
+            "REG-1084",
+            "REG-1085",
+            # REG-1030/1031: idempotency key release and ambiguous-fill reconciliation.
+            "REG-1030",
+            "REG-1031",
+            # REG-1050..1052: restart persistence of risk and strategy state.
+            "REG-1050",
+            "REG-1051",
+            "REG-1052",
+            # REG-1040..1043: audit EXR-006/007/008/012 (execution accounting).
+            "REG-1040",
+            "REG-1041",
+            "REG-1042",
+            "REG-1043",
+            # REG-1070/1071: live inference scored a stale row; forming candles
+            # were persisted.
+            "REG-1070",
+            "REG-1071",
+            # DAT-003..DAT-006: changepoint, MVRV, triple-barrier tail, lookahead.
+            "REG-1090",
+            "REG-1091",
+            "REG-1092",
+            "REG-1093",
             # REG-1705: the knowledge-index gate demanded fresh hashes for every
             # file, so any merge broke every other open PR -- ci-gate-design.
             # REG-1706: fail-fast cancelled five shards when one failed, hiding
@@ -270,6 +357,31 @@ class TestTheRegistryHasAPlaceForDefects:
             "REG-1304",
             "REG-1305",
             "REG-1307",
+            # REG-1280..1284: standalone crypto-predictor audit findings (SCR-007,
+            # SCR-008, DOC-014), each filed with its deciding test.
+            "REG-1280",
+            "REG-1281",
+            "REG-1282",
+            "REG-1283",
+            "REG-1284",
+            # REG-1360..1374: phase 5 math/strategy audit findings (MTH-002/004/005/012/014,
+            # STR-07..STR-16), each filed with its deciding test.
+            "REG-1360",
+            "REG-1361",
+            "REG-1362",
+            "REG-1363",
+            "REG-1364",
+            "REG-1365",
+            "REG-1366",
+            "REG-1367",
+            "REG-1368",
+            "REG-1369",
+            "REG-1370",
+            "REG-1371",
+            "REG-1372",
+            "REG-1373",
+            "REG-1374",
+
         }
         # SEC-0005: `.gitignore` carried a bare `.env`, which matches that one
         # name and nothing else -- so `.env.bak.<timestamp>` from a
@@ -303,6 +415,41 @@ class TestTheRegistryHasAPlaceForDefects:
             "SEC-0011",
             "SEC-0012",
             "SEC-1306",
+            # SEC-1010..1015: API authorization and secret-handling audit findings.
+            "SEC-1010",
+            "SEC-1011",
+            "SEC-1012",
+            "SEC-1013",
+            "SEC-1014",
+            "SEC-1015",
+            # SEC-1240..1242: frontend secret, Electron and CSP findings.
+            "SEC-1240",
+            "SEC-1241",
+            "SEC-1242",
+            # SEC-1020..1023: CI tooling and workflow security findings.
+            "SEC-1020",
+            "SEC-1021",
+            "SEC-1022",
+            "SEC-1023",
+            # SEC-1120..1123: model-loading integrity audit findings.
+            "SEC-1120",
+            "SEC-1121",
+            "SEC-1122",
+            "SEC-1123",
+            # SEC-1130, SEC-1131: git guard and PreToolUse fail-closed findings.
+            "SEC-1130",
+            "SEC-1131",
+            "SEC-1220",
+            "SEC-1224",
+            "SEC-1225",
+            "SEC-1228",
+            "SEC-1231",
+            "SEC-1232",
+            "SEC-1233",
+            # SEC-1490, SEC-1499, SEC-1502: phase 6 agent/frontend low findings.
+            "SEC-1490",
+            "SEC-1499",
+            "SEC-1502",
         }
 
     def test_every_filed_defect_names_a_permanent_test(self, registry):
@@ -574,13 +721,10 @@ class TestTheMetricsCollector:
         # test-suite, 43.
         # REG-1704 adds the fixed-threshold carry/arbitrage regression (STR-21):
         # no test asked what the thresholds cost to clear -- test-suite, 44.
-        # REG-1610 and REG-1611 add the section D script and CI-skip regressions.
-        # REG-1707 adds the async-resource regression; main also adds the CI gate
-        # and supply-chain findings. Keep both branches' allocations represented.
-        # REG-1300..1305, REG-1307 and SEC-1306 add the eight phase 5 execution
-        # audit findings EXR-014..EXR-021 -- test-suite, 51 to 59.
+        # Main carries the phase 6 registry regressions; this PR adds eight
+        # execution audit regressions (REG-1300..1307 / SEC-1306).
         assert metric["value"] == {
-            "test-suite": 59,
+            "test-suite": 179,
             "review": 1,
             "supply-chain": 4,
             "ci-gate-design": 2,

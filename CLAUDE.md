@@ -731,4 +731,3 @@ have caught this, and does it now?" in the `REG-` entry's `failure_mode`.
 **Continuous refactoring.** A PR that touches a module removes the dead code,
 duplication and slow paths it finds in that module, under the same tests.
 Debt found outside the touched scope is filed, not fixed in passing (section 1).
-

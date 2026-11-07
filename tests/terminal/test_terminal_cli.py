@@ -10,9 +10,13 @@ would. Attaching never stops a session; the terminal is restored however the
 attach ends.
 
 Decides:
+  - SEC-1224 -- see config/quality_registry.json
   - TERM-007 -- the host CLI lists, creates, attaches to, inspects and detaches
   - TERM-008 -- install, start and stop never clobber and never orphan
   - REG-0025 -- attach closes only after the daemon has applied what it sent
+
+Decides:
+  - REG-1494 — Terminal CLI stop/pid/tail are safe
 """
 
 from __future__ import annotations
@@ -493,6 +497,54 @@ class TestLifecycleHelpers:
         assert launched["env"]["PYTHONPATH"].endswith(os.pathsep + "/elsewhere")
         assert config.log_path.stat().st_size == 0
 
+    def test_spawn_detached_does_not_pass_secrets_to_the_daemon(self, config, monkeypatch):
+        """AGT-023: the daemon used to inherit the caller's whole environment."""
+        monkeypatch.setenv("BINANCE_API_SECRET", "s3cret")
+        monkeypatch.setenv("OPERATOR_SECRET", "op")
+        monkeypatch.setenv("TB_TERMINAL_API_TOKEN", "tok")
+        monkeypatch.setenv("UNRELATED_VAR", "x")
+        monkeypatch.setenv("PATH", "/usr/bin")
+        launched = {}
+        monkeypatch.setattr(cli.subprocess, "Popen", lambda argv, **kw: launched.update(kw))
+        cli._spawn_detached(config)
+        env = launched["env"]
+        assert env["PATH"] == "/usr/bin"
+        leaked = {"BINANCE_API_SECRET", "OPERATOR_SECRET", "TB_TERMINAL_API_TOKEN", "UNRELATED_VAR"}
+        assert not leaked & set(env)
+
+    def test_session_manager_default_environment_is_scrubbed(self, monkeypatch):
+        from src.terminal.config import scrubbed_environment
+
+        monkeypatch.setenv("EXCHANGE_API_KEY", "k")
+        monkeypatch.setenv("LANG", "C.UTF-8")
+        env = scrubbed_environment()
+        assert "EXCHANGE_API_KEY" not in env
+        assert env["LANG"] == "C.UTF-8"
+
+    def test_session_manager_scrubs_explicit_environment(self, tmp_path):
+        from src.terminal.config import TerminalConfig
+        from src.terminal.registry import ProcessRegistry
+        from src.terminal.sessions import SessionManager
+
+        manager = SessionManager(
+            TerminalConfig.from_env({}),
+            ProcessRegistry(history_limit=10, output_limit=1024),
+            base_env={
+                "PATH": "/usr/bin",
+                "HOME": str(tmp_path),
+                "LANG": "C.UTF-8",
+                "BINANCE_API_SECRET": "must-not-reach-pty",
+                "OPERATOR_SECRET": "must-not-reach-pty",
+                "UNRELATED_VAR": "must-not-reach-pty",
+            },
+        )
+        child_env = manager._child_env("s-12345678")
+        assert child_env["PATH"] == "/usr/bin"
+        assert child_env["HOME"] == str(tmp_path)
+        assert "BINANCE_API_SECRET" not in child_env
+        assert "OPERATOR_SECRET" not in child_env
+        assert "UNRELATED_VAR" not in child_env
+
 
 class TestHelpers:
     @pytest.mark.parametrize(
@@ -555,3 +607,45 @@ class TestClient:
             client.send({"t": "ping"})
         with pytest.raises(TerminalClientError):
             client.recv(0.1)
+
+
+class TestPhase6Lows:
+    """AGT-026/027/028: pid-file targeting, stop timeout and --tail validation."""
+
+    def test_daemon_pid_rejects_another_cli_invocation(self, config, tmp_path):
+        config.pid_path.parent.mkdir(parents=True, exist_ok=True)
+        config.pid_path.write_text(f"{os.getpid()}\n")
+        proc = tmp_path / "proc"
+        (proc / str(os.getpid())).mkdir(parents=True)
+        (proc / str(os.getpid()) / "cmdline").write_bytes(b"python\x00-m\x00src.terminal\x00ls\x00")
+        assert cli._daemon_pid(config, proc) is None
+
+    def test_stop_reports_a_daemon_that_never_exits(self, config, short_tmp, tmp_path):
+        d = ThreadedDaemon(config, short_tmp).start()
+        proc = tmp_path / "proc"
+        (proc / str(os.getpid())).mkdir(parents=True)
+        (proc / str(os.getpid()) / "cmdline").write_bytes(
+            b"python\x00-m\x00src.terminal\x00daemon\x00"
+        )
+        try:
+            with pytest.raises(cli.CliError, match="did not stop"):
+                cli.stop_daemon(
+                    config,
+                    run=lambda argv: 3,
+                    # Simulate the socket disappearing before the daemon exits.
+                    kill=lambda p, s: config.socket_path.unlink(),
+                    proc=proc,
+                    timeout_s=0.2,
+                )
+        finally:
+            d.shutdown()
+
+    @pytest.mark.parametrize("tail", [0, -3])
+    def test_non_positive_tail_is_rejected(self, config, tail):
+        import argparse
+        import io
+
+        with pytest.raises(cli.CliError, match="--tail"):
+            cli.cmd_output(
+                config, argparse.Namespace(target="x", tail=tail, plain=False), io.StringIO()
+            )

@@ -185,7 +185,7 @@ class TestTimestamps:
         bars.index = [f"bar-{i}" for i in range(len(bars))]
         result = gate.check_bars(bars, budget=FreshnessBudget.for_timeframe(900), now=now)
         assert not result.passed
-        assert "timestamp_unparseable" in result.reason
+        assert "index_not_integer_ms" in result.reason
 
     def test_out_of_order_bars_are_refused(self, gate, now):
         bars = make_bars()

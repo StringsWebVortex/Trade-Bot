@@ -100,7 +100,7 @@ class PerformanceBaseline:
         oos_sharpe: Out-of-sample Sharpe ratio (walk-forward validation)
         train_accuracy: Training set model accuracy, FRACTION in [0, 1]
         oos_accuracy: Out-of-sample accuracy, FRACTION in [0, 1]
-        train_win_rate: Training set win rate, FRACTION in [0, 1]
+        train_win_rate: Training set win rate, FRACTION in [0, 1], or None when unmeasured
         max_drawdown_pct: Maximum drawdown from backtest, FRACTION in [0, 1]
         trades_in_backtest: Total trades in backtest
         set_at_ms: UNIX timestamp when baseline was recorded
@@ -110,7 +110,6 @@ class PerformanceBaseline:
     _FRACTION_FIELDS: ClassVar[tuple[str, ...]] = (
         "train_accuracy",
         "oos_accuracy",
-        "train_win_rate",
         "max_drawdown_pct",
     )
 
@@ -118,7 +117,7 @@ class PerformanceBaseline:
     oos_sharpe: float
     train_accuracy: float
     oos_accuracy: float
-    train_win_rate: float
+    train_win_rate: float | None
     max_drawdown_pct: float
     trades_in_backtest: int
     # Sortino ratios — Sortino & Price (1994); default 0.0 for backward compat
@@ -141,6 +140,10 @@ class PerformanceBaseline:
         so a unit mistake made here surfaces at the first drift check — by
         which time the message has nothing to do with the mistake.
         """
+        if self.oos_sharpe_per_trade is not None and not math.isfinite(
+            self.oos_sharpe_per_trade
+        ):
+            raise ValueError("PerformanceBaseline.oos_sharpe_per_trade must be finite when set")
         if self.oos_win_rate is not None and not (
             math.isfinite(self.oos_win_rate) and 0.0 <= self.oos_win_rate <= 1.0
         ):
@@ -157,6 +160,18 @@ class PerformanceBaseline:
                     f"FRACTION, not a percentage: pass {value / 100.0:g}, not {value:g}. "
                     "Every threshold and live value in this module is a fraction."
                 )
+        # CPCV TrainingResult currently measures directional accuracy, not
+        # trade win rate. Keep the latter unknown rather than silently treating
+        # classification accuracy as PnL win rate (which can trip false halts).
+        if self.train_win_rate is not None:
+            value = float(self.train_win_rate)
+            if not math.isfinite(value):
+                raise ValueError("PerformanceBaseline.train_win_rate must be finite when set")
+            if not 0.0 <= value <= 1.0:
+                raise ValueError(
+                    f"PerformanceBaseline.train_win_rate={value} is outside [0, 1]. "
+                    "This field is a FRACTION, not a percentage."
+                )
 
     @property
     def sharpe_baseline_per_trade(self) -> float:
@@ -164,8 +179,8 @@ class PerformanceBaseline:
         return self.oos_sharpe if self.oos_sharpe_per_trade is None else self.oos_sharpe_per_trade
 
     @property
-    def win_rate_baseline(self) -> float:
-        """Out-of-sample win rate when known, else the in-sample train_win_rate."""
+    def win_rate_baseline(self) -> float | None:
+        """Out-of-sample win rate when known, else a measured training win rate."""
         return self.train_win_rate if self.oos_win_rate is None else self.oos_win_rate
 
     def to_dict(self) -> dict[str, Any]:
@@ -244,7 +259,7 @@ class PerformanceDriftDetector:
     def record_trade_outcome(
         self,
         pnl_usd: float,
-        predicted_prob: float,
+        predicted_prob: float | None,
         actual_direction: int,
         current_equity: float,
         starting_equity: float,
@@ -266,11 +281,19 @@ class PerformanceDriftDetector:
         is_win = pnl_usd > 0
         self._live_wins_window.append(is_win)
 
-        # Record prediction accuracy
-        # Model direction: 1 if prob > 0.5 else -1
-        model_direction = 1 if predicted_prob > 0.5 else -1
-        is_correct = model_direction == actual_direction
-        self._live_predictions.append((predicted_prob, 1 if is_correct else 0))
+        # Record prediction accuracy. EXR-004: a caller with no real entry
+        # P(long) (None / non-finite) must NOT be scored: a placeholder 0.5
+        # maps to model_direction -1, which books every long as a wrong call.
+        # Skip the accuracy sample; PnL/win-rate/drawdown are still recorded.
+        if (
+            predicted_prob is not None
+            and math.isfinite(predicted_prob)
+            and 0.0 <= predicted_prob <= 1.0
+        ):
+            # Model direction: 1 if prob > 0.5 else -1
+            model_direction = 1 if predicted_prob > 0.5 else -1
+            is_correct = model_direction == actual_direction
+            self._live_predictions.append((predicted_prob, 1 if is_correct else 0))
 
         # Update cumulative stats
         self._total_live_trades += 1
@@ -516,6 +539,8 @@ class PerformanceDriftDetector:
         live_winrate = live_wins / len(self._live_wins_window)
 
         baseline_winrate = self._baseline.win_rate_baseline
+        if baseline_winrate is None:
+            return DriftDetected(drifted=False, reason="No measured out-of-sample or training win-rate baseline")
         drift_pp = baseline_winrate - live_winrate
         is_significant = _proportion_drop_significant(
             baseline_winrate,
