@@ -10,17 +10,17 @@ workflow validation, registry/schema checks, generated-document checks, and qual
 gates. Never execute an individual test, test suite, build, or check locally.
 
 1. Use the exact command `./scripts/prfail --pr <PR_NUMBER>` to retrieve the
-   finalized diagnostics report for the requested open PR's current head SHA.
-2. The collector runs autonomously on GitHub-hosted runners after source workflows
-   complete. It waits for all applicable workflows/jobs and never cancels siblings.
-3. A missing, stale, incomplete, malformed, or inaccessible report is an operational
-   error, never evidence that CI passed. Do not read raw workflow logs, jobs,
+   exact failure lines for the requested open PR's current head SHA. Empty output
+   means nothing failed; `wait` means its runs or the report are not finished yet.
+2. The collector runs autonomously on GitHub-hosted runners whenever any workflow
+   completes. It waits for every PR run and job and never cancels siblings.
+3. A stale, malformed, or inaccessible report is an operational error, never
+   evidence that CI passed. Do not read raw workflow logs, jobs,
    annotations, artifacts, check records, or arbitrary PR comments.
-4. Inspect the report's exact path/line/column when present and the surrounding
-   source at the same SHA. Do not invent locations when the diagnostic does not
-   provide them.
+4. Inspect the path/line/column a failure line names, when it names one, and the
+   surrounding source at the same SHA. Do not invent locations a line does not give.
 5. Apply a reviewed unified diff only through
-   `python3 scripts/apply_ci_patch.py --pr <PR_NUMBER> --head-sha <REPORT_HEAD_SHA> --patch-stdin`
+   `python3 scripts/apply_ci_patch.py --pr <PR_NUMBER> --head-sha <PR_HEAD_SHA> --patch-stdin`
    with a quoted `TB_CI_PATCH` heredoc. The patch applier revalidates the finalized
    report, PR number, head SHA, and local HEAD before applying an in-place text edit.
    It never stages, commits, pushes, changes branches, or runs checks. For an active PR repair, submit the reviewed correction through the approved GitHub branch-write route against the report SHA and exact file SHA; a local-only patch is not a completed PR repair.

@@ -31,6 +31,19 @@ _STORAGE_PATH = Path(os.environ.get("OPTUNA_STORAGE", "./models/optuna_studies.d
 _STUDY_PREFIX = "crypto_intel_wf"
 _N_FOLDS = 5
 _TRAIN_RATIO = 0.7
+# Hourly crypto bars: 365 days x 24. Callers on other bar sizes pass their own.
+_DEFAULT_PERIODS_PER_YEAR = 365.0 * 24.0
+_DEFAULT_EMBARGO = 1
+
+
+_DEFAULT_PARAMS: dict[str, Any] = {
+    "lr": 1e-3,
+    "batch_size": 64,
+    "dropout": 0.1,
+    "weight_decay": 1e-4,
+    "n_layers": 2,
+    "n_heads": 8,
+}
 
 
 @dataclass
@@ -50,14 +63,19 @@ class WFParams:
     n_heads_max: int = 16
 
 
-def _sharpe(returns: np.ndarray) -> float:
-    """Annualized Sharpe ratio from a returns array."""
+def _sharpe(returns: np.ndarray, periods_per_year: float = 252.0) -> float:
+    """Annualized Sharpe ratio from a returns array.
+
+    `periods_per_year` is the number of return observations per year; the
+    default 252 is the equity-daily convention and is wrong for crypto
+    (365 days, intraday bars), so WalkForwardStudy always passes its own.
+    """
     if np.asarray(returns).size == 0:
         return 0.0  # np.std([]) is nan, and `nan < 1e-9` is False — guard explicitly
     std = float(np.std(returns))
     if std < 1e-9:
         return 0.0
-    return float(np.mean(returns) / std * np.sqrt(252))
+    return float(np.mean(returns) / std * np.sqrt(periods_per_year))
 
 
 class WalkForwardStudy:
@@ -81,7 +99,18 @@ class WalkForwardStudy:
         n_folds: int = _N_FOLDS,
         storage_path: Path = _STORAGE_PATH,
         wf_params: WFParams | None = None,
+        embargo: int = _DEFAULT_EMBARGO,
+        periods_per_year: float = _DEFAULT_PERIODS_PER_YEAR,
     ) -> None:
+        # embargo: rows dropped between the end of train and the start of
+        # test. Set it to at least the label horizon in bars, or labels
+        # computed from future bars leak across the boundary (MTH-009).
+        if embargo < 0:
+            raise ValueError(f"embargo must be >= 0, got {embargo}")
+        if periods_per_year <= 0:
+            raise ValueError(f"periods_per_year must be > 0, got {periods_per_year}")
+        self._embargo = embargo
+        self._periods_per_year = periods_per_year
         self._study_name = f"{_STUDY_PREFIX}_{study_name}"
         self._train_fn = train_fn
         self._data = data
@@ -94,15 +123,25 @@ class WalkForwardStudy:
     def _build_folds(self) -> list[tuple[Any, Any, Any, Any]]:
         """Split data into walk-forward train/test folds."""
         n = len(self._data)
+        min_rows = self._n_folds * (self._embargo + 2)
+        if n < min_rows:
+            raise ValueError(
+                f"{n} rows cannot form {self._n_folds} folds with embargo={self._embargo} "
+                f"(need >= {min_rows})"
+            )
         fold_size = n // self._n_folds
         folds = []
         for i in range(self._n_folds):
-            end = (i + 1) * fold_size
+            # The last fold absorbs the n % n_folds remainder instead of dropping it.
+            end = n if i == self._n_folds - 1 else (i + 1) * fold_size
             train_end = int(end * _TRAIN_RATIO)
+            test_start = train_end + self._embargo
+            if test_start >= end:
+                raise ValueError(f"fold {i} has an empty test window after embargo")
             X_train = self._data[:train_end]
             y_train = self._data[:train_end]  # caller is responsible for splitting X/y
-            X_test = self._data[train_end:end]
-            y_test = self._data[train_end:end]
+            X_test = self._data[test_start:end]
+            y_test = self._data[test_start:end]
             folds.append((X_train, y_train, X_test, y_test))
         return folds
 
@@ -125,7 +164,7 @@ class WalkForwardStudy:
         for fold_idx, (X_train, y_train, X_test, y_test) in enumerate(folds):
             try:
                 oos_returns = self._train_fn(params, X_train, y_train, X_test, y_test, trial)
-                s = _sharpe(np.array(oos_returns))
+                s = _sharpe(np.array(oos_returns), self._periods_per_year)
                 fold_sharpes.append(s)
                 trial.report(float(np.mean(fold_sharpes)), step=fold_idx)
                 if trial.should_prune():
@@ -133,8 +172,10 @@ class WalkForwardStudy:
             except __import__("optuna").exceptions.TrialPruned:
                 raise
             except Exception as exc:
+                # A failed fold is not a -999 Sharpe: averaged in, one
+                # transient error would swamp the TPE signal. Prune instead.
                 log.warning("wf_fold_failed", fold=fold_idx, exc=str(exc))
-                fold_sharpes.append(-999.0)
+                raise __import__("optuna").exceptions.TrialPruned() from exc
 
         return float(np.mean(fold_sharpes))
 
@@ -165,20 +206,18 @@ class WalkForwardStudy:
                 pruner=pruner,
             )
             self._study.optimize(self._objective, n_trials=self._n_trials, show_progress_bar=False)
-            best = self._study.best_params
+            try:
+                best = self._study.best_params
+            except ValueError:
+                # Every trial was pruned (e.g. every fold failed): no result.
+                log.warning("optuna_no_completed_trials_returning_defaults")
+                return dict(_DEFAULT_PARAMS)
             log.info("optuna_study_complete", best_sharpe=self._study.best_value, best_params=best)
             return best
 
         except ImportError:
             log.warning("optuna_not_installed_returning_defaults")
-            return {
-                "lr": 1e-3,
-                "batch_size": 64,
-                "dropout": 0.1,
-                "weight_decay": 1e-4,
-                "n_layers": 2,
-                "n_heads": 8,
-            }
+            return dict(_DEFAULT_PARAMS)
 
     def best_params(self) -> dict[str, Any]:
         """Return best params from the most recent study (or empty dict if not run)."""

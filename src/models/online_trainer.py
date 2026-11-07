@@ -1,11 +1,11 @@
 """
 Online Learning Hook — TASK-008.
 
-NOT wired into the live signal path: nothing imports this module, so no
-prediction is blended with the batch model today. The blending weight and
-warm-up policy below describe how a caller should use it, not behaviour any
-running code exhibits. Wiring it means touching src/engine/signal_engine.py's
-prediction path, which is a live-trading change, not a refactor.
+Wired into the live path: src/engine/orchestrator.py and
+src/engine/signal_engine.py import and use this module. Persisted state is
+therefore security-relevant: INT-009 — models are written atomically with a
+SHA-256 manifest and loaded only from the single verified byte buffer; a
+missing or mismatching manifest fails closed to fresh models.
 
 Incremental SGD classifier that updates after every resolved bar, catching
 label drift between expensive XGBoost batch retrains (AFML Ch.11).
@@ -30,6 +30,7 @@ Authority:
 from __future__ import annotations
 
 import contextlib
+import io
 from collections import deque
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -40,6 +41,8 @@ import numpy as np
 import structlog
 from sklearn.linear_model import SGDClassifier
 from sklearn.preprocessing import StandardScaler
+
+from src.models.trainer import _atomic_write_bytes, _verify_manifest, _write_manifest
 
 if TYPE_CHECKING:
     pass
@@ -311,8 +314,16 @@ class OnlineTrainer:
             return
         try:
             target.mkdir(parents=True, exist_ok=True)
-            joblib.dump(self._dir_model, target / _DIR_MODEL_FILE)
-            joblib.dump(self._meta_model, target / _META_MODEL_FILE)
+            for model, name in (
+                (self._dir_model, _DIR_MODEL_FILE),
+                (self._meta_model, _META_MODEL_FILE),
+            ):
+                buf = io.BytesIO()
+                joblib.dump(model, buf)
+                data = buf.getvalue()
+                dest = target / name
+                _atomic_write_bytes(dest, data)
+                _write_manifest(dest, data)
             self._log.debug(
                 "online_trainer.saved",
                 dir=str(target),
@@ -328,13 +339,13 @@ class OnlineTrainer:
         meta_path = model_dir / _META_MODEL_FILE
         try:
             if dir_path.exists():
-                self._dir_model = joblib.load(dir_path)
+                self._dir_model = joblib.load(io.BytesIO(_verify_manifest(dir_path)))
                 self._log.info(
                     "online_trainer.loaded_direction",
                     samples=self._dir_model.n_samples,
                 )
             if meta_path.exists():
-                self._meta_model = joblib.load(meta_path)
+                self._meta_model = joblib.load(io.BytesIO(_verify_manifest(meta_path)))
                 self._log.info(
                     "online_trainer.loaded_meta",
                     samples=self._meta_model.n_samples,

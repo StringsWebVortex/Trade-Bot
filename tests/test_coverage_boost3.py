@@ -730,4 +730,9 @@ class TestStrategyFilters:
             prob_ranging=0.3,
             prob_volatile=0.1,
         )
-        assert isinstance(result, dict)
+        assert set(result) == {"passes", "scalar", "filters_failed", "details"}
+        assert isinstance(result["passes"], bool)
+        assert 0.0 <= result["scalar"] <= 1.0
+        assert isinstance(result["filters_failed"], list)
+        # The verdict must agree with its own list of failures.
+        assert result["passes"] == (result["filters_failed"] == [])

@@ -14,6 +14,7 @@ proposals for a cooldown period -- this is the mechanism that makes
 
 from __future__ import annotations
 
+import contextlib
 import threading
 import time
 from dataclasses import dataclass
@@ -23,6 +24,7 @@ from typing import Protocol
 
 from src.config import SelfTuningSettings
 from src.tuning.audit import TuningAuditLog, TuningEventType
+from src.tuning.registry import ParameterRegistry, UnknownParameterError
 from src.tuning.store import NoPriorVersionError, VersionedConfigStore
 
 
@@ -73,7 +75,12 @@ class PostPromotionWatchdog:
         store: VersionedConfigStore,
         audit_log: TuningAuditLog,
         settings: SelfTuningSettings,
+        registry: ParameterRegistry | None = None,
     ) -> None:
+        # The registry is what live_overrides reads. Without it a rollback
+        # only appends to the version store and the rolled-back (bad) value
+        # keeps driving live trading until restart (STR-04).
+        self._registry = registry
         self._store = store
         self._audit_log = audit_log
         self._settings = settings
@@ -95,6 +102,18 @@ class PostPromotionWatchdog:
                 detector=detector,
                 started_at=time.monotonic(),
             )
+
+    def _restore_registry(self, param_name: str, value: float) -> None:
+        if self._registry is None:
+            return
+        # not registered here: nothing live reads it
+        with contextlib.suppress(UnknownParameterError):
+            self._registry.update_current(param_name, value)
+
+    def probation_params(self) -> list[str]:
+        """Names currently in probation (for feeding closed-trade outcomes)."""
+        with self._lock:
+            return list(self._probations)
 
     def is_locked(self, param_name: str) -> bool:
         with self._lock:
@@ -145,8 +164,9 @@ class PostPromotionWatchdog:
                 # and lock out either way -- staying at the current value with
                 # no further attempts is the safe end state.
                 try:
-                    self._store.rollback(param_name)
+                    restored = self._store.rollback(param_name)
                     rolled_back = True
+                    self._restore_registry(param_name, restored.value)
                 except NoPriorVersionError:
                     rolled_back = False
                 self._audit_log.record(
