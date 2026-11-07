@@ -226,3 +226,76 @@ def ensure_private_dir(path: Path) -> Path:
     if info.st_mode & 0o077:
         os.chmod(path, 0o700)
     return path
+
+
+STATE_DIR_MARKER = ".tradebot-terminal-managed"
+STATE_DIR_MARKER_CONTENT = "tradebot-terminal-state-v1\n"
+
+
+def _write_state_dir_marker(path: Path) -> None:
+    marker = path / STATE_DIR_MARKER
+    try:
+        fd = os.open(marker, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    except FileExistsError:
+        return
+    with os.fdopen(fd, "w", encoding="utf-8") as handle:
+        handle.write(STATE_DIR_MARKER_CONTENT)
+
+
+def _mark_legacy_state_dir(path: Path) -> None:
+    """Migrate only the exact default state path with an app-only inventory."""
+    if os.environ.get(_ENV_PREFIX + "STATE_DIR", "").strip():
+        return
+    xdg_state = os.environ.get("XDG_STATE_HOME", "").strip()
+    state_home = Path(xdg_state) if xdg_state else Path.home() / ".local/state"
+    expected = (state_home / "tradebot-terminal").resolve()
+    try:
+        resolved = path.resolve()
+        if resolved != expected:
+            return
+        entries = list(path.iterdir())
+        allowed = {"token", "token.tmp", "termd.log"}
+        if not any(entry.name == "token" for entry in entries):
+            return
+        if any(
+            entry.name not in allowed or entry.is_symlink() or not entry.is_file()
+            for entry in entries
+        ):
+            return
+        token_info = (path / "token").lstat()
+        token = (path / "token").read_text(encoding="utf-8").strip()
+        if token_info.st_uid != os.getuid() or len(token) < 64:
+            return
+        _write_state_dir_marker(path)
+    except (OSError, UnicodeError):
+        return
+
+
+def ensure_managed_state_dir(path: Path) -> Path:
+    """Mark new state dirs and safely migrate the legacy dedicated default dir."""
+    existed = path.exists()
+    ensure_private_dir(path)
+    if existed:
+        _mark_legacy_state_dir(path)
+    else:
+        _write_state_dir_marker(path)
+    return path
+
+
+def is_managed_state_dir(path: Path) -> bool:
+    """Return true only for a real, user-owned directory carrying our marker."""
+    try:
+        directory = path.lstat()
+        marker = (path / STATE_DIR_MARKER).lstat()
+        if (
+            stat.S_ISLNK(directory.st_mode)
+            or not stat.S_ISDIR(directory.st_mode)
+            or directory.st_uid != os.getuid()
+            or stat.S_ISLNK(marker.st_mode)
+            or not stat.S_ISREG(marker.st_mode)
+            or marker.st_uid != os.getuid()
+        ):
+            return False
+        return (path / STATE_DIR_MARKER).read_text(encoding="utf-8") == STATE_DIR_MARKER_CONTENT
+    except (OSError, UnicodeError):
+        return False

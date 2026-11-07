@@ -1566,65 +1566,65 @@ SHA8 1c7162da; total lines 145.
 
 ## src/terminal/server.py
 
-SHA8 10681519; total lines 644.
+SHA8 e6fa9e24; total lines 647.
 
-- DaemonError (class, lines 53-54): CHUNK_ID = src/terminal/server.py#53-54#10681519 — [[F:src/terminal/server.py#53-54#10681519]].
-- ClientConnection (class, lines 57-101): CHUNK_ID = src/terminal/server.py#57-101#10681519 — [[F:src/terminal/server.py#57-101#10681519]].
-- ClientConnection.__init__ (method, lines 60-75): CHUNK_ID = src/terminal/server.py#60-75#10681519 — [[F:src/terminal/server.py#60-75#10681519]].
-- ClientConnection.push (method, lines 77-85): CHUNK_ID = src/terminal/server.py#77-85#10681519 — [[F:src/terminal/server.py#77-85#10681519]].
-- ClientConnection.run_writer (method, lines 87-92): CHUNK_ID = src/terminal/server.py#87-92#10681519 — [[F:src/terminal/server.py#87-92#10681519]].
-- ClientConnection.drain_and_stop (method, lines 94-97): CHUNK_ID = src/terminal/server.py#94-97#10681519 — [[F:src/terminal/server.py#94-97#10681519]].
-- ClientConnection.close (method, lines 99-101): CHUNK_ID = src/terminal/server.py#99-101#10681519 — [[F:src/terminal/server.py#99-101#10681519]].
-- TerminalServer (class, lines 104-141, slice 1): CHUNK_ID = src/terminal/server.py#104-141#10681519 — [[F:src/terminal/server.py#104-141#10681519]].
-- TerminalServer (class, lines 142-179, slice 2): CHUNK_ID = src/terminal/server.py#142-179#10681519 — [[F:src/terminal/server.py#142-179#10681519]].
-- TerminalServer (class, lines 180-217, slice 3): CHUNK_ID = src/terminal/server.py#180-217#10681519 — [[F:src/terminal/server.py#180-217#10681519]].
-- TerminalServer (class, lines 218-255, slice 4): CHUNK_ID = src/terminal/server.py#218-255#10681519 — [[F:src/terminal/server.py#218-255#10681519]].
-- TerminalServer (class, lines 256-293, slice 5): CHUNK_ID = src/terminal/server.py#256-293#10681519 — [[F:src/terminal/server.py#256-293#10681519]].
-- TerminalServer (class, lines 294-331, slice 6): CHUNK_ID = src/terminal/server.py#294-331#10681519 — [[F:src/terminal/server.py#294-331#10681519]].
-- TerminalServer (class, lines 332-369, slice 7): CHUNK_ID = src/terminal/server.py#332-369#10681519 — [[F:src/terminal/server.py#332-369#10681519]].
-- TerminalServer (class, lines 370-407, slice 8): CHUNK_ID = src/terminal/server.py#370-407#10681519 — [[F:src/terminal/server.py#370-407#10681519]].
-- TerminalServer (class, lines 408-445, slice 9): CHUNK_ID = src/terminal/server.py#408-445#10681519 — [[F:src/terminal/server.py#408-445#10681519]].
-- TerminalServer (class, lines 446-483, slice 10): CHUNK_ID = src/terminal/server.py#446-483#10681519 — [[F:src/terminal/server.py#446-483#10681519]].
-- TerminalServer (class, lines 484-521, slice 11): CHUNK_ID = src/terminal/server.py#484-521#10681519 — [[F:src/terminal/server.py#484-521#10681519]].
-- TerminalServer (class, lines 522-554, slice 12): CHUNK_ID = src/terminal/server.py#522-554#10681519 — [[F:src/terminal/server.py#522-554#10681519]].
-- TerminalServer.__init__ (method, lines 105-131): CHUNK_ID = src/terminal/server.py#105-131#10681519 — [[F:src/terminal/server.py#105-131#10681519]].
-- TerminalServer.start (method, lines 135-157): CHUNK_ID = src/terminal/server.py#135-157#10681519 — [[F:src/terminal/server.py#135-157#10681519]].
-- TerminalServer.stop (method, lines 159-178): CHUNK_ID = src/terminal/server.py#159-178#10681519 — [[F:src/terminal/server.py#159-178#10681519]].
-- TerminalServer.spawn (method, lines 180-185): CHUNK_ID = src/terminal/server.py#180-185#10681519 — [[F:src/terminal/server.py#180-185#10681519]].
-- TerminalServer._task_done (method, lines 187-190): CHUNK_ID = src/terminal/server.py#187-190#10681519 — [[F:src/terminal/server.py#187-190#10681519]].
-- TerminalServer._check_handshake (method, lines 194-216): CHUNK_ID = src/terminal/server.py#194-216#10681519 — [[F:src/terminal/server.py#194-216#10681519]].
-- TerminalServer._handle_ws (method, lines 218-230): CHUNK_ID = src/terminal/server.py#218-230#10681519 — [[F:src/terminal/server.py#218-230#10681519]].
-- TerminalServer._handle_unix (method, lines 234-272): CHUNK_ID = src/terminal/server.py#234-272#10681519 — [[F:src/terminal/server.py#234-272#10681519]].
-- TerminalServer._serve (method, lines 276-320): CHUNK_ID = src/terminal/server.py#276-320#10681519 — [[F:src/terminal/server.py#276-320#10681519]].
-- TerminalServer._handle_raw (method, lines 322-336): CHUNK_ID = src/terminal/server.py#322-336#10681519 — [[F:src/terminal/server.py#322-336#10681519]].
-- TerminalServer._dispatch (method, lines 338-356): CHUNK_ID = src/terminal/server.py#338-356#10681519 — [[F:src/terminal/server.py#338-356#10681519]].
-- TerminalServer._hello (method, lines 358-393): CHUNK_ID = src/terminal/server.py#358-393#10681519 — [[F:src/terminal/server.py#358-393#10681519]].
-- TerminalServer._req_ping (method, lines 397-398): CHUNK_ID = src/terminal/server.py#397-398#10681519 — [[F:src/terminal/server.py#397-398#10681519]].
-- TerminalServer._req_session_create (method, lines 400-415): CHUNK_ID = src/terminal/server.py#400-415#10681519 — [[F:src/terminal/server.py#400-415#10681519]].
-- TerminalServer._req_session_attach (method, lines 417-428): CHUNK_ID = src/terminal/server.py#417-428#10681519 — [[F:src/terminal/server.py#417-428#10681519]].
-- TerminalServer._replay (method, lines 430-445): CHUNK_ID = src/terminal/server.py#430-445#10681519 — [[F:src/terminal/server.py#430-445#10681519]].
-- TerminalServer._req_session_detach (method, lines 447-450): CHUNK_ID = src/terminal/server.py#447-450#10681519 — [[F:src/terminal/server.py#447-450#10681519]].
-- TerminalServer._req_session_input (method, lines 452-456): CHUNK_ID = src/terminal/server.py#452-456#10681519 — [[F:src/terminal/server.py#452-456#10681519]].
-- TerminalServer._req_session_resize (method, lines 458-463): CHUNK_ID = src/terminal/server.py#458-463#10681519 — [[F:src/terminal/server.py#458-463#10681519]].
-- TerminalServer._req_session_rename (method, lines 465-468): CHUNK_ID = src/terminal/server.py#465-468#10681519 — [[F:src/terminal/server.py#465-468#10681519]].
-- TerminalServer._req_session_signal (method, lines 470-474): CHUNK_ID = src/terminal/server.py#470-474#10681519 — [[F:src/terminal/server.py#470-474#10681519]].
-- TerminalServer._req_session_close (method, lines 476-482): CHUNK_ID = src/terminal/server.py#476-482#10681519 — [[F:src/terminal/server.py#476-482#10681519]].
-- TerminalServer._req_process_kill (method, lines 484-488): CHUNK_ID = src/terminal/server.py#484-488#10681519 — [[F:src/terminal/server.py#484-488#10681519]].
-- TerminalServer._req_process_output (method, lines 490-503): CHUNK_ID = src/terminal/server.py#490-503#10681519 — [[F:src/terminal/server.py#490-503#10681519]].
-- TerminalServer._job (method, lines 505-530): CHUNK_ID = src/terminal/server.py#505-530#10681519 — [[F:src/terminal/server.py#505-530#10681519]].
-- TerminalServer._broadcast (method, lines 534-538): CHUNK_ID = src/terminal/server.py#534-538#10681519 — [[F:src/terminal/server.py#534-538#10681519]].
-- TerminalServer._on_session_event (method, lines 540-544): CHUNK_ID = src/terminal/server.py#540-544#10681519 — [[F:src/terminal/server.py#540-544#10681519]].
-- TerminalServer._on_process_event (method, lines 546-547): CHUNK_ID = src/terminal/server.py#546-547#10681519 — [[F:src/terminal/server.py#546-547#10681519]].
-- TerminalServer._on_output (method, lines 549-554): CHUNK_ID = src/terminal/server.py#549-554#10681519 — [[F:src/terminal/server.py#549-554#10681519]].
-- _next (function, lines 557-561): CHUNK_ID = src/terminal/server.py#557-561#10681519 — [[F:src/terminal/server.py#557-561#10681519]].
-- _reply (function, lines 564-567): CHUNK_ID = src/terminal/server.py#564-567#10681519 — [[F:src/terminal/server.py#564-567#10681519]].
-- _error (function, lines 570-571): CHUNK_ID = src/terminal/server.py#570-571#10681519 — [[F:src/terminal/server.py#570-571#10681519]].
-- InstanceLock (class, lines 577-596): CHUNK_ID = src/terminal/server.py#577-596#10681519 — [[F:src/terminal/server.py#577-596#10681519]].
-- InstanceLock.__init__ (method, lines 580-582): CHUNK_ID = src/terminal/server.py#580-582#10681519 — [[F:src/terminal/server.py#580-582#10681519]].
-- InstanceLock.acquire (method, lines 584-591): CHUNK_ID = src/terminal/server.py#584-591#10681519 — [[F:src/terminal/server.py#584-591#10681519]].
-- InstanceLock.release (method, lines 593-596): CHUNK_ID = src/terminal/server.py#593-596#10681519 — [[F:src/terminal/server.py#593-596#10681519]].
-- run_daemon (function, lines 599-636, slice 1): CHUNK_ID = src/terminal/server.py#599-636#10681519 — [[F:src/terminal/server.py#599-636#10681519]].
-- run_daemon (function, lines 637-644, slice 2): CHUNK_ID = src/terminal/server.py#637-644#10681519 — [[F:src/terminal/server.py#637-644#10681519]].
+- DaemonError (class, lines 53-54): CHUNK_ID = src/terminal/server.py#53-54#e6fa9e24 — [[F:src/terminal/server.py#53-54#e6fa9e24]].
+- ClientConnection (class, lines 57-101): CHUNK_ID = src/terminal/server.py#57-101#e6fa9e24 — [[F:src/terminal/server.py#57-101#e6fa9e24]].
+- ClientConnection.__init__ (method, lines 60-75): CHUNK_ID = src/terminal/server.py#60-75#e6fa9e24 — [[F:src/terminal/server.py#60-75#e6fa9e24]].
+- ClientConnection.push (method, lines 77-85): CHUNK_ID = src/terminal/server.py#77-85#e6fa9e24 — [[F:src/terminal/server.py#77-85#e6fa9e24]].
+- ClientConnection.run_writer (method, lines 87-92): CHUNK_ID = src/terminal/server.py#87-92#e6fa9e24 — [[F:src/terminal/server.py#87-92#e6fa9e24]].
+- ClientConnection.drain_and_stop (method, lines 94-97): CHUNK_ID = src/terminal/server.py#94-97#e6fa9e24 — [[F:src/terminal/server.py#94-97#e6fa9e24]].
+- ClientConnection.close (method, lines 99-101): CHUNK_ID = src/terminal/server.py#99-101#e6fa9e24 — [[F:src/terminal/server.py#99-101#e6fa9e24]].
+- TerminalServer (class, lines 104-141, slice 1): CHUNK_ID = src/terminal/server.py#104-141#e6fa9e24 — [[F:src/terminal/server.py#104-141#e6fa9e24]].
+- TerminalServer (class, lines 142-179, slice 2): CHUNK_ID = src/terminal/server.py#142-179#e6fa9e24 — [[F:src/terminal/server.py#142-179#e6fa9e24]].
+- TerminalServer (class, lines 180-217, slice 3): CHUNK_ID = src/terminal/server.py#180-217#e6fa9e24 — [[F:src/terminal/server.py#180-217#e6fa9e24]].
+- TerminalServer (class, lines 218-255, slice 4): CHUNK_ID = src/terminal/server.py#218-255#e6fa9e24 — [[F:src/terminal/server.py#218-255#e6fa9e24]].
+- TerminalServer (class, lines 256-293, slice 5): CHUNK_ID = src/terminal/server.py#256-293#e6fa9e24 — [[F:src/terminal/server.py#256-293#e6fa9e24]].
+- TerminalServer (class, lines 294-331, slice 6): CHUNK_ID = src/terminal/server.py#294-331#e6fa9e24 — [[F:src/terminal/server.py#294-331#e6fa9e24]].
+- TerminalServer (class, lines 332-369, slice 7): CHUNK_ID = src/terminal/server.py#332-369#e6fa9e24 — [[F:src/terminal/server.py#332-369#e6fa9e24]].
+- TerminalServer (class, lines 370-407, slice 8): CHUNK_ID = src/terminal/server.py#370-407#e6fa9e24 — [[F:src/terminal/server.py#370-407#e6fa9e24]].
+- TerminalServer (class, lines 408-445, slice 9): CHUNK_ID = src/terminal/server.py#408-445#e6fa9e24 — [[F:src/terminal/server.py#408-445#e6fa9e24]].
+- TerminalServer (class, lines 446-483, slice 10): CHUNK_ID = src/terminal/server.py#446-483#e6fa9e24 — [[F:src/terminal/server.py#446-483#e6fa9e24]].
+- TerminalServer (class, lines 484-521, slice 11): CHUNK_ID = src/terminal/server.py#484-521#e6fa9e24 — [[F:src/terminal/server.py#484-521#e6fa9e24]].
+- TerminalServer (class, lines 522-555, slice 12): CHUNK_ID = src/terminal/server.py#522-555#e6fa9e24 — [[F:src/terminal/server.py#522-555#e6fa9e24]].
+- TerminalServer.__init__ (method, lines 105-131): CHUNK_ID = src/terminal/server.py#105-131#e6fa9e24 — [[F:src/terminal/server.py#105-131#e6fa9e24]].
+- TerminalServer.start (method, lines 135-157): CHUNK_ID = src/terminal/server.py#135-157#e6fa9e24 — [[F:src/terminal/server.py#135-157#e6fa9e24]].
+- TerminalServer.stop (method, lines 159-178): CHUNK_ID = src/terminal/server.py#159-178#e6fa9e24 — [[F:src/terminal/server.py#159-178#e6fa9e24]].
+- TerminalServer.spawn (method, lines 180-185): CHUNK_ID = src/terminal/server.py#180-185#e6fa9e24 — [[F:src/terminal/server.py#180-185#e6fa9e24]].
+- TerminalServer._task_done (method, lines 187-190): CHUNK_ID = src/terminal/server.py#187-190#e6fa9e24 — [[F:src/terminal/server.py#187-190#e6fa9e24]].
+- TerminalServer._check_handshake (method, lines 194-216): CHUNK_ID = src/terminal/server.py#194-216#e6fa9e24 — [[F:src/terminal/server.py#194-216#e6fa9e24]].
+- TerminalServer._handle_ws (method, lines 218-230): CHUNK_ID = src/terminal/server.py#218-230#e6fa9e24 — [[F:src/terminal/server.py#218-230#e6fa9e24]].
+- TerminalServer._handle_unix (method, lines 234-273): CHUNK_ID = src/terminal/server.py#234-273#e6fa9e24 — [[F:src/terminal/server.py#234-273#e6fa9e24]].
+- TerminalServer._serve (method, lines 277-321): CHUNK_ID = src/terminal/server.py#277-321#e6fa9e24 — [[F:src/terminal/server.py#277-321#e6fa9e24]].
+- TerminalServer._handle_raw (method, lines 323-337): CHUNK_ID = src/terminal/server.py#323-337#e6fa9e24 — [[F:src/terminal/server.py#323-337#e6fa9e24]].
+- TerminalServer._dispatch (method, lines 339-357): CHUNK_ID = src/terminal/server.py#339-357#e6fa9e24 — [[F:src/terminal/server.py#339-357#e6fa9e24]].
+- TerminalServer._hello (method, lines 359-394): CHUNK_ID = src/terminal/server.py#359-394#e6fa9e24 — [[F:src/terminal/server.py#359-394#e6fa9e24]].
+- TerminalServer._req_ping (method, lines 398-399): CHUNK_ID = src/terminal/server.py#398-399#e6fa9e24 — [[F:src/terminal/server.py#398-399#e6fa9e24]].
+- TerminalServer._req_session_create (method, lines 401-416): CHUNK_ID = src/terminal/server.py#401-416#e6fa9e24 — [[F:src/terminal/server.py#401-416#e6fa9e24]].
+- TerminalServer._req_session_attach (method, lines 418-429): CHUNK_ID = src/terminal/server.py#418-429#e6fa9e24 — [[F:src/terminal/server.py#418-429#e6fa9e24]].
+- TerminalServer._replay (method, lines 431-446): CHUNK_ID = src/terminal/server.py#431-446#e6fa9e24 — [[F:src/terminal/server.py#431-446#e6fa9e24]].
+- TerminalServer._req_session_detach (method, lines 448-451): CHUNK_ID = src/terminal/server.py#448-451#e6fa9e24 — [[F:src/terminal/server.py#448-451#e6fa9e24]].
+- TerminalServer._req_session_input (method, lines 453-457): CHUNK_ID = src/terminal/server.py#453-457#e6fa9e24 — [[F:src/terminal/server.py#453-457#e6fa9e24]].
+- TerminalServer._req_session_resize (method, lines 459-464): CHUNK_ID = src/terminal/server.py#459-464#e6fa9e24 — [[F:src/terminal/server.py#459-464#e6fa9e24]].
+- TerminalServer._req_session_rename (method, lines 466-469): CHUNK_ID = src/terminal/server.py#466-469#e6fa9e24 — [[F:src/terminal/server.py#466-469#e6fa9e24]].
+- TerminalServer._req_session_signal (method, lines 471-475): CHUNK_ID = src/terminal/server.py#471-475#e6fa9e24 — [[F:src/terminal/server.py#471-475#e6fa9e24]].
+- TerminalServer._req_session_close (method, lines 477-483): CHUNK_ID = src/terminal/server.py#477-483#e6fa9e24 — [[F:src/terminal/server.py#477-483#e6fa9e24]].
+- TerminalServer._req_process_kill (method, lines 485-489): CHUNK_ID = src/terminal/server.py#485-489#e6fa9e24 — [[F:src/terminal/server.py#485-489#e6fa9e24]].
+- TerminalServer._req_process_output (method, lines 491-504): CHUNK_ID = src/terminal/server.py#491-504#e6fa9e24 — [[F:src/terminal/server.py#491-504#e6fa9e24]].
+- TerminalServer._job (method, lines 506-531): CHUNK_ID = src/terminal/server.py#506-531#e6fa9e24 — [[F:src/terminal/server.py#506-531#e6fa9e24]].
+- TerminalServer._broadcast (method, lines 535-539): CHUNK_ID = src/terminal/server.py#535-539#e6fa9e24 — [[F:src/terminal/server.py#535-539#e6fa9e24]].
+- TerminalServer._on_session_event (method, lines 541-545): CHUNK_ID = src/terminal/server.py#541-545#e6fa9e24 — [[F:src/terminal/server.py#541-545#e6fa9e24]].
+- TerminalServer._on_process_event (method, lines 547-548): CHUNK_ID = src/terminal/server.py#547-548#e6fa9e24 — [[F:src/terminal/server.py#547-548#e6fa9e24]].
+- TerminalServer._on_output (method, lines 550-555): CHUNK_ID = src/terminal/server.py#550-555#e6fa9e24 — [[F:src/terminal/server.py#550-555#e6fa9e24]].
+- _next (function, lines 558-562): CHUNK_ID = src/terminal/server.py#558-562#e6fa9e24 — [[F:src/terminal/server.py#558-562#e6fa9e24]].
+- _reply (function, lines 565-568): CHUNK_ID = src/terminal/server.py#565-568#e6fa9e24 — [[F:src/terminal/server.py#565-568#e6fa9e24]].
+- _error (function, lines 571-572): CHUNK_ID = src/terminal/server.py#571-572#e6fa9e24 — [[F:src/terminal/server.py#571-572#e6fa9e24]].
+- InstanceLock (class, lines 578-597): CHUNK_ID = src/terminal/server.py#578-597#e6fa9e24 — [[F:src/terminal/server.py#578-597#e6fa9e24]].
+- InstanceLock.__init__ (method, lines 581-583): CHUNK_ID = src/terminal/server.py#581-583#e6fa9e24 — [[F:src/terminal/server.py#581-583#e6fa9e24]].
+- InstanceLock.acquire (method, lines 585-592): CHUNK_ID = src/terminal/server.py#585-592#e6fa9e24 — [[F:src/terminal/server.py#585-592#e6fa9e24]].
+- InstanceLock.release (method, lines 594-597): CHUNK_ID = src/terminal/server.py#594-597#e6fa9e24 — [[F:src/terminal/server.py#594-597#e6fa9e24]].
+- run_daemon (function, lines 600-637, slice 1): CHUNK_ID = src/terminal/server.py#600-637#e6fa9e24 — [[F:src/terminal/server.py#600-637#e6fa9e24]].
+- run_daemon (function, lines 638-647, slice 2): CHUNK_ID = src/terminal/server.py#638-647#e6fa9e24 — [[F:src/terminal/server.py#638-647#e6fa9e24]].
 
 ## src/terminal/protocol.py
 
@@ -1650,49 +1650,51 @@ SHA8 ed293ffb; total lines 216.
 
 ## src/workers/trader.py
 
-SHA8 687738d8; total lines 138.
+SHA8 b63ee6b6; total lines 144.
 
-- _run (function, lines 53-90, slice 1): CHUNK_ID = src/workers/trader.py#53-90#687738d8 — [[F:src/workers/trader.py#53-90#687738d8]].
-- _run (function, lines 91-124, slice 2): CHUNK_ID = src/workers/trader.py#91-124#687738d8 — [[F:src/workers/trader.py#91-124#687738d8]].
-- main (function, lines 127-134): CHUNK_ID = src/workers/trader.py#127-134#687738d8 — [[F:src/workers/trader.py#127-134#687738d8]].
+- _run (function, lines 53-90, slice 1): CHUNK_ID = src/workers/trader.py#53-90#b63ee6b6 — [[F:src/workers/trader.py#53-90#b63ee6b6]].
+- _run (function, lines 91-128, slice 2): CHUNK_ID = src/workers/trader.py#91-128#b63ee6b6 — [[F:src/workers/trader.py#91-128#b63ee6b6]].
+- _run (function, lines 129-130, slice 3): CHUNK_ID = src/workers/trader.py#129-130#b63ee6b6 — [[F:src/workers/trader.py#129-130#b63ee6b6]].
+- main (function, lines 133-140): CHUNK_ID = src/workers/trader.py#133-140#b63ee6b6 — [[F:src/workers/trader.py#133-140#b63ee6b6]].
 
 ## src/workers/orchestrator.py
 
-SHA8 a2efe8f2; total lines 805.
+SHA8 3bede911; total lines 823.
 
-- WorkerTask (class, lines 42-54): CHUNK_ID = src/workers/orchestrator.py#42-54#a2efe8f2 — [[F:src/workers/orchestrator.py#42-54#a2efe8f2]].
-- WorkerResult (class, lines 58-88): CHUNK_ID = src/workers/orchestrator.py#58-88#a2efe8f2 — [[F:src/workers/orchestrator.py#58-88#a2efe8f2]].
-- _handle_worker_sigterm (function, lines 91-93): CHUNK_ID = src/workers/orchestrator.py#91-93#a2efe8f2 — [[F:src/workers/orchestrator.py#91-93#a2efe8f2]].
-- _model_worker (function, lines 96-135): CHUNK_ID = src/workers/orchestrator.py#96-135#a2efe8f2 — [[F:src/workers/orchestrator.py#96-135#a2efe8f2]].
-- _run_horizon_inference (function, lines 138-175, slice 1): CHUNK_ID = src/workers/orchestrator.py#138-175#a2efe8f2 — [[F:src/workers/orchestrator.py#138-175#a2efe8f2]].
-- _run_horizon_inference (function, lines 176-213, slice 2): CHUNK_ID = src/workers/orchestrator.py#176-213#a2efe8f2 — [[F:src/workers/orchestrator.py#176-213#a2efe8f2]].
-- _run_horizon_inference (function, lines 214-251, slice 3): CHUNK_ID = src/workers/orchestrator.py#214-251#a2efe8f2 — [[F:src/workers/orchestrator.py#214-251#a2efe8f2]].
-- _run_horizon_inference (function, lines 252-289, slice 4): CHUNK_ID = src/workers/orchestrator.py#252-289#a2efe8f2 — [[F:src/workers/orchestrator.py#252-289#a2efe8f2]].
-- _run_horizon_inference (function, lines 290-327, slice 5): CHUNK_ID = src/workers/orchestrator.py#290-327#a2efe8f2 — [[F:src/workers/orchestrator.py#290-327#a2efe8f2]].
-- _run_horizon_inference (function, lines 328-365, slice 6): CHUNK_ID = src/workers/orchestrator.py#328-365#a2efe8f2 — [[F:src/workers/orchestrator.py#328-365#a2efe8f2]].
-- _run_horizon_inference (function, lines 366-397, slice 7): CHUNK_ID = src/workers/orchestrator.py#366-397#a2efe8f2 — [[F:src/workers/orchestrator.py#366-397#a2efe8f2]].
-- _utxos_with_ages (function, lines 439-456): CHUNK_ID = src/workers/orchestrator.py#439-456#a2efe8f2 — [[F:src/workers/orchestrator.py#439-456#a2efe8f2]].
-- _fetch_recent_block_transactions (function, lines 459-487): CHUNK_ID = src/workers/orchestrator.py#459-487#a2efe8f2 — [[F:src/workers/orchestrator.py#459-487#a2efe8f2]].
-- _ecc_worker (function, lines 490-528): CHUNK_ID = src/workers/orchestrator.py#490-528#a2efe8f2 — [[F:src/workers/orchestrator.py#490-528#a2efe8f2]].
-- _run_ecc_cycle (function, lines 531-568, slice 1): CHUNK_ID = src/workers/orchestrator.py#531-568#a2efe8f2 — [[F:src/workers/orchestrator.py#531-568#a2efe8f2]].
-- _run_ecc_cycle (function, lines 569-606, slice 2): CHUNK_ID = src/workers/orchestrator.py#569-606#a2efe8f2 — [[F:src/workers/orchestrator.py#569-606#a2efe8f2]].
-- _run_ecc_cycle (function, lines 607-642, slice 3): CHUNK_ID = src/workers/orchestrator.py#607-642#a2efe8f2 — [[F:src/workers/orchestrator.py#607-642#a2efe8f2]].
-- WorkerOrchestrator (class, lines 645-682, slice 1): CHUNK_ID = src/workers/orchestrator.py#645-682#a2efe8f2 — [[F:src/workers/orchestrator.py#645-682#a2efe8f2]].
-- WorkerOrchestrator (class, lines 683-720, slice 2): CHUNK_ID = src/workers/orchestrator.py#683-720#a2efe8f2 — [[F:src/workers/orchestrator.py#683-720#a2efe8f2]].
-- WorkerOrchestrator (class, lines 721-758, slice 3): CHUNK_ID = src/workers/orchestrator.py#721-758#a2efe8f2 — [[F:src/workers/orchestrator.py#721-758#a2efe8f2]].
-- WorkerOrchestrator (class, lines 759-796, slice 4): CHUNK_ID = src/workers/orchestrator.py#759-796#a2efe8f2 — [[F:src/workers/orchestrator.py#759-796#a2efe8f2]].
-- WorkerOrchestrator (class, lines 797-805, slice 5): CHUNK_ID = src/workers/orchestrator.py#797-805#a2efe8f2 — [[F:src/workers/orchestrator.py#797-805#a2efe8f2]].
-- WorkerOrchestrator.__init__ (method, lines 658-680): CHUNK_ID = src/workers/orchestrator.py#658-680#a2efe8f2 — [[F:src/workers/orchestrator.py#658-680#a2efe8f2]].
-- WorkerOrchestrator.start (method, lines 682-688): CHUNK_ID = src/workers/orchestrator.py#682-688#a2efe8f2 — [[F:src/workers/orchestrator.py#682-688#a2efe8f2]].
-- WorkerOrchestrator._spawn (method, lines 690-714): CHUNK_ID = src/workers/orchestrator.py#690-714#a2efe8f2 — [[F:src/workers/orchestrator.py#690-714#a2efe8f2]].
-- WorkerOrchestrator._pin_cpu (method, lines 716-724): CHUNK_ID = src/workers/orchestrator.py#716-724#a2efe8f2 — [[F:src/workers/orchestrator.py#716-724#a2efe8f2]].
-- WorkerOrchestrator.submit (method, lines 726-744): CHUNK_ID = src/workers/orchestrator.py#726-744#a2efe8f2 — [[F:src/workers/orchestrator.py#726-744#a2efe8f2]].
-- WorkerOrchestrator.collect (method, lines 746-751): CHUNK_ID = src/workers/orchestrator.py#746-751#a2efe8f2 — [[F:src/workers/orchestrator.py#746-751#a2efe8f2]].
-- WorkerOrchestrator.scale (method, lines 753-765): CHUNK_ID = src/workers/orchestrator.py#753-765#a2efe8f2 — [[F:src/workers/orchestrator.py#753-765#a2efe8f2]].
-- WorkerOrchestrator.shutdown (method, lines 767-777): CHUNK_ID = src/workers/orchestrator.py#767-777#a2efe8f2 — [[F:src/workers/orchestrator.py#767-777#a2efe8f2]].
-- WorkerOrchestrator.worker_count (method, lines 780-781): CHUNK_ID = src/workers/orchestrator.py#780-781#a2efe8f2 — [[F:src/workers/orchestrator.py#780-781#a2efe8f2]].
-- WorkerOrchestrator.dropped_tasks (method, lines 784-785): CHUNK_ID = src/workers/orchestrator.py#784-785#a2efe8f2 — [[F:src/workers/orchestrator.py#784-785#a2efe8f2]].
-- WorkerOrchestrator.health_snapshot (method, lines 787-805): CHUNK_ID = src/workers/orchestrator.py#787-805#a2efe8f2 — [[F:src/workers/orchestrator.py#787-805#a2efe8f2]].
+- WorkerTask (class, lines 42-54): CHUNK_ID = src/workers/orchestrator.py#42-54#3bede911 — [[F:src/workers/orchestrator.py#42-54#3bede911]].
+- WorkerResult (class, lines 58-88): CHUNK_ID = src/workers/orchestrator.py#58-88#3bede911 — [[F:src/workers/orchestrator.py#58-88#3bede911]].
+- _handle_worker_sigterm (function, lines 91-93): CHUNK_ID = src/workers/orchestrator.py#91-93#3bede911 — [[F:src/workers/orchestrator.py#91-93#3bede911]].
+- _model_worker (function, lines 96-135): CHUNK_ID = src/workers/orchestrator.py#96-135#3bede911 — [[F:src/workers/orchestrator.py#96-135#3bede911]].
+- _run_horizon_inference (function, lines 138-175, slice 1): CHUNK_ID = src/workers/orchestrator.py#138-175#3bede911 — [[F:src/workers/orchestrator.py#138-175#3bede911]].
+- _run_horizon_inference (function, lines 176-213, slice 2): CHUNK_ID = src/workers/orchestrator.py#176-213#3bede911 — [[F:src/workers/orchestrator.py#176-213#3bede911]].
+- _run_horizon_inference (function, lines 214-251, slice 3): CHUNK_ID = src/workers/orchestrator.py#214-251#3bede911 — [[F:src/workers/orchestrator.py#214-251#3bede911]].
+- _run_horizon_inference (function, lines 252-289, slice 4): CHUNK_ID = src/workers/orchestrator.py#252-289#3bede911 — [[F:src/workers/orchestrator.py#252-289#3bede911]].
+- _run_horizon_inference (function, lines 290-327, slice 5): CHUNK_ID = src/workers/orchestrator.py#290-327#3bede911 — [[F:src/workers/orchestrator.py#290-327#3bede911]].
+- _run_horizon_inference (function, lines 328-365, slice 6): CHUNK_ID = src/workers/orchestrator.py#328-365#3bede911 — [[F:src/workers/orchestrator.py#328-365#3bede911]].
+- _run_horizon_inference (function, lines 366-397, slice 7): CHUNK_ID = src/workers/orchestrator.py#366-397#3bede911 — [[F:src/workers/orchestrator.py#366-397#3bede911]].
+- _utxos_with_ages (function, lines 439-456): CHUNK_ID = src/workers/orchestrator.py#439-456#3bede911 — [[F:src/workers/orchestrator.py#439-456#3bede911]].
+- redact_url (function, lines 459-471): CHUNK_ID = src/workers/orchestrator.py#459-471#3bede911 — [[F:src/workers/orchestrator.py#459-471#3bede911]].
+- _fetch_recent_block_transactions (function, lines 474-503): CHUNK_ID = src/workers/orchestrator.py#474-503#3bede911 — [[F:src/workers/orchestrator.py#474-503#3bede911]].
+- _ecc_worker (function, lines 506-544): CHUNK_ID = src/workers/orchestrator.py#506-544#3bede911 — [[F:src/workers/orchestrator.py#506-544#3bede911]].
+- _run_ecc_cycle (function, lines 549-590, slice 1): CHUNK_ID = src/workers/orchestrator.py#547-586#3bede911 — [[F:src/workers/orchestrator.py#547-586#3bede911]].
+- _run_ecc_cycle (function, lines 591-628, slice 2): CHUNK_ID = src/workers/orchestrator.py#587-624#3bede911 — [[F:src/workers/orchestrator.py#587-624#3bede911]].
+- _run_ecc_cycle (function, lines 629-664, slice 3): CHUNK_ID = src/workers/orchestrator.py#625-660#3bede911 — [[F:src/workers/orchestrator.py#625-660#3bede911]].
+- WorkerOrchestrator (class, lines 663-700, slice 1): CHUNK_ID = src/workers/orchestrator.py#663-700#3bede911 — [[F:src/workers/orchestrator.py#663-700#3bede911]].
+- WorkerOrchestrator (class, lines 701-738, slice 2): CHUNK_ID = src/workers/orchestrator.py#701-738#3bede911 — [[F:src/workers/orchestrator.py#701-738#3bede911]].
+- WorkerOrchestrator (class, lines 739-776, slice 3): CHUNK_ID = src/workers/orchestrator.py#739-776#3bede911 — [[F:src/workers/orchestrator.py#739-776#3bede911]].
+- WorkerOrchestrator (class, lines 777-814, slice 4): CHUNK_ID = src/workers/orchestrator.py#777-814#3bede911 — [[F:src/workers/orchestrator.py#777-814#3bede911]].
+- WorkerOrchestrator (class, lines 815-823, slice 5): CHUNK_ID = src/workers/orchestrator.py#815-823#3bede911 — [[F:src/workers/orchestrator.py#815-823#3bede911]].
+- WorkerOrchestrator.__init__ (method, lines 676-698): CHUNK_ID = src/workers/orchestrator.py#676-698#3bede911 — [[F:src/workers/orchestrator.py#676-698#3bede911]].
+- WorkerOrchestrator.start (method, lines 700-706): CHUNK_ID = src/workers/orchestrator.py#700-706#3bede911 — [[F:src/workers/orchestrator.py#700-706#3bede911]].
+- WorkerOrchestrator._spawn (method, lines 708-732): CHUNK_ID = src/workers/orchestrator.py#708-732#3bede911 — [[F:src/workers/orchestrator.py#708-732#3bede911]].
+- WorkerOrchestrator._pin_cpu (method, lines 734-742): CHUNK_ID = src/workers/orchestrator.py#734-742#3bede911 — [[F:src/workers/orchestrator.py#734-742#3bede911]].
+- WorkerOrchestrator.submit (method, lines 744-762): CHUNK_ID = src/workers/orchestrator.py#744-762#3bede911 — [[F:src/workers/orchestrator.py#744-762#3bede911]].
+- WorkerOrchestrator.collect (method, lines 764-769): CHUNK_ID = src/workers/orchestrator.py#764-769#3bede911 — [[F:src/workers/orchestrator.py#764-769#3bede911]].
+- WorkerOrchestrator.scale (method, lines 771-783): CHUNK_ID = src/workers/orchestrator.py#771-783#3bede911 — [[F:src/workers/orchestrator.py#771-783#3bede911]].
+- WorkerOrchestrator.shutdown (method, lines 785-795): CHUNK_ID = src/workers/orchestrator.py#785-795#3bede911 — [[F:src/workers/orchestrator.py#785-795#3bede911]].
+- WorkerOrchestrator.worker_count (method, lines 798-799): CHUNK_ID = src/workers/orchestrator.py#798-799#3bede911 — [[F:src/workers/orchestrator.py#798-799#3bede911]].
+- WorkerOrchestrator.dropped_tasks (method, lines 802-803): CHUNK_ID = src/workers/orchestrator.py#802-803#3bede911 — [[F:src/workers/orchestrator.py#802-803#3bede911]].
+- WorkerOrchestrator.health_snapshot (method, lines 805-823): CHUNK_ID = src/workers/orchestrator.py#805-823#3bede911 — [[F:src/workers/orchestrator.py#805-823#3bede911]].
 
 ## src/intelligence/client.py
 
@@ -1834,11 +1836,11 @@ SHA8 cc2c5110; total lines 485.
 
 ## frontend/src/App.jsx
 
-SHA8 babdff7e; AST parse unavailable near line 65: unterminated string literal (detected at line 65). Use bounded textual slices.
+SHA8 63828fba; AST parse unavailable near line 65: unterminated string literal (detected at line 65). Use bounded textual slices.
 
 ## frontend/src/hooks/useApi.js
 
-SHA8 79cc9d3c; AST parse unavailable near line 1: invalid syntax. Use bounded textual slices.
+SHA8 2c7ecf2d; AST parse unavailable near line 1: invalid syntax. Use bounded textual slices.
 
 ## frontend/src/terminal/client.js
 
@@ -1912,62 +1914,64 @@ SHA8 57c8c650; total lines 161.
 
 ## tests/terminal/test_terminal_server.py
 
-SHA8 1537322c; total lines 514.
+SHA8 e767a615; total lines 540.
 
-- _output (function, lines 44-46): CHUNK_ID = tests/terminal/test_terminal_server.py#44-46#1537322c — [[F:tests/terminal/test_terminal_server.py#44-46#1537322c]].
-- _collect_output (function, lines 49-54): CHUNK_ID = tests/terminal/test_terminal_server.py#49-54#1537322c — [[F:tests/terminal/test_terminal_server.py#49-54#1537322c]].
-- finished (function, lines 57-58): CHUNK_ID = tests/terminal/test_terminal_server.py#57-58#1537322c — [[F:tests/terminal/test_terminal_server.py#57-58#1537322c]].
-- session_event (function, lines 61-62): CHUNK_ID = tests/terminal/test_terminal_server.py#61-62#1537322c — [[F:tests/terminal/test_terminal_server.py#61-62#1537322c]].
-- foreground_sleep (function, lines 65-78): CHUNK_ID = tests/terminal/test_terminal_server.py#65-78#1537322c — [[F:tests/terminal/test_terminal_server.py#65-78#1537322c]].
-- _error_code (function, lines 81-83): CHUNK_ID = tests/terminal/test_terminal_server.py#81-83#1537322c — [[F:tests/terminal/test_terminal_server.py#81-83#1537322c]].
-- TestHello (class, lines 86-123, slice 1): CHUNK_ID = tests/terminal/test_terminal_server.py#86-123#1537322c — [[F:tests/terminal/test_terminal_server.py#86-123#1537322c]].
-- TestHello (class, lines 124-156, slice 2): CHUNK_ID = tests/terminal/test_terminal_server.py#124-156#1537322c — [[F:tests/terminal/test_terminal_server.py#124-156#1537322c]].
-- TestHello.test_hello_returns_a_welcome_and_a_snapshot (method, lines 87-95): CHUNK_ID = tests/terminal/test_terminal_server.py#87-95#1537322c — [[F:tests/terminal/test_terminal_server.py#87-95#1537322c]].
-- TestHello.test_the_welcome_describes_the_daemon (method, lines 97-106): CHUNK_ID = tests/terminal/test_terminal_server.py#97-106#1537322c — [[F:tests/terminal/test_terminal_server.py#97-106#1537322c]].
-- TestHello.test_a_bad_first_frame_closes_the_connection (method, lines 115-120): CHUNK_ID = tests/terminal/test_terminal_server.py#115-120#1537322c — [[F:tests/terminal/test_terminal_server.py#115-120#1537322c]].
-- TestHello.test_a_bad_client_kind_is_refused_but_hello_can_be_retried (method, lines 122-132): CHUNK_ID = tests/terminal/test_terminal_server.py#122-132#1537322c — [[F:tests/terminal/test_terminal_server.py#122-132#1537322c]].
-- TestHello.test_malformed_frames_are_answered_not_fatal (method, lines 134-148): CHUNK_ID = tests/terminal/test_terminal_server.py#134-148#1537322c — [[F:tests/terminal/test_terminal_server.py#134-148#1537322c]].
-- TestHello.test_an_oversized_frame_ends_the_connection (method, lines 150-156): CHUNK_ID = tests/terminal/test_terminal_server.py#150-156#1537322c — [[F:tests/terminal/test_terminal_server.py#150-156#1537322c]].
-- TestSharedSessions (class, lines 159-196, slice 1): CHUNK_ID = tests/terminal/test_terminal_server.py#159-196#1537322c — [[F:tests/terminal/test_terminal_server.py#159-196#1537322c]].
-- TestSharedSessions (class, lines 197-234, slice 2): CHUNK_ID = tests/terminal/test_terminal_server.py#197-234#1537322c — [[F:tests/terminal/test_terminal_server.py#197-234#1537322c]].
-- TestSharedSessions (class, lines 235-254, slice 3): CHUNK_ID = tests/terminal/test_terminal_server.py#235-254#1537322c — [[F:tests/terminal/test_terminal_server.py#235-254#1537322c]].
-- TestSharedSessions.test_two_clients_see_one_set_of_sessions (method, lines 160-197, slice 1): CHUNK_ID = tests/terminal/test_terminal_server.py#160-197#1537322c — [[F:tests/terminal/test_terminal_server.py#160-197#1537322c]].
-- TestSharedSessions.test_two_clients_see_one_set_of_sessions (method, lines 198-212, slice 2): CHUNK_ID = tests/terminal/test_terminal_server.py#198-212#1537322c — [[F:tests/terminal/test_terminal_server.py#198-212#1537322c]].
-- TestSharedSessions.test_running_output_signals_and_kill (method, lines 214-241): CHUNK_ID = tests/terminal/test_terminal_server.py#214-241#1537322c — [[F:tests/terminal/test_terminal_server.py#214-241#1537322c]].
-- TestSharedSessions.test_a_job_and_its_result (method, lines 243-254): CHUNK_ID = tests/terminal/test_terminal_server.py#243-254#1537322c — [[F:tests/terminal/test_terminal_server.py#243-254#1537322c]].
-- TestJobRegistration (class, lines 257-295): CHUNK_ID = tests/terminal/test_terminal_server.py#257-295#1537322c — [[F:tests/terminal/test_terminal_server.py#257-295#1537322c]].
-- TestJobRegistration.test_an_application_job_runs_through_the_registry (method, lines 258-285): CHUNK_ID = tests/terminal/test_terminal_server.py#258-285#1537322c — [[F:tests/terminal/test_terminal_server.py#258-285#1537322c]].
-- TestJobRegistration.test_job_requests_cannot_touch_terminal_processes (method, lines 287-295): CHUNK_ID = tests/terminal/test_terminal_server.py#287-295#1537322c — [[F:tests/terminal/test_terminal_server.py#287-295#1537322c]].
-- TestConnectionLimits (class, lines 298-326): CHUNK_ID = tests/terminal/test_terminal_server.py#298-326#1537322c — [[F:tests/terminal/test_terminal_server.py#298-326#1537322c]].
-- TestConnectionLimits.test_beyond_the_client_limit_a_connection_is_refused (method, lines 299-309): CHUNK_ID = tests/terminal/test_terminal_server.py#299-309#1537322c — [[F:tests/terminal/test_terminal_server.py#299-309#1537322c]].
-- TestConnectionLimits.test_a_silent_connection_is_dropped (method, lines 311-321): CHUNK_ID = tests/terminal/test_terminal_server.py#311-321#1537322c — [[F:tests/terminal/test_terminal_server.py#311-321#1537322c]].
-- TestConnectionLimits.test_a_peer_running_as_another_user_is_refused (method, lines 323-326): CHUNK_ID = tests/terminal/test_terminal_server.py#323-326#1537322c — [[F:tests/terminal/test_terminal_server.py#323-326#1537322c]].
-- TestLifecycle (class, lines 329-370): CHUNK_ID = tests/terminal/test_terminal_server.py#329-370#1537322c — [[F:tests/terminal/test_terminal_server.py#329-370#1537322c]].
-- TestLifecycle.test_stopping_ends_every_session_and_removes_files (method, lines 330-341): CHUNK_ID = tests/terminal/test_terminal_server.py#330-341#1537322c — [[F:tests/terminal/test_terminal_server.py#330-341#1537322c]].
-- TestLifecycle.test_a_second_daemon_is_refused (method, lines 343-345): CHUNK_ID = tests/terminal/test_terminal_server.py#343-345#1537322c — [[F:tests/terminal/test_terminal_server.py#343-345#1537322c]].
-- TestLifecycle.test_root_is_refused_unless_allowed (method, lines 347-350): CHUNK_ID = tests/terminal/test_terminal_server.py#347-350#1537322c — [[F:tests/terminal/test_terminal_server.py#347-350#1537322c]].
-- TestLifecycle.test_the_websocket_listener_binds_loopback_only (method, lines 352-360): CHUNK_ID = tests/terminal/test_terminal_server.py#352-360#1537322c — [[F:tests/terminal/test_terminal_server.py#352-360#1537322c]].
-- TestLifecycle.test_a_failed_background_task_is_logged_not_raised (method, lines 362-370): CHUNK_ID = tests/terminal/test_terminal_server.py#362-370#1537322c — [[F:tests/terminal/test_terminal_server.py#362-370#1537322c]].
-- FakeWebSocket (class, lines 373-396): CHUNK_ID = tests/terminal/test_terminal_server.py#373-396#1537322c — [[F:tests/terminal/test_terminal_server.py#373-396#1537322c]].
-- FakeWebSocket.__init__ (method, lines 376-380): CHUNK_ID = tests/terminal/test_terminal_server.py#376-380#1537322c — [[F:tests/terminal/test_terminal_server.py#376-380#1537322c]].
-- FakeWebSocket.__aiter__ (method, lines 382-383): CHUNK_ID = tests/terminal/test_terminal_server.py#382-383#1537322c — [[F:tests/terminal/test_terminal_server.py#382-383#1537322c]].
-- FakeWebSocket.__anext__ (method, lines 385-390): CHUNK_ID = tests/terminal/test_terminal_server.py#385-390#1537322c — [[F:tests/terminal/test_terminal_server.py#385-390#1537322c]].
-- FakeWebSocket.send (method, lines 392-393): CHUNK_ID = tests/terminal/test_terminal_server.py#392-393#1537322c — [[F:tests/terminal/test_terminal_server.py#392-393#1537322c]].
-- FakeWebSocket.close (method, lines 395-396): CHUNK_ID = tests/terminal/test_terminal_server.py#395-396#1537322c — [[F:tests/terminal/test_terminal_server.py#395-396#1537322c]].
-- FakeHandshake (class, lines 399-401): CHUNK_ID = tests/terminal/test_terminal_server.py#399-401#1537322c — [[F:tests/terminal/test_terminal_server.py#399-401#1537322c]].
-- FakeHandshake.respond (method, lines 400-401): CHUNK_ID = tests/terminal/test_terminal_server.py#400-401#1537322c — [[F:tests/terminal/test_terminal_server.py#400-401#1537322c]].
-- ws_server (function, lines 405-409): CHUNK_ID = tests/terminal/test_terminal_server.py#405-409#1537322c — [[F:tests/terminal/test_terminal_server.py#405-409#1537322c]].
-- _request (function, lines 412-413): CHUNK_ID = tests/terminal/test_terminal_server.py#412-413#1537322c — [[F:tests/terminal/test_terminal_server.py#412-413#1537322c]].
-- _hello (function, lines 416-420): CHUNK_ID = tests/terminal/test_terminal_server.py#416-420#1537322c — [[F:tests/terminal/test_terminal_server.py#416-420#1537322c]].
-- TestWebSocket (class, lines 427-464, slice 1): CHUNK_ID = tests/terminal/test_terminal_server.py#427-464#1537322c — [[F:tests/terminal/test_terminal_server.py#427-464#1537322c]].
-- TestWebSocket (class, lines 465-474, slice 2): CHUNK_ID = tests/terminal/test_terminal_server.py#465-474#1537322c — [[F:tests/terminal/test_terminal_server.py#465-474#1537322c]].
-- TestWebSocket.test_the_dashboard_origin_on_loopback_is_admitted (method, lines 436-437): CHUNK_ID = tests/terminal/test_terminal_server.py#436-437#1537322c — [[F:tests/terminal/test_terminal_server.py#436-437#1537322c]].
-- TestWebSocket.test_anything_else_is_refused_before_the_socket_opens (method, lines 451-452): CHUNK_ID = tests/terminal/test_terminal_server.py#451-452#1537322c — [[F:tests/terminal/test_terminal_server.py#451-452#1537322c]].
-- TestWebSocket.test_a_browser_needs_the_token (method, lines 454-474): CHUNK_ID = tests/terminal/test_terminal_server.py#454-474#1537322c — [[F:tests/terminal/test_terminal_server.py#454-474#1537322c]].
-- _never (function, lines 477-479): CHUNK_ID = tests/terminal/test_terminal_server.py#477-479#1537322c — [[F:tests/terminal/test_terminal_server.py#477-479#1537322c]].
-- TestClientConnection (class, lines 482-514): CHUNK_ID = tests/terminal/test_terminal_server.py#482-514#1537322c — [[F:tests/terminal/test_terminal_server.py#482-514#1537322c]].
-- TestClientConnection.test_a_client_that_cannot_keep_up_is_cut_off (method, lines 483-501): CHUNK_ID = tests/terminal/test_terminal_server.py#483-501#1537322c — [[F:tests/terminal/test_terminal_server.py#483-501#1537322c]].
-- TestClientConnection.test_a_dead_transport_ends_the_loop (method, lines 503-514): CHUNK_ID = tests/terminal/test_terminal_server.py#503-514#1537322c — [[F:tests/terminal/test_terminal_server.py#503-514#1537322c]].
+- _output (function, lines 48-50): CHUNK_ID = tests/terminal/test_terminal_server.py#48-50#e767a615 — [[F:tests/terminal/test_terminal_server.py#48-50#e767a615]].
+- _collect_output (function, lines 53-58): CHUNK_ID = tests/terminal/test_terminal_server.py#53-58#e767a615 — [[F:tests/terminal/test_terminal_server.py#53-58#e767a615]].
+- finished (function, lines 61-62): CHUNK_ID = tests/terminal/test_terminal_server.py#61-62#e767a615 — [[F:tests/terminal/test_terminal_server.py#61-62#e767a615]].
+- session_event (function, lines 65-66): CHUNK_ID = tests/terminal/test_terminal_server.py#65-66#e767a615 — [[F:tests/terminal/test_terminal_server.py#65-66#e767a615]].
+- foreground_sleep (function, lines 69-82): CHUNK_ID = tests/terminal/test_terminal_server.py#69-82#e767a615 — [[F:tests/terminal/test_terminal_server.py#69-82#e767a615]].
+- _error_code (function, lines 85-87): CHUNK_ID = tests/terminal/test_terminal_server.py#85-87#e767a615 — [[F:tests/terminal/test_terminal_server.py#85-87#e767a615]].
+- TestHello (class, lines 90-127, slice 1): CHUNK_ID = tests/terminal/test_terminal_server.py#90-127#e767a615 — [[F:tests/terminal/test_terminal_server.py#90-127#e767a615]].
+- TestHello (class, lines 128-160, slice 2): CHUNK_ID = tests/terminal/test_terminal_server.py#128-160#e767a615 — [[F:tests/terminal/test_terminal_server.py#128-160#e767a615]].
+- TestHello.test_hello_returns_a_welcome_and_a_snapshot (method, lines 91-99): CHUNK_ID = tests/terminal/test_terminal_server.py#91-99#e767a615 — [[F:tests/terminal/test_terminal_server.py#91-99#e767a615]].
+- TestHello.test_the_welcome_describes_the_daemon (method, lines 101-110): CHUNK_ID = tests/terminal/test_terminal_server.py#101-110#e767a615 — [[F:tests/terminal/test_terminal_server.py#101-110#e767a615]].
+- TestHello.test_a_bad_first_frame_closes_the_connection (method, lines 119-124): CHUNK_ID = tests/terminal/test_terminal_server.py#119-124#e767a615 — [[F:tests/terminal/test_terminal_server.py#119-124#e767a615]].
+- TestHello.test_a_bad_client_kind_is_refused_but_hello_can_be_retried (method, lines 126-136): CHUNK_ID = tests/terminal/test_terminal_server.py#126-136#e767a615 — [[F:tests/terminal/test_terminal_server.py#126-136#e767a615]].
+- TestHello.test_malformed_frames_are_answered_not_fatal (method, lines 138-152): CHUNK_ID = tests/terminal/test_terminal_server.py#138-152#e767a615 — [[F:tests/terminal/test_terminal_server.py#138-152#e767a615]].
+- TestHello.test_an_oversized_frame_ends_the_connection (method, lines 154-160): CHUNK_ID = tests/terminal/test_terminal_server.py#154-160#e767a615 — [[F:tests/terminal/test_terminal_server.py#154-160#e767a615]].
+- TestSharedSessions (class, lines 163-200, slice 1): CHUNK_ID = tests/terminal/test_terminal_server.py#163-200#e767a615 — [[F:tests/terminal/test_terminal_server.py#163-200#e767a615]].
+- TestSharedSessions (class, lines 201-238, slice 2): CHUNK_ID = tests/terminal/test_terminal_server.py#201-238#e767a615 — [[F:tests/terminal/test_terminal_server.py#201-238#e767a615]].
+- TestSharedSessions (class, lines 239-258, slice 3): CHUNK_ID = tests/terminal/test_terminal_server.py#239-258#e767a615 — [[F:tests/terminal/test_terminal_server.py#239-258#e767a615]].
+- TestSharedSessions.test_two_clients_see_one_set_of_sessions (method, lines 164-201, slice 1): CHUNK_ID = tests/terminal/test_terminal_server.py#164-201#e767a615 — [[F:tests/terminal/test_terminal_server.py#164-201#e767a615]].
+- TestSharedSessions.test_two_clients_see_one_set_of_sessions (method, lines 202-216, slice 2): CHUNK_ID = tests/terminal/test_terminal_server.py#202-216#e767a615 — [[F:tests/terminal/test_terminal_server.py#202-216#e767a615]].
+- TestSharedSessions.test_running_output_signals_and_kill (method, lines 218-245): CHUNK_ID = tests/terminal/test_terminal_server.py#218-245#e767a615 — [[F:tests/terminal/test_terminal_server.py#218-245#e767a615]].
+- TestSharedSessions.test_a_job_and_its_result (method, lines 247-258): CHUNK_ID = tests/terminal/test_terminal_server.py#247-258#e767a615 — [[F:tests/terminal/test_terminal_server.py#247-258#e767a615]].
+- TestJobRegistration (class, lines 261-299): CHUNK_ID = tests/terminal/test_terminal_server.py#261-299#e767a615 — [[F:tests/terminal/test_terminal_server.py#261-299#e767a615]].
+- TestJobRegistration.test_an_application_job_runs_through_the_registry (method, lines 262-289): CHUNK_ID = tests/terminal/test_terminal_server.py#262-289#e767a615 — [[F:tests/terminal/test_terminal_server.py#262-289#e767a615]].
+- TestJobRegistration.test_job_requests_cannot_touch_terminal_processes (method, lines 291-299): CHUNK_ID = tests/terminal/test_terminal_server.py#291-299#e767a615 — [[F:tests/terminal/test_terminal_server.py#291-299#e767a615]].
+- TestConnectionLimits (class, lines 302-336): CHUNK_ID = tests/terminal/test_terminal_server.py#302-336#e767a615 — [[F:tests/terminal/test_terminal_server.py#302-336#e767a615]].
+- TestConnectionLimits.test_beyond_the_client_limit_a_connection_is_refused (method, lines 303-313): CHUNK_ID = tests/terminal/test_terminal_server.py#303-313#e767a615 — [[F:tests/terminal/test_terminal_server.py#303-313#e767a615]].
+- TestConnectionLimits.test_a_silent_connection_is_dropped (method, lines 315-325): CHUNK_ID = tests/terminal/test_terminal_server.py#315-325#e767a615 — [[F:tests/terminal/test_terminal_server.py#315-325#e767a615]].
+- TestConnectionLimits.test_a_peer_running_as_another_user_is_refused (method, lines 327-330): CHUNK_ID = tests/terminal/test_terminal_server.py#327-330#e767a615 — [[F:tests/terminal/test_terminal_server.py#327-330#e767a615]].
+- TestConnectionLimits.test_a_peer_with_unknown_uid_is_refused (method, lines 332-336): CHUNK_ID = tests/terminal/test_terminal_server.py#332-336#e767a615 — [[F:tests/terminal/test_terminal_server.py#332-336#e767a615]].
+- TestLifecycle (class, lines 339-380): CHUNK_ID = tests/terminal/test_terminal_server.py#339-380#e767a615 — [[F:tests/terminal/test_terminal_server.py#339-380#e767a615]].
+- TestLifecycle.test_stopping_ends_every_session_and_removes_files (method, lines 340-351): CHUNK_ID = tests/terminal/test_terminal_server.py#340-351#e767a615 — [[F:tests/terminal/test_terminal_server.py#340-351#e767a615]].
+- TestLifecycle.test_a_second_daemon_is_refused (method, lines 353-355): CHUNK_ID = tests/terminal/test_terminal_server.py#353-355#e767a615 — [[F:tests/terminal/test_terminal_server.py#353-355#e767a615]].
+- TestLifecycle.test_root_is_refused_unless_allowed (method, lines 357-360): CHUNK_ID = tests/terminal/test_terminal_server.py#357-360#e767a615 — [[F:tests/terminal/test_terminal_server.py#357-360#e767a615]].
+- TestLifecycle.test_the_websocket_listener_binds_loopback_only (method, lines 362-370): CHUNK_ID = tests/terminal/test_terminal_server.py#362-370#e767a615 — [[F:tests/terminal/test_terminal_server.py#362-370#e767a615]].
+- TestLifecycle.test_a_failed_background_task_is_logged_not_raised (method, lines 372-380): CHUNK_ID = tests/terminal/test_terminal_server.py#372-380#e767a615 — [[F:tests/terminal/test_terminal_server.py#372-380#e767a615]].
+- FakeWebSocket (class, lines 383-406): CHUNK_ID = tests/terminal/test_terminal_server.py#383-406#e767a615 — [[F:tests/terminal/test_terminal_server.py#383-406#e767a615]].
+- FakeWebSocket.__init__ (method, lines 386-390): CHUNK_ID = tests/terminal/test_terminal_server.py#386-390#e767a615 — [[F:tests/terminal/test_terminal_server.py#386-390#e767a615]].
+- FakeWebSocket.__aiter__ (method, lines 392-393): CHUNK_ID = tests/terminal/test_terminal_server.py#392-393#e767a615 — [[F:tests/terminal/test_terminal_server.py#392-393#e767a615]].
+- FakeWebSocket.__anext__ (method, lines 395-400): CHUNK_ID = tests/terminal/test_terminal_server.py#395-400#e767a615 — [[F:tests/terminal/test_terminal_server.py#395-400#e767a615]].
+- FakeWebSocket.send (method, lines 402-403): CHUNK_ID = tests/terminal/test_terminal_server.py#402-403#e767a615 — [[F:tests/terminal/test_terminal_server.py#402-403#e767a615]].
+- FakeWebSocket.close (method, lines 405-406): CHUNK_ID = tests/terminal/test_terminal_server.py#405-406#e767a615 — [[F:tests/terminal/test_terminal_server.py#405-406#e767a615]].
+- FakeHandshake (class, lines 409-411): CHUNK_ID = tests/terminal/test_terminal_server.py#409-411#e767a615 — [[F:tests/terminal/test_terminal_server.py#409-411#e767a615]].
+- FakeHandshake.respond (method, lines 410-411): CHUNK_ID = tests/terminal/test_terminal_server.py#410-411#e767a615 — [[F:tests/terminal/test_terminal_server.py#410-411#e767a615]].
+- ws_server (function, lines 415-419): CHUNK_ID = tests/terminal/test_terminal_server.py#415-419#e767a615 — [[F:tests/terminal/test_terminal_server.py#415-419#e767a615]].
+- _request (function, lines 422-423): CHUNK_ID = tests/terminal/test_terminal_server.py#422-423#e767a615 — [[F:tests/terminal/test_terminal_server.py#422-423#e767a615]].
+- _hello (function, lines 426-430): CHUNK_ID = tests/terminal/test_terminal_server.py#426-430#e767a615 — [[F:tests/terminal/test_terminal_server.py#426-430#e767a615]].
+- TestWebSocket (class, lines 437-474, slice 1): CHUNK_ID = tests/terminal/test_terminal_server.py#437-474#e767a615 — [[F:tests/terminal/test_terminal_server.py#437-474#e767a615]].
+- TestWebSocket (class, lines 475-484, slice 2): CHUNK_ID = tests/terminal/test_terminal_server.py#475-484#e767a615 — [[F:tests/terminal/test_terminal_server.py#475-484#e767a615]].
+- TestWebSocket.test_the_dashboard_origin_on_loopback_is_admitted (method, lines 446-447): CHUNK_ID = tests/terminal/test_terminal_server.py#446-447#e767a615 — [[F:tests/terminal/test_terminal_server.py#446-447#e767a615]].
+- TestWebSocket.test_anything_else_is_refused_before_the_socket_opens (method, lines 461-462): CHUNK_ID = tests/terminal/test_terminal_server.py#461-462#e767a615 — [[F:tests/terminal/test_terminal_server.py#461-462#e767a615]].
+- TestWebSocket.test_a_browser_needs_the_token (method, lines 464-484): CHUNK_ID = tests/terminal/test_terminal_server.py#464-484#e767a615 — [[F:tests/terminal/test_terminal_server.py#464-484#e767a615]].
+- _never (function, lines 487-489): CHUNK_ID = tests/terminal/test_terminal_server.py#487-489#e767a615 — [[F:tests/terminal/test_terminal_server.py#487-489#e767a615]].
+- TestClientConnection (class, lines 492-524): CHUNK_ID = tests/terminal/test_terminal_server.py#492-524#e767a615 — [[F:tests/terminal/test_terminal_server.py#492-524#e767a615]].
+- TestClientConnection.test_a_client_that_cannot_keep_up_is_cut_off (method, lines 493-511): CHUNK_ID = tests/terminal/test_terminal_server.py#493-511#e767a615 — [[F:tests/terminal/test_terminal_server.py#493-511#e767a615]].
+- TestClientConnection.test_a_dead_transport_ends_the_loop (method, lines 513-524): CHUNK_ID = tests/terminal/test_terminal_server.py#513-524#e767a615 — [[F:tests/terminal/test_terminal_server.py#513-524#e767a615]].
+- test_instance_lock_released_when_server_construction_fails (function, lines 527-540): CHUNK_ID = tests/terminal/test_terminal_server.py#527-540#e767a615 — [[F:tests/terminal/test_terminal_server.py#527-540#e767a615]].
 
 ## Additional non-Python source slices
 
@@ -1975,39 +1979,39 @@ Python AST parsing is not valid for JSX, JavaScript, YAML or Markdown. These ran
 
 ### frontend/src/App.jsx
 
-SHA8 babdff7e; total lines 470.
+SHA8 63828fba; total lines 490.
 
-- CHUNK_ID = frontend/src/App.jsx#1-38#babdff7e — [[F:frontend/src/App.jsx#1-38#babdff7e]].
-- CHUNK_ID = frontend/src/App.jsx#39-76#babdff7e — [[F:frontend/src/App.jsx#39-76#babdff7e]] declarations nearby: REGIME_COLOR, REGIME_NAME, SPEC_BY_ID, App, Dashboard.
-- CHUNK_ID = frontend/src/App.jsx#77-114#babdff7e — [[F:frontend/src/App.jsx#77-114#babdff7e]] declarations nearby: onEvent, status, readiness, equityCurve, trades.
-- CHUNK_ID = frontend/src/App.jsx#115-152#babdff7e — [[F:frontend/src/App.jsx#115-152#babdff7e]] declarations nearby: riskControls, modelsStatus, handleModeSwitch, handleRiskUpdate, handleApprovalResolve.
-- CHUNK_ID = frontend/src/App.jsx#153-190#babdff7e — [[F:frontend/src/App.jsx#153-190#babdff7e]] declarations nearby: activeTimeframes, equity, dailyPnl, positions, regime.
-- CHUNK_ID = frontend/src/App.jsx#191-228#babdff7e — [[F:frontend/src/App.jsx#191-228#babdff7e]] declarations nearby: renderPanel, spec, panel, item.
-- CHUNK_ID = frontend/src/App.jsx#229-266#babdff7e — [[F:frontend/src/App.jsx#229-266#babdff7e]] declarations nearby: hiddenCount.
-- CHUNK_ID = frontend/src/App.jsx#267-304#babdff7e — [[F:frontend/src/App.jsx#267-304#babdff7e]].
-- CHUNK_ID = frontend/src/App.jsx#305-342#babdff7e — [[F:frontend/src/App.jsx#305-342#babdff7e]] declarations nearby: Header.
-- CHUNK_ID = frontend/src/App.jsx#343-380#babdff7e — [[F:frontend/src/App.jsx#343-380#babdff7e]].
-- CHUNK_ID = frontend/src/App.jsx#381-418#babdff7e — [[F:frontend/src/App.jsx#381-418#babdff7e]] declarations nearby: StatsRow, regimeState, regimeColor, regimeName.
-- CHUNK_ID = frontend/src/App.jsx#419-456#babdff7e — [[F:frontend/src/App.jsx#419-456#babdff7e]] declarations nearby: PanelManager, visible.
-- CHUNK_ID = frontend/src/App.jsx#457-470#babdff7e — [[F:frontend/src/App.jsx#457-470#babdff7e]].
+- CHUNK_ID = frontend/src/App.jsx#1-38#63828fba — [[F:frontend/src/App.jsx#1-38#63828fba]].
+- CHUNK_ID = frontend/src/App.jsx#39-76#63828fba — [[F:frontend/src/App.jsx#39-76#63828fba]] declarations nearby: REGIME_COLOR, REGIME_NAME, SPEC_BY_ID, App, Dashboard.
+- CHUNK_ID = frontend/src/App.jsx#77-114#63828fba — [[F:frontend/src/App.jsx#77-114#63828fba]] declarations nearby: onTick, onEvent, status, readiness, equityCurve.
+- CHUNK_ID = frontend/src/App.jsx#115-152#63828fba — [[F:frontend/src/App.jsx#115-152#63828fba]] declarations nearby: approvals, pendingApprovals, riskControls, modelsStatus, handleModeSwitch.
+- CHUNK_ID = frontend/src/App.jsx#153-190#63828fba — [[F:frontend/src/App.jsx#153-190#63828fba]] declarations nearby: handleBackfill, handleFloorReAuthorize, res, activeTimeframes, equity.
+- CHUNK_ID = frontend/src/App.jsx#191-228#63828fba — [[F:frontend/src/App.jsx#191-228#63828fba]] declarations nearby: renderPanel, spec, panel, item.
+- CHUNK_ID = frontend/src/App.jsx#229-266#63828fba — [[F:frontend/src/App.jsx#229-266#63828fba]] declarations nearby: hiddenCount.
+- CHUNK_ID = frontend/src/App.jsx#267-304#63828fba — [[F:frontend/src/App.jsx#267-304#63828fba]].
+- CHUNK_ID = frontend/src/App.jsx#305-342#63828fba — [[F:frontend/src/App.jsx#305-342#63828fba]] declarations nearby: Header.
+- CHUNK_ID = frontend/src/App.jsx#343-380#63828fba — [[F:frontend/src/App.jsx#343-380#63828fba]].
+- CHUNK_ID = frontend/src/App.jsx#381-418#63828fba — [[F:frontend/src/App.jsx#381-418#63828fba]] declarations nearby: StatsRow, regimeState, regimeColor, regimeName.
+- CHUNK_ID = frontend/src/App.jsx#419-456#63828fba — [[F:frontend/src/App.jsx#419-456#63828fba]] declarations nearby: PanelManager.
+- CHUNK_ID = frontend/src/App.jsx#457-490#63828fba — [[F:frontend/src/App.jsx#457-490#63828fba]] declarations nearby: visible.
 
 ### frontend/src/hooks/useApi.js
 
-SHA8 350d3c1f; total lines 465.
+SHA8 2c7ecf2d; total lines 481.
 
-- CHUNK_ID = frontend/src/hooks/useApi.js#1-38#350d3c1f — [[F:frontend/src/hooks/useApi.js#1-38#350d3c1f]] declarations nearby:_RAW_API, API_KEY, _ALLOWED_API_RE, API, WS_URL.
-- CHUNK_ID = frontend/src/hooks/useApi.js#39-76#350d3c1f — [[F:frontend/src/hooks/useApi.js#39-76#350d3c1f]] declarations nearby: err,_topicListeners, _emit, listeners,_resyncListeners.
-- CHUNK_ID = frontend/src/hooks/useApi.js#77-114#350d3c1f — [[F:frontend/src/hooks/useApi.js#77-114#350d3c1f]] declarations nearby:_liveSocket, _sendSubscribe, topics.
-- CHUNK_ID = frontend/src/hooks/useApi.js#115-152#350d3c1f — [[F:frontend/src/hooks/useApi.js#115-152#350d3c1f]] declarations nearby: RECONNECT_BASE_MS, RECONNECT_CAP_MS, reconnectDelay, backoff, useWebSocket.
-- CHUNK_ID = frontend/src/hooks/useApi.js#153-192#350d3c1f — [[F:frontend/src/hooks/useApi.js#153-192#350d3c1f]] declarations nearby: connect, wsUrl, ws, wasReconnect, msg.
-- CHUNK_ID = frontend/src/hooks/useApi.js#193-230#350d3c1f — [[F:frontend/src/hooks/useApi.js#193-230#350d3c1f]].
-- CHUNK_ID = frontend/src/hooks/useApi.js#231-268#350d3c1f — [[F:frontend/src/hooks/useApi.js#231-268#350d3c1f]] declarations nearby: useStream, transformRef, applyRef, refetchRef, cancelled.
-- CHUNK_ID = frontend/src/hooks/useApi.js#269-306#350d3c1f — [[F:frontend/src/hooks/useApi.js#269-306#350d3c1f]] declarations nearby: isNewTopic, API_ORIGIN.
-- CHUNK_ID = frontend/src/hooks/useApi.js#307-344#350d3c1f — [[F:frontend/src/hooks/useApi.js#307-344#350d3c1f]] declarations nearby: apiProblem.
-- CHUNK_ID = frontend/src/hooks/useApi.js#345-382#350d3c1f — [[F:frontend/src/hooks/useApi.js#345-382#350d3c1f]] declarations nearby: useApiResource, transformRef, live, inFlight, poll.
-- CHUNK_ID = frontend/src/hooks/useApi.js#383-420#350d3c1f — [[F:frontend/src/hooks/useApi.js#383-420#350d3c1f]] declarations nearby: useReadiness, usePolling, transformRef, inFlight, poll.
-- CHUNK_ID = frontend/src/hooks/useApi.js#421-458#350d3c1f — [[F:frontend/src/hooks/useApi.js#421-458#350d3c1f]] declarations nearby: body, fn, id, useOperatorAction, action.
-- CHUNK_ID = frontend/src/hooks/useApi.js#459-465#350d3c1f — [[F:frontend/src/hooks/useApi.js#459-465#350d3c1f]].
+- CHUNK_ID = frontend/src/hooks/useApi.js#1-38#2c7ecf2d — [[F:frontend/src/hooks/useApi.js#1-38#2c7ecf2d]] declarations nearby: _RAW_API, API_KEY, _ALLOWED_API_RE, API, WS_URL.
+- CHUNK_ID = frontend/src/hooks/useApi.js#39-76#2c7ecf2d — [[F:frontend/src/hooks/useApi.js#39-76#2c7ecf2d]] declarations nearby: reportError, postJson, res, err, _topicListeners.
+- CHUNK_ID = frontend/src/hooks/useApi.js#77-114#2c7ecf2d — [[F:frontend/src/hooks/useApi.js#77-114#2c7ecf2d]] declarations nearby: listener, _resyncListeners, _liveSocket, _sendSubscribe, topics.
+- CHUNK_ID = frontend/src/hooks/useApi.js#115-152#2c7ecf2d — [[F:frontend/src/hooks/useApi.js#115-152#2c7ecf2d]] declarations nearby: RECONNECT_BASE_MS, RECONNECT_CAP_MS, reconnectDelay, backoff, useWebSocket.
+- CHUNK_ID = frontend/src/hooks/useApi.js#153-192#2c7ecf2d — [[F:frontend/src/hooks/useApi.js#153-192#2c7ecf2d]] declarations nearby: attempt, retryTimer, closed, socket, connect.
+- CHUNK_ID = frontend/src/hooks/useApi.js#193-230#2c7ecf2d — [[F:frontend/src/hooks/useApi.js#193-230#2c7ecf2d]].
+- CHUNK_ID = frontend/src/hooks/useApi.js#231-268#2c7ecf2d — [[F:frontend/src/hooks/useApi.js#231-268#2c7ecf2d]] declarations nearby: useStream, transformRef, applyRef, refetchRef, cancelled.
+- CHUNK_ID = frontend/src/hooks/useApi.js#269-306#2c7ecf2d — [[F:frontend/src/hooks/useApi.js#269-306#2c7ecf2d]] declarations nearby: onEventPayload, isNewTopic.
+- CHUNK_ID = frontend/src/hooks/useApi.js#307-344#2c7ecf2d — [[F:frontend/src/hooks/useApi.js#307-344#2c7ecf2d]] declarations nearby: API_ORIGIN, apiProblem.
+- CHUNK_ID = frontend/src/hooks/useApi.js#345-382#2c7ecf2d — [[F:frontend/src/hooks/useApi.js#345-382#2c7ecf2d]] declarations nearby: useApiResource, transformRef, live, inFlight, poll.
+- CHUNK_ID = frontend/src/hooks/useApi.js#383-420#2c7ecf2d — [[F:frontend/src/hooks/useApi.js#383-420#2c7ecf2d]] declarations nearby: id, useReadiness, usePolling, is.
+- CHUNK_ID = frontend/src/hooks/useApi.js#421-458#2c7ecf2d — [[F:frontend/src/hooks/useApi.js#421-458#2c7ecf2d]] declarations nearby: transformRef, inFlight, live, poll, res.
+- CHUNK_ID = frontend/src/hooks/useApi.js#459-481#2c7ecf2d — [[F:frontend/src/hooks/useApi.js#459-481#2c7ecf2d]] declarations nearby: res, err.
 
 ### frontend/src/terminal/client.js
 
@@ -2055,10 +2059,10 @@ SHA8 df9b68c6; total lines 221.
 
 ### frontend/package.json
 
-SHA8 397d38f6; total lines 77.
+SHA8 d4d957cc; total lines 47.
 
-- CHUNK_ID = frontend/package.json#1-38#397d38f6 — [[F:frontend/package.json#1-38#397d38f6]].
-- CHUNK_ID = frontend/package.json#39-77#397d38f6 — [[F:frontend/package.json#39-77#397d38f6]].
+- CHUNK_ID = frontend/package.json#1-38#d4d957cc — [[F:frontend/package.json#1-38#d4d957cc]].
+- CHUNK_ID = frontend/package.json#39-47#d4d957cc — [[F:frontend/package.json#39-47#d4d957cc]].
 
 ### .github/workflows/ci.yml
 

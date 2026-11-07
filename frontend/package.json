@@ -43,35 +43,5 @@
   },
   "overrides": {
     "shell-quote": "^1.11.0"
-  },
-  "build": {
-    "appId": "com.tradebot.dashboard",
-    "productName": "Trade Bot",
-    "directories": {
-      "output": "release",
-      "buildResources": "build"
-    },
-    "files": [
-      "dist/**/*",
-      "electron/**/*",
-      "build/icon.png",
-      "build/tray.png",
-      "build/tray-badge.png"
-    ],
-    "linux": {
-      "target": [
-        "AppImage",
-        "deb"
-      ],
-      "icon": "build/icon.png",
-      "category": "Finance",
-      "desktop": {
-        "entry": {
-          "Name": "Trade Bot",
-          "Comment": "Async algorithmic trading dashboard",
-          "Categories": "Finance;Office;"
-        }
-      }
-    }
   }
 }

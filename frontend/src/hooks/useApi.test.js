@@ -13,7 +13,9 @@ import {
   RECONNECT_BASE_MS,
   RECONNECT_CAP_MS,
   apiProblem,
+  postJson,
   reconnectDelay,
+  setErrorNotifier,
   useApiResource,
   usePolling,
   useReadiness,
@@ -224,6 +226,44 @@ describe('REG-0022: callbacks are read from the current render', () => {
     // the ref is that the timer survives while the function does not.
     expect(result.current).toBe('second:1');
   });
+
+  it('FE-19: drops a late answer after the path changed', async () => {
+    const pending = {};
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url) => new Promise((resolve) => { pending[new URL(url).pathname] = resolve; })),
+    );
+    const { result, rerender } = renderHook(({ p }) => usePolling(p, 10_000), {
+      initialProps: { p: '/old' },
+    });
+    await act(async () => {
+      rerender({ p: '/new' });
+      await Promise.resolve();
+    });
+    expect(pending['/new']).toBeDefined();
+    await act(async () => {
+      pending['/new']({ ok: true, json: () => Promise.resolve('new') });
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    await act(async () => {
+      pending['/old']({ ok: true, json: () => Promise.resolve('old') });
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(result.current).toBe('new');
+  });
+
+  it('FE-11: refetches immediately when refreshKey changes', async () => {
+    const f = vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve(1) }));
+    vi.stubGlobal('fetch', f);
+    const { rerender } = renderHook(({ k }) => usePolling('/r', 10_000, undefined, k), {
+      initialProps: { k: 0 },
+    });
+    await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+    const before = f.mock.calls.length;
+    rerender({ k: 1 });
+    await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+    expect(f.mock.calls.length).toBe(before + 1);
+  });
 });
 
 describe('the subscribe frame', () => {
@@ -380,5 +420,23 @@ describe('useApiResource and useReadiness', () => {
     expect(apiProblem(500)).toMatchObject({ kind: 'error', status: 500 });
     expect(apiProblem(500).message).toContain('HTTP 500');
     expect(apiProblem(403).kind).toBe('unauthorized');
+  });
+});
+
+describe('operator error reporting (FE-16/FE-21)', () => {
+  afterEach(() => {
+    setErrorNotifier(null);
+    vi.unstubAllGlobals();
+  });
+
+  it('routes a failed postJson to the notifier instead of alert()', async () => {
+    const alertSpy = vi.fn();
+    vi.stubGlobal('alert', alertSpy);
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({ ok: false, status: 500, json: () => Promise.resolve({ detail: 'nope' }) })));
+    const seen = [];
+    setErrorNotifier((m) => seen.push(m));
+    expect(await postJson('/x', {})).toBeNull();
+    expect(seen).toEqual(['Request failed: nope']);
+    expect(alertSpy).not.toHaveBeenCalled();
   });
 });

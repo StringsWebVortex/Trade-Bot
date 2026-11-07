@@ -248,6 +248,18 @@ class TestTheRegistryHasAPlaceForDefects:
             # REG-1704: audit STR-21 -- carry and arbitrage entries gated on
             # fixed thresholds no cost measurement produced.
             "REG-1704",
+            # REG-1491..1503: phase 6 agent/frontend low findings.
+            "REG-1491",
+            "REG-1492",
+            "REG-1493",
+            "REG-1494",
+            "REG-1495",
+            "REG-1496",
+            "REG-1497",
+            "REG-1498",
+            "REG-1500",
+            "REG-1501",
+            "REG-1503",
             # REG-1430: audit DAT/INT low findings (phase 6).
             "REG-1430",
 
@@ -403,6 +415,10 @@ class TestTheRegistryHasAPlaceForDefects:
             # SEC-1130, SEC-1131: git guard and PreToolUse fail-closed findings.
             "SEC-1130",
             "SEC-1131",
+            # SEC-1490, SEC-1499, SEC-1502: phase 6 agent/frontend low findings.
+            "SEC-1490",
+            "SEC-1499",
+            "SEC-1502",
         }
 
     def test_every_filed_defect_names_a_permanent_test(self, registry):
@@ -674,10 +690,10 @@ class TestTheMetricsCollector:
         # test-suite, 43.
         # REG-1704 adds the fixed-threshold carry/arbitrage regression (STR-21):
         # no test asked what the thresholds cost to clear -- test-suite, 44.
-        # REG-1460..1471 add twelve phase 6 math/strategy regressions on top of main.
-        # The main branch's 125 test-suite findings plus these 12 total 137.
+        # REG-1491..1503 and SEC-1490/1499/1502 add 14 phase 6 agent/frontend
+        # regressions on top of main -- test-suite, 152.
         assert metric["value"] == {
-            "test-suite": 138,
+            "test-suite": 152,
             "review": 1,
             "supply-chain": 4,
             "ci-gate-design": 2,

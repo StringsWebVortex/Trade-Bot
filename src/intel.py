@@ -169,8 +169,8 @@ class CryptoIntelligence:
         self._orchestrator = WorkerOrchestrator(
             n_workers=self._cfg.get("n_workers", 8),
             btc_rpc_url=btc_rpc.get("url", "http://127.0.0.1:8332"),
-            btc_rpc_user=btc_rpc.get("user", "crypto"),
-            btc_rpc_pass=btc_rpc.get("pass", "crypto"),
+            btc_rpc_user=btc_rpc.get("user", ""),
+            btc_rpc_pass=btc_rpc.get("pass", ""),
             ecc_interval=self._cfg.get("ecc_interval_seconds", 60.0),
             ecc_enabled=bool(self._cfg.get("ecc_enabled", True)),
         )

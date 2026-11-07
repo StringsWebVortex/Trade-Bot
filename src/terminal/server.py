@@ -37,7 +37,7 @@ from websockets.exceptions import ConnectionClosed
 from websockets.http11 import Request, Response
 
 from src.terminal import PROTOCOL_VERSION, SERVICE_VERSION, auth, protocol
-from src.terminal.config import TerminalConfig, ensure_private_dir
+from src.terminal.config import TerminalConfig, ensure_managed_state_dir, ensure_private_dir
 from src.terminal.protocol import ProtocolError, b64encode, encode_frame
 from src.terminal.registry import ProcessRegistry
 from src.terminal.sessions import SessionManager
@@ -236,7 +236,8 @@ class TerminalServer:
     ) -> None:
         sock = writer.get_extra_info("socket")
         uid = auth.peer_uid(sock) if sock is not None else None
-        if uid is not None and uid != os.getuid():
+        # AGT-030: fail closed when the peer uid cannot be determined.
+        if uid is None or uid != os.getuid():
             log.warning("terminal.unix_refused_peer", peer_uid=uid)
             writer.close()
             return
@@ -613,7 +614,7 @@ async def run_daemon(
             "privileges; start it as the logged-in user (or pass --allow-root)"
         )
     ensure_private_dir(config.runtime_dir)
-    ensure_private_dir(config.state_dir)
+    ensure_managed_state_dir(config.state_dir)
     lock = InstanceLock(config.lock_path)
     lock.acquire()
     stop_event = stop or asyncio.Event()
@@ -621,8 +622,9 @@ async def run_daemon(
     if install_signals:
         for signum in (signal.SIGTERM, signal.SIGINT):
             loop.add_signal_handler(signum, stop_event.set)
-    server = TerminalServer(config, base_env=base_env, shell=shell)  # nosec B604 -- shell is an executable path, not subprocess shell=True.
+    server: TerminalServer | None = None
     try:
+        server = TerminalServer(config, base_env=base_env, shell=shell)  # nosec B604 -- shell is an executable path, not subprocess shell=True.
         auth.load_or_create_token(config.token_path)
         write_rcfile(config.rcfile_path)
         config.pid_path.write_text(f"{os.getpid()}\n", encoding="utf-8")
@@ -634,7 +636,8 @@ async def run_daemon(
         poller.cancel()
     finally:
         log.info("terminal.stopping")
-        await server.stop()
+        if server is not None:
+            await server.stop()
         with contextlib.suppress(FileNotFoundError):
             config.pid_path.unlink()
         if install_signals:
