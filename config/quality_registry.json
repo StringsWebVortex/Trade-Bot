@@ -9232,6 +9232,230 @@
         }
       ],
       "notes": "Audit finding EXR-021. layer: test-suite"
+    },
+    {
+      "id": "SEC-1200",
+      "kind": "security_regression",
+      "title": "API-006: a read-only key never receives the pending-approval queue",
+      "statement": "The heartbeat tick, the cold-start snapshot, GET /status and GET /approvals withhold pending_approvals from a key that lacks APPROVE_TRADE.",
+      "criticality": "medium",
+      "subsystem": "api",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "A read-only key sees the queue of trades awaiting an operator decision.",
+      "owning_modules": [
+        "src/api/main.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/api/test_api_runtime_hardening.py",
+          "test_type": "security"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "SEC-1201",
+      "kind": "security_regression",
+      "title": "API-008: security-control degradation closes every trade-affecting POST",
+      "statement": "An audit-write failure or unusable key configuration marks the control degraded, and every trade-affecting POST depends on require_healthy_security_controls.",
+      "criticality": "medium",
+      "subsystem": "security",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "The fail-closed registry could never close, so trading endpoints stayed open with audit or authentication down.",
+      "owning_modules": [
+        "src/api/main.py",
+        "src/api/auth.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/api/test_api_runtime_hardening.py",
+          "test_type": "security"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "SEC-1202",
+      "kind": "security_regression",
+      "title": "API-009: readiness and probe endpoints do not return raw exception text",
+      "statement": "/readyz sanitizes orchestrator error text and probe endpoints return a fixed message instead of str(exc).",
+      "criticality": "medium",
+      "subsystem": "api",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "DSNs, paths and hostnames reached unauthenticated callers in 200 bodies.",
+      "owning_modules": [
+        "src/api/readiness.py",
+        "src/api/main.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/api/test_api_runtime_hardening.py",
+          "test_type": "security"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1203",
+      "kind": "regression",
+      "title": "API-010: a stalled WebSocket peer cannot block the broadcast",
+      "statement": "broadcast sends concurrently with a per-send timeout and drops peers that exceed it.",
+      "criticality": "medium",
+      "subsystem": "api",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "One stalled peer blocked fan-out for every dashboard on the shared event loop.",
+      "owning_modules": [
+        "src/api/main.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/api/test_api_runtime_hardening.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1204",
+      "kind": "regression",
+      "title": "API-011: runtime control work runs off the event loop",
+      "statement": "/runtime handlers and RuntimeLoop.step execute on dedicated single-worker executors.",
+      "criticality": "medium",
+      "subsystem": "api",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "Pointer reads and model loads stalled ticks and websockets.",
+      "owning_modules": [
+        "src/api/main.py",
+        "src/runtime/production.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/api/test_api_runtime_hardening.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "SEC-1205",
+      "kind": "security_regression",
+      "title": "API-012: operator names are validated on runtime and control bodies",
+      "statement": "OperatorFactor and SetControlRequest accept only the alphanumeric/underscore/hyphen operator names used elsewhere.",
+      "criticality": "medium",
+      "subsystem": "security",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "Arbitrary characters reached logs and the audit trail. Per-operator identity and requester/approver separation remain open.",
+      "owning_modules": [
+        "src/api/runtime_control.py",
+        "src/api/main.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/api/test_api_runtime_hardening.py",
+          "test_type": "security"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1206",
+      "kind": "regression",
+      "title": "API-013: a failed shadow check does not strand an approved change",
+      "statement": "decide_lifecycle(approve) holds the manager lock across approve, shadow check, stage and execute, and moves the change to FAILED when the shadow check raises.",
+      "criticality": "medium",
+      "subsystem": "resilience",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "The change stayed APPROVED and non-terminal, blocking every later request on the component.",
+      "owning_modules": [
+        "src/runtime/changes.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/runtime/test_decide_lifecycle_atomic.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "SEC-1207",
+      "kind": "security_regression",
+      "title": "API-014: log redaction matches key substrings and nested values",
+      "statement": "redact_event redacts keys that contain secret-like fragments and recursively walks mappings and sequences.",
+      "criticality": "medium",
+      "subsystem": "security",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "Names like binance_api_secret and nested details dicts bypassed redaction.",
+      "owning_modules": [
+        "src/logging_setup.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/api/test_api_runtime_hardening.py",
+          "test_type": "security"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "SEC-1208",
+      "kind": "security_regression",
+      "title": "API-015: the self-test is single-flight, low-rate and off the shared executor",
+      "statement": "/debug/selftest uses a dedicated one-worker executor, one in-flight run and a low per-minute limit.",
+      "criticality": "medium",
+      "subsystem": "security",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "Any valid key could occupy the default executor the trading path uses.",
+      "owning_modules": [
+        "src/api/main.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/api/test_api_runtime_hardening.py",
+          "test_type": "security"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1209",
+      "kind": "regression",
+      "title": "API-030: construction-time settings are not reported live",
+      "statement": "Settings read once at construction (shadow_mode, order_throttle, glassnode_base_url, testnet flags) are startup-only in /controls.",
+      "criticality": "medium",
+      "subsystem": "api",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "A write succeeded and changed nothing the consumer used.",
+      "owning_modules": [
+        "src/api/control_surface.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/api/test_api_runtime_hardening.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
     }
   ]
 }

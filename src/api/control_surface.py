@@ -215,6 +215,17 @@ _STARTUP_ONLY: frozenset[str] = frozenset(
         "storage.backend",
         "storage.db_path",
         "storage.timescale_dsn",
+        # API-030: read once into the consumer at construction (TuningRunner,
+        # LiveExecutor's throttle, the intelligence client, the fetchers), so
+        # a write would change the stored value and nothing that uses it.
+        "self_tuning.shadow_mode",
+        "order_throttle.enabled",
+        "order_throttle.rate",
+        "order_throttle.burst",
+        "order_throttle.max_wait_s",
+        "intelligence.glassnode_base_url",
+        "binance.testnet",
+        "okx.testnet",
     }
 )
 

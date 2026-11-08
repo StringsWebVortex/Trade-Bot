@@ -56,7 +56,7 @@ Api = tuple[TestClient, RuntimePlatform]
 
 
 @pytest.fixture
-def api() -> Iterator[Api]:
+def api(healthy_security_controls) -> Iterator[Api]:
     from src.api.main import AppState, app
 
     state = AppState()

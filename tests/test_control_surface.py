@@ -171,7 +171,10 @@ class TestTheWidgetComesFromTheType:
     @pytest.mark.parametrize(
         ("name", "kind"),
         [
-            ("binance.testnet", "toggle"),
+            # API-030: the testnet flag is read once at construction, so it is
+            # shown but not writable.
+            ("binance.testnet", "readonly"),
+            ("features.mtf_confirmation_enabled", "toggle"),
             ("features.atr_window", "number"),
             ("binance.base_url", "text"),
         ],

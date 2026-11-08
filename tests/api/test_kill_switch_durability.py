@@ -152,7 +152,7 @@ class TestTheApiPersistsAndRestores:
         assert "save_execution_mode(new_mode)" in persistence
         # Persist first: "halted but unaudited" is recoverable, "audited but
         # still trading" is the outcome nobody detects.
-        assert persistence.index("save_execution_mode") < persistence.index("insert_audit_event")
+        assert persistence.index("save_execution_mode") < persistence.index("_audit_event")
 
     def test_startup_restores_the_persisted_mode_before_readiness(self):
         import inspect

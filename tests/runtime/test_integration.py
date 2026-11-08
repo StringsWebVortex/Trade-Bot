@@ -47,7 +47,9 @@ class _Storage:
         self.audit.append(details or {})
 
 
-async def test_desired_state_to_audit_and_trace_through_the_api() -> None:
+async def test_desired_state_to_audit_and_trace_through_the_api(
+    healthy_security_controls,
+) -> None:
     from src.api.main import AppState, app
 
     bus = EventBus()

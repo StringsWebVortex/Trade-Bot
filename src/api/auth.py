@@ -27,6 +27,7 @@ import structlog
 from fastapi import HTTPException, WebSocket, status
 
 from src.api.access_control import Role
+from src.api.fail_closed import CONTROL_HEALTH, SecurityControl
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
@@ -109,11 +110,14 @@ def verify_api_key(api_key: str | None) -> Role:
         readonly = _get_readonly_key()
     except RuntimeError as exc:
         log.critical("auth.key_not_configured", error=str(exc), exc_info=True)
+        # API-008: an unusable key configuration closes the trading gate.
+        CONTROL_HEALTH.mark_degraded(SecurityControl.AUTHENTICATION, "key configuration unusable")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Server authentication not configured.",
         ) from exc
 
+    CONTROL_HEALTH.mark_healthy(SecurityControl.AUTHENTICATION)
     if api_key is not None:
         supplied = api_key.encode("utf-8")
         is_primary = hmac.compare_digest(supplied, expected.encode("utf-8"))

@@ -47,11 +47,11 @@ deletion of the thing it points at.
 
 | Status | Entries |
 |---|---|
-| VERIFIED | 374 |
+| VERIFIED | 384 |
 | PARTIAL | 3 |
 | PLANNED | 0 |
 | ACCEPTED GAP | 0 |
-| **Total** | **377** |
+| **Total** | **387** |
 
 ## Summary by subsystem
 
@@ -63,10 +63,10 @@ deletion of the thing it points at.
 | Signal and features | 22 | 22 |
 | Models and leakage | 38 | 38 |
 | Data, money and time | 17 | 16 |
-| API and WebSocket | 36 | 36 |
-| Cryptography and secrets | 50 | 50 |
+| API and WebSocket | 41 | 41 |
+| Cryptography and secrets | 54 | 54 |
 | Supply chain and artifacts | 7 | 7 |
-| Resilience and recovery | 35 | 35 |
+| Resilience and recovery | 36 | 36 |
 | Release and production | 17 | 17 |
 | Governance | 85 | 84 |
 | Terminal and process center | 19 | 19 |
@@ -2070,6 +2070,45 @@ Each workspace panel and the app root render inside an ErrorBoundary that shows 
 
 > Audit finding FE-05. layer: test-suite
 
+#### `REG-1203` — API-010: a stalled WebSocket peer cannot block the broadcast
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+broadcast sends concurrently with a per-send timeout and drops peers that exceed it.
+
+- **If violated:** One stalled peer blocked fan-out for every dashboard on the shared event loop.
+- **Owned by:** `src/api/main.py`
+- **Verification:**
+  - `tests/api/test_api_runtime_hardening.py` (regression)
+
+> layer: test-suite
+
+#### `REG-1204` — API-011: runtime control work runs off the event loop
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+/runtime handlers and RuntimeLoop.step execute on dedicated single-worker executors.
+
+- **If violated:** Pointer reads and model loads stalled ticks and websockets.
+- **Owned by:** `src/api/main.py`, `src/runtime/production.py`
+- **Verification:**
+  - `tests/api/test_api_runtime_hardening.py` (regression)
+
+> layer: test-suite
+
+#### `REG-1209` — API-030: construction-time settings are not reported live
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+Settings read once at construction (shadow_mode, order_throttle, glassnode_base_url, testnet flags) are startup-only in /controls.
+
+- **If violated:** A write succeeded and changed nothing the consumer used.
+- **Owned by:** `src/api/control_surface.py`
+- **Verification:**
+  - `tests/api/test_api_runtime_hardening.py` (regression)
+
+> layer: test-suite
+
 #### `REG-1243` — Failed polls are reported as stale data
 
 **VERIFIED** · medium · regression · source: OPS-2026-10-25
@@ -2215,6 +2254,32 @@ All operator-secret checks share one failure budget that locks every route after
   - `tests/api/test_authz_and_secrets.py` (security)
 
 > audit finding API-007. layer: test-suite
+
+#### `SEC-1200` — API-006: a read-only key never receives the pending-approval queue
+
+**VERIFIED** · medium · security_regression · source: OPS-2026-10-25
+
+The heartbeat tick, the cold-start snapshot, GET /status and GET /approvals withhold pending_approvals from a key that lacks APPROVE_TRADE.
+
+- **If violated:** A read-only key sees the queue of trades awaiting an operator decision.
+- **Owned by:** `src/api/main.py`
+- **Verification:**
+  - `tests/api/test_api_runtime_hardening.py` (security)
+
+> layer: test-suite
+
+#### `SEC-1202` — API-009: readiness and probe endpoints do not return raw exception text
+
+**VERIFIED** · medium · security_regression · source: OPS-2026-10-25
+
+/readyz sanitizes orchestrator error text and probe endpoints return a fixed message instead of str(exc).
+
+- **If violated:** DSNs, paths and hostnames reached unauthenticated callers in 200 bodies.
+- **Owned by:** `src/api/readiness.py`, `src/api/main.py`
+- **Verification:**
+  - `tests/api/test_api_runtime_hardening.py` (security)
+
+> layer: test-suite
 
 ## Cryptography and secrets
 
@@ -2759,6 +2824,58 @@ shell_exec.run masks secrets in the whole raw output before filtering and cappin
 
 > layer: test-suite
 
+#### `SEC-1201` — API-008: security-control degradation closes every trade-affecting POST
+
+**VERIFIED** · medium · security_regression · source: OPS-2026-10-25
+
+An audit-write failure or unusable key configuration marks the control degraded, and every trade-affecting POST depends on require_healthy_security_controls.
+
+- **If violated:** The fail-closed registry could never close, so trading endpoints stayed open with audit or authentication down.
+- **Owned by:** `src/api/main.py`, `src/api/auth.py`
+- **Verification:**
+  - `tests/api/test_api_runtime_hardening.py` (security)
+
+> layer: test-suite
+
+#### `SEC-1205` — API-012: operator names are validated on runtime and control bodies
+
+**VERIFIED** · medium · security_regression · source: OPS-2026-10-25
+
+OperatorFactor and SetControlRequest accept only the alphanumeric/underscore/hyphen operator names used elsewhere.
+
+- **If violated:** Arbitrary characters reached logs and the audit trail. Per-operator identity and requester/approver separation remain open.
+- **Owned by:** `src/api/runtime_control.py`, `src/api/main.py`
+- **Verification:**
+  - `tests/api/test_api_runtime_hardening.py` (security)
+
+> layer: test-suite
+
+#### `SEC-1207` — API-014: log redaction matches key substrings and nested values
+
+**VERIFIED** · medium · security_regression · source: OPS-2026-10-25
+
+redact_event redacts keys that contain secret-like fragments and recursively walks mappings and sequences.
+
+- **If violated:** Names like binance_api_secret and nested details dicts bypassed redaction.
+- **Owned by:** `src/logging_setup.py`
+- **Verification:**
+  - `tests/api/test_api_runtime_hardening.py` (security)
+
+> layer: test-suite
+
+#### `SEC-1208` — API-015: the self-test is single-flight, low-rate and off the shared executor
+
+**VERIFIED** · medium · security_regression · source: OPS-2026-10-25
+
+/debug/selftest uses a dedicated one-worker executor, one in-flight run and a low per-minute limit.
+
+- **If violated:** Any valid key could occupy the default executor the trading path uses.
+- **Owned by:** `src/api/main.py`
+- **Verification:**
+  - `tests/api/test_api_runtime_hardening.py` (security)
+
+> layer: test-suite
+
 #### `SEC-1225` — Orchestrator workers default to read-only tools
 
 **VERIFIED** · high · security_regression · source: OPS-2026-10-25
@@ -3243,6 +3360,19 @@ A NaN or infinite staleness, position deviation, drawdown or clock skew makes it
   - `tests/regression/test_halts_drift_failclosed.py` (regression)
 
 > Audit AGT-011/AGT-010. layer: test-suite
+
+#### `REG-1206` — API-013: a failed shadow check does not strand an approved change
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+decide_lifecycle(approve) holds the manager lock across approve, shadow check, stage and execute, and moves the change to FAILED when the shadow check raises.
+
+- **If violated:** The change stayed APPROVED and non-terminal, blocking every later request on the component.
+- **Owned by:** `src/runtime/changes.py`
+- **Verification:**
+  - `tests/runtime/test_decide_lifecycle_atomic.py` (regression)
+
+> layer: test-suite
 
 #### `REG-1221` — Dead-task scan observes watched tasks
 
@@ -4912,4 +5042,4 @@ To add or change an entry, edit the registry and regenerate this file. See
 `docs/quality/TEST_STRATEGY.md` for the taxonomy the `test_type` column draws
 on, and `docs/quality/IMPLEMENTATION_PLAN.md` for what each phase delivers.
 
-Registry version: 1.0.0 — 377 entries.
+Registry version: 1.0.0 — 387 entries.

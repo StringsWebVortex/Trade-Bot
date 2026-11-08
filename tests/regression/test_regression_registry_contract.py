@@ -220,6 +220,10 @@ class TestTheRegistryHasAPlaceForDefects:
             "REG-0029",
             "REG-0030",
             "REG-0031",
+            "REG-1203",
+            "REG-1204",
+            "REG-1206",
+            "REG-1209",
             "REG-1221",
             "REG-1222",
             "REG-1223",
@@ -414,6 +418,12 @@ class TestTheRegistryHasAPlaceForDefects:
             "SEC-0010",
             "SEC-0011",
             "SEC-0012",
+            "SEC-1200",
+            "SEC-1201",
+            "SEC-1202",
+            "SEC-1205",
+            "SEC-1207",
+            "SEC-1208",
             "SEC-1306",
             # SEC-1010..1015: API authorization and secret-handling audit findings.
             "SEC-1010",
@@ -721,10 +731,11 @@ class TestTheMetricsCollector:
         # test-suite, 43.
         # REG-1704 adds the fixed-threshold carry/arbitrage regression (STR-21):
         # no test asked what the thresholds cost to clear -- test-suite, 44.
-        # Main carries the phase 6 registry regressions; this PR adds eight
-        # execution audit regressions (REG-1300..1307 / SEC-1306).
+        # Main carries the phase 6 registry regressions; this PR adds ten
+        # phase 4 API/runtime audit findings (REG-1203/1204/1206/1209 and
+        # SEC-1200/1201/1202/1205/1207/1208).
         assert metric["value"] == {
-            "test-suite": 179,
+            "test-suite": 189,
             "review": 1,
             "supply-chain": 4,
             "ci-gate-design": 2,
