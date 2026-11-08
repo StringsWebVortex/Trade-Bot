@@ -108,8 +108,8 @@ class TestCheckDrift:
         det = _detector()
         adapter = DriftIntegrationAdapter(drift_detector=det)
         result = adapter.check_drift()
-        assert isinstance(result, dict)
-        assert "drifted" in result
+        assert result["drifted"] is False
+        assert result["reason"] == "ok"
 
     def test_detector_drifted(self):
         det = _detector()

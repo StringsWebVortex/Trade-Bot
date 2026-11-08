@@ -35,6 +35,7 @@ than something the frontend infers.
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Literal
@@ -44,6 +45,7 @@ from pydantic import BaseModel, ValidationError
 from src.config import (
     ExecutionMode,
     get_settings,
+    resolve_setting_path,
     runtime_config,
     set_setting_override,
     settings_override_names,
@@ -230,7 +232,52 @@ _STARTUP_ONLY: frozenset[str] = frozenset(
 # Never rendered with a value and never writable here. A credential does not
 # belong in a payload that is broadcast to every connected dashboard, and an
 # endpoint that accepts one is a place to plant one.
-_CREDENTIAL_MARKERS: tuple[str, ...] = ("api_key", "api_secret", "passphrase", "secret_key")
+_CREDENTIAL_MARKERS: tuple[str, ...] = (
+    "api_key",
+    "api_secret",
+    "passphrase",
+    "secret_key",
+    # API-004: connection strings and generic secrets (storage.timescale_dsn
+    # carries the database password) are credentials too.
+    "dsn",
+    "password",
+    "token",
+    "secret",
+    "uri",
+)
+
+# API-003: what POST /controls may write is an explicit allow-list, not "every
+# leaf except a blacklist". A group not listed here (storage, api, binance,
+# okx, intelligence, anything added later) is refused by default; within a
+# listed group, any leaf that names a URL, host, path or connection string is
+# refused as well (a path is an arbitrary-file-append primitive, a URL an SSRF
+# redirect). Risk limits stay operator-settable: the owner decides them (see
+# the note on EXCLUDED_PARAMS in apply_control) and now every write is
+# role-gated, second-factor-gated and audited.
+_WRITABLE_GROUPS: frozenset[str] = frozenset(
+    {
+        "risk",
+        "hmm",
+        "xgboost",
+        "features",
+        "self_tuning",
+        "strategy_portfolio",
+        "order_throttle",
+        "strategy",
+    }
+)
+_NEVER_WRITABLE_LEAF_MARKERS: tuple[str, ...] = ("url", "host", "path", "dir", "file", "endpoint")
+
+
+def is_operator_writable(dotted: str) -> bool:
+    """True only for allow-listed groups, and never for URL/path-like leaves."""
+    if "." not in dotted:
+        return False
+    group, leaf = dotted.split(".")[0], dotted.split(".")[-1].lower()
+    if group not in _WRITABLE_GROUPS:
+        return False
+    return not any(marker in leaf for marker in _NEVER_WRITABLE_LEAF_MARKERS)
+
 
 # Already surfaced by a dedicated tier with its own setter and semantics;
 # listing them twice is the duplicate-row bug this module already fixed once.
@@ -306,9 +353,28 @@ def settings_controls() -> list[Control]:
             )
             continue
 
+        startup_only = dotted in _STARTUP_ONLY
         value = _resolve_dotted(settings, dotted)
         low, high = _field_bounds(info)
-        startup_only = dotted in _STARTUP_ONLY
+        if not startup_only and not is_operator_writable(dotted):
+            # API-003: shown (it is not a secret) but not offered as adjustable.
+            kind, options = _kind_for(info.annotation, low, high)
+            controls.append(
+                Control(
+                    name=dotted,
+                    group=group,
+                    kind=kind,
+                    value=value,
+                    live=False,
+                    protected=True,
+                    reason="not operator-tunable -- change it in configuration",
+                    minimum=low,
+                    maximum=high,
+                    options=options,
+                )
+            )
+            continue
+
         kind, options = _kind_for(info.annotation, low, high)
         controls.append(
             Control(
@@ -364,6 +430,7 @@ async def apply_control(
     *,
     operator: str,
     operator_secret: str,
+    execution_mode_setter: Callable[[ExecutionMode], Awaitable[None]] | None = None,
 ) -> dict[str, Any]:
     """
     Write one control through the setter that already owns it.
@@ -396,7 +463,7 @@ async def apply_control(
         )
 
     if name == "execution_mode":
-        return await _apply_execution_mode(value)
+        return await _apply_execution_mode(value, execution_mode_setter)
     if name.startswith("risk_controls."):
         return await _apply_risk_control(
             name.removeprefix("risk_controls."),
@@ -406,12 +473,29 @@ async def apply_control(
             operator_secret=operator_secret,
         )
     if parameter_registry.is_registered(name):
+        # The tuning registry is not an authorization boundary. Keep the
+        # operator allow-list in front of every write path, including newly
+        # registered tunables (API-003).
+        if not is_operator_writable(name):
+            raise ControlWriteError(
+                403, f"{name} is not operator-tunable through this API; change it in configuration."
+            )
         return _apply_tunable(name, value)
 
+    try:
+        resolve_setting_path(name)
+    except KeyError as exc:
+        raise ControlWriteError(404, f"unknown control: {name}") from exc
+    if not is_operator_writable(name):
+        raise ControlWriteError(
+            403, f"{name} is not operator-tunable through this API; change it in configuration."
+        )
     return _apply_setting(name, value)
 
 
-async def _apply_execution_mode(value: Any) -> dict[str, Any]:
+async def _apply_execution_mode(
+    value: Any, setter: Callable[[ExecutionMode], Awaitable[None]] | None
+) -> dict[str, Any]:
     try:
         mode = ExecutionMode(value)
     except ValueError as exc:
@@ -419,7 +503,14 @@ async def _apply_execution_mode(value: Any) -> dict[str, Any]:
         raise ControlWriteError(
             422, f"invalid execution_mode {value!r}; expected one of: {valid}"
         ) from exc
-    await runtime_config.set_execution_mode(mode)
+    if setter is None:
+        # API-002: writing RuntimeConfig directly skipped persistence, the
+        # audit event and the mode-change rate limit. Only a caller that
+        # supplies the full-safeguard setter may change the mode here.
+        raise ControlWriteError(
+            409, "execution_mode must be changed through POST /execution-mode safeguards."
+        )
+    await setter(mode)
     return {"name": "execution_mode", "value": str(mode)}
 
 

@@ -32,7 +32,6 @@ from __future__ import annotations
 
 import asyncio
 import collections
-import hmac  # SCAN3-003: moved from inline import inside set_execution_mode()
 import json
 import os
 import re
@@ -62,7 +61,7 @@ from pydantic import BaseModel, Field, field_validator
 from common.command_schema import redact
 from src.api import runtime_control
 from src.api.access_control import Permission, Role, require_permission, role_has_permission
-from src.api.auth import verify_api_key, verify_ws_key
+from src.api.auth import WS_SUBPROTOCOL, verify_api_key, verify_ws_key
 from src.api.control_surface import ControlWriteError, apply_control, build_control_surface
 from src.api.error_hygiene import GENERIC_ERROR_DETAIL, install_error_handlers
 from src.api.fail_closed import (
@@ -78,6 +77,11 @@ from src.api.object_refs import (
     ObjectRefError,
     not_found_response,
     validate_object_id,
+)
+from src.api.operator_secret import (
+    MIN_SECRET_LENGTH,
+    OperatorSecretError,
+    verify_operator_secret,
 )
 from src.api.readiness import readiness_report
 from src.api.runtime_control import (
@@ -638,6 +642,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             "OPERATOR_SECRET is not set. Set a strong random value in .env. "
             "Generate with: openssl rand -hex 32"
         )
+    if len(op_secret) < MIN_SECRET_LENGTH:
+        raise RuntimeError(
+            f"OPERATOR_SECRET must be at least {MIN_SECRET_LENGTH} characters. "
+            "Generate with: openssl rand -hex 32"
+        )
 
     cfg = get_settings()
 
@@ -1185,15 +1194,12 @@ class SelfTuningRollbackRequest(BaseModel):
 
 
 def _verify_operator_secret(operator_secret: str, operator: str, endpoint: str) -> None:
-    expected_op_secret = os.environ.get("OPERATOR_SECRET", "").strip()
-    if not expected_op_secret:
-        raise HTTPException(
-            status_code=503,
-            detail="OPERATOR_SECRET is not configured on the server.",
-        )
-    if not hmac.compare_digest(operator_secret.encode("utf-8"), expected_op_secret.encode("utf-8")):
-        log.warning(f"api.{endpoint}_bad_operator_secret", operator=operator)
-        raise HTTPException(status_code=401, detail="Invalid operator secret.")
+    try:
+        verify_operator_secret(operator_secret)
+    except OperatorSecretError as exc:
+        if exc.status != 503:
+            log.warning(f"api.{endpoint}_bad_operator_secret", operator=operator, status=exc.status)
+        raise HTTPException(status_code=exc.status, detail=exc.detail) from exc
 
 
 # ---------------------------------------------------------------------------
@@ -1554,18 +1560,7 @@ async def resolve_approval(
     # The approval endpoint is the human-in-the-loop gate before a live trade executes;
     # without this check any holder of the API key can approve with any operator name,
     # undermining both the audit trail and the intent of the approval workflow.
-    _expected_op_secret = os.environ.get("OPERATOR_SECRET", "").strip()
-    if not _expected_op_secret:
-        raise HTTPException(
-            status_code=503,
-            detail="OPERATOR_SECRET is not configured on the server.",
-        )
-    if not hmac.compare_digest(
-        body.operator_secret.encode("utf-8"),
-        _expected_op_secret.encode("utf-8"),
-    ):
-        log.warning("api.resolve_approval_bad_operator_secret", operator=body.operator)
-        raise HTTPException(status_code=401, detail="Invalid operator secret.")
+    _verify_operator_secret(body.operator_secret, body.operator, "resolve_approval")
     # H-13: validate UUID format before dict lookup — prevents timing oracle and DoS
     if not _UUID_RE.match(request_id):
         raise HTTPException(status_code=400, detail="Invalid request_id format.")
@@ -1587,52 +1582,15 @@ async def resolve_approval(
     return {"resolved": True, "approved": body.approved, "operator": body.operator}
 
 
-@app.post(
-    "/execution-mode",
-    dependencies=[
-        Depends(requires(Permission.CHANGE_EXECUTION_MODE)),
-        Depends(require_healthy_security_controls),
-    ],
-    responses={
-        400: {"description": "Invalid execution mode"},
-        401: {"description": "Invalid operator secret"},
-        429: {"description": "Rate limit exceeded"},
-    },
-)
-async def set_execution_mode(body: SetExecutionModeRequest) -> dict[str, Any]:
+async def _change_execution_mode(new_mode: ExecutionMode, operator: str) -> None:
     """
-    Switch execution mode at runtime.
+    The one way to change the execution mode: rate limit, apply, persist, audit.
 
-    Requires:
-      - Valid X-API-Key header
-      - operator_secret matching OPERATOR_SECRET env var
-      - Max 3 mode changes per hour
+    API-002: /execution-mode and /controls/execution_mode both come through
+    here, so neither can skip the 3-per-hour limit, the EXEC-005 persistence
+    or the audit event the other enforces.
     """
-    # Verify operator secret (second factor for mode escalation)
-    expected_op_secret = os.environ.get("OPERATOR_SECRET", "").strip()
-    if not expected_op_secret:
-        raise HTTPException(
-            status_code=503,
-            detail="OPERATOR_SECRET is not configured on the server.",
-        )
-    # SCAN3-003: hmac now at module level
-    if not hmac.compare_digest(
-        body.operator_secret.encode("utf-8"),
-        expected_op_secret.encode("utf-8"),
-    ):
-        log.warning("api.execution_mode_bad_operator_secret", operator=body.operator)
-        raise HTTPException(status_code=401, detail="Invalid operator secret.")
-
-    # Rate limit: max 3 changes per hour
     _state.check_mode_change_rate_limit()
-
-    try:
-        new_mode = ExecutionMode(body.mode.lower())
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid mode {body.mode!r}. Must be one of: automatic, restricted, manual",
-        ) from exc
 
     old_mode = (await runtime_config.get_execution_mode()).value
     await runtime_config.set_execution_mode(new_mode)  # SCAN2-015: async — no event loop block
@@ -1647,7 +1605,7 @@ async def set_execution_mode(body: SetExecutionModeRequest) -> dict[str, Any]:
     await _audit_event(
         _state.storage,
         event_type="execution_mode_change",
-        operator=body.operator,
+        operator=operator,
         details={"old_mode": old_mode, "new_mode": new_mode.value},
     )
 
@@ -1655,8 +1613,47 @@ async def set_execution_mode(body: SetExecutionModeRequest) -> dict[str, Any]:
         "api.execution_mode_changed",
         new_mode=new_mode.value,
         old_mode=old_mode,
-        operator=body.operator,
+        operator=operator,
     )
+
+
+@app.post(
+    "/execution-mode",
+    dependencies=[
+        Depends(requires(Permission.CHANGE_EXECUTION_MODE)),
+        Depends(require_healthy_security_controls),
+    ],
+    responses={
+        400: {"description": "Invalid execution mode"},
+        401: {"description": "Invalid operator secret"},
+        429: {"description": "Rate limit exceeded"},
+    },
+)
+async def set_execution_mode(body: SetExecutionModeRequest, request: Request) -> dict[str, Any]:
+    """
+    Switch execution mode at runtime.
+
+    Requires:
+      - Valid X-API-Key header
+      - operator_secret matching OPERATOR_SECRET env var
+      - Max 3 mode changes per hour
+    """
+    # API-007: the endpoint rate limit runs BEFORE the secret is checked, so
+    # wrong guesses are bounded per IP as well as by the global lockout.
+    _state.check_endpoint_rate_limit(
+        "execution_mode", request.client.host if request.client else ""
+    )
+    _verify_operator_secret(body.operator_secret, body.operator, "execution_mode")
+
+    try:
+        new_mode = ExecutionMode(body.mode.lower())
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid mode {body.mode!r}. Must be one of: automatic, restricted, manual",
+        ) from exc
+
+    await _change_execution_mode(new_mode, body.operator)
     return {"execution_mode": new_mode.value, "operator": body.operator}
 
 
@@ -1706,18 +1703,7 @@ async def set_risk_controls(body: SetRiskControlsRequest, request: Request) -> d
         "set_risk_controls", request.client.host if request.client else ""
     )
 
-    expected_op_secret = os.environ.get("OPERATOR_SECRET", "").strip()
-    if not expected_op_secret:
-        raise HTTPException(
-            status_code=503,
-            detail="OPERATOR_SECRET is not configured on the server.",
-        )
-    if not hmac.compare_digest(
-        body.operator_secret.encode("utf-8"),
-        expected_op_secret.encode("utf-8"),
-    ):
-        log.warning("api.risk_controls_bad_operator_secret", operator=body.operator)
-        raise HTTPException(status_code=401, detail="Invalid operator secret.")
+    _verify_operator_secret(body.operator_secret, body.operator, "risk_controls")
 
     old_controls = await runtime_config.get_risk_controls()
     new_controls = await runtime_config.set_risk_controls(
@@ -2099,7 +2085,10 @@ async def websocket_endpoint(ws: WebSocket) -> None:
         log.warning("api.ws_rejected_limit", limit=_state._MAX_WS_CLIENTS)
         return
 
-    await ws.accept()
+    # Echo only the non-secret subprotocol so the browser accepts the handshake
+    # and the key-bearing one is never reflected.
+    offered = [o.strip() for o in ws.headers.get("sec-websocket-protocol", "").split(",")]
+    await ws.accept(subprotocol=WS_SUBPROTOCOL if WS_SUBPROTOCOL in offered else None)
     # Subscribed to everything the key permits until the client narrows it.
     # Defaulting to nothing would mean a dashboard that never sends a
     # subscribe -- including the one shipped before this existed -- goes
@@ -3801,7 +3790,13 @@ class SetControlRequest(BaseModel):
         return _validate_operator(v)
 
 
-@app.post("/controls/{name}", dependencies=[Depends(api_key_header)])
+@app.post(
+    "/controls/{name}",
+    dependencies=[
+        Depends(requires(Permission.CHANGE_EXECUTION_MODE)),
+        Depends(require_healthy_security_controls),
+    ],
+)
 async def set_control(name: str, body: SetControlRequest, request: Request) -> dict[str, Any]:
     """
     Set one live control, routed to the setter that already owns it.
@@ -3814,12 +3809,10 @@ async def set_control(name: str, body: SetControlRequest, request: Request) -> d
     _state.check_endpoint_rate_limit("set_control", request.client.host if request.client else "")
     # SEC-007: same second factor as /execution-mode and /risk-controls. This
     # moves live trading parameters, so the API key alone is not enough.
-    expected = os.environ.get("OPERATOR_SECRET", "").strip()
-    if not expected:
-        raise HTTPException(status_code=503, detail="OPERATOR_SECRET is not configured.")
-    if not hmac.compare_digest(body.operator_secret.encode("utf-8"), expected.encode("utf-8")):
-        log.warning("api.set_control_bad_operator_secret", control=name)
-        raise HTTPException(status_code=401, detail="Invalid operator secret.")
+    _verify_operator_secret(body.operator_secret, body.operator, "set_control")
+
+    async def _mode_setter(mode: ExecutionMode) -> None:
+        await _change_execution_mode(mode, body.operator)
 
     try:
         applied = await apply_control(
@@ -3828,9 +3821,18 @@ async def set_control(name: str, body: SetControlRequest, request: Request) -> d
             SetRiskControlsRequest,
             operator=body.operator,
             operator_secret=body.operator_secret,
+            execution_mode_setter=_mode_setter,
         )
     except ControlWriteError as exc:
         raise HTTPException(status_code=exc.status, detail=exc.detail) from exc
+
+    # API-003: every control write is audited, not just logged.
+    await _audit_event(
+        _state.storage,
+        event_type="control_change",
+        operator=body.operator,
+        details={"control": applied["name"], "value": applied["value"]},
+    )
 
     log.info("api.control_set", control=name, value=applied["value"])
     # Out of band, so a second dashboard -- or the same one, mid-drag -- sees

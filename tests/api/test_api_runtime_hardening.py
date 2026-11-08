@@ -82,7 +82,7 @@ async def test_stalled_client_does_not_hold_up_the_others() -> None:
 
 
 def test_every_trade_affecting_post_is_behind_the_security_control_gate() -> None:
-    exempt = {"/risk/size-check", "/debug/selftest", "/controls/{name}"}
+    exempt = {"/risk/size-check", "/debug/selftest"}
     ungated = []
     for route in api_main.app.routes:
         if "POST" not in getattr(route, "methods", ()) or route.path in exempt:
@@ -107,6 +107,14 @@ async def test_audit_write_failure_degrades_the_audit_control() -> None:
         assert SecurityControl.AUDIT_LOGGING in CONTROL_HEALTH.degraded()
     finally:
         CONTROL_HEALTH.reset()
+
+
+def test_control_surface_audit_uses_the_fail_closed_wrapper() -> None:
+    source = inspect.getsource(api_main)
+    # The wrapper itself is the sole raw storage call; every route, including
+    # the shared /controls/{name} route, must pass through it.
+    assert source.count("insert_audit_event(") == 1
+    assert "await _audit_event(\n        _state.storage,\n        event_type=\"control_change\"" in source
 
 
 def test_unusable_key_configuration_degrades_authentication(monkeypatch) -> None:

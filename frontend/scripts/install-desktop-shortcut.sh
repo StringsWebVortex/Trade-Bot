@@ -38,9 +38,12 @@ else
   exit 1
 fi
 
+# Escape the characters special in a sed replacement (\ & and the | delimiter).
+sed_escape() { printf '%s' "$1" | sed -e 's/[\\&|]/\\&/g'; }
+
 sed \
-  -e "s|__LAUNCH_CMD__|${LAUNCH_CMD}|" \
-  -e "s|__ICON_PATH__|${ICONS_DIR}/tradebot-dashboard.png|" \
+  -e "s|__LAUNCH_CMD__|$(sed_escape "${LAUNCH_CMD}")|" \
+  -e "s|__ICON_PATH__|$(sed_escape "${ICONS_DIR}/tradebot-dashboard.png")|" \
   "$FRONTEND_DIR/linux/tradebot-dashboard.desktop" > "$APPS_DIR/tradebot-dashboard.desktop"
 chmod +x "$APPS_DIR/tradebot-dashboard.desktop"
 

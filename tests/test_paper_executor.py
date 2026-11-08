@@ -518,7 +518,8 @@ class TestClosePosition:
         trade_id, _ = await executor.submit_signal("BTC/USDT", "15m", 1, kelly, 1, 0.6, 0.5, 100.0)
         await executor.close_position(trade_id, exit_price=110.0, exit_reason="profit_target")
         trades = await storage.fetch_trades(symbol="BTC/USDT")
-        assert trades[0].exit_price == 110.0
+        # A long exit sells through the default 2 bps spread, not at the mark.
+        assert trades[0].exit_price == pytest.approx(110.0 * (1.0 - 2.0 / 10_000.0))
         assert trades[0].exit_reason == "profit_target"
 
 

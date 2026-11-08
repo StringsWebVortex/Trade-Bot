@@ -20,6 +20,7 @@ Registry: SECR-001 (config/quality_registry.json).
 from __future__ import annotations
 
 import logging
+import re
 from collections.abc import MutableMapping
 from typing import Any, Final
 
@@ -135,9 +136,43 @@ def _renderer(as_json: bool) -> object:
     return structlog.dev.ConsoleRenderer(colors=False)
 
 
+_URL_SECRET = re.compile(r"(?i)\b(api_key|apikey|token|key)=[^&\s\"']+")
+
+
+class RedactUrlSecretsFilter(logging.Filter):
+    """
+    Strip ``api_key=...``-style query values from stdlib log records.
+
+    uvicorn logs the full request path, query string included, through stdlib
+    loggers that never pass through structlog's redact_event (API-005).
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        try:
+            message = record.getMessage()
+        except Exception:  # noqa: BLE001 - never let a bad record break logging
+            return True
+        redacted = _URL_SECRET.sub(r"\1=[REDACTED]", message)
+        if redacted != message:
+            record.msg, record.args = redacted, ()
+        return True
+
+
+def install_uvicorn_log_redaction() -> None:
+    """Idempotently attach the filter to uvicorn's loggers."""
+    for name in ("uvicorn", "uvicorn.error", "uvicorn.access"):
+        target = logging.getLogger(name)
+        if not any(isinstance(f, RedactUrlSecretsFilter) for f in target.filters):
+            target.addFilter(RedactUrlSecretsFilter())
+        for handler in target.handlers:
+            if not any(isinstance(f, RedactUrlSecretsFilter) for f in handler.filters):
+                handler.addFilter(RedactUrlSecretsFilter())
+
+
 def configure_logging(settings: Settings | None = None) -> None:
     """Configure structlog from settings. Safe to call more than once."""
     cfg = settings if settings is not None else get_settings()
+    install_uvicorn_log_redaction()
 
     structlog.configure(
         processors=[

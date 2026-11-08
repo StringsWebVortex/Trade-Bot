@@ -297,7 +297,15 @@ def ref_sha(runner: GitLike, ref: str) -> str | None:
     return sha if result.returncode == 0 and sha else None
 
 
+def require_safe_remote(remote: str) -> str:
+    """Reject a remote that git would parse as an option (``--upload-pack=CMD``)."""
+    if not remote or remote.startswith("-"):
+        raise ValueError(f"invalid git remote {remote!r}")
+    return remote
+
+
 def remote_head(runner: GitLike, remote: str, branch: str) -> str | None:
     """The branch head on the remote itself (network), or None if it does not exist."""
-    out = runner.run("ls-remote", remote, f"refs/heads/{branch}").stdout.split()
+    require_safe_remote(remote)
+    out = runner.run("ls-remote", "--", remote, f"refs/heads/{branch}").stdout.split()
     return out[0] if out else None
