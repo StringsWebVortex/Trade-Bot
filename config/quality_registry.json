@@ -9456,6 +9456,251 @@
         }
       ],
       "depends_on": []
+    },
+    {
+      "id": "REG-1520",
+      "kind": "regression",
+      "title": "RAG re-ingest replaces a source's chunks instead of duplicating them",
+      "statement": "rag_mongo.ingest.ingest_text deletes existing chunks for the source after embedding and before insert, and leaves them intact if embedding fails.",
+      "criticality": "low",
+      "subsystem": "data",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "Each re-ingest appended a second copy of every chunk, skewing vector and hybrid retrieval.",
+      "owning_modules": [
+        "rag_mongo/ingest.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_low_findings_regressions.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1521",
+      "kind": "regression",
+      "title": "Knowledge-graph and review retrieval return no edges when no entity matches",
+      "statement": "kg.query._subgraph and review.retrieval.graph return an empty list for an empty entity set, and kg candidate-name extraction drops stopwords.",
+      "criticality": "low",
+      "subsystem": "data",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "Arbitrary first-N edges were presented to the model as grounding for unrelated questions.",
+      "owning_modules": [
+        "kg/query.py",
+        "review/retrieval.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_low_findings_regressions.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1522",
+      "kind": "regression",
+      "title": "Feature indicators never emit infinite values and RSI handles no-loss windows",
+      "statement": "crypto-predictor indicators replace +/-inf with NaN in ratio features, and RSI is 100 for a window with no losses and 50 for a flat window.",
+      "criticality": "low",
+      "subsystem": "data",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "Infinite OBV/Bollinger/volume ratios passed dropna and reached the model; no-loss RSI rows were dropped.",
+      "owning_modules": [
+        "crypto-predictor/indicators.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_low_findings_regressions.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1523",
+      "kind": "regression",
+      "title": "Coverage floor check fails when the report measures zero files",
+      "statement": "scripts/check_coverage_floors.main returns 1 when the coverage JSON has no files.",
+      "criticality": "low",
+      "subsystem": "governance",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "An empty report printed 'All 0 measured files' and passed the per-file floor.",
+      "owning_modules": [
+        "scripts/check_coverage_floors.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_low_findings_regressions.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1524",
+      "kind": "regression",
+      "title": "All-green gate tolerates null job payloads and rejects stale allowances with exit 2",
+      "statement": "scripts/assert_jobs_green treats a null job payload as missing, and returns 2 when ALLOW_SKIPPED names a job that is not in needs.",
+      "criticality": "low",
+      "subsystem": "governance",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "A null payload raised AttributeError, and a stale skip allowance only printed a warning.",
+      "owning_modules": [
+        "scripts/assert_jobs_green.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_low_findings_regressions.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1525",
+      "kind": "regression",
+      "title": "Model-artifact preflight matches exact trainer filenames per timeframe",
+      "statement": "scripts/check_model_artifacts._artifacts_for matches xgb_direction/xgb_meta names with an exact timeframe segment, so 5m does not match 15m artifacts.",
+      "criticality": "low",
+      "subsystem": "model",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "A substring glob reported the 5m timeframe as present when only 15m models existed.",
+      "owning_modules": [
+        "scripts/check_model_artifacts.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_low_findings_regressions.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1526",
+      "kind": "regression",
+      "title": "Mutation floor fails closed on timeout and clears the shared cache per subsystem",
+      "statement": "scripts/check_mutation_score.run_subsystem clears mutmut's cache before each subsystem and scores a timeout as a failed floor.",
+      "criticality": "low",
+      "subsystem": "governance",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "Subsystem scores shared mutants with earlier subsystems, and a timeout raised an uncaught traceback instead of a verdict.",
+      "owning_modules": [
+        "scripts/check_mutation_score.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_low_findings_regressions.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1527",
+      "kind": "regression",
+      "title": "Ruleset drift check compares rule parameters the file sets",
+      "statement": "scripts/apply_repo_ruleset.compare reports a rule parameter that differs from GitHub, and ignores GitHub default echoes.",
+      "criticality": "low",
+      "subsystem": "governance",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "A weakened approval count or thread-resolution setting passed --check.",
+      "owning_modules": [
+        "scripts/apply_repo_ruleset.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_low_findings_regressions.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1529",
+      "kind": "regression",
+      "title": "Quality id regex accepts registry ids past the old digit caps",
+      "statement": "qe_new_requirement.ID_RE accepts REG and SEC ids with five or more digits.",
+      "criticality": "low",
+      "subsystem": "governance",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "next_id produced ids after 9999 that the regex rejected.",
+      "owning_modules": [
+        ".claude/skills/quality-engineering/scripts/qe_new_requirement.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_low_findings_regressions.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1530",
+      "kind": "regression",
+      "title": "Review context refuses option-shaped refs and provenance refuses escaping names",
+      "statement": "review.build_context._diff_text rejects refs beginning with '-', and write_provenance.verify reports names that escape the bundle.",
+      "criticality": "low",
+      "subsystem": "governance",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "A ref was parsed as a git option, and a provenance name could digest a file outside the bundle.",
+      "owning_modules": [
+        "review/build_context.py",
+        "scripts/write_provenance.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_low_findings_regressions.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "REG-1531",
+      "kind": "regression",
+      "title": "Market fetchers drop the still-forming last candle",
+      "statement": "crypto-predictor data_fetch.fetch_ohlcv and data_fetch_kraken.fetch_ohlcv return only candles whose interval has closed.",
+      "criticality": "low",
+      "subsystem": "data",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "notes": "layer: test-suite",
+      "failure_mode": "The provisional close and volume of the forming candle reached features and labels.",
+      "owning_modules": [
+        "crypto-predictor/data_fetch.py",
+        "crypto-predictor/data_fetch_kraken.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_low_findings_regressions.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": []
     }
   ]
 }

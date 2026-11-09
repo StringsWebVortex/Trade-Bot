@@ -259,6 +259,18 @@ class TestTheRegistryHasAPlaceForDefects:
             # REG-1704: audit STR-21 -- carry and arbitrage entries gated on
             # fixed thresholds no cost measurement produced.
             "REG-1704",
+            # REG-1520..1531 (REG-1528 is deferred): phase 6 ops/docs/tests regressions.
+            "REG-1520",
+            "REG-1521",
+            "REG-1522",
+            "REG-1523",
+            "REG-1524",
+            "REG-1525",
+            "REG-1526",
+            "REG-1527",
+            "REG-1529",
+            "REG-1530",
+            "REG-1531",
             # REG-1243 and REG-1244: frontend stale-poll and live-config findings.
             "REG-1243",
             "REG-1244",
@@ -735,8 +747,8 @@ class TestTheMetricsCollector:
         # phase 4 API/runtime audit findings (REG-1203/1204/1206/1209 and
         # SEC-1200/1201/1202/1205/1207/1208).
         assert metric["value"] == {
-            "test-suite": 189,
-            "review": 1,
+            "test-suite": 200,
+            "review": 5,
             "supply-chain": 4,
             "ci-gate-design": 2,
         }

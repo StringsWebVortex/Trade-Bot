@@ -114,9 +114,11 @@ class TestADWINDrift:
         from src.risk.gate import RiskGate
 
         gate = RiskGate(n_horizons=3)
-        # Should not raise even without river
+        # Should not raise even without river. With ADWIN unavailable the
+        # horizon has no detector, so no drift can be reported.
         result = gate.check_drift(0, 0.8)
-        assert isinstance(result, bool)
+        assert result is False
+        assert gate._adwin[0] is None
 
     def test_check_drift_valid_horizon(self) -> None:
         from src.risk.gate import RiskGate
