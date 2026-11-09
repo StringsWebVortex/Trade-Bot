@@ -31,11 +31,13 @@ import json
 import re
 import shutil
 import subprocess
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 THRESHOLDS = PROJECT_ROOT / "config" / "mutation_thresholds.json"
+_MUTMUT_CACHE = Path(".mutmut-cache")
 
 #: mutmut's summary line, e.g. "killed: 120  survived: 8  timeout: 1".
 _COUNT_RE = re.compile(r"(?P<name>killed|survived|timeout|suspicious|skipped)\s*:?\s*(?P<n>\d+)")
@@ -94,14 +96,31 @@ def parse_counts(output: str) -> dict[str, int]:
 def run_subsystem(name: str, spec: dict, timeout_s: int) -> MutationResult:
     """Mutate one subsystem's paths and collect its score."""
     paths = ",".join(spec["paths"])
-    subprocess.run(  # noqa: S603 - fixed argv, no shell
-        ["mutmut", "run", "--paths-to-mutate", paths, "--no-progress"],
-        cwd=PROJECT_ROOT,
-        capture_output=True,
-        text=True,
-        timeout=timeout_s,
-        check=False,
-    )
+    # mutmut keeps one shared cache, so results for a later subsystem included
+    # the mutants of earlier ones. Clear it so each score is its own.
+    cache = PROJECT_ROOT / _MUTMUT_CACHE
+    if cache.is_file():
+        cache.unlink()
+    try:
+        subprocess.run(  # noqa: S603 - fixed argv, no shell
+            ["mutmut", "run", "--paths-to-mutate", paths, "--no-progress"],
+            cwd=PROJECT_ROOT,
+            capture_output=True,
+            text=True,
+            timeout=timeout_s,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        # Fail closed with a verdict, not a traceback: zero counts fail the floor.
+        print(f"{name}: mutmut run exceeded {timeout_s}s; scored as failed", file=sys.stderr)
+        return MutationResult(
+            subsystem=name,
+            killed=0,
+            survived=0,
+            timeout=0,
+            min_score=float(spec["min_score"]),
+            requirement=spec.get("requirement", ""),
+        )
     results = subprocess.run(  # noqa: S603
         ["mutmut", "results"],
         cwd=PROJECT_ROOT,

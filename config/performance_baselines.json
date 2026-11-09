@@ -1,8 +1,8 @@
 {
   "_comment": [
     "RES-006 -- recorded performance baselines. Loaded by",
-    "src/diagnostics/performance_baseline.py and checked by the nightly",
-    "quality workflow.",
+    "src/diagnostics/performance_baseline.py. No CI workflow currently runs",
+    "tests/performance; the nightly quality workflow does not check these budgets.",
     "",
     "These are budgets, not measurements of a particular machine. A budget is",
     "chosen from what the trading loop needs -- a 1m bar leaves 60 seconds for",

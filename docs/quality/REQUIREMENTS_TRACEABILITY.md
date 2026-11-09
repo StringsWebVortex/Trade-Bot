@@ -47,11 +47,11 @@ deletion of the thing it points at.
 
 | Status | Entries |
 |---|---|
-| VERIFIED | 384 |
+| VERIFIED | 395 |
 | PARTIAL | 3 |
 | PLANNED | 0 |
 | ACCEPTED GAP | 0 |
-| **Total** | **387** |
+| **Total** | **398** |
 
 ## Summary by subsystem
 
@@ -61,14 +61,14 @@ deletion of the thing it points at.
 | Execution | 24 | 23 |
 | Portfolio | 2 | 2 |
 | Signal and features | 22 | 22 |
-| Models and leakage | 38 | 38 |
-| Data, money and time | 17 | 16 |
+| Models and leakage | 39 | 39 |
+| Data, money and time | 21 | 20 |
 | API and WebSocket | 41 | 41 |
 | Cryptography and secrets | 54 | 54 |
 | Supply chain and artifacts | 7 | 7 |
 | Resilience and recovery | 36 | 36 |
 | Release and production | 17 | 17 |
-| Governance | 85 | 84 |
+| Governance | 91 | 90 |
 | Terminal and process center | 19 | 19 |
 
 ## Outstanding work by phase
@@ -1462,6 +1462,19 @@ run_entropy_threshold_backtest omits win_rate, which is identical for both arms 
 
 > audit finding STR-15. layer: test-suite
 
+#### `REG-1525` — Model-artifact preflight matches exact trainer filenames per timeframe
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+scripts/check_model_artifacts._artifacts_for matches xgb_direction/xgb_meta names with an exact timeframe segment, so 5m does not match 15m artifacts.
+
+- **If violated:** A substring glob reported the 5m timeframe as present when only 15m models existed.
+- **Owned by:** `scripts/check_model_artifacts.py`
+- **Verification:**
+  - `tests/test_low_findings_regressions.py` (regression)
+
+> layer: test-suite
+
 #### `REG-1605` — LLL and the BLS12-381 pairing do not redo work they can update
 
 **VERIFIED** · low · regression · source: OPS-2026-10-25
@@ -1735,6 +1748,58 @@ EventBus.total_dropped retains drops of detached subscribers; the quality gate r
   - `tests/test_crypto_intel_signal_path.py` (regression)
 
 > Low-severity audit findings DAT-020..DAT-036 that no test exercised. layer: test-suite
+
+#### `REG-1520` — RAG re-ingest replaces a source's chunks instead of duplicating them
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+rag_mongo.ingest.ingest_text deletes existing chunks for the source after embedding and before insert, and leaves them intact if embedding fails.
+
+- **If violated:** Each re-ingest appended a second copy of every chunk, skewing vector and hybrid retrieval.
+- **Owned by:** `rag_mongo/ingest.py`
+- **Verification:**
+  - `tests/test_low_findings_regressions.py` (regression)
+
+> layer: test-suite
+
+#### `REG-1521` — Knowledge-graph and review retrieval return no edges when no entity matches
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+kg.query._subgraph and review.retrieval.graph return an empty list for an empty entity set, and kg candidate-name extraction drops stopwords.
+
+- **If violated:** Arbitrary first-N edges were presented to the model as grounding for unrelated questions.
+- **Owned by:** `kg/query.py`, `review/retrieval.py`
+- **Verification:**
+  - `tests/test_low_findings_regressions.py` (regression)
+
+> layer: test-suite
+
+#### `REG-1522` — Feature indicators never emit infinite values and RSI handles no-loss windows
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+crypto-predictor indicators replace +/-inf with NaN in ratio features, and RSI is 100 for a window with no losses and 50 for a flat window.
+
+- **If violated:** Infinite OBV/Bollinger/volume ratios passed dropna and reached the model; no-loss RSI rows were dropped.
+- **Owned by:** `crypto-predictor/indicators.py`
+- **Verification:**
+  - `tests/test_low_findings_regressions.py` (regression)
+
+> layer: test-suite
+
+#### `REG-1531` — Market fetchers drop the still-forming last candle
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+crypto-predictor data_fetch.fetch_ohlcv and data_fetch_kraken.fetch_ohlcv return only candles whose interval has closed.
+
+- **If violated:** The provisional close and volume of the forming candle reached features and labels.
+- **Owned by:** `crypto-predictor/data_fetch.py`, `crypto-predictor/data_fetch_kraken.py`
+- **Verification:**
+  - `tests/test_low_findings_regressions.py` (regression)
+
+> layer: test-suite
 
 #### `REG-1702` — kg/ and rag_mongo/ share one MongoClient factory and one URI check
 
@@ -4566,6 +4631,84 @@ A corrupt reliability.json blocks the gate and is backed up, CI repeat events ar
 
 > layer: test-suite
 
+#### `REG-1523` — Coverage floor check fails when the report measures zero files
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+scripts/check_coverage_floors.main returns 1 when the coverage JSON has no files.
+
+- **If violated:** An empty report printed 'All 0 measured files' and passed the per-file floor.
+- **Owned by:** `scripts/check_coverage_floors.py`
+- **Verification:**
+  - `tests/test_low_findings_regressions.py` (regression)
+
+> layer: test-suite
+
+#### `REG-1524` — All-green gate tolerates null job payloads and rejects stale allowances with exit 2
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+scripts/assert_jobs_green treats a null job payload as missing, and returns 2 when ALLOW_SKIPPED names a job that is not in needs.
+
+- **If violated:** A null payload raised AttributeError, and a stale skip allowance only printed a warning.
+- **Owned by:** `scripts/assert_jobs_green.py`
+- **Verification:**
+  - `tests/test_low_findings_regressions.py` (regression)
+
+> layer: test-suite
+
+#### `REG-1526` — Mutation floor fails closed on timeout and clears the shared cache per subsystem
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+scripts/check_mutation_score.run_subsystem clears mutmut's cache before each subsystem and scores a timeout as a failed floor.
+
+- **If violated:** Subsystem scores shared mutants with earlier subsystems, and a timeout raised an uncaught traceback instead of a verdict.
+- **Owned by:** `scripts/check_mutation_score.py`
+- **Verification:**
+  - `tests/test_low_findings_regressions.py` (regression)
+
+> layer: test-suite
+
+#### `REG-1527` — Ruleset drift check compares rule parameters the file sets
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+scripts/apply_repo_ruleset.compare reports a rule parameter that differs from GitHub, and ignores GitHub default echoes.
+
+- **If violated:** A weakened approval count or thread-resolution setting passed --check.
+- **Owned by:** `scripts/apply_repo_ruleset.py`
+- **Verification:**
+  - `tests/test_low_findings_regressions.py` (regression)
+
+> layer: test-suite
+
+#### `REG-1529` — Quality id regex accepts registry ids past the old digit caps
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+qe_new_requirement.ID_RE accepts REG and SEC ids with five or more digits.
+
+- **If violated:** next_id produced ids after 9999 that the regex rejected.
+- **Owned by:** `.claude/skills/quality-engineering/scripts/qe_new_requirement.py`
+- **Verification:**
+  - `tests/test_low_findings_regressions.py` (regression)
+
+> layer: test-suite
+
+#### `REG-1530` — Review context refuses option-shaped refs and provenance refuses escaping names
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+review.build_context._diff_text rejects refs beginning with '-', and write_provenance.verify reports names that escape the bundle.
+
+- **If violated:** A ref was parsed as a git option, and a provenance name could digest a file outside the bundle.
+- **Owned by:** `review/build_context.py`, `scripts/write_provenance.py`
+- **Verification:**
+  - `tests/test_low_findings_regressions.py` (regression)
+
+> layer: test-suite
+
 #### `REG-1600` — The CPU torch pre-pass uses the same version spec as requirements.txt
 
 **VERIFIED** · low · regression · source: OPS-2026-10-25
@@ -5042,4 +5185,4 @@ To add or change an entry, edit the registry and regenerate this file. See
 `docs/quality/TEST_STRATEGY.md` for the taxonomy the `test_type` column draws
 on, and `docs/quality/IMPLEMENTATION_PLAN.md` for what each phase delivers.
 
-Registry version: 1.0.0 — 387 entries.
+Registry version: 1.0.0 — 398 entries.
