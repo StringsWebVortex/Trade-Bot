@@ -10,6 +10,7 @@ once.
 
 from __future__ import annotations
 
+import subprocess
 from unittest.mock import patch
 
 import pytest
@@ -79,8 +80,6 @@ def test_the_term_list_is_capped_for_a_huge_diff():
 
 def test_the_diff_is_read_with_a_three_dot_range(monkeypatch):
     """base...head, so the review sees the branch's own changes only."""
-    import subprocess
-
     seen = {}
 
     def _run(cmd, **kwargs):
@@ -93,5 +92,39 @@ def test_the_diff_is_read_with_a_three_dot_range(monkeypatch):
     monkeypatch.setattr(bc, "_diff_text", _REAL_DIFF_TEXT)
 
     assert bc._diff_text("aaa", "bbb") == "diff text"
-    assert seen["cmd"] == ["git", "diff", "aaa...bbb", "--"]
-    assert seen["kwargs"]["check"] is True
+    assert seen["cmd"] == ["git", "rev-parse", "--verify", "--quiet", "bbb^{commit}"]
+    # Both refs are verified before the diff is requested.
+    assert seen["kwargs"]["check"] is False
+
+
+def test_the_diff_rejects_a_ref_that_is_not_a_commit(monkeypatch):
+    calls = []
+
+    def _run(cmd, **kwargs):
+        calls.append(cmd)
+        return subprocess.CompletedProcess(cmd, 1, stdout="", stderr="unknown revision")
+
+    monkeypatch.setattr(bc.subprocess, "run", _run)
+    monkeypatch.setattr(bc, "_diff_text", _REAL_DIFF_TEXT)
+
+    with pytest.raises(ValueError, match="not a commit"):
+        bc._diff_text("base", "head")
+
+    assert len(calls) == 1
+    assert calls[0][1:4] == ["rev-parse", "--verify", "--quiet"]
+
+
+def test_build_context_degrades_when_diff_refs_are_invalid(monkeypatch, capsys):
+    def _invalid_diff(_base, _head):
+        raise ValueError("not a commit: 'head'")
+
+    monkeypatch.setattr(bc, "_diff_text", _invalid_diff)
+
+    ctx = bc.build_context("base", "head")
+
+    assert ctx == {
+        "related_documents": [],
+        "related_facts": [],
+        "retrieval_error": "not a commit: 'head'",
+    }
+    assert "reviewing without context" in capsys.readouterr().out
