@@ -80,11 +80,10 @@ def test_the_term_list_is_capped_for_a_huge_diff():
 
 def test_the_diff_is_read_with_a_three_dot_range(monkeypatch):
     """base...head, so the review sees the branch's own changes only."""
-    seen = {}
+    seen = []
 
     def _run(cmd, **kwargs):
-        seen["cmd"] = cmd
-        seen["kwargs"] = kwargs
+        seen.append((cmd, kwargs))
         return subprocess.CompletedProcess(cmd, 0, stdout="diff text", stderr="")
 
     monkeypatch.setattr(bc.subprocess, "run", _run)
@@ -92,9 +91,16 @@ def test_the_diff_is_read_with_a_three_dot_range(monkeypatch):
     monkeypatch.setattr(bc, "_diff_text", _REAL_DIFF_TEXT)
 
     assert bc._diff_text("aaa", "bbb") == "diff text"
-    assert seen["cmd"] == ["git", "rev-parse", "--verify", "--quiet", "bbb^{commit}"]
-    # Both refs are verified before the diff is requested.
-    assert seen["kwargs"]["check"] is False
+    assert [entry[0][1] for entry in seen] == [
+        "rev-parse",
+        "rev-parse",
+        "diff",
+    ]
+    assert seen[0][0][-1] == "aaa^{commit}"
+    assert seen[1][0][-1] == "bbb^{commit}"
+    assert seen[2][0] == ["git", "diff", "aaa...bbb", "--"]
+    assert seen[0][1]["check"] is False
+    assert seen[2][1]["check"] is True
 
 
 def test_the_diff_rejects_a_ref_that_is_not_a_commit(monkeypatch):
