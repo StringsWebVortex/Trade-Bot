@@ -240,7 +240,6 @@ class PerformanceDriftDetector:
         self._total_live_wins: int = 0
         self._max_live_drawdown_pct: float = 0.0
         self._live_equity_peak: float = 0.0
-        self._live_equity_start: float = 0.0
 
     @property
     def baseline(self) -> PerformanceBaseline:
@@ -303,9 +302,6 @@ class PerformanceDriftDetector:
         # Update drawdown tracking
         if current_equity > self._live_equity_peak:
             self._live_equity_peak = current_equity
-
-        if self._live_equity_start == 0:
-            self._live_equity_start = starting_equity
 
         # UI-008: starting_equity <= 0 (bad snapshot / uninitialized caller)
         # previously raised ZeroDivisionError here, which propagates

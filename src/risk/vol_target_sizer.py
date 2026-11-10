@@ -193,7 +193,19 @@ def vol_target_size(
     periods_per_year:
         Used for vol scaling (252 for daily, 365 for crypto).
     """
-    if capital_usd <= 0:
+    if not all(
+        math.isfinite(v)
+        for v in (capital_usd, current_equity, hwm, realized_vol_pct, target_vol_pct)
+    ):
+        return SizeResult(
+            notional_usd=0.0,
+            vol_target_notional=0.0,
+            kelly_scalar=0.0,
+            dd_haircut=0.0,
+            realized_vol_pct=realized_vol_pct,
+            reject_reason="non_finite_input",
+        )
+    if capital_usd <= 0 or periods_per_year <= 0:
         return SizeResult(
             notional_usd=0.0,
             vol_target_notional=0.0,
@@ -217,8 +229,10 @@ def vol_target_size(
 
     # 2. Vol-target sizing: notional = (target_vol / realized_vol) * capital
     eff_vol = max(realized_vol_pct, _MIN_VOL * 100.0)
-    # Both target and realized are annualised %; their ratio is dimensionless
-    vol_scalar = target_vol_pct / eff_vol
+    # target_vol_pct is a DAILY target; realized_vol_pct is annualised, so
+    # convert it to daily before taking the (dimensionless) ratio.
+    eff_vol_daily = eff_vol / math.sqrt(periods_per_year)
+    vol_scalar = target_vol_pct / eff_vol_daily
     vol_target_notional = vol_scalar * capital_usd
 
     # 3. Kelly scalar

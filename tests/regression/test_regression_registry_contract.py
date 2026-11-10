@@ -259,6 +259,9 @@ class TestTheRegistryHasAPlaceForDefects:
             # REG-1704: audit STR-21 -- carry and arbitrage entries gated on
             # fixed thresholds no cost measurement produced.
             "REG-1704",
+            # REG-1400 and REG-1401: phase 6 execution/risk/API Low findings.
+            "REG-1400",
+            "REG-1401",
             # REG-1520..1531 (REG-1528 is deferred): phase 6 ops/docs/tests regressions.
             "REG-1520",
             "REG-1521",
@@ -430,6 +433,8 @@ class TestTheRegistryHasAPlaceForDefects:
             "SEC-0010",
             "SEC-0011",
             "SEC-0012",
+            # SEC-1400: phase 6 security Low findings.
+            "SEC-1400",
             "SEC-1200",
             "SEC-1201",
             "SEC-1202",
@@ -743,11 +748,13 @@ class TestTheMetricsCollector:
         # test-suite, 43.
         # REG-1704 adds the fixed-threshold carry/arbitrage regression (STR-21):
         # no test asked what the thresholds cost to clear -- test-suite, 44.
+        # REG-1400, REG-1401 and SEC-1400 add three phase 6 Low-finding
+        # regressions no test exercised -- test-suite, bringing the count to 203.
         # Main carries the phase 6 registry regressions; this PR adds ten
         # phase 4 API/runtime audit findings (REG-1203/1204/1206/1209 and
         # SEC-1200/1201/1202/1205/1207/1208).
         assert metric["value"] == {
-            "test-suite": 200,
+            "test-suite": 203,
             "review": 5,
             "supply-chain": 4,
             "ci-gate-design": 2,
