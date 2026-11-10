@@ -23,6 +23,7 @@ from __future__ import annotations
 import threading
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
+from types import MappingProxyType
 from typing import ClassVar, Protocol
 
 import structlog
@@ -416,17 +417,19 @@ class ModelSupervisor(Supervisor):
                 )
 
 
-SUPERVISOR_TYPES: Mapping[ComponentType, type[Supervisor]] = {
-    ComponentType.ENGINE: EngineSupervisor,
-    ComponentType.STRATEGY: StrategySupervisor,
-    ComponentType.MODEL: ModelSupervisor,
-    ComponentType.TASK: TaskSupervisor,
-    ComponentType.WORKER: WorkerSupervisor,
-    ComponentType.PROVIDER: ProviderSupervisor,
-    ComponentType.TUNING: TuningSupervisor,
-    ComponentType.EVENTBUS: EventBusSupervisor,
-    ComponentType.UPGRADE: UpgradeSupervisor,
-}
+SUPERVISOR_TYPES: Mapping[ComponentType, type[Supervisor]] = MappingProxyType(
+    {
+        ComponentType.ENGINE: EngineSupervisor,
+        ComponentType.STRATEGY: StrategySupervisor,
+        ComponentType.MODEL: ModelSupervisor,
+        ComponentType.TASK: TaskSupervisor,
+        ComponentType.WORKER: WorkerSupervisor,
+        ComponentType.PROVIDER: ProviderSupervisor,
+        ComponentType.TUNING: TuningSupervisor,
+        ComponentType.EVENTBUS: EventBusSupervisor,
+        ComponentType.UPGRADE: UpgradeSupervisor,
+    }
+)
 
 
 class SupervisorSet:

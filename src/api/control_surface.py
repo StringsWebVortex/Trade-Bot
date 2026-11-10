@@ -291,8 +291,8 @@ def _is_credential(dotted: str) -> bool:
 def _field_bounds(info: Any) -> tuple[float | None, float | None]:
     low = high = None
     for meta in info.metadata:
-        low = getattr(meta, "ge", low if low is not None else None) or low
-        high = getattr(meta, "le", high if high is not None else None) or high
+        low = getattr(meta, "ge", None) if low is None else low
+        high = getattr(meta, "le", None) if high is None else high
     return low, high
 
 
