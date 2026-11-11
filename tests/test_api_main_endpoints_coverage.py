@@ -155,7 +155,9 @@ def test_live_executor_or_none_returns_a_real_live_executor(state):
     assert _live_executor_or_none() is executor
 
 
-def test_acknowledging_recovery_clears_the_block_and_audits_it(state, client):
+def test_acknowledging_recovery_clears_the_block_and_audits_it(
+    state, client, healthy_security_controls
+):
     executor = _FakeLiveExecutor([_discrepancy()])
     with patch("src.api.main._live_executor_or_none", return_value=executor):
         resp = client.post(
@@ -172,7 +174,9 @@ def test_acknowledging_recovery_clears_the_block_and_audits_it(state, client):
     assert kwargs["details"]["discrepancies"][0]["symbol"] == "BTC/USDT"
 
 
-def test_acknowledging_recovery_without_a_live_executor_is_a_conflict(state, client):
+def test_acknowledging_recovery_without_a_live_executor_is_a_conflict(
+    state, client, healthy_security_controls
+):
     resp = client.post(
         "/recovery/acknowledge",
         json={"operator": "alice", "operator_secret": _OP_SECRET},

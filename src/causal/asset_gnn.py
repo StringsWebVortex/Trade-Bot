@@ -230,9 +230,14 @@ class AssetGNN:
                     proj = torch.nn.Linear(x.shape[1], self._hidden, bias=False)
                 self._pyg_proj = proj
             x = proj(x)  # type: ignore[operator]
-        if not edges:
-            return x.detach().numpy()
-        edge_index = torch.tensor(edges, dtype=torch.long).T
+        # Run the trained model even for an edgeless graph. GATConv adds
+        # self-loops by default, and bypassing the model here skipped its
+        # hidden-to-d_model projection and returned the wrong embedding size.
+        edge_index = (
+            torch.tensor(edges, dtype=torch.long).T
+            if edges
+            else torch.empty((2, 0), dtype=torch.long)
+        )
         with torch.no_grad():
             out = self._pyg_model(x, edge_index)  # type: ignore[call-arg, operator, misc]
         return out.detach().numpy()

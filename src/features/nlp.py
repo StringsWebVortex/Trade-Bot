@@ -55,15 +55,20 @@ class _CryptoBERTPipeline:
             # Sentiment head (positive/negative/neutral)
             self._sentiment = pipeline(
                 "text-classification",
-                model=_MODEL_NAME,
+                model=self._model,  # reuse pinned weights, no second unpinned load
                 tokenizer=self._tokenizer,
                 device=-1,  # CPU
                 top_k=None,
             )
 
             # Projection layer 768 → 128
-            torch.manual_seed(42)
+            # Local generator: never reseed the process-global torch RNG.
+            gen = torch.Generator().manual_seed(42)
             self._proj = torch.nn.Linear(768, _PROJ_DIM, bias=False)
+            with torch.no_grad():
+                self._proj.weight.copy_(
+                    (torch.rand(_PROJ_DIM, 768, generator=gen) * 2 - 1) / (768**0.5)
+                )
             self._proj.eval()
 
             self._torch = torch
@@ -105,7 +110,7 @@ class _CryptoBERTPipeline:
             proj = self._proj(mean_pooled).squeeze(0)  # [128]
             embedding = proj.numpy().astype(np.float32)
 
-        # Sentiment on first text (representative)
+        # Sentiment on up to the first 4 texts, aggregated below
         results: list[list[dict]] = self._sentiment(texts[:4], truncation=True)
         label_scores: dict[str, float] = {}
         for batch_result in results:

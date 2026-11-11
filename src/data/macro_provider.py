@@ -8,7 +8,7 @@ Polls once per 24h (market-close cadence).
 from __future__ import annotations
 
 import asyncio
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 import pandas as pd
@@ -23,7 +23,6 @@ _TICKERS = {
     "vix": "^VIX",
 }
 _POLL_INTERVAL = 86_400  # 24 hours
-_STALE_LIMIT_DAYS = 2  # accept weekend gaps
 
 
 class MacroProvider:
@@ -37,8 +36,16 @@ class MacroProvider:
 
     def latest(self) -> dict | None:
         if self._latest is not None:
-            return self._latest
+            if self._is_fresh(self._latest):
+                return self._latest
+            self._latest = None
         return self._load_cached()
+
+    @staticmethod
+    def _is_fresh(row: dict) -> bool:
+        from src.data.quality_gate import DataQualityGate
+
+        return DataQualityGate().check_macro(row).passed
 
     async def fetch_once(self) -> dict | None:
         return await asyncio.get_running_loop().run_in_executor(None, self._fetch_sync)
@@ -46,7 +53,7 @@ class MacroProvider:
     async def run_loop(self) -> None:
         while True:
             result = await self.fetch_once()
-            if result:
+            if result and self._is_fresh(result):
                 self._latest = result
                 try:
                     from src.data.provider_cache import get_provider_cache
@@ -102,6 +109,8 @@ class MacroProvider:
                 **returns,
                 **series,
             }
+            if not self._is_fresh(row):
+                return None
             self._persist(row)
             return row
         except Exception as exc:
@@ -118,15 +127,19 @@ class MacroProvider:
         macro_dir = self._data_root / "macro"
         if not macro_dir.exists():
             return None
+        # Scan a bounded history of fetch snapshots. The filename records the
+        # fetch date; freshness is determined only by the market date inside
+        # the row, otherwise a fresh fetch can make stale market data look new.
         files = sorted(macro_dir.glob("*.parquet"), reverse=True)
-        cutoff = datetime.now(UTC).date() - timedelta(days=_STALE_LIMIT_DAYS)
-        for f in files[:_STALE_LIMIT_DAYS]:
+        for f in files[:14]:
             try:
-                if date.fromisoformat(f.stem) < cutoff:
-                    continue  # too old to serve as "latest"
                 df = pd.read_parquet(f)
-                if not df.empty:
-                    return df.iloc[-1].to_dict()
+                if df.empty:
+                    continue
+                row = df.iloc[-1].to_dict()
+                if self._is_fresh(row):
+                    return row
+                log.warning("macro_snapshot_stale", path=str(f), market_date=row.get("date"))
             except Exception as exc:
                 # A corrupt or half-written parquet must not hide the older
                 # snapshots behind it, so fall through to the next file.

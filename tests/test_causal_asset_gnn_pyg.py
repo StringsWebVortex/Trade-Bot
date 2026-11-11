@@ -58,14 +58,13 @@ def test_run_pyg_skips_the_projection_when_features_already_match_hidden_dim():
     assert out.shape == (2, 16)
 
 
-def test_run_pyg_returns_unconvolved_nodes_when_the_graph_has_no_edges():
+def test_run_pyg_runs_self_loops_for_an_edgeless_graph_and_keeps_d_model_shape():
     with installed():
         gnn = asset_gnn.AssetGNN(n_layers=2, hidden_dim=5, n_heads=2, d_model=16)
         features = np.random.default_rng(3).normal(size=(3, 5)).astype(np.float32)
         out = gnn._run_pyg(features, [])
-    # No edges -> the projected node features come straight back, still
-    # hidden_dim wide because the GAT stack was skipped entirely.
-    assert out.shape == (3, 5)
+    # GATConv adds self-loops; the trained projection head returns d_model.
+    assert out.shape == (3, 16)
 
 
 @pytest.mark.parametrize("empty", ["prices", "features"])

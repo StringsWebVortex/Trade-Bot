@@ -39,6 +39,7 @@ implements).
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from enum import Enum
 
@@ -201,6 +202,8 @@ def migration_verdict(
     ):
         if isinstance(value, bool) or not isinstance(value, (int, float)):
             raise QuantumAssessmentError(f"{label} must be a number, got {type(value).__name__}")
+        if not math.isfinite(value):
+            raise QuantumAssessmentError(f"{label} must be finite, got {value}")
         if value < 0:
             raise QuantumAssessmentError(f"{label} must not be negative, got {value}")
 

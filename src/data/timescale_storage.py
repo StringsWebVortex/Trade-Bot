@@ -624,18 +624,7 @@ class TimescaleBackend:
         confidence: float,
         source: str = "backfill",
     ) -> None:
-        """
-        Upsert one row into intelligence_features_history.
-
-        Args:
-            symbol:     Asset symbol, e.g. "BTCUSDT".
-            timeframe:  Timeframe string, e.g. "1h".
-            bar_ts:     Bar timestamp, Unix ms (matches bars.ts).
-            features:   Dict keyed by the intelligence_* column names.
-                        Missing keys are stored as NULL.
-            confidence: Provider confidence score [0.0, 1.0].
-            source:     "backfill" | "live" | "test".
-        """
+        """Upsert the legacy intelligence values and the complete V6 payload."""
         unsupported = set(features) - INTELLIGENCE_FEATURE_KEYS
         if unsupported:
             raise ValueError(
@@ -645,36 +634,37 @@ class TimescaleBackend:
         fetched_at = int(datetime.now(UTC).timestamp() * 1000)
 
         def _f(key: str) -> float | None:
-            v = features.get(key)
-            return float(v) if v is not None else None
+            value = features.get(key)
+            return float(value) if value is not None else None
 
         def _v6(key: str) -> Any:
-            v = features.get(key)
-            if v is None:
+            value = features.get(key)
+            if value is None:
                 return None
             if key in INTELLIGENCE_V6_TEXT_KEYS:
-                return str(v)
-            return int(v) if key in INTELLIGENCE_V6_INT_KEYS else float(v)
+                return str(value)
+            if key in INTELLIGENCE_V6_INT_KEYS:
+                return int(value)
+            return float(value)
 
         values: list[Any] = [symbol, timeframe, bar_ts, fetched_at]
-        values.extend(_f(f"intelligence_{c}") for c in _INTEL_COLUMNS)
+        values.extend(_f(f"intelligence_{column}") for column in _INTEL_COLUMNS)
         values.extend((float(confidence), source))
-        values.extend(_v6(c) for c in INTELLIGENCE_V6_KEYS)
+        values.extend(_v6(column) for column in INTELLIGENCE_V6_KEYS)
 
         col_list = ", ".join(_INTEL_COLUMNS)
         v6_list = ", ".join(INTELLIGENCE_V6_KEYS)
         placeholders = ", ".join(f"${i}" for i in range(1, len(values) + 1))
-        update_cols = ["fetched_at", *_INTEL_COLUMNS, "confidence", "source", *INTELLIGENCE_V6_KEYS]
-        update_set = ", ".join(f"{c}=EXCLUDED.{c}" for c in update_cols)
-        # Column names come only from the hardcoded _INTEL_COLUMNS literal —
-        # never from external/user input. Values flow through $n placeholders.
+        update_cols = [
+            "fetched_at", *_INTEL_COLUMNS, "confidence", "source", *INTELLIGENCE_V6_KEYS
+        ]
+        update_set = ", ".join(f"{column}=EXCLUDED.{column}" for column in update_cols)
         async with pool.acquire() as conn:
-            await conn.execute(  # nosemgrep: no-fstring-sql — cols from hardcoded literal
+            await conn.execute(  # nosemgrep: no-fstring-sql — columns are fixed module constants
                 f"""
                 INSERT INTO intelligence_features_history (
                     symbol, timeframe, bar_ts, fetched_at,
-                    {col_list},
-                    confidence, source, {v6_list}
+                    {col_list}, confidence, source, {v6_list}
                 ) VALUES ({placeholders})
                 ON CONFLICT (symbol, timeframe, bar_ts) DO UPDATE SET {update_set}
                 """,  # nosec B608
@@ -886,6 +876,37 @@ class TimescaleBackend:
             direction=trade.direction,
         )
 
+    async def record_trade_partial_exit(
+        self,
+        trade_id: str,
+        exit_price: float,
+        pnl_usd: float,
+        fee_usd: float,
+    ) -> None:
+        """Persist realised PnL/fees while leaving the trade open."""
+        pool = self._require_pool()
+        async with pool.acquire() as conn:
+            status = await conn.execute(
+                """
+                UPDATE trades
+                SET exit_price=$1,
+                    pnl_usd=COALESCE(pnl_usd, 0.0)+$2,
+                    pnl_pct=(COALESCE(pnl_usd, 0.0)+$3)/notional_usd,
+                    fee_usd=fee_usd+$4
+                WHERE id=$5 AND exit_ts IS NULL
+                """,
+                exit_price,
+                pnl_usd,
+                pnl_usd,
+                fee_usd,
+                trade_id,
+            )
+        if _rows_from_status(status) == 0:
+            raise ValueError(
+                f"No open trade found with id={trade_id!r} (already closed or id not found)"
+            )
+        self._log.info("trade.partial_exit_recorded", trade_id=trade_id, pnl_usd=pnl_usd)
+
     async def update_trade_exit(
         self,
         trade_id: str,
@@ -896,22 +917,22 @@ class TimescaleBackend:
         exit_reason: str,
         fee_usd: float,
     ) -> None:
-        """Patch exit fields on an existing trade row."""
+        """Persist the final fill, accumulating any earlier partial fills."""
         pool = self._require_pool()
         async with pool.acquire() as conn:
             status = await conn.execute(
                 """
                 UPDATE trades
-                SET exit_price=$1, exit_ts=$2, pnl_usd=$3, pnl_pct=$4,
+                SET exit_price=$1, exit_ts=$2,
+                    pnl_usd=COALESCE(pnl_usd, 0.0)+$3,
+                    pnl_pct=(COALESCE(pnl_usd, 0.0)+$4)/notional_usd,
                     exit_reason=$5, fee_usd=fee_usd+$6
                 WHERE id=$7 AND exit_ts IS NULL
                 """,
-                # SCAN2-002 parity: fee_usd+$6 accumulates entry fee + exit fee.
-                # AND exit_ts IS NULL prevents double-exit writes on the same trade.
                 exit_price,
                 exit_ts,
                 pnl_usd,
-                pnl_pct,
+                pnl_usd,
                 exit_reason,
                 fee_usd,
                 trade_id,
@@ -1303,8 +1324,6 @@ class TimescaleBackend:
                   recall_score=EXCLUDED.recall_score,
                   f1_score=EXCLUDED.f1_score,
                   live_gate_pass=EXCLUDED.live_gate_pass,
-                  -- SQLite INSERT OR REPLACE resets created_at; match it so
-                  -- latest_model_metrics orders identically (DAT-007).
                   created_at=(EXTRACT(EPOCH FROM now()) * 1000)::BIGINT
                 """,
                 metrics.model_name,

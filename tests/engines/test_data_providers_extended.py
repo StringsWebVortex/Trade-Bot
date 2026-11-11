@@ -114,8 +114,11 @@ class TestMacroProvider:
         mp = MacroProvider(data_root=tmp_path)
         macro_dir = tmp_path / "macro"
         macro_dir.mkdir()
-        row = {"date": "2026-08-01", "spx_close": 5000.0, "vix_close": 15.0}
-        pd.DataFrame([row]).to_parquet(macro_dir / "2026-08-01.parquet", index=False)
+        from datetime import UTC, datetime
+
+        market_date = datetime.now(UTC).date().isoformat()
+        row = {"date": market_date, "spx_close": 5000.0, "vix_close": 15.0}
+        pd.DataFrame([row]).to_parquet(macro_dir / f"{market_date}.parquet", index=False)
         result = mp.latest()
         assert result is not None
         assert result["spx_close"] == 5000.0
@@ -124,7 +127,9 @@ class TestMacroProvider:
         from src.data.macro_provider import MacroProvider
 
         mp = MacroProvider(data_root=tmp_path)
-        row = {"date": "2026-08-01", "spx_close": 4999.0}
+        from datetime import UTC, datetime
+
+        row = {"date": datetime.now(UTC).date().isoformat(), "spx_close": 4999.0}
         mp._persist(row)
         loaded = mp._load_cached()
         assert loaded is not None
@@ -134,7 +139,9 @@ class TestMacroProvider:
         from src.data.macro_provider import MacroProvider
 
         mp = MacroProvider(data_root=tmp_path)
-        mp._latest = {"date": "2026-08-02", "spx_close": 9999.0}
+        from datetime import UTC, datetime
+
+        mp._latest = {"date": datetime.now(UTC).date().isoformat(), "spx_close": 9999.0}
         assert mp.latest()["spx_close"] == 9999.0  # type: ignore[index]
 
 

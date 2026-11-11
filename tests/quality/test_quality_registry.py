@@ -126,7 +126,11 @@ def expect_error(tmp_path: Path, entries: list[dict], fragment: str, **vocab) ->
 def tree(tmp_path: Path) -> Path:
     """A temporary tree with one real test file and one real module."""
     (tmp_path / "tests" / "risk").mkdir(parents=True)
-    (tmp_path / "tests" / "risk" / "test_limits.py").write_text("", encoding="utf-8")
+    (tmp_path / "tests" / "risk" / "test_limits.py").write_text(
+        "class TestCeiling:\n    def test_at_limit(self):\n        pass\n\n"
+        "def test_a():\n    pass\n\ndef test_b():\n    pass\n",
+        encoding="utf-8",
+    )
     (tmp_path / "src" / "risk").mkdir(parents=True)
     (tmp_path / "src" / "risk" / "gates.py").write_text("", encoding="utf-8")
     return tmp_path

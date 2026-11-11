@@ -52,7 +52,8 @@ def hybrid(query: str, top_k: int = TOP_K) -> list[dict]:
 def graph(entity_names: list[str], limit: int = KG_MAX_SUBGRAPH_TRIPLES) -> list[dict]:
     edges_col = get_edges_collection()
     if not entity_names:
-        return list(edges_col.find({}, {"_id": 0}).limit(limit))
+        # No entities means no grounding; arbitrary edges would mislead the reviewer.
+        return []
     cursor = edges_col.find(
         {"$or": [{"subject": {"$in": entity_names}}, {"object": {"$in": entity_names}}]},
         {"_id": 0},

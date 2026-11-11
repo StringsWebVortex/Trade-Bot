@@ -378,7 +378,7 @@ class TestOKXProvider:
             p._perp, "fetch_funding_rate_history", new=AsyncMock(return_value=history)
         ):
             result = await p._fetch_funding_data()
-        assert result["rate_pct"] == pytest.approx(0.0001)
+        assert result["rate_pct"] == pytest.approx(0.01)
         assert result["zscore"] == 0.0
 
     @pytest.mark.asyncio
@@ -730,4 +730,9 @@ class TestStrategyFilters:
             prob_ranging=0.3,
             prob_volatile=0.1,
         )
-        assert isinstance(result, dict)
+        assert set(result) == {"passes", "scalar", "filters_failed", "details"}
+        assert isinstance(result["passes"], bool)
+        assert 0.0 <= result["scalar"] <= 1.0
+        assert isinstance(result["filters_failed"], list)
+        # The verdict must agree with its own list of failures.
+        assert result["passes"] == (result["filters_failed"] == [])

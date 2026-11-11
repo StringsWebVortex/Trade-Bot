@@ -9,6 +9,7 @@ Sources:
 from __future__ import annotations
 
 import asyncio
+from collections import OrderedDict
 import math
 import xml.etree.ElementTree as ET  # nosec B314 — RSS data from known public feeds only
 from datetime import UTC, datetime
@@ -28,6 +29,8 @@ _RSS_SOURCES = [
 ]
 _FG_POLL_INTERVAL = 3600  # 1 hour
 _RSS_POLL_INTERVAL = 900  # 15 minutes
+_MAX_SEEN_KEYS = 20_000
+_SEEN_FILES = 14
 
 
 class SentimentProvider:
@@ -38,7 +41,38 @@ class SentimentProvider:
         self._fg_score: float = math.nan
         self._fg_label: str = "Unknown"
         self._headlines: list[dict] = []
-        self._seen: set[tuple[str, str]] = set()
+        self._seen: OrderedDict[tuple[str, str], None] = OrderedDict()
+        self._load_seen_keys()
+
+    def _remember_key(self, key: tuple[str, str]) -> bool:
+        if key in self._seen:
+            self._seen.move_to_end(key)
+            return False
+        self._seen[key] = None
+        if len(self._seen) > _MAX_SEEN_KEYS:
+            self._seen.popitem(last=False)
+        return True
+
+    def _load_seen_keys(self) -> None:
+        """Restore recent RSS identities so restarts do not re-ingest old items."""
+        directory = self._data_root / "sentiment"
+        if not directory.exists():
+            return
+        for path in sorted(directory.glob("*.parquet"), reverse=True)[:_SEEN_FILES]:
+            try:
+                frame = pd.read_parquet(path)
+                if frame.empty or "headline" not in frame.columns or "source" not in frame.columns:
+                    continue
+                for row in frame.tail(10_000).to_dict(orient="records"):
+                    headline = str(row.get("headline") or "").strip()
+                    source = str(row.get("source") or "")
+                    if not headline or not source or source == "fear_greed":
+                        continue
+                    guid = str(row.get("guid") or headline).strip()
+                    if guid:
+                        self._remember_key((source, guid))
+            except Exception as exc:
+                log.warning("sentiment_seen_key_restore_failed", path=str(path), exc=str(exc))
 
     # ------------------------------------------------------------------
     # Public interface
@@ -130,9 +164,10 @@ class SentimentProvider:
             # the latest batch repeated (DAT-011).
             fresh = []
             for row in rows:
-                key = (row["source"], row.pop("_key"))
-                if key not in self._seen:
-                    self._seen.add(key)
+                guid = str(row.pop("_key") or row["headline"]).strip()
+                key = (row["source"], guid)
+                if self._remember_key(key):
+                    row["guid"] = guid
                     fresh.append(row)
             rows = fresh
             if rows:

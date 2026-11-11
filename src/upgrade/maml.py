@@ -5,6 +5,9 @@ Model-Agnostic Meta-Learning (Finn et al. 2017) lets the optimizer learn an
 initialization point that can adapt to a new market regime in K gradient steps
 from a handful of examples — critical for crypto's rapid structural breaks.
 
+Note: the inner loop uses ``create_graph=False``, so this is first-order MAML
+(FOMAML), not the second-order variant of the paper.
+
 This module implements:
   - MAMLOptimizer: wraps any nn.Module with inner-loop gradient tracking
   - HorizonMAMLAdapter: applies MAML to h8 and h10 head checkpoints

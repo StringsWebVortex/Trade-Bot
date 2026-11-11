@@ -54,7 +54,7 @@ def test_predict_without_fit_returns_default():
     detector = DepthDetectorV2()
     df = make_feature_df(20)
     pred = detector.predict(df)
-    assert pred.label == "Trending"
+    assert pred.label == "Unknown"
     assert pred.confidence == 0.0
 
 

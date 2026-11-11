@@ -6,6 +6,7 @@ quality-rejection branches are exercised without a live Binance feed.
 
 from __future__ import annotations
 
+import asyncio
 import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -107,6 +108,24 @@ class TestOrderbookFlush:
         assert len(pd.read_parquet(path)) == 3
         assert stream._snapshots == []
 
+    def test_trade_part_write_is_dispatched_to_a_thread(self, tmp_path: Path, monkeypatch) -> None:
+        stream = _stream(tmp_path)
+        stream._trades = [_event()]
+        dispatched: list[str] = []
+
+        async def _to_thread(func, *args):
+            dispatched.append(func.__name__)
+
+        monkeypatch.setattr("src.data.orderbook_stream.asyncio.to_thread", _to_thread)
+
+        async def _run() -> None:
+            stream._schedule_trade_flush()
+            await asyncio.gather(*tuple(stream._pending_io))
+
+        asyncio.run(_run())
+        assert dispatched == ["_write_trade_part"]
+        assert stream._trades == []
+
     def test_a_second_flush_writes_a_new_part_file(self, tmp_path: Path) -> None:
         stream = _stream(tmp_path)
         stream._snapshots = [_snapshot() for _ in range(2)]
@@ -116,6 +135,24 @@ class TestOrderbookFlush:
         parts = list((tmp_path / "orderbook" / "btcusdt").rglob("*.parquet"))
         assert len(parts) == 2  # one part file per flush, no read-modify-write
         assert sum(len(pd.read_parquet(p)) for p in parts) == 5
+
+    def test_orderbook_part_write_is_dispatched_to_a_thread(self, tmp_path: Path, monkeypatch) -> None:
+        stream = _stream(tmp_path)
+        stream._snapshots = [_snapshot()]
+        dispatched: list[str] = []
+
+        async def _to_thread(func, *args):
+            dispatched.append(func.__name__)
+
+        monkeypatch.setattr("src.data.orderbook_stream.asyncio.to_thread", _to_thread)
+
+        async def _run() -> None:
+            stream._schedule_orderbook_flush()
+            await asyncio.gather(*tuple(stream._pending_io))
+
+        asyncio.run(_run())
+        assert dispatched == ["_write_orderbook_part"]
+        assert stream._snapshots == []
 
     def test_latest_mid_survives_a_flush(self, tmp_path: Path) -> None:
         """DAT-008: a flush must not blank latest_mid() until the next message."""

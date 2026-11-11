@@ -169,8 +169,8 @@ class CryptoIntelligence:
         self._orchestrator = WorkerOrchestrator(
             n_workers=self._cfg.get("n_workers", 8),
             btc_rpc_url=btc_rpc.get("url", "http://127.0.0.1:8332"),
-            btc_rpc_user=btc_rpc.get("user", "crypto"),
-            btc_rpc_pass=btc_rpc.get("pass", "crypto"),
+            btc_rpc_user=btc_rpc.get("user", ""),
+            btc_rpc_pass=btc_rpc.get("pass", ""),
             ecc_interval=self._cfg.get("ecc_interval_seconds", 60.0),
             ecc_enabled=bool(self._cfg.get("ecc_enabled", True)),
         )
@@ -497,10 +497,18 @@ class CryptoIntelligence:
         ecc_result = self._collect_ecc()
 
         # Causal layer update
-        if alt_prices and len(next(iter(alt_prices.values()), [])) >= 10:
+        # Skipped without close_history: a fabricated flat series yields all-zero
+        # returns and would feed the Granger model noise (INT-035).
+        close_history = ohlcv.get("close_history")
+        if (
+            close_history is not None
+            and len(close_history) >= 11
+            and alt_prices
+            and len(next(iter(alt_prices.values()), [])) >= 10
+        ):
             import numpy as np
 
-            btc_ret = np.diff(np.log(np.array(ohlcv.get("close_history", [price] * 11))))
+            btc_ret = np.diff(np.log(np.array(close_history)))
             self._granger.update(btc_ret, alt_prices)
 
         # --- Submit inference tasks ---
@@ -528,6 +536,10 @@ class CryptoIntelligence:
         # and volume are present on every persisted OHLCV event; optional
         # provider fields remain in the durable raw observation below rather
         # than appearing and disappearing from the model vector.
+        # KNOWN LIMITATION (INT-034): raw price/volume are level features, so the
+        # regressor can track price level rather than return structure. Moving to
+        # returns/normalised microstructure needs a new fixed train/serve schema
+        # and retraining, so it is deliberately not changed here.
         model_features = {"price": price, "volume": volume}
 
         # Use provider event time only. When a caller cannot supply source

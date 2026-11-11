@@ -3,7 +3,8 @@
 Each test names the finding it decides. They fail against the pre-fix code:
 the failure mode is stated in the docstring so deleting one loses something.
 
-Decides: REG-1320, REG-1321, REG-1322, REG-1323, REG-1324, REG-1325, REG-1326, REG-1327, REG-1328, REG-1329, REG-1330
+Decides: REG-1320, REG-1321, REG-1322, REG-1323, REG-1324, REG-1325,
+REG-1326, REG-1327, REG-1328, REG-1329, REG-1330
 """
 
 from __future__ import annotations
@@ -229,7 +230,8 @@ def test_macro_cache_ignores_files_older_than_the_stale_limit_dat010(tmp_path: P
 # ---------------------------------------------------------------------------
 
 _RSS = """<?xml version="1.0"?><rss><channel>
-<item><title>Bitcoin up</title><guid>g1</guid><pubDate>Mon, 06 Jan 2020 10:00:00 GMT</pubDate></item>
+<item><title>Bitcoin up</title><guid>g1</guid>
+<pubDate>Mon, 06 Jan 2020 10:00:00 GMT</pubDate></item>
 <item><title>Ether flat</title><guid>g2</guid></item>
 </channel></rss>"""
 
@@ -457,3 +459,118 @@ def test_sentiment_cache_not_published_before_fear_greed_fetch_dat017(tmp_path: 
     with patch("src.data.provider_cache.get_provider_cache") as get_cache:
         p._update_cache()
     get_cache.return_value.set_sentiment.assert_not_called()
+
+
+# Additional integrity and numerical checks from the reconciliation review.
+
+def test_depth_v2_untrained_prediction_is_unknown_not_a_fabricated_trend() -> None:
+    from src.engines.consensus import REGIME_WEIGHTS
+    from src.regime.depth_detector_v2 import DepthDetectorV2
+
+    prediction = DepthDetectorV2().predict(pd.DataFrame())
+    assert prediction.label == "Unknown"
+    assert prediction.confidence == 0.0
+    assert prediction.weight_vector == REGIME_WEIGHTS["Transition"]
+
+
+def test_depth_v2_specialist_labels_require_supporting_feature_evidence() -> None:
+    from src.regime.depth_detector_v2 import FEATURE_COLS_V2, DepthDetectorV2
+
+    class _Model:
+        covariance_type = "full"
+        covars_ = np.repeat(np.eye(len(FEATURE_COLS_V2))[None, :, :], 9, axis=0)
+
+        @staticmethod
+        def predict(_values: np.ndarray) -> np.ndarray:
+            return np.repeat(np.arange(9), 10)
+
+    labels = DepthDetectorV2()._assign_labels(
+        _Model(), np.zeros((90, len(FEATURE_COLS_V2))), list(FEATURE_COLS_V2)
+    )
+    unsupported = {
+        "Accumulation", "OptionsDriven", "MacroDominated", "LiquidityCrisis", "Capitulation"
+    }
+    assert not (set(labels.values()) & unsupported)
+
+
+def test_garch_vectorised_variance_path_matches_reference_recursion() -> None:
+    from src.regime.garch import _conditional_variance_path
+
+    returns = np.array([0.01, -0.02, 0.015, 0.004, -0.008], dtype=float)
+    omega, alpha, beta, initial = 0.01, 0.1, 0.8, 0.5
+    expected = np.empty(len(returns))
+    expected[0] = initial
+    for index in range(1, len(returns)):
+        expected[index] = omega + alpha * returns[index - 1] ** 2 + beta * expected[index - 1]
+    actual = _conditional_variance_path(returns, omega, alpha, beta, initial)
+    np.testing.assert_allclose(actual, expected, rtol=1e-12, atol=1e-12)
+
+
+# DAT-008 follow-up: blocking parquet persistence is kept off the event loop.
+
+def _json_session(payload: dict) -> MagicMock:
+    response = MagicMock()
+    response.json = AsyncMock(return_value=payload)
+    response.__aenter__ = AsyncMock(return_value=response)
+    response.__aexit__ = AsyncMock(return_value=False)
+    session = MagicMock()
+    session.get = MagicMock(return_value=response)
+    session.__aenter__ = AsyncMock(return_value=session)
+    session.__aexit__ = AsyncMock(return_value=False)
+    return session
+
+
+def test_sentiment_persistence_runs_in_thread_dat008(tmp_path: Path) -> None:
+    from src.data.sentiment_provider import SentimentProvider
+
+    provider = SentimentProvider(data_root=tmp_path)
+    persist = MagicMock()
+    provider._persist_fg = persist
+    provider._update_cache = MagicMock()
+    dispatched: list[object] = []
+
+    async def _to_thread(func, *args):
+        dispatched.append(func)
+        return None
+
+    async def _run() -> None:
+        with (
+            patch("aiohttp.ClientSession", return_value=_json_session(
+                {"data": [{"value": "60", "value_classification": "Greed"}]}
+            )),
+            patch("src.data.sentiment_provider.asyncio.to_thread", new=_to_thread),
+        ):
+            await provider._fetch_fg()
+
+    asyncio.run(_run())
+    assert dispatched == [persist]
+
+
+def test_exchange_flow_persistence_runs_in_thread_dat008(tmp_path: Path) -> None:
+    from src.data.exchange_flow_provider import ExchangeFlowProvider
+
+    provider = ExchangeFlowProvider(data_root=tmp_path)
+    persist = MagicMock()
+    provider._persist = persist
+    provider._update_cache = MagicMock()
+    dispatched: list[object] = []
+
+    async def _to_thread(func, *args):
+        dispatched.append(func)
+        return None
+
+    payload = {
+        "cexs": [
+            {"name": "Binance", "inflows_24h": 5_000.0, "currentTvl": 100_000.0}
+        ]
+    }
+
+    async def _run() -> None:
+        with (
+            patch("aiohttp.ClientSession", return_value=_json_session(payload)),
+            patch("src.data.exchange_flow_provider.asyncio.to_thread", new=_to_thread),
+        ):
+            await provider._fetch()
+
+    asyncio.run(_run())
+    assert dispatched == [persist]
