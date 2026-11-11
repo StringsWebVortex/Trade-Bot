@@ -354,3 +354,39 @@ def test_short_hmac_key_fails_closed(monkeypatch):
     monkeypatch.setenv("PAPER_QUALIFICATION_HMAC_KEY", "short")
     with pytest.raises(NotQualifiedError, match="at least 32 bytes"):
         save_qualification(evaluate(PASSING))
+
+
+def test_criterion_shortfall_and_qualified_report_cover_both_directions():
+    higher = Criterion("sharpe", 1.0, True, "evidence-based higher-is-better threshold")
+    lower = Criterion("drawdown", 0.2, False, "evidence-based lower-is-better threshold")
+    assert higher.shortfall(0.8) == pytest.approx(0.2)
+    assert lower.shortfall(0.3) == pytest.approx(0.1)
+    assert evaluate(PASSING).report() == "qualified: every criterion passed"
+
+
+def test_a_non_object_qualification_file_is_refused(tmp_path):
+    path = tmp_path / "qualification.json"
+    path.write_text(json.dumps(["not", "an", "object"]))
+    with pytest.raises(NotQualifiedError, match="not an object"):
+        load_qualification(path)
+
+
+def test_a_naive_qualification_timestamp_is_interpreted_as_utc(tmp_path):
+    from datetime import datetime
+
+    path = tmp_path / "qualification.json"
+    save_qualification(evaluate(PASSING), path)
+    stored = json.loads(path.read_text())
+    stored["qualified_at"] = datetime.now().replace(tzinfo=None).isoformat()
+    _resign(path, stored)
+    assert_qualified_for_live(path)
+
+
+def test_an_invalid_qualification_timestamp_is_refused(tmp_path):
+    path = tmp_path / "qualification.json"
+    save_qualification(evaluate(PASSING), path)
+    stored = json.loads(path.read_text())
+    stored["qualified_at"] = "not-a-timestamp"
+    _resign(path, stored)
+    with pytest.raises(NotQualifiedError, match="no valid qualified_at"):
+        assert_qualified_for_live(path)
