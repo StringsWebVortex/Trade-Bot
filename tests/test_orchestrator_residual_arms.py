@@ -429,6 +429,4 @@ def test_capital_floor_status_and_reauthorization_cover_absent_and_present_floor
     assert orch.re_authorize_capital_floor("missing", "alice", "reviewed", 123) is False
     assert orch.re_authorize_capital_floor("1m", "alice", "reviewed", 123) is False
     assert orch.re_authorize_capital_floor("15m", "alice", "reviewed", 123) is True
-    floor.re_authorize.assert_called_once_with(
-        authorized_by="alice", reason="reviewed", at_ms=123
-    )
+    floor.re_authorize.assert_called_once_with(authorized_by="alice", reason="reviewed", at_ms=123)
