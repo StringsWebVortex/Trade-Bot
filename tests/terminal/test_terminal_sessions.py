@@ -499,7 +499,7 @@ class TestRemainingSessionEdges:
 
     async def test_close_signals_an_active_foreground_group(self, harness):
         session = await harness.shell()
-        await harness.type(session.id, "sleep 30\\r")
+        await harness.type(session.id, "sleep 30\r")
         await wait_sleeping(harness, session)
         await harness.manager.close(session.id)
         assert session.id not in {item.id for item in harness.manager.sessions()}
