@@ -10,8 +10,9 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pandas as pd
 import pytest
@@ -70,6 +71,8 @@ class TestDepthHandling:
     def test_the_buffer_flushes_at_a_thousand_snapshots(self, tmp_path: Path) -> None:
         stream = _stream(tmp_path)
         stream._snapshots = [_snapshot() for _ in range(999)]
+        # Force the rate-limit branch; reaching 1,000 buffered rows still flushes.
+        stream._last_publish = time.monotonic()
         stream._handle_depth(_depth())
         assert stream._snapshots == []
         assert list((tmp_path / "orderbook" / "btcusdt").rglob("*.parquet"))
@@ -316,3 +319,128 @@ class TestStreamLoops:
         assert stream._running is False
         depth.assert_awaited_once()
         trades.assert_awaited_once()
+
+
+class TestFlushFailureAndShutdown:
+    def test_empty_scheduled_flushes_are_noops(self, tmp_path: Path) -> None:
+        stream = _stream(tmp_path)
+        stream._schedule_orderbook_flush()
+        stream._schedule_trade_flush()
+        stream._write_orderbook_part([], 1)
+        stream._write_trade_part([], 2)
+        assert stream._pending_io == set()
+
+    def test_sync_trade_schedule_falls_back_to_direct_flush(self, tmp_path: Path) -> None:
+        stream = _stream(tmp_path)
+        stream._trades = [_event()]
+        with patch.object(stream, "_write_trade_part") as write:
+            stream._schedule_trade_flush()
+        write.assert_called_once()
+        assert stream._trades == []
+
+    def test_sync_orderbook_flush_requeues_on_disk_error(self, tmp_path: Path) -> None:
+        stream = _stream(tmp_path)
+        batch = [_snapshot()]
+        stream._snapshots = batch.copy()
+        with patch.object(stream, "_write_orderbook_part", side_effect=OSError("disk")):
+            with pytest.raises(OSError, match="disk"):
+                stream._flush_orderbook()
+        assert stream._snapshots == batch
+
+    def test_sync_trade_flush_requeues_on_disk_error(self, tmp_path: Path) -> None:
+        stream = _stream(tmp_path)
+        batch = [_event()]
+        stream._trades = batch.copy()
+        with patch.object(stream, "_write_trade_part", side_effect=OSError("disk")):
+            with pytest.raises(OSError, match="disk"):
+                stream._flush_trades()
+        assert stream._trades == batch
+
+    @pytest.mark.asyncio
+    async def test_start_drains_pending_io_and_flushes_both_buffers(self, tmp_path: Path) -> None:
+        stream = _stream(tmp_path)
+        stream._snapshots = [_snapshot()]
+        stream._trades = [_event()]
+        drained = asyncio.Event()
+
+        async def _pending() -> None:
+            drained.set()
+
+        stream._pending_io.add(asyncio.create_task(_pending()))
+        with (
+            patch.object(stream, "_stream_depth", new=AsyncMock()),
+            patch.object(stream, "_stream_trades", new=AsyncMock()),
+        ):
+            await stream.start()
+
+        assert drained.is_set()
+        assert stream._snapshots == []
+        assert stream._trades == []
+        assert list((tmp_path / "orderbook" / "btcusdt").rglob("*.parquet"))
+        assert list((tmp_path / "trades" / "btcusdt").rglob("*.parquet"))
+
+    @pytest.mark.asyncio
+    async def test_start_restores_orderbook_buffer_when_shutdown_flush_fails(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
+        stream = _stream(tmp_path)
+        batch = [_snapshot()]
+        stream._snapshots = batch.copy()
+
+        async def _fail_to_thread(*_args):
+            raise OSError("disk full")
+
+        monkeypatch.setattr("src.data.orderbook_stream.asyncio.to_thread", _fail_to_thread)
+        with (
+            patch.object(stream, "_stream_depth", new=AsyncMock()),
+            patch.object(stream, "_stream_trades", new=AsyncMock()),
+            pytest.raises(OSError, match="disk full"),
+        ):
+            await stream.start()
+        assert stream._snapshots == batch
+
+    @pytest.mark.asyncio
+    async def test_start_restores_trade_buffer_when_shutdown_flush_fails(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
+        stream = _stream(tmp_path)
+        batch = [_event()]
+        stream._trades = batch.copy()
+
+        async def _fail_to_thread(*_args):
+            raise OSError("disk full")
+
+        monkeypatch.setattr("src.data.orderbook_stream.asyncio.to_thread", _fail_to_thread)
+        with (
+            patch.object(stream, "_stream_depth", new=AsyncMock()),
+            patch.object(stream, "_stream_trades", new=AsyncMock()),
+            pytest.raises(OSError, match="disk full"),
+        ):
+            await stream.start()
+        assert stream._trades == batch
+
+    @pytest.mark.asyncio
+    async def test_async_flush_failure_restores_both_buffers(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
+        stream = _stream(tmp_path)
+        snapshots = [_snapshot()]
+        trades = [_event()]
+        stream._snapshots = snapshots.copy()
+        stream._trades = trades.copy()
+
+        async def _fail_to_thread(*_args):
+            raise OSError("disk full")
+
+        monkeypatch.setattr("src.data.orderbook_stream.asyncio.to_thread", _fail_to_thread)
+
+        async def _run() -> None:
+            stream._schedule_orderbook_flush()
+            stream._schedule_trade_flush()
+            await asyncio.gather(*tuple(stream._pending_io), return_exceptions=True)
+            await asyncio.sleep(0)
+
+        await _run()
+        assert stream._snapshots == snapshots
+        assert stream._trades == trades
+        assert stream._pending_io == set()

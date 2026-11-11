@@ -20,6 +20,7 @@ from src.regime.depth_detector_v2 import (
     DepthDetectorV2,
     _compute_adx,
     _compute_bb_width,
+    build_v2_features_from_engine_outputs,
 )
 
 
@@ -160,3 +161,118 @@ def test_compute_bb_width_normal_series_is_positive():
 def test_compute_bb_width_flat_series_is_zero():
     close = pd.Series([100.0] * 60)
     assert _compute_bb_width(close) == 0.0
+
+
+def test_predict_with_missing_trained_feature_returns_unknown() -> None:
+    detector = DepthDetectorV2()
+    detector._model = MagicMock()
+    detector._scaler = MagicMock()
+    detector._feature_cols = ["e01_confidence"]
+    pred = detector.predict(pd.DataFrame({"unrelated": [1.0]}))
+    assert pred.label == "Unknown"
+    assert pred.confidence == 0.0
+
+
+def test_predict_with_expected_but_empty_feature_column_returns_unknown() -> None:
+    detector = DepthDetectorV2()
+    detector._model = MagicMock()
+    detector._scaler = MagicMock()
+    detector._feature_cols = ["adx_14"]
+    pred = detector.predict(pd.DataFrame({"adx_14": []}))
+    assert pred.label == "Unknown"
+    assert pred.confidence == 0.0
+
+
+def test_load_rejects_invalid_label_metadata(tmp_path: Path) -> None:
+    from unittest.mock import patch
+
+    import joblib
+
+    detector = DepthDetectorV2()
+    stem = detector._model_stem()
+    names = (
+        f"{stem}_hmm9.pkl",
+        f"{stem}_scaler9.pkl",
+        f"{stem}_labels9.pkl",
+        f"{stem}_features9.pkl",
+    )
+    for name in names:
+        (tmp_path / name).touch()
+    with (
+        patch("src.regime.detector._verify_manifest"),
+        patch.object(
+            joblib, "load", side_effect=[MagicMock(), MagicMock(), [], list(FEATURE_COLS_V2)]
+        ),
+    ):
+        assert detector.load(tmp_path) is False
+
+
+def test_assign_labels_uses_broad_fallback_for_low_confidence_rows() -> None:
+    detector = DepthDetectorV2()
+    covars = np.array([np.eye(12) * (i + 1) for i in range(9)])
+    model = _fake_hmm("full", covars)
+    model.predict_proba.return_value = np.full((90, 9), 1.0 / 9.0)
+    labels = detector._assign_labels(model, np.zeros((90, 12)), list(FEATURE_COLS_V2))
+    assert len(labels) == 9
+    assert labels[0] == "Ranging"
+    assert labels[8] == "Volatile"
+    assert set(labels.values()).issubset({"Ranging", "Transition", "Volatile"})
+
+
+def test_assign_labels_requires_expected_posterior_shape() -> None:
+    detector = DepthDetectorV2()
+    covars = np.array([np.eye(12) * (i + 1) for i in range(9)])
+    model = _fake_hmm("full", covars)
+    model.predict_proba.return_value = np.ones((1, 9))
+    with pytest.raises(ValueError, match="unexpected shape"):
+        detector._assign_labels(model, np.zeros((90, 12)), list(FEATURE_COLS_V2))
+
+
+def test_assign_labels_emits_specialist_labels_only_with_feature_evidence() -> None:
+    detector = DepthDetectorV2()
+    covars = np.array([np.eye(12) * (i + 1) for i in range(9)])
+    model = _fake_hmm("full", covars)
+    model.predict_proba.return_value = np.eye(9)[np.repeat(np.arange(9), 5)]
+    matrix = np.zeros((45, len(FEATURE_COLS_V2)))
+    columns = {name: index for index, name in enumerate(FEATURE_COLS_V2)}
+
+    def evidence(state: int, feature: str, value: float) -> None:
+        matrix[state * 5 : (state + 1) * 5, columns[feature]] = value
+
+    evidence(0, "e05_net_flow", -1.0)
+    evidence(0, "e14_contrarian_signal", 1.0)
+    evidence(0, "e17_amihud_ratio", 0.8)
+    evidence(1, "e17_amihud_ratio", 1.0)
+    evidence(2, "e13_contagion_score", 1.0)
+    evidence(3, "e12_gex", 1.0)
+    evidence(4, "e05_net_flow", 1.0)
+    evidence(5, "adx_14", 1.0)
+    evidence(6, "e03_entropy_score", 1.0)
+
+    labels = detector._assign_labels(model, matrix, list(FEATURE_COLS_V2))
+    assert labels[0] == "Capitulation"
+    assert labels[1] == "LiquidityCrisis"
+    assert labels[2] == "MacroDominated"
+    assert labels[3] == "OptionsDriven"
+    assert labels[4] == "Accumulation"
+    assert labels[5] == "Trending"
+    assert labels[6] == "Transition"
+
+
+def test_build_features_reads_e01_confidence_metadata() -> None:
+    from datetime import UTC, datetime
+
+    from src.engines.schema import EngineOutput
+
+    output = EngineOutput(
+        engine_id="E-01",
+        symbol="BTC/USDT",
+        timestamp_utc=datetime.now(UTC),
+        predicted_price=50_000.0,
+        confidence=0.73,
+        direction=1,
+        horizon_hours=4,
+        metadata={},
+    )
+    frame = build_v2_features_from_engine_outputs({"E-01": output})
+    assert frame["e01_confidence"].iloc[0] == pytest.approx(0.73)
