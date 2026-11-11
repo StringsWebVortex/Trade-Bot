@@ -71,11 +71,6 @@ class OrderbookStream:
     # When the last depth message landed, on the monotonic clock. Drives the
     # staleness test in latest_mid; None until the first message arrives.
     _last_depth_at: float | None = field(default=None, repr=False)
-    # Survives a flush (which clears _snapshots) so latest_mid() does not go
-    # None right after each flush (DAT-008).
-    _last_snapshot: OrderbookSnapshot | None = field(default=None, repr=False)
-    _flush_seq: int = field(default=0, repr=False)
-    _pending_io: set[asyncio.Task[None]] = field(default_factory=set, repr=False)
 
     # ------------------------------------------------------------------
     # Public interface
@@ -83,39 +78,17 @@ class OrderbookStream:
 
     async def start(self) -> None:
         self._running = True
-        try:
-            await asyncio.gather(
-                self._stream_depth(),
-                self._stream_trades(),
-                return_exceptions=True,
-            )
-        finally:
-            self._running = False
-            if self._pending_io:
-                await asyncio.gather(*tuple(self._pending_io), return_exceptions=True)
-            # Flush residual buffers off the event loop after both sockets stop.
-            if self._snapshots:
-                batch, seq = self._take_orderbook_batch()
-                try:
-                    await asyncio.to_thread(self._write_orderbook_part, batch, seq)
-                except Exception:
-                    self._snapshots = batch + self._snapshots
-                    log.exception("orderbook_shutdown_flush_failed", symbol=self.symbol)
-                    raise
-            if self._trades:
-                batch, seq = self._take_trade_batch()
-                try:
-                    await asyncio.to_thread(self._write_trade_part, batch, seq)
-                except Exception:
-                    self._trades = batch + self._trades
-                    log.exception("trade_shutdown_flush_failed", symbol=self.symbol)
-                    raise
+        await asyncio.gather(
+            self._stream_depth(),
+            self._stream_trades(),
+            return_exceptions=True,
+        )
 
     def stop(self) -> None:
         self._running = False
 
     def latest_snapshot(self) -> OrderbookSnapshot | None:
-        return self._snapshots[-1] if self._snapshots else self._last_snapshot
+        return self._snapshots[-1] if self._snapshots else None
 
     def latest_mid(self, max_age_s: float = 10.0) -> float | None:
         """
@@ -182,7 +155,6 @@ class OrderbookStream:
             spread_bps=spread_bps,
         )
         self._snapshots.append(snap)
-        self._last_snapshot = snap
         now_mono = time.monotonic()
         self._last_depth_at = now_mono
 
@@ -194,7 +166,7 @@ class OrderbookStream:
         # unreferenced. Wiring it into the runtime is what makes the cost real.
         if now_mono - self._last_publish < self.publish_interval_s:
             if len(self._snapshots) >= 1000:
-                self._schedule_orderbook_flush()
+                self._flush_orderbook()
             return
         self._last_publish = now_mono
 
@@ -242,31 +214,11 @@ class OrderbookStream:
         ]
         return pd.DataFrame(rows)
 
-    def _take_orderbook_batch(self) -> tuple[list[OrderbookSnapshot], int]:
-        batch, self._snapshots = self._snapshots, []
-        self._flush_seq += 1
-        return batch, self._flush_seq
-
-    def _schedule_orderbook_flush(self) -> None:
+    def _flush_orderbook(self) -> None:
         if not self._snapshots:
             return
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            self._flush_orderbook()
-            return
-        batch, seq = self._take_orderbook_batch()
-        task = loop.create_task(asyncio.to_thread(self._write_orderbook_part, batch, seq))
-        self._track_flush(task, "orderbook", batch)
-
-    def _write_orderbook_part(self, batch: list[OrderbookSnapshot], seq: int) -> None:
-        if not batch:
-            return
         date_str = datetime.now(UTC).strftime("%Y-%m-%d")
-        path = (
-            self.data_root / "orderbook" / self.symbol / date_str
-            / f"{time.time_ns()}-{seq}.parquet"
-        )
+        path = self.data_root / "orderbook" / self.symbol / f"{date_str}.parquet"
         path.parent.mkdir(parents=True, exist_ok=True)
         rows = [
             {
@@ -276,19 +228,14 @@ class OrderbookStream:
                 "mid": s.mid,
                 "spread_bps": s.spread_bps,
             }
-            for s in batch
+            for s in self._snapshots
         ]
-        pd.DataFrame(rows).to_parquet(path, index=False)
-
-    def _flush_orderbook(self) -> None:
-        if not self._snapshots:
-            return
-        batch, seq = self._take_orderbook_batch()
-        try:
-            self._write_orderbook_part(batch, seq)
-        except Exception:
-            self._snapshots = batch + self._snapshots
-            raise
+        df = pd.DataFrame(rows)
+        if path.exists():
+            existing = pd.read_parquet(path)
+            df = pd.concat([existing, df], ignore_index=True)
+        df.to_parquet(path, index=False)
+        self._snapshots.clear()
 
     # ------------------------------------------------------------------
     # Trade stream
@@ -318,33 +265,13 @@ class OrderbookStream:
         )
         self._trades.append(evt)
         if len(self._trades) >= 5000:
-            self._schedule_trade_flush()
+            self._flush_trades()
 
-    def _take_trade_batch(self) -> tuple[list[TradeEvent], int]:
-        batch, self._trades = self._trades, []
-        self._flush_seq += 1
-        return batch, self._flush_seq
-
-    def _schedule_trade_flush(self) -> None:
+    def _flush_trades(self) -> None:
         if not self._trades:
             return
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            self._flush_trades()
-            return
-        batch, seq = self._take_trade_batch()
-        task = loop.create_task(asyncio.to_thread(self._write_trade_part, batch, seq))
-        self._track_flush(task, "trades", batch)
-
-    def _write_trade_part(self, batch: list[TradeEvent], seq: int) -> None:
-        if not batch:
-            return
         date_str = datetime.now(UTC).strftime("%Y-%m-%d")
-        path = (
-            self.data_root / "trades" / self.symbol / date_str
-            / f"{time.time_ns()}-{seq}.parquet"
-        )
+        path = self.data_root / "trades" / self.symbol / f"{date_str}.parquet"
         path.parent.mkdir(parents=True, exist_ok=True)
         rows = [
             {
@@ -353,37 +280,11 @@ class OrderbookStream:
                 "qty": t.qty,
                 "is_buyer_maker": t.is_buyer_maker,
             }
-            for t in batch
+            for t in self._trades
         ]
-        pd.DataFrame(rows).to_parquet(path, index=False)
-
-    def _flush_trades(self) -> None:
-        if not self._trades:
-            return
-        batch, seq = self._take_trade_batch()
-        try:
-            self._write_trade_part(batch, seq)
-        except Exception:
-            self._trades = batch + self._trades
-            raise
-
-    def _track_flush(self, task: asyncio.Task[None], kind: str, batch: list[Any]) -> None:
-        self._pending_io.add(task)
-
-        def _finished(done: asyncio.Task[None]) -> None:
-            self._pending_io.discard(done)
-            try:
-                done.result()
-            except Exception as exc:
-                if kind == "orderbook":
-                    self._snapshots = batch + self._snapshots
-                else:
-                    self._trades = batch + self._trades
-                log.error(
-                    "market_data_part_write_failed",
-                    kind=kind,
-                    symbol=self.symbol,
-                    exc=str(exc),
-                )
-
-        task.add_done_callback(_finished)
+        df = pd.DataFrame(rows)
+        if path.exists():
+            existing = pd.read_parquet(path)
+            df = pd.concat([existing, df], ignore_index=True)
+        df.to_parquet(path, index=False)
+        self._trades.clear()
