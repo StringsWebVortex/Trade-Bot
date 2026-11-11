@@ -264,7 +264,10 @@ class OrderbookStream:
             return
         date_str = datetime.now(UTC).strftime("%Y-%m-%d")
         path = (
-            self.data_root / "orderbook" / self.symbol / date_str
+            self.data_root
+            / "orderbook"
+            / self.symbol
+            / date_str
             / f"{time.time_ns()}-{seq}.parquet"
         )
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -342,8 +345,7 @@ class OrderbookStream:
             return
         date_str = datetime.now(UTC).strftime("%Y-%m-%d")
         path = (
-            self.data_root / "trades" / self.symbol / date_str
-            / f"{time.time_ns()}-{seq}.parquet"
+            self.data_root / "trades" / self.symbol / date_str / f"{time.time_ns()}-{seq}.parquet"
         )
         path.parent.mkdir(parents=True, exist_ok=True)
         rows = [

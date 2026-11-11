@@ -70,7 +70,7 @@ def _fake_hmm(covariance_type: str, covars, means=None) -> MagicMock:
     model.covariance_type = covariance_type
     model.covars_ = covars
     model.means_ = means if means is not None else np.zeros((9, 3))
-    model.predict.return_value = np.repeat(np.arange(9), 10)
+    model.predict_proba.return_value = np.eye(9)[np.repeat(np.arange(9), 10)]
     return model
 
 
@@ -84,7 +84,11 @@ def test_assign_labels_full_covariance_ranks_by_trace():
     assert labels[0] == "Ranging"
     assert labels[8] == "Volatile"
     specialist_labels = {
-        "Accumulation", "OptionsDriven", "MacroDominated", "LiquidityCrisis", "Capitulation"
+        "Accumulation",
+        "OptionsDriven",
+        "MacroDominated",
+        "LiquidityCrisis",
+        "Capitulation",
     }
     assert not set(labels.values()).intersection(specialist_labels)
 
@@ -98,7 +102,11 @@ def test_assign_labels_diag_covariance_uses_sum():
     assert len(labels) == 9
     assert labels[0] == "Ranging"
     specialist_labels = {
-        "Accumulation", "OptionsDriven", "MacroDominated", "LiquidityCrisis", "Capitulation"
+        "Accumulation",
+        "OptionsDriven",
+        "MacroDominated",
+        "LiquidityCrisis",
+        "Capitulation",
     }
     assert not set(labels.values()).intersection(specialist_labels)
 

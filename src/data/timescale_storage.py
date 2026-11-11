@@ -655,9 +655,7 @@ class TimescaleBackend:
         col_list = ", ".join(_INTEL_COLUMNS)
         v6_list = ", ".join(INTELLIGENCE_V6_KEYS)
         placeholders = ", ".join(f"${i}" for i in range(1, len(values) + 1))
-        update_cols = [
-            "fetched_at", *_INTEL_COLUMNS, "confidence", "source", *INTELLIGENCE_V6_KEYS
-        ]
+        update_cols = ["fetched_at", *_INTEL_COLUMNS, "confidence", "source", *INTELLIGENCE_V6_KEYS]
         update_set = ", ".join(f"{column}=EXCLUDED.{column}" for column in update_cols)
         async with pool.acquire() as conn:
             await conn.execute(  # nosemgrep: no-fstring-sql — columns are fixed module constants

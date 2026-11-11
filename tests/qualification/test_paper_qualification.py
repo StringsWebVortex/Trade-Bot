@@ -56,7 +56,9 @@ PASSING = PaperRecord(
 
 @pytest.fixture(autouse=True)
 def _hmac_key(monkeypatch):
-    monkeypatch.setenv("PAPER_QUALIFICATION_HMAC_KEY", "unit-test-key-for-paper-qualification-32-byte-minimum")
+    monkeypatch.setenv(
+        "PAPER_QUALIFICATION_HMAC_KEY", "unit-test-key-for-paper-qualification-32-byte-minimum"
+    )
 
 
 def _resign(path, stored):

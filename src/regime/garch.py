@@ -91,9 +91,7 @@ def _conditional_variance_path(
         return variance
     long_run = omega / (1.0 - beta)
     deviation = variance[0] - long_run
-    filtered, _ = lfilter(
-        [alpha], [1.0, -beta], returns[:-1] ** 2, zi=[beta * deviation]
-    )
+    filtered, _ = lfilter([alpha], [1.0, -beta], returns[:-1] ** 2, zi=[beta * deviation])
     variance[1:] = long_run + filtered
     return np.maximum(variance, 1e-12)
 

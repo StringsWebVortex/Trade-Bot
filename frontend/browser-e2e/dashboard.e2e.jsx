@@ -72,6 +72,7 @@ vi.mock('../src/hooks/useApi.js', () => {
     postJson: emptyAction,
     reconnectDelay: () => 500,
     setSessionApiKey: () => {},
+    setErrorNotifier: () => {},
     useStalePolls: () => [],
     useWebSocket: () => ({ connected: true, lagMs: 35 }),
     useStream: () => [],

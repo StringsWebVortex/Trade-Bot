@@ -5,6 +5,8 @@ stand-ins, and signal.signal is patched because the worker installs a SIGTERM
 handler that would otherwise leak into the test session.
 
 Decides: REG-1222, REG-1223
+
+Decides: REG-1230
 """
 
 from __future__ import annotations

@@ -194,19 +194,25 @@ def _yf(frame: pd.DataFrame) -> MagicMock:
 def test_macro_date_is_last_market_date_not_fetch_date_dat010(tmp_path: Path) -> None:
     from src.data.macro_provider import MacroProvider
 
-    idx = pd.date_range("2020-01-01", periods=3, freq="D")
+    market_day = pd.Timestamp.now(tz="UTC").normalize() - pd.Timedelta(days=1)
+    while market_day.weekday() >= 5:
+        market_day -= pd.Timedelta(days=1)
+    idx = pd.date_range(end=market_day, periods=3, freq="D")
     frame = pd.DataFrame({"Close": [100.0, 101.0, 102.0]}, index=idx)
     with patch.dict("sys.modules", {"yfinance": _yf(frame)}):
         row = MacroProvider(data_root=tmp_path)._fetch_sync()
     assert row is not None
-    assert row["date"] == "2020-01-03"
+    assert row["date"] == idx[-1].date().isoformat()
 
 
 def test_macro_one_column_close_frame_is_squeezed_dat010(tmp_path: Path) -> None:
     """Newer yfinance returns Close as a one-column frame (MultiIndex)."""
     from src.data.macro_provider import MacroProvider
 
-    idx = pd.date_range("2024-01-01", periods=4, freq="D")
+    market_day = pd.Timestamp.now(tz="UTC").normalize() - pd.Timedelta(days=1)
+    while market_day.weekday() >= 5:
+        market_day -= pd.Timedelta(days=1)
+    idx = pd.date_range(end=market_day, periods=4, freq="D")
     cols = pd.MultiIndex.from_tuples([("Close", "^GSPC")])
     frame = pd.DataFrame([[100.0], [101.0], [102.0], [103.0]], index=idx, columns=cols)
     with patch.dict("sys.modules", {"yfinance": _yf(frame)}):
@@ -463,6 +469,7 @@ def test_sentiment_cache_not_published_before_fear_greed_fetch_dat017(tmp_path: 
 
 # Additional integrity and numerical checks from the reconciliation review.
 
+
 def test_depth_v2_untrained_prediction_is_unknown_not_a_fabricated_trend() -> None:
     from src.engines.consensus import REGIME_WEIGHTS
     from src.regime.depth_detector_v2 import DepthDetectorV2
@@ -481,14 +488,18 @@ def test_depth_v2_specialist_labels_require_supporting_feature_evidence() -> Non
         covars_ = np.repeat(np.eye(len(FEATURE_COLS_V2))[None, :, :], 9, axis=0)
 
         @staticmethod
-        def predict(_values: np.ndarray) -> np.ndarray:
-            return np.repeat(np.arange(9), 10)
+        def predict_proba(_values: np.ndarray) -> np.ndarray:
+            return np.eye(9)[np.repeat(np.arange(9), 10)]
 
     labels = DepthDetectorV2()._assign_labels(
         _Model(), np.zeros((90, len(FEATURE_COLS_V2))), list(FEATURE_COLS_V2)
     )
     unsupported = {
-        "Accumulation", "OptionsDriven", "MacroDominated", "LiquidityCrisis", "Capitulation"
+        "Accumulation",
+        "OptionsDriven",
+        "MacroDominated",
+        "LiquidityCrisis",
+        "Capitulation",
     }
     assert not (set(labels.values()) & unsupported)
 
@@ -507,6 +518,7 @@ def test_garch_vectorised_variance_path_matches_reference_recursion() -> None:
 
 
 # DAT-008 follow-up: blocking parquet persistence is kept off the event loop.
+
 
 def _json_session(payload: dict) -> MagicMock:
     response = MagicMock()
@@ -535,9 +547,12 @@ def test_sentiment_persistence_runs_in_thread_dat008(tmp_path: Path) -> None:
 
     async def _run() -> None:
         with (
-            patch("aiohttp.ClientSession", return_value=_json_session(
-                {"data": [{"value": "60", "value_classification": "Greed"}]}
-            )),
+            patch(
+                "aiohttp.ClientSession",
+                return_value=_json_session(
+                    {"data": [{"value": "60", "value_classification": "Greed"}]}
+                ),
+            ),
             patch("src.data.sentiment_provider.asyncio.to_thread", new=_to_thread),
         ):
             await provider._fetch_fg()
@@ -559,11 +574,7 @@ def test_exchange_flow_persistence_runs_in_thread_dat008(tmp_path: Path) -> None
         dispatched.append(func)
         return None
 
-    payload = {
-        "cexs": [
-            {"name": "Binance", "inflows_24h": 5_000.0, "currentTvl": 100_000.0}
-        ]
-    }
+    payload = {"cexs": [{"name": "Binance", "inflows_24h": 5_000.0, "currentTvl": 100_000.0}]}
 
     async def _run() -> None:
         with (

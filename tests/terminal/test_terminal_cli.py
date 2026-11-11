@@ -17,6 +17,8 @@ Decides:
 
 Decides:
   - REG-1494 — Terminal CLI stop/pid/tail are safe
+
+Decides: SEC-1231
 """
 
 from __future__ import annotations

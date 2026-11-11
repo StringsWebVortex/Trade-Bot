@@ -3,6 +3,8 @@
 CI has no torch_geometric installed, so AssetGNN falls back to numpy and the
 GAT branch never executes. These tests install a stub package (see
 ``pyg_stub``) so the real production branch runs against real torch tensors.
+
+Decides: REG-1327
 """
 
 from __future__ import annotations

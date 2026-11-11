@@ -705,6 +705,66 @@ class EquityRecord:
 # ---------------------------------------------------------------------------
 
 
+# Single definition of the keys store_intelligence_features accepts, shared with
+# the Timescale backend so the two cannot drift (DAT-007).
+INTELLIGENCE_FEATURE_KEYS: Final[frozenset[str]] = frozenset(
+    {
+        "intelligence_exchange_netflow_7d_zscore",
+        "intelligence_whale_buy_sell_ratio",
+        "intelligence_exchange_reserve_ratio",
+        "intelligence_miner_netflow_signal",
+        "intelligence_staking_unlock_risk",
+        "intelligence_entity_exchange_imbalance",
+        "intelligence_binance_funding_rate_pct",
+        "intelligence_liquidation_pressure_24h_zscore",
+        "intelligence_futures_oi_change_pct",
+        "intelligence_liquidation_cascade_risk_usd",
+        "intelligence_btc_dominance_regime",
+        "intelligence_stablecoin_reserve_ratio",
+        "intelligence_network_activity_score",
+        "intelligence_exchange_stress_score",
+        "intelligence_cross_exchange_basis_spread_bps",
+        "intelligence_defi_tvl_7d_change_pct",
+        "intelligence_mvrv_z_score",
+        "intelligence_sopr",
+        "direction_v6",
+        "size_pct_v6",
+        "confidence_v6",
+        "horizon_idx_v6",
+        "ecc_anomaly_v6",
+        "conflict_v6",
+        "regime_id_v6",
+        "agreement_ratio_v6",
+        "kyle_lambda_v6",
+        "ofi_v6",
+        "vpin_v6",
+        "expected_return_v6",
+        "uncertainty_v6",
+        "algo_v6",
+        "horizon_contributions_v6",
+        "model_versions_v6",
+        "freshness_seconds_v6",
+    }
+)
+# V6 columns whose values are stored as text (the rest are numeric).
+INTELLIGENCE_V6_TEXT_KEYS: Final[tuple[str, ...]] = (
+    "algo_v6",
+    "horizon_contributions_v6",
+    "model_versions_v6",
+    "freshness_seconds_v6",
+)
+# V6 numeric columns declared INTEGER in Postgres (SQLite is dynamically typed).
+INTELLIGENCE_V6_INT_KEYS: Final[tuple[str, ...]] = (
+    "direction_v6",
+    "horizon_idx_v6",
+    "conflict_v6",
+    "regime_id_v6",
+)
+INTELLIGENCE_V6_KEYS: Final[tuple[str, ...]] = tuple(
+    sorted(k for k in INTELLIGENCE_FEATURE_KEYS if k.endswith("_v6"))
+)
+
+
 class StorageBackend:
     """
     Async SQLite storage backend.

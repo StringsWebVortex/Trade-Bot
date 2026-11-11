@@ -76,6 +76,7 @@ class DepthDetectorV2:
         self._model: GaussianHMM | None = None
         self._scaler: StandardScaler | None = None
         self._state_to_label: dict[int, str] = {}
+        self._feature_cols: list[str] = []
 
     def fit(self, feature_df: pd.DataFrame) -> None:
         """Train the 9-regime HMM on a feature matrix."""
@@ -218,7 +219,15 @@ class DepthDetectorV2:
         sorted_states = np.argsort(vol_proxy)
         feature_names = feature_cols or FEATURE_COLS_V2
         col_index = {name: index for index, name in enumerate(feature_names)}
-        assignments = np.asarray(model.predict(X_scaled), dtype=int)
+        # Use posterior probabilities, not a bare hard prediction. Ambiguous
+        # observations must not define regime semantics or specialist labels.
+        posterior = np.asarray(model.predict_proba(X_scaled), dtype=float)
+        if posterior.ndim != 2 or posterior.shape != (len(X_scaled), self.N_COMPONENTS):
+            raise ValueError(f"HMM predict_proba returned an unexpected shape: {posterior.shape!r}")
+        row_confidence = np.max(posterior, axis=1)
+        assignments = np.full(len(X_scaled), -1, dtype=int)
+        confident = np.isfinite(row_confidence) & (row_confidence >= 0.5)
+        assignments[confident] = np.argmax(posterior[confident], axis=1)
         means: dict[int, np.ndarray] = {}
         for state in range(self.N_COMPONENTS):
             state_rows = X_scaled[assignments == state]

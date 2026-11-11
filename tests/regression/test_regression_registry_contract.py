@@ -291,7 +291,6 @@ class TestTheRegistryHasAPlaceForDefects:
             "REG-1503",
             # REG-1430: audit DAT/INT low findings (phase 6).
             "REG-1430",
-
             # REG-1460..1471: phase 6 math/strategy low findings.
             "REG-1460",
             "REG-1461",
@@ -305,7 +304,6 @@ class TestTheRegistryHasAPlaceForDefects:
             "REG-1469",
             "REG-1470",
             "REG-1471",
-
             # REG-1100..1105: model evaluation leakage audit findings.
             # REG-1110..1115: tuning promotion safety and significance findings.
             "REG-1110",
@@ -412,7 +410,6 @@ class TestTheRegistryHasAPlaceForDefects:
             "REG-1328",
             "REG-1329",
             "REG-1330",
-
         }
         # SEC-0005: `.gitignore` carried a bare `.env`, which matches that one
         # name and nothing else -- so `.env.bak.<timestamp>` from a
@@ -763,12 +760,14 @@ class TestTheMetricsCollector:
         # REG-1400, REG-1401 and SEC-1400 add three phase 6 Low-finding
         # regressions no test exercised -- test-suite, bringing the count to 203.
         # REG-1320..1330 add eleven Phase 5 data-layer regressions -- test-suite, 214.
+        # Only REG-0008 is a filed defect attributed to review; GOV requirement
+        # entries carrying review notes are not escaped-defect metrics.
         # Main carries the phase 6 registry regressions; this PR adds ten
         # phase 4 API/runtime audit findings (REG-1203/1204/1206/1209 and
         # SEC-1200/1201/1202/1205/1207/1208).
         assert metric["value"] == {
             "test-suite": 214,
-            "review": 5,
+            "review": 1,
             "supply-chain": 4,
             "ci-gate-design": 2,
         }

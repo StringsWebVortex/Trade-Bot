@@ -2,6 +2,8 @@
 
 The websocket loops are driven with a fake connection so the reconnect and
 quality-rejection branches are exercised without a live Binance feed.
+
+Decides: REG-1321
 """
 
 from __future__ import annotations
@@ -136,7 +138,9 @@ class TestOrderbookFlush:
         assert len(parts) == 2  # one part file per flush, no read-modify-write
         assert sum(len(pd.read_parquet(p)) for p in parts) == 5
 
-    def test_orderbook_part_write_is_dispatched_to_a_thread(self, tmp_path: Path, monkeypatch) -> None:
+    def test_orderbook_part_write_is_dispatched_to_a_thread(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
         stream = _stream(tmp_path)
         stream._snapshots = [_snapshot()]
         dispatched: list[str] = []
@@ -298,11 +302,17 @@ class TestStreamLoops:
     @pytest.mark.asyncio
     async def test_start_runs_both_streams(self, tmp_path: Path) -> None:
         stream = _stream(tmp_path)
+
+        async def _assert_running() -> None:
+            assert stream._running is True
+
         with (
-            patch.object(stream, "_stream_depth") as depth,
-            patch.object(stream, "_stream_trades") as trades,
+            patch.object(stream, "_stream_depth", side_effect=_assert_running) as depth,
+            patch.object(stream, "_stream_trades", side_effect=_assert_running) as trades,
         ):
             await stream.start()
-        assert stream._running is True
-        depth.assert_called_once()
-        trades.assert_called_once()
+        # start() owns the complete stream lifecycle; it resets the flag only
+        # after both socket loops finish and pending writes are drained.
+        assert stream._running is False
+        depth.assert_awaited_once()
+        trades.assert_awaited_once()

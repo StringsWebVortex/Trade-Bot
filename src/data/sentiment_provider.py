@@ -9,9 +9,9 @@ Sources:
 from __future__ import annotations
 
 import asyncio
-from collections import OrderedDict
 import math
 import xml.etree.ElementTree as ET  # nosec B314 — RSS data from known public feeds only
+from collections import OrderedDict
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 from pathlib import Path

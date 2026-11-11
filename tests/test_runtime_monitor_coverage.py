@@ -8,6 +8,8 @@ Decides:
 
 Decides:
   - REG-1492 — Tick-stall failures accumulate toward escalation
+
+Decides: REG-1229
 """
 
 from __future__ import annotations
