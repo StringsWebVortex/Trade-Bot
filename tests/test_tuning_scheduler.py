@@ -1201,3 +1201,18 @@ class TestRetrainE09WalkforwardSkip:
         )
         result = asyncio.run(retrain_e09_walkforward(df))
         assert result == 0
+
+
+def test_bar_evidence_count_returns_none_for_invalid_timeframe_and_empty_index():
+    import pandas as pd
+
+    settings = get_settings()
+    invalid = AutoTuningScheduler(
+        _FakeStorage([], {}), settings, "BTC/USDT", "not-a-timeframe"
+    )  # type: ignore[arg-type]
+    assert invalid._bar_evidence_count(pd.DataFrame(index=[1])) is None
+
+    valid = AutoTuningScheduler(
+        _FakeStorage([], {}), settings, "BTC/USDT", "15m"
+    )  # type: ignore[arg-type]
+    assert valid._bar_evidence_count(pd.DataFrame()) is None
