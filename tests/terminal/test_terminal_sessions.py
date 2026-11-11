@@ -404,7 +404,7 @@ class TestEnvironment:
         assert f"TB_TERMINAL_SESSION_ID={job.id}" in text
         assert "TERM=xterm-256color" in text
         assert "TERM_PROGRAM=tradebot-terminal" in text
-        assert "KEEP_ME=yes" in text
+        assert "KEEP_ME=yes" not in text  # non-allowlisted variables are not inherited
         for gone in ("npm_config_prefix", "npm_lifecycle_event", "INIT_CWD", "ELECTRON_RUN"):
             assert gone not in text
 

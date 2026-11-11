@@ -421,6 +421,8 @@ class TestLifecycleHelpers:
 
             def kill(pid, signum):
                 signalled.append((pid, signum))
+                # The fake /proc entry models the daemon process exiting.
+                cmdline.unlink()
                 d.loop.call_soon_threadsafe(d.stop.set)
 
             assert cli.stop_daemon(config, run=lambda argv: 3, kill=kill, proc=proc) is True
@@ -432,11 +434,17 @@ class TestLifecycleHelpers:
     def test_stop_goes_through_systemd_when_the_unit_is_active(self, config, short_tmp):
         d = ThreadedDaemon(config, short_tmp).start()
         commands = []
+        unit_active = True
 
         def run(argv):
+            nonlocal unit_active
             commands.append(argv)
             if argv[-1] == install.UNIT_NAME and argv[2] == "stop":
+                unit_active = False
                 d.loop.call_soon_threadsafe(d.stop.set)
+                return 0
+            if argv[-1] == install.UNIT_NAME and argv[2] == "is-active":
+                return 0 if unit_active else 3
             return 0
 
         try:

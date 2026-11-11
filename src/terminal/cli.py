@@ -266,20 +266,20 @@ def stop_daemon(
         # The socket can be unlinked during shutdown before the process has
         # actually exited. Keep waiting for the daemon itself, not just its
         # listening pathname; systemd is the fallback when no pid is known.
-        if pid is not None:
-            still_running = _is_daemon_process(pid, proc)
-        elif managed_by_systemd:
+        if managed_by_systemd:
             still_running = _unit_active(run)
+        elif pid is not None:
+            still_running = _is_daemon_process(pid, proc)
         else:
             still_running = config.socket_path.exists()
         if not still_running and not config.socket_path.exists():
             break
         time.sleep(0.1)
 
-    if pid is not None:
-        still_running = _is_daemon_process(pid, proc)
-    elif managed_by_systemd:
+    if managed_by_systemd:
         still_running = _unit_active(run)
+    elif pid is not None:
+        still_running = _is_daemon_process(pid, proc)
     else:
         still_running = False
     if config.socket_path.exists() or still_running:

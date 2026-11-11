@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import types
+from datetime import UTC, datetime
 from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 import pytest
@@ -16,9 +18,10 @@ from src.risk.kelly import KellyResult
 
 
 def _make_bars(n: int = 350) -> list[BarRecord]:
+    latest_ts = int(datetime.now(UTC).timestamp() * 1000)
     return [
         BarRecord(
-            ts=1_700_000_000_000 + i * 900_000,
+            ts=latest_ts - (n - i - 1) * 900_000,
             symbol="BTC/USDT",
             timeframe="15m",
             open=40_000.0 + i,
@@ -43,7 +46,7 @@ def _make_storage():
     s.initialize = AsyncMock(return_value=None)
     s.close = AsyncMock(return_value=None)
     s.latest_close = AsyncMock(return_value=None)
-    s.latest_bar_ts = AsyncMock(return_value=1_700_000_000_000)
+    s.latest_bar_ts = AsyncMock(return_value=_make_bars()[-1].ts)
     s.upsert_regime_snapshot = AsyncMock(return_value=None)
     return s
 
@@ -493,6 +496,9 @@ class TestStartupLiveModeAndDriftDetector:
         async def _fake_train(tf):
             orch._trainers[tf.value] = trainer
             orch._detectors[tf.value] = MagicMock()
+            orch._training_results[tf.value] = types.SimpleNamespace(
+                oos_sharpe=1.5, accuracy=0.58, max_drawdown=10.0, n_trades=400
+            )
 
         orch._train_models = _fake_train
 
