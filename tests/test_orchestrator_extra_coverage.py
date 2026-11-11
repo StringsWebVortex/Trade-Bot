@@ -70,6 +70,7 @@ def _make_executor():
     e.starting_equity_usd = 100_000.0
     e.shutdown = AsyncMock(return_value=None)
     e.open_positions_safe = AsyncMock(return_value=[])
+    e.open_positions = MagicMock(return_value=[])
     e.submit_signal = AsyncMock(return_value=("trade-123", "opened"))
     e.get_current_equity = AsyncMock(return_value=100_000.0)
     return e

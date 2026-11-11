@@ -272,6 +272,7 @@ class TestOnChainProvider:
 
         # Patch the session to raise
         mock_session = AsyncMock()
+        mock_session.closed = False  # prevent _ensure_session from opening a real client
         mock_resp = AsyncMock()
         mock_resp.raise_for_status = MagicMock(side_effect=RuntimeError("500 error"))
         mock_resp.__aenter__ = AsyncMock(return_value=mock_resp)
@@ -298,6 +299,7 @@ class TestOnChainProvider:
         provider = ConcreteProvider()
 
         mock_session = AsyncMock()
+        mock_session.closed = False  # prevent _ensure_session from opening a real client
         mock_resp = AsyncMock()
         mock_resp.raise_for_status = MagicMock(side_effect=RuntimeError("error"))
         mock_resp.__aenter__ = AsyncMock(return_value=mock_resp)
