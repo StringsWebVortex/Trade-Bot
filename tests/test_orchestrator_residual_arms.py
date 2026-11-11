@@ -335,3 +335,100 @@ async def test_a_cross_sectional_book_takes_the_refreshed_returns():
     inputs = await orch._build_portfolio_inputs(Timeframe.INTRADAY, frozenset({InputNeed.UNIVERSE}))
 
     assert inputs.universe_returns == {"ETH/USDT": 0.02}
+
+
+# ---------------------------------------------------------------------------
+# Operator-triggered retraining, backfill and capital-floor controls
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_manual_retrain_refuses_overlap_and_clears_a_stale_error():
+    orch = _make_orch()
+    orch._log = MagicMock()
+    release = asyncio.Event()
+
+    async def _train(_timeframe):
+        await release.wait()
+
+    orch._train_models = _train
+    timeframe = Timeframe.INTRADAY
+    orch._last_retrain_error[timeframe.value] = "previous failure"
+
+    assert orch.request_retrain(timeframe) == "started"
+    task = orch.retrain_task(timeframe)
+    assert task is not None
+    assert orch.request_retrain(timeframe) == "already_running"
+    assert orch.retrain_status()[timeframe.value]["running"] is True
+
+    release.set()
+    await task
+    await asyncio.sleep(0)
+    assert orch.retrain_task(timeframe) is None
+    assert timeframe.value not in orch._last_retrain_error
+    assert orch.retrain_status()[timeframe.value]["running"] is False
+
+
+@pytest.mark.asyncio
+async def test_manual_retrain_records_the_error_from_a_failed_task():
+    orch = _make_orch()
+    orch._log = MagicMock()
+
+    async def _fail(_timeframe):
+        raise RuntimeError("manual training failed")
+
+    orch._train_models = _fail
+    timeframe = Timeframe.INTRADAY
+    assert orch.request_retrain(timeframe) == "started"
+    task = orch.retrain_task(timeframe)
+    assert task is not None
+    with pytest.raises(RuntimeError, match="manual training failed"):
+        await task
+    await asyncio.sleep(0)
+    assert orch._last_retrain_error[timeframe.value] == "manual training failed"
+    assert orch.retrain_task(timeframe) is None
+
+
+@pytest.mark.asyncio
+async def test_manual_backfill_returns_the_written_bar_count():
+    orch = _make_orch()
+    orch._log = MagicMock()
+    orch._fetcher.bootstrap_history = AsyncMock(return_value=17)
+
+    written = await orch.request_backfill(Timeframe.INTRADAY, lookback_days=45)
+
+    assert written == 17
+    orch._fetcher.bootstrap_history.assert_awaited_once_with(
+        symbol=orch._symbol, timeframe=Timeframe.INTRADAY, lookback_days=45
+    )
+
+
+def test_capital_floor_status_and_reauthorization_cover_absent_and_present_floors():
+    from types import SimpleNamespace
+
+    orch = _make_orch()
+    floor = SimpleNamespace(
+        is_halted=True,
+        halt_reason="drawdown",
+        last_reauthorization=None,
+        re_authorize=MagicMock(),
+    )
+    orch._engines = {
+        "15m": SimpleNamespace(_capital_floor=floor),
+        "1m": SimpleNamespace(_capital_floor=None),
+    }
+
+    status = orch.capital_floor_status()
+    assert status == {
+        "15m": {
+            "halted": True,
+            "halt_reason": "drawdown",
+            "last_reauthorization": None,
+        }
+    }
+    assert orch.re_authorize_capital_floor("missing", "alice", "reviewed", 123) is False
+    assert orch.re_authorize_capital_floor("1m", "alice", "reviewed", 123) is False
+    assert orch.re_authorize_capital_floor("15m", "alice", "reviewed", 123) is True
+    floor.re_authorize.assert_called_once_with(
+        authorized_by="alice", reason="reviewed", at_ms=123
+    )
