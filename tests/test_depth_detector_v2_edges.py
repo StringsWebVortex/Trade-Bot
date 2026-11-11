@@ -16,7 +16,7 @@ import pandas as pd
 import pytest
 
 from src.regime.depth_detector_v2 import (
-    FEATURE_COLS_V2,
+    REGIME_LABELS,
     DepthDetectorV2,
     _compute_adx,
     _compute_bb_width,
@@ -32,11 +32,8 @@ def test_fit_raises_when_no_feature_columns_match():
 def test_predict_before_fit_returns_neutral_default():
     detector = DepthDetectorV2()
     pred = detector.predict(pd.DataFrame({"adx_14": [20.0]}))
-    from src.engines.consensus import REGIME_WEIGHTS
-
-    assert pred.label == "Unknown"
+    assert pred.label == "Trending"
     assert pred.confidence == 0.0
-    assert pred.weight_vector == REGIME_WEIGHTS["Transition"]
     assert len(pred.weight_vector) == 18
     assert pred.raw_state == 0
 
@@ -48,7 +45,7 @@ def test_predict_with_empty_frame_returns_neutral_default():
     detector._scaler = MagicMock()
     pred = detector.predict(pd.DataFrame({"adx_14": []}))
     assert pred.confidence == 0.0
-    assert pred.label == "Unknown"
+    assert pred.label == "Trending"
 
 
 def test_load_returns_false_when_artifacts_absent(tmp_path: Path):
@@ -70,48 +67,32 @@ def _fake_hmm(covariance_type: str, covars, means=None) -> MagicMock:
     model.covariance_type = covariance_type
     model.covars_ = covars
     model.means_ = means if means is not None else np.zeros((9, 3))
-    model.predict.return_value = np.repeat(np.arange(9), 10)
     return model
 
 
 def test_assign_labels_full_covariance_ranks_by_trace():
     detector = DepthDetectorV2()
-    # 9 states, ascending trace; unsupported specialist labels are never invented.
+    # 9 states, ascending trace -> label order must follow REGIME_LABELS
     covars = np.array([np.eye(2) * (i + 1) for i in range(9)])
-    labels = detector._assign_labels(
-        _fake_hmm("full", covars), np.zeros((90, 2)), list(FEATURE_COLS_V2[:2])
-    )
-    assert labels[0] == "Ranging"
-    assert labels[8] == "Volatile"
-    specialist_labels = {
-        "Accumulation", "OptionsDriven", "MacroDominated", "LiquidityCrisis", "Capitulation"
-    }
-    assert not set(labels.values()).intersection(specialist_labels)
+    labels = detector._assign_labels(_fake_hmm("full", covars), np.zeros((10, 2)))
+    assert labels[0] == REGIME_LABELS[0]
+    assert labels[8] == REGIME_LABELS[8]
 
 
 def test_assign_labels_diag_covariance_uses_sum():
     detector = DepthDetectorV2()
     covars = np.array([[float(i + 1), float(i + 1)] for i in range(9)])
-    labels = detector._assign_labels(
-        _fake_hmm("diag", covars), np.zeros((90, 2)), FEATURE_COLS_V2[:2]
-    )
+    labels = detector._assign_labels(_fake_hmm("diag", covars), np.zeros((10, 2)))
     assert len(labels) == 9
-    assert labels[0] == "Ranging"
-    specialist_labels = {
-        "Accumulation", "OptionsDriven", "MacroDominated", "LiquidityCrisis", "Capitulation"
-    }
-    assert not set(labels.values()).intersection(specialist_labels)
+    assert labels[0] == REGIME_LABELS[0]
 
 
 def test_assign_labels_tied_covariance_falls_back_to_mean_variance():
     detector = DepthDetectorV2()
     means = np.array([[float(i), float(i) * 2.0, 0.0] for i in range(9)])
-    labels = detector._assign_labels(
-        _fake_hmm("tied", np.eye(3), means=means), np.zeros((90, 3)), list(FEATURE_COLS_V2[:3])
-    )
+    labels = detector._assign_labels(_fake_hmm("tied", np.eye(3), means=means), np.zeros((10, 3)))
     assert len(labels) == 9
-    assert set(labels.values()).issubset({"Ranging", "Transition", "Trending", "Volatile"})
-    assert len(set(labels.values())) >= 2
+    assert set(labels.values()) == set(REGIME_LABELS)
 
 
 def test_compute_adx_returns_zero_for_short_series():

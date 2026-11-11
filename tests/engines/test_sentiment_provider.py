@@ -63,14 +63,12 @@ class TestFearAndGreed:
         assert pd.read_parquet(files[0])["fg_score"].iloc[0] == 78.0
 
     @pytest.mark.asyncio
-    async def test_fetch_keeps_the_unknown_default_on_error(self, tmp_path: Path) -> None:
+    async def test_fetch_keeps_the_neutral_default_on_error(self, tmp_path: Path) -> None:
         p = SentimentProvider(data_root=tmp_path)
         with patch("aiohttp.ClientSession", side_effect=RuntimeError("boom")):
             await p._fetch_fg()
 
-        score, label = p.latest_fg()
-        assert score != score  # NaN: nothing fetched, nothing fabricated
-        assert label == "Unknown"
+        assert p.latest_fg() == (50.0, "Neutral")
         assert not (tmp_path / "sentiment").exists()
 
     @pytest.mark.asyncio
@@ -165,7 +163,6 @@ class TestRss:
 class TestCacheAndLoops:
     def test_cache_receives_the_average_vader_score(self, tmp_path: Path) -> None:
         p = SentimentProvider(data_root=tmp_path)
-        p._fg_score = 60.0
         p._headlines = [
             {"headline": "a", "vader_compound": 0.5},
             {"headline": "b", "vader_compound": -0.1},
@@ -186,7 +183,6 @@ class TestCacheAndLoops:
     @pytest.mark.asyncio
     async def test_fetch_once_reports_the_current_fear_and_greed(self, tmp_path: Path) -> None:
         p = SentimentProvider(data_root=tmp_path)
-        p._fg_score, p._fg_label = 50.0, "Neutral"
         with (
             patch.object(p, "_fetch_fg", AsyncMock()),
             patch.object(p, "_fetch_rss", AsyncMock()),

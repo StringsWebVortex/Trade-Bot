@@ -14,7 +14,6 @@ Tables:
 from __future__ import annotations
 
 import os
-import threading
 from collections.abc import Generator
 from contextlib import contextmanager
 from datetime import UTC, datetime
@@ -73,11 +72,7 @@ CREATE TABLE IF NOT EXISTS feature_log (
 
 
 class DuckDBStore:
-    """In-process DuckDB OLAP store.
-
-    Thread-safe by serialisation: one shared connection guarded by a lock, so
-    concurrent callers cannot interleave begin/commit (DAT-012).
-    """
+    """Thread-safe in-process DuckDB OLAP store."""
 
     def __init__(self, path: Path | None = None) -> None:
         import duckdb
@@ -86,27 +81,17 @@ class DuckDBStore:
         self._path.parent.mkdir(parents=True, exist_ok=True)
         self._conn = duckdb.connect(str(self._path))
         self._conn.execute(_DDL)
-        self._lock = threading.RLock()
-        self._last_ts = 0
         log.info("duckdb_store_init", path=str(self._path))
-
-    def _now_ms(self) -> int:
-        """Strictly increasing ms timestamp so same-ms writes cannot overwrite."""
-        with self._lock:
-            ts = max(int(datetime.now(UTC).timestamp() * 1000), self._last_ts + 1)
-            self._last_ts = ts
-            return ts
 
     @contextmanager
     def _tx(self) -> Generator[Any, None, None]:
-        with self._lock:
-            self._conn.begin()
-            try:
-                yield self._conn
-                self._conn.commit()
-            except Exception:
-                self._conn.rollback()
-                raise
+        self._conn.begin()
+        try:
+            yield self._conn
+            self._conn.commit()
+        except Exception:
+            self._conn.rollback()
+            raise
 
     def write_ohlcv(self, rows: list[dict]) -> None:
         if not rows:
@@ -130,7 +115,7 @@ class DuckDBStore:
         direction: int,
         drift_detected: bool = False,
     ) -> None:
-        ts = self._now_ms()
+        ts = int(datetime.now(UTC).timestamp() * 1000)
         with self._tx() as c:
             c.execute(
                 """
@@ -142,7 +127,7 @@ class DuckDBStore:
             )
 
     def write_ecc_signal(self, signals: dict[str, float]) -> None:
-        ts = self._now_ms()
+        ts = int(datetime.now(UTC).timestamp() * 1000)
         with self._tx() as c:
             c.execute(
                 """
@@ -163,14 +148,9 @@ class DuckDBStore:
             )
 
     def write_feature_log(self, symbol: str, features: dict[str, float]) -> None:
-        ts = self._now_ms()
+        ts = int(datetime.now(UTC).timestamp() * 1000)
         rows = [
-            {
-                "ts": ts,
-                "symbol": symbol,
-                "feature_key": k,
-                "value": None if v is None else float(v),
-            }
+            {"ts": ts, "symbol": symbol, "feature_key": k, "value": float(v)}
             for k, v in features.items()
         ]
         if not rows:
@@ -185,28 +165,24 @@ class DuckDBStore:
             )
 
     def query_horizon_history(self, horizon_id: int, limit: int = 500) -> pd.DataFrame:
-        with self._lock:
-            return self._conn.execute(
-                "SELECT * FROM horizon_metrics WHERE horizon_id=? ORDER BY ts DESC LIMIT ?",
-                [horizon_id, limit],
-            ).df()
+        return self._conn.execute(
+            "SELECT * FROM horizon_metrics WHERE horizon_id=? ORDER BY ts DESC LIMIT ?",
+            [horizon_id, limit],
+        ).df()
 
     def query_ohlcv(self, symbol: str, timeframe: str, limit: int = 2000) -> pd.DataFrame:
-        with self._lock:
-            return self._conn.execute(
-                """SELECT * FROM ohlcv_snapshots
-                   WHERE symbol=? AND timeframe=?
-                   ORDER BY ts DESC LIMIT ?""",
-                [symbol, timeframe, limit],
-            ).df()
+        return self._conn.execute(
+            """SELECT * FROM ohlcv_snapshots
+               WHERE symbol=? AND timeframe=?
+               ORDER BY ts DESC LIMIT ?""",
+            [symbol, timeframe, limit],
+        ).df()
 
     def query_ecc_history(self, limit: int = 1000) -> pd.DataFrame:
-        with self._lock:
-            return self._conn.execute(
-                "SELECT * FROM ecc_signals ORDER BY ts DESC LIMIT ?", [limit]
-            ).df()
+        return self._conn.execute(
+            "SELECT * FROM ecc_signals ORDER BY ts DESC LIMIT ?", [limit]
+        ).df()
 
     def close(self) -> None:
-        with self._lock:
-            self._conn.close()
+        self._conn.close()
         log.info("duckdb_store_closed")

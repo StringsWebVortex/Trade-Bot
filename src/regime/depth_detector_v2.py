@@ -23,7 +23,7 @@ from sklearn.preprocessing import StandardScaler
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
-# Specialist labels are available only when the fitted state features support them.
+# 9-regime labels in volatility-ascending order (first 5 preserve v1 semantics)
 REGIME_LABELS: Final[list[str]] = [
     "Ranging",  # 0 — low vol, mean-reverting
     "Accumulation",  # 1 — low vol + on-chain inflow
@@ -102,37 +102,35 @@ class DepthDetectorV2:
         )
         model.fit(X_scaled)
         self._model = model
-        self._feature_cols = list(cols)
-        self._state_to_label = self._assign_labels(model, X_scaled, cols)
+        self._state_to_label = self._assign_labels(model, X_scaled)
         log.info("depth_detector_v2_fitted", n_samples=len(X), n_regimes=self.N_COMPONENTS)
 
     def predict(self, feature_df: pd.DataFrame) -> RegimePrediction:
         """Predict regime from a recent feature slice."""
-        from src.engines.consensus import REGIME_WEIGHTS
+        if self._model is None or self._scaler is None:
+            return RegimePrediction(
+                label="Trending",
+                confidence=0.0,
+                weight_vector=[1 / 18] * 18,
+                raw_state=0,
+            )
 
-        unknown = RegimePrediction(
-            label="Unknown",
-            confidence=0.0,
-            weight_vector=list(REGIME_WEIGHTS["Transition"]),
-            raw_state=0,
-        )
-        if self._model is None or self._scaler is None or not self._feature_cols:
-            return unknown
-
-        if not set(self._feature_cols).issubset(feature_df.columns):
-            return unknown
-        cols = self._feature_cols
+        cols = [c for c in FEATURE_COLS_V2 if c in feature_df.columns]
         X = feature_df[cols].fillna(0.0).values
         if len(X) == 0:
-            return unknown
+            return RegimePrediction("Trending", 0.0, [1 / 18] * 18, 0)
 
         X_scaled = self._scaler.transform(X)
         posteriors = self._model.predict_proba(X_scaled)
         last = posteriors[-1]  # shape (N_COMPONENTS,)
         best_state = int(np.argmax(last))
         confidence = float(last[best_state])
-        label = self._state_to_label.get(best_state, "Unknown")
-        weights = REGIME_WEIGHTS.get(label, REGIME_WEIGHTS["Transition"])
+        label = self._state_to_label.get(best_state, "Trending")
+
+        # Retrieve regime weights from consensus module
+        from src.engines.consensus import REGIME_WEIGHTS
+
+        weights = REGIME_WEIGHTS.get(label, REGIME_WEIGHTS["Trending"])
 
         return RegimePrediction(
             label=label,
@@ -146,47 +144,22 @@ class DepthDetectorV2:
 
         model_dir.mkdir(parents=True, exist_ok=True)
         stem = self._model_stem()
-        paths = (
-            model_dir / f"{stem}_hmm9.pkl",
-            model_dir / f"{stem}_scaler9.pkl",
-            model_dir / f"{stem}_labels9.pkl",
-            model_dir / f"{stem}_features9.pkl",
-        )
-        values = (self._model, self._scaler, self._state_to_label, self._feature_cols)
-        for path, value in zip(paths, values, strict=True):
-            joblib.dump(value, path)
-        from src.regime.detector import _write_manifest
-
-        for path in paths:
-            _write_manifest(path)
+        joblib.dump(self._model, model_dir / f"{stem}_hmm9.pkl")
+        joblib.dump(self._scaler, model_dir / f"{stem}_scaler9.pkl")
+        joblib.dump(self._state_to_label, model_dir / f"{stem}_labels9.pkl")
 
     def load(self, model_dir: Path) -> bool:
         import joblib
 
         stem = self._model_stem()
-        paths = (
-            model_dir / f"{stem}_hmm9.pkl",
-            model_dir / f"{stem}_scaler9.pkl",
-            model_dir / f"{stem}_labels9.pkl",
-            model_dir / f"{stem}_features9.pkl",
-        )
-        if not all(path.is_file() for path in paths):
+        p_model = model_dir / f"{stem}_hmm9.pkl"
+        p_scaler = model_dir / f"{stem}_scaler9.pkl"
+        p_labels = model_dir / f"{stem}_labels9.pkl"
+        if not (p_model.exists() and p_scaler.exists() and p_labels.exists()):
             return False
-        from src.regime.detector import _verify_manifest
-
-        try:
-            for path in paths:
-                _verify_manifest(path)
-            model, scaler, labels, feature_cols = (joblib.load(path) for path in paths)
-            if not isinstance(labels, dict) or not isinstance(feature_cols, list):
-                raise ValueError("invalid DepthDetectorV2 model metadata")
-        except Exception as exc:
-            log.error("depth_detector_v2_integrity_failed", exc=str(exc))
-            return False
-        self._model = model
-        self._scaler = scaler
-        self._state_to_label = labels
-        self._feature_cols = feature_cols
+        self._model = joblib.load(p_model)
+        self._scaler = joblib.load(p_scaler)
+        self._state_to_label = joblib.load(p_labels)
         return True
 
     def _model_stem(self) -> str:
@@ -194,92 +167,30 @@ class DepthDetectorV2:
         # SHA-256 over the cache key, matching RegimeDetector._train_hash.
         return hashlib.sha256(key.encode()).hexdigest()[:8]
 
-    def _assign_labels(
-        self,
-        model: GaussianHMM,
-        X_scaled: np.ndarray,
-        feature_cols: list[str] | None = None,
-    ) -> dict[int, str]:
-        """Label states from measured feature evidence, not volatility rank alone.
-
-        Volatility ranking supplies only broad fallback labels. Specialized
-        labels require supporting feature means from observations assigned to
-        that state, so a high-variance cluster cannot be called "Accumulation"
-        or "MacroDominated" without the corresponding signal.
+    def _assign_labels(self, model: GaussianHMM, X_scaled: np.ndarray) -> dict[int, str]:
         """
-        covars = model.covars_
+        Assign regime labels to HMM states by volatility ranking.
+
+        States with lowest volatility → Ranging/Accumulation,
+        highest → LiquidityCrisis/Capitulation.
+
+        Uses trace of the state's covariance matrix as the volatility proxy — this
+        measures actual spread of the Gaussian, not just variance of the mean vector.
+        For diagonal/spherical covariance types, falls back to sum of diagonal.
+        """
+        covars = model.covars_  # shape depends on covariance_type
         covar_type = model.covariance_type
         if covar_type == "full":
+            # (N_COMPONENTS, n_features, n_features) — trace per state
             vol_proxy = np.array([np.trace(c) for c in covars])
         elif covar_type == "tied":
+            # Single covariance shared by all states; fall back to mean variance
             vol_proxy = np.var(model.means_, axis=1)
         else:
+            # "diag" or "spherical": covars shape (N_COMPONENTS, n_features) or (N_COMPONENTS,)
             vol_proxy = np.array([float(np.sum(c)) for c in covars])
-        sorted_states = np.argsort(vol_proxy)
-        feature_names = feature_cols or FEATURE_COLS_V2
-        col_index = {name: index for index, name in enumerate(feature_names)}
-        assignments = np.asarray(model.predict(X_scaled), dtype=int)
-        means: dict[int, np.ndarray] = {}
-        for state in range(self.N_COMPONENTS):
-            state_rows = X_scaled[assignments == state]
-            if len(state_rows) >= 5:
-                means[state] = np.mean(state_rows, axis=0)
-
-        def signal(state_mean: np.ndarray, name: str) -> float:
-            index = col_index.get(name)
-            if index is None or index >= len(state_mean):
-                return 0.0
-            return float(state_mean[index])
-
-        labels: dict[int, str] = {}
-        used_special: set[str] = set()
-        n_states = max(1, len(sorted_states))
-        for rank, raw_state in enumerate(sorted_states):
-            state = int(raw_state)
-            mean = means.get(state)
-            if mean is None:
-                # No stable empirical cluster: use only a broad volatility label.
-                if rank == 0:
-                    labels[state] = "Ranging"
-                elif rank >= n_states // 2:
-                    labels[state] = "Volatile"
-                else:
-                    labels[state] = "Transition"
-                continue
-
-            net_flow = signal(mean, "e05_net_flow")
-            options = abs(signal(mean, "e12_gex"))
-            macro = signal(mean, "e13_contagion_score")
-            liquidity = signal(mean, "e17_amihud_ratio")
-            contrarian = abs(signal(mean, "e14_contrarian_signal"))
-            entropy = signal(mean, "e03_entropy_score")
-            adx = signal(mean, "adx_14")
-
-            supported: list[tuple[float, str]] = []
-            if net_flow <= -0.75 and contrarian >= 0.75 and liquidity >= 0.5:
-                supported.append((min(abs(net_flow), contrarian, liquidity), "Capitulation"))
-            if liquidity >= 0.9:
-                supported.append((liquidity, "LiquidityCrisis"))
-            if macro >= 0.9:
-                supported.append((macro, "MacroDominated"))
-            if options >= 0.9:
-                supported.append((options, "OptionsDriven"))
-            if net_flow >= 0.9:
-                supported.append((net_flow, "Accumulation"))
-            supported.sort(reverse=True)
-            selected = next((name for _, name in supported if name not in used_special), None)
-            if selected is not None:
-                labels[state] = selected
-                used_special.add(selected)
-            elif rank == 0:
-                labels[state] = "Ranging"
-            elif adx >= 0.9:
-                labels[state] = "Trending"
-            elif entropy >= 0.9:
-                labels[state] = "Transition"
-            else:
-                labels[state] = "Volatile" if rank >= n_states // 2 else "Transition"
-        return labels
+        sorted_states = np.argsort(vol_proxy)  # ascending vol
+        return {int(state): REGIME_LABELS[i] for i, state in enumerate(sorted_states)}
 
 
 def _compute_adx(high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14) -> float:

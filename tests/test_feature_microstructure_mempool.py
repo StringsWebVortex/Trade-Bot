@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import math
 
 # ─── microstructure ───────────────────────────────────────────────────────────
 
@@ -179,4 +178,4 @@ class TestFetchMempoolFeatures:
 
         result = asyncio.run(fetch_mempool_features())
         assert isinstance(result, MempoolFeatures)
-        assert math.isnan(result.tx_count) or result.tx_count >= 0
+        assert result.tx_count >= 0
