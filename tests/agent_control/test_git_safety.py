@@ -241,7 +241,7 @@ class TestAuthorization:
 def test_parser_handles_escaped_nested_delimiters_and_alias_edge_cases() -> None:
     # An escaped closing parenthesis is data inside the substitution, not its
     # terminator; the later guarded command must still be discovered.
-    assert guarded_operations(r"echo $(printf \\) && git reset)") == ["reset"]
+    assert guarded_operations(r"echo $(printf \) && git reset)") == ["reset"]
     # An escaped backtick does not terminate the outer legacy substitution.
     assert guarded_operations(r"echo `printf \`literal && git merge main`") == ["merge"]
     # Quotes inside $() are tracked while looking for the matching close.
