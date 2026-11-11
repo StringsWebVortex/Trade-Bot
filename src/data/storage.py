@@ -982,7 +982,7 @@ class StorageBackend:
             symbol:     Asset symbol, e.g. "BTCUSDT".
             timeframe:  Timeframe string, e.g. "1h".
             bar_ts:     Bar timestamp, Unix ms (matches bars.ts).
-            features:   Dict keyed by the 18 intelligence column names.
+            features:   Dict keyed by supported intelligence_* and V6 columns.
                         Missing keys are stored as NULL (acceptable — coverage
                         check in trainer will flag low-coverage columns).
             confidence: Provider confidence score [0.0, 1.0].
@@ -991,44 +991,7 @@ class StorageBackend:
         from datetime import UTC
         from datetime import datetime as _dt
 
-        allowed_features = {
-            "intelligence_exchange_netflow_7d_zscore",
-            "intelligence_whale_buy_sell_ratio",
-            "intelligence_exchange_reserve_ratio",
-            "intelligence_miner_netflow_signal",
-            "intelligence_staking_unlock_risk",
-            "intelligence_entity_exchange_imbalance",
-            "intelligence_binance_funding_rate_pct",
-            "intelligence_liquidation_pressure_24h_zscore",
-            "intelligence_futures_oi_change_pct",
-            "intelligence_liquidation_cascade_risk_usd",
-            "intelligence_btc_dominance_regime",
-            "intelligence_stablecoin_reserve_ratio",
-            "intelligence_network_activity_score",
-            "intelligence_exchange_stress_score",
-            "intelligence_cross_exchange_basis_spread_bps",
-            "intelligence_defi_tvl_7d_change_pct",
-            "intelligence_mvrv_z_score",
-            "intelligence_sopr",
-            "direction_v6",
-            "size_pct_v6",
-            "confidence_v6",
-            "horizon_idx_v6",
-            "ecc_anomaly_v6",
-            "conflict_v6",
-            "regime_id_v6",
-            "agreement_ratio_v6",
-            "kyle_lambda_v6",
-            "ofi_v6",
-            "vpin_v6",
-            "expected_return_v6",
-            "uncertainty_v6",
-            "algo_v6",
-            "horizon_contributions_v6",
-            "model_versions_v6",
-            "freshness_seconds_v6",
-        }
-        unsupported = set(features) - allowed_features
+        unsupported = set(features) - INTELLIGENCE_FEATURE_KEYS
         if unsupported:
             raise ValueError(
                 "unsupported intelligence feature columns: " + ", ".join(sorted(unsupported))

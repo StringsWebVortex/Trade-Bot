@@ -400,6 +400,18 @@ class TestTheRegistryHasAPlaceForDefects:
             "REG-1372",
             "REG-1373",
             "REG-1374",
+            # Phase 5 data-layer audit: DAT-007 through DAT-017.
+            "REG-1320",
+            "REG-1321",
+            "REG-1322",
+            "REG-1323",
+            "REG-1324",
+            "REG-1325",
+            "REG-1326",
+            "REG-1327",
+            "REG-1328",
+            "REG-1329",
+            "REG-1330",
 
         }
         # SEC-0005: `.gitignore` carried a bare `.env`, which matches that one
@@ -750,11 +762,12 @@ class TestTheMetricsCollector:
         # no test asked what the thresholds cost to clear -- test-suite, 44.
         # REG-1400, REG-1401 and SEC-1400 add three phase 6 Low-finding
         # regressions no test exercised -- test-suite, bringing the count to 203.
+        # REG-1320..1330 add eleven Phase 5 data-layer regressions -- test-suite, 214.
         # Main carries the phase 6 registry regressions; this PR adds ten
         # phase 4 API/runtime audit findings (REG-1203/1204/1206/1209 and
         # SEC-1200/1201/1202/1205/1207/1208).
         assert metric["value"] == {
-            "test-suite": 203,
+            "test-suite": 214,
             "review": 5,
             "supply-chain": 4,
             "ci-gate-design": 2,

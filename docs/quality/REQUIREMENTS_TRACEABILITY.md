@@ -47,24 +47,24 @@ deletion of the thing it points at.
 
 | Status | Entries |
 |---|---|
-| VERIFIED | 395 |
+| VERIFIED | 409 |
 | PARTIAL | 3 |
 | PLANNED | 0 |
 | ACCEPTED GAP | 0 |
-| **Total** | **398** |
+| **Total** | **412** |
 
 ## Summary by subsystem
 
 | Subsystem | Entries | Verified |
 |---|---|---|
 | Risk | 25 | 25 |
-| Execution | 24 | 23 |
+| Execution | 25 | 24 |
 | Portfolio | 2 | 2 |
 | Signal and features | 22 | 22 |
 | Models and leakage | 39 | 39 |
-| Data, money and time | 21 | 20 |
-| API and WebSocket | 41 | 41 |
-| Cryptography and secrets | 54 | 54 |
+| Data, money and time | 32 | 31 |
+| API and WebSocket | 42 | 42 |
+| Cryptography and secrets | 55 | 55 |
 | Supply chain and artifacts | 7 | 7 |
 | Resilience and recovery | 36 | 36 |
 | Release and production | 17 | 17 |
@@ -721,6 +721,20 @@ MANUAL mode waits for approval no longer than approval_timeout_s in both executo
   - `tests/test_phase5_execution_fixes.py` (regression)
 
 > Audit finding EXR-018. layer: test-suite
+
+#### `REG-1400` — Execution and risk helpers fail safe on null, NaN and out-of-range inputs
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+A router order with null filled/average yields a zero-fill result; push_return records no covariance; capacity eviction never drops COMPLETED or IN_FLIGHT keys within TTL; vol_target_size treats the target as daily against annualised vol and rejects non-finite input; RiskGate.size rejects NaN and check_drift fails safe on an unknown horizon; a missing average fill price is derived from cost/filled and never from the request price; pending_approvals does not mutate the queue.
+
+- **If violated:** Null venue fields raised TypeError, NaN passed risk thresholds, evicted idempotency keys reopened the duplicate-order window, sizing mixed daily and annualised units, and fills were booked at a price that never traded.
+- **Owned by:** `src/execution/router.py`, `src/execution/idempotency.py`, `src/execution/exchange_contract.py`, `src/execution/paper.py`, `src/execution/live.py`, `src/risk/gate.py`, `src/risk/vol_target_sizer.py`, `src/risk/portfolio_correlation.py`, `src/risk/performance_drift.py`
+- **Verification:**
+  - `tests/test_phase6_exec_api_lows.py` (regression)
+  - `tests/contract/test_exchange_order_contract.py` (contract)
+
+> layer: test-suite
 
 ## Portfolio
 
@@ -1735,6 +1749,151 @@ crypto-predictor data fetchers never return the still-open candle: Binance rows 
 
 > Audit SCR-007, SCR-008 and DOC-014 (standalone crypto-predictor). layer: test-suite
 
+#### `REG-1320` — Timescale backend matches SQLite for V6 intelligence fields (DAT-007)
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+Timescale store_intelligence_features persists and fetch returns all 17 *_v6 columns, rejects unknown keys using the same allowlist as SQLite, and model_metrics upsert resets created_at.
+
+- **If violated:** Timescale silently dropped V6 fields and unknown keys, and kept the old created_at so latest_model_metrics ordering differed between backends.
+- **Owned by:** `src/data/storage.py`, `src/data/timescale_storage.py`
+- **Verification:**
+  - `tests/test_data_layer_dat_fixes.py` (regression)
+
+> audit finding DAT-007; layer: test-suite
+
+#### `REG-1321` — Orderbook/trade flush never read-modify-writes and keeps the last snapshot (DAT-008)
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+Orderbook and trade flushes write a new part file per flush instead of rewriting the day's parquet, and latest_mid() survives a flush.
+
+- **If violated:** Each flush re-read and rewrote the whole day file on the event loop (O(n^2)) and cleared the snapshot buffer, so latest_mid() returned None after each flush.
+- **Owned by:** `src/data/orderbook_stream.py`, `src/data/exchange_flow_provider.py`, `src/data/sentiment_provider.py`
+- **Verification:**
+  - `tests/test_orderbook_stream_coverage.py` (regression)
+  - `tests/test_data_layer_dat_fixes.py` (regression)
+
+> audit finding DAT-008; layer: test-suite
+
+#### `REG-1322` — Deribit polling survives disk and cycle errors and checks HTTP status (DAT-009)
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+A persist error or a failed cycle does not end DeribitProvider.run_loop; non-2xx responses are not parsed as results; orderbook requests use bounded concurrency.
+
+- **If violated:** An unguarded _persist ended polling permanently and a 429 body was parsed as an empty result.
+- **Owned by:** `src/data/deribit_provider.py`
+- **Verification:**
+  - `tests/test_data_layer_dat_fixes.py` (regression)
+
+> audit finding DAT-009; layer: test-suite
+
+#### `REG-1323` — Macro date is the market date and stale cache files are ignored (DAT-010)
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+MacroProvider rows carry the last market date of the stalest series, one-column Close frames are squeezed, and cached files older than the stale limit are not served.
+
+- **If violated:** The row date was the fetch date so the staleness budget could never trip.
+- **Owned by:** `src/data/macro_provider.py`
+- **Verification:**
+  - `tests/test_data_layer_dat_fixes.py` (regression)
+
+> audit finding DAT-010; layer: test-suite
+
+#### `REG-1324` — RSS headlines are deduplicated and use pubDate (DAT-011)
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+SentimentProvider keeps each (source, guid) headline once and timestamps it with pubDate when parseable.
+
+- **If violated:** The same feed items were re-appended every poll, so vader_avg was the latest batch repeated and history was misdated.
+- **Owned by:** `src/data/sentiment_provider.py`
+- **Verification:**
+  - `tests/test_data_layer_dat_fixes.py` (regression)
+
+> audit finding DAT-011; layer: test-suite
+
+#### `REG-1325` — DuckDBStore serialises concurrent writers (DAT-012)
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+DuckDBStore guards its single connection with a lock, uses strictly increasing ms keys so same-ms writes do not overwrite, and accepts None feature values.
+
+- **If violated:** The docstring claimed thread safety but transactions could interleave and same-ms writes overwrote each other.
+- **Owned by:** `src/data/duckdb_store.py`
+- **Verification:**
+  - `tests/test_data_layer_dat_fixes.py` (regression)
+
+> audit finding DAT-012; layer: test-suite
+
+#### `REG-1326` — Granger test is multiple-testing corrected and time-aligned (DAT-013)
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+GrangerCausalityDetector applies Bonferroni over tested lags, joins labelled series on timestamp, and evicts a symbol's result when its test fails.
+
+- **If violated:** Min p over 5 lags at 0.05 gave about 23% false positives, series were tail-aligned, and failed symbols kept stale results.
+- **Owned by:** `src/causal/granger.py`
+- **Verification:**
+  - `tests/test_data_layer_dat_fixes.py` (regression)
+
+> audit finding DAT-013; layer: test-suite
+
+#### `REG-1327` — AssetGNN does not emit random-weight embeddings (DAT-014)
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+The untrained GAT path is not used by run() until trained weights are loaded, runs in eval mode, and its input projection is built once with a fixed seed.
+
+- **If violated:** A fresh untrained Linear and active dropout made embeddings and contagion scores random per call.
+- **Owned by:** `src/causal/asset_gnn.py`
+- **Verification:**
+  - `tests/test_causal_asset_gnn_pyg.py` (regression)
+
+> audit finding DAT-014; layer: test-suite
+
+#### `REG-1328` — DepthDetectorV2 verifies a sha256 manifest before unpickling (DAT-015)
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+DepthDetectorV2.save writes sha256 manifests and load refuses any pickle whose manifest is missing or mismatched.
+
+- **If violated:** Three pickles were loaded without integrity verification, unlike the v1 detector.
+- **Owned by:** `src/regime/depth_detector_v2.py`
+- **Verification:**
+  - `tests/test_data_layer_dat_fixes.py` (regression)
+
+> audit finding DAT-015; layer: test-suite
+
+#### `REG-1329` — GARCH refit must converge and pipeline guards garch_window (DAT-016)
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+rolling_garch_forecast discards a non-converged fit, and build_feature_matrix min-rows includes garch_window.
+
+- **If violated:** result.success was ignored so non-converged parameters were used, and the training min_required omitted garch_window.
+- **Owned by:** `src/regime/garch.py`, `src/features/pipeline.py`
+- **Verification:**
+  - `tests/test_data_layer_dat_fixes.py` (regression)
+
+> audit finding DAT-016; layer: test-suite
+
+#### `REG-1330` — No fabricated sentiment or mempool values when the source is down (DAT-017)
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+SentimentProvider has unknown (NaN) Fear and Greed until fetched and does not publish it to the cache, and mempool features are NaN when the node or fee estimate is unavailable.
+
+- **If violated:** Zeros, 0.0001 feerate and 50/Neutral were indistinguishable from real readings, contradicting the REG-0008 NaN policy.
+- **Owned by:** `src/features/mempool.py`, `src/data/sentiment_provider.py`
+- **Verification:**
+  - `tests/test_data_layer_dat_fixes.py` (regression)
+  - `tests/test_features_mempool.py` (regression)
+
+> audit finding DAT-017; layer: test-suite
+
 #### `REG-1430` — Data and intelligence low-severity defects: bus drop total, naive now, funding units, NaN guards
 
 **VERIFIED** · low · regression · source: OPS-2026-10-25
@@ -2199,6 +2358,19 @@ ConfigPanel renders values from GET /controls, not hardcoded literals.
   - `frontend/src/security/frontendSecurity.test.jsx` (regression)
 
 > audit finding FE-09. layer: test-suite
+
+#### `REG-1401` — Control-plane tables and settings reject malformed or mutable definitions
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+Control sliders keep a zero bound, lifecycle TRANSITIONS/INVERSE/STAGE_FOR/SUPERVISOR_TYPES are read-only, and StrategySettings rejects inverted min/max and entry/exit pairs.
+
+- **If violated:** A ge=0 bound was dropped, lookup tables were writable at runtime, and inverted strategy parameters silently gated off every trade.
+- **Owned by:** `src/api/control_surface.py`, `src/runtime/contracts.py`, `src/runtime/changes.py`, `src/runtime/supervisor.py`, `src/config.py`
+- **Verification:**
+  - `tests/test_phase6_exec_api_lows.py` (regression)
+
+> layer: test-suite
 
 #### `REG-1496` — Dashboard polling and control hub tolerate transient failures
 
@@ -2992,6 +3164,19 @@ The production index.html includes a CSP meta with script-src 'self', object-src
   - `frontend/src/security/frontendSecurity.test.jsx` (security)
 
 > audit finding FE-08. layer: test-suite
+
+#### `SEC-1400` — Security helpers fail closed on unknown or ambiguous inputs
+
+**VERIFIED** · medium · security_regression · source: OPS-2026-10-25
+
+Key postures claiming any capability outside READ/TRADE (including margin and futures) are refused; ApiSigner payload fields are delimited so distinct requests never sign identically; CredentialVault refuses unknown exchanges and out-of-range key indices; the SSRF guard blocks every non-global range including CGNAT; CORS credentials are off and non-loopback origins must use https.
+
+- **If violated:** Margin/futures keys passed the posture check, request fields could be shifted between path and body under one signature, distinct exchanges derived one key, CGNAT addresses were reachable, and http origins were accepted off loopback.
+- **Owned by:** `src/security/exchange_key_posture.py`, `src/security/api_signer.py`, `src/security/credential_vault.py`, `src/security/ssrf.py`, `src/api/middleware.py`, `src/api/main.py`
+- **Verification:**
+  - `tests/test_phase6_exec_api_lows.py` (security)
+
+> layer: test-suite
 
 #### `SEC-1490` — Agent git remote is never parsed as a git option
 
@@ -5185,4 +5370,4 @@ To add or change an entry, edit the registry and regenerate this file. See
 `docs/quality/TEST_STRATEGY.md` for the taxonomy the `test_type` column draws
 on, and `docs/quality/IMPLEMENTATION_PLAN.md` for what each phase delivers.
 
-Registry version: 1.0.0 — 398 entries.
+Registry version: 1.0.0 — 412 entries.
