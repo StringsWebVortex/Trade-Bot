@@ -236,3 +236,22 @@ class TestAuthorization:
         command = f"git push --force https://x:{token}@github.com/o/r.git"
         assert consume(task, [FORCE_PUSH], command, now=NOW) == []
         assert token not in (task.authorizations[0].consumed_by or "")
+
+
+def test_parser_handles_escaped_nested_delimiters_and_alias_edge_cases() -> None:
+    # An escaped closing parenthesis is data inside the substitution, not its
+    # terminator; the later guarded command must still be discovered.
+    assert guarded_operations(r"echo $(printf \\) && git reset)") == ["reset"]
+    # An escaped backtick does not terminate the outer legacy substitution.
+    assert guarded_operations(r"echo `printf \`literal && git merge main`") == ["merge"]
+    # Quotes inside $() are tracked while looking for the matching close.
+    assert guarded_operations("echo $(printf 'quoted' && git checkout main)") == ["checkout"]
+
+    # xargs without a command to execute contains no nested invocation.
+    assert guarded_operations("xargs -n1 echo") == []
+    # Empty aliases preserve the original invocation; malformed aliases use
+    # the documented conservative split fallback.
+    assert guarded_operations("git empty", {"empty": "   "}) == []
+    assert guarded_operations("git malformed", {"malformed": "git 'unterminated"}) == []
+    # A shell option that does not carry a command string must not be guessed.
+    assert guarded_operations("bash -l script.sh") == []
