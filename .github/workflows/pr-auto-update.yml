@@ -277,7 +277,7 @@ jobs:
                 docs/quality/REQUIREMENTS_TRACEABILITY.md)
                   # A branch from before GOV-071 still carries it; main does
                   # not, so the merge drops it rather than regenerating it.
-                  git rm -q --cached --ignore-unmatch -- "${path}"
+                  git rm -f -q --cached --ignore-unmatch -- "${path}"
                   continue ;;
                 docs/MATH_FOUNDATIONS.md)
                   python3 scripts/generate_math_docs.py ;;
