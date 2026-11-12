@@ -3,7 +3,9 @@
 // and native OS integration (dock/taskbar icon, single-instance lock).
 const { app, BrowserWindow, Tray, Menu, nativeImage, shell, ipcMain } = require("electron");
 const path = require("path");
+const { pathToFileURL } = require("url");
 const { TerminalBridge } = require("./terminalBridge.cjs");
+const { isSafeExternalUrl, isAppUrl, apiKeyHeaderHook } = require("./security.cjs");
 
 const isDev = !app.isPackaged;
 // frontend/electron -> repository root: where the terminal service's Python
@@ -11,6 +13,7 @@ const isDev = !app.isPackaged;
 const REPO_ROOT = path.join(__dirname, "..", "..");
 let terminalBridge = null;
 const DEV_URL = process.env.VITE_DEV_URL || "http://127.0.0.1:5173";
+const APP_FILE_URL = pathToFileURL(path.join(__dirname, "..", "dist", "index.html")).href;
 
 const BUILD_DIR = path.join(__dirname, "..", "build");
 const ICON_PATH = path.join(BUILD_DIR, "icon.png");
@@ -62,9 +65,25 @@ function createWindow() {
 
   // Open external links (if any) in the OS browser, not inside the app window.
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url);
+    if (isSafeExternalUrl(url)) shell.openExternal(url);
     return { action: "deny" };
   });
+
+  // FE-07: the preload exposes a shell bridge, so the window must never leave
+  // the app origin. Block every in-window navigation elsewhere.
+  mainWindow.webContents.on("will-navigate", (event, url) => {
+    if (!isAppUrl(url, DEV_URL, APP_FILE_URL)) event.preventDefault();
+  });
+
+  // FE-01: the API key is held here, not in the renderer bundle.
+  const desktopKey = process.env.TRADEBOT_DESKTOP_API_KEY || "";
+  if (desktopKey) {
+    const apiOrigin = process.env.VITE_API_URL || "http://localhost:8000";
+    mainWindow.webContents.session.webRequest.onBeforeSendHeaders(
+      { urls: [`${apiOrigin.replace(/\/$/, "")}/*`] },
+      apiKeyHeaderHook(apiOrigin.replace(/\/$/, ""), desktopKey),
+    );
+  }
 
   // Closing the window hides it to the tray instead of quitting — mirrors
   // typical trading-terminal behavior so the bot keeps monitoring in the tray.
@@ -139,7 +158,7 @@ app.whenReady().then(() => {
   // Start the terminal service alongside the window (not before it): the
   // dashboard shows "connecting" until it answers, and a missing Python
   // environment degrades the terminal, never the rest of the app.
-  terminalBridge = new TerminalBridge({ ipcMain, repoRoot: REPO_ROOT, env: process.env });
+  terminalBridge = new TerminalBridge({ ipcMain, repoRoot: REPO_ROOT, env: process.env, appFileUrl: APP_FILE_URL });
   terminalBridge.register();
   terminalBridge.startService();
   createWindow();

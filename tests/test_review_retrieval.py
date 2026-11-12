@@ -52,19 +52,19 @@ def test_hybrid_respects_top_k_truncation():
     assert len(ranked) == 2
 
 
-def test_graph_no_entities_returns_unfiltered():
+def test_graph_no_entities_returns_nothing():
     edges_col = MagicMock()
     edges_col.find.return_value.limit.return_value = [{"subject": "A"}]
-    with patch("review.retrieval.get_edges_collection", return_value=edges_col):
+    with patch("kg.query.get_edges_collection", return_value=edges_col):
         result = graph([], limit=10)
-    assert result == [{"subject": "A"}]
-    edges_col.find.assert_called_once_with({}, {"_id": 0})
+    assert result == []
+    edges_col.find.assert_not_called()
 
 
 def test_graph_with_entities_filters():
     edges_col = MagicMock()
     edges_col.find.return_value.limit.return_value = [{"subject": "Foo"}]
-    with patch("review.retrieval.get_edges_collection", return_value=edges_col):
+    with patch("kg.query.get_edges_collection", return_value=edges_col):
         result = graph(["Foo"], limit=5)
     assert result == [{"subject": "Foo"}]
     call_filter = edges_col.find.call_args[0][0]

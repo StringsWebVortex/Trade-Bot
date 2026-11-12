@@ -67,9 +67,18 @@ def test_aggregator_init_kwarg_overrides_settings():
     assert agg.cache_ttl_onchain == 600
 
 
-def test_base_url_property():
+async def test_checked_base_pins_the_configured_url(monkeypatch):
+    from src.security import ssrf
+
+    async def _public(_host: str) -> tuple[str, ...]:
+        return ("93.184.216.34",)
+
+    monkeypatch.setattr(ssrf, "_resolve_async", _public)
     agg = _make_agg()
-    assert "glassnode" in agg._base_url
+    base_url, transport = await agg._checked_base()
+    assert base_url == "https://api.glassnode.com/v1/metrics"
+    assert isinstance(transport, ssrf.PinnedTransport)
+    await transport.aclose()
 
 
 # ---------------------------------------------------------------------------
@@ -121,8 +130,7 @@ async def test_get_exchange_netflow_error_returns_defaults():
     agg._fetch_glassnode_netflow = AsyncMock(side_effect=RuntimeError("API down"))
 
     result = await agg.get_exchange_netflow("BTC")
-    assert result["netflow"] == 0.0
-    assert result["tscore"] == 0.0
+    assert result is None  # INT-019: missing, not fabricated zeros
 
 
 @pytest.mark.asyncio
@@ -131,8 +139,7 @@ async def test_get_whale_activity_error_returns_defaults():
     agg._fetch_glassnode_whale_activity = AsyncMock(side_effect=RuntimeError("API down"))
 
     result = await agg.get_whale_activity("BTC")
-    assert result["ratio"] == 1.0
-    assert result["sentiment"] == "neutral"
+    assert result is None
 
 
 @pytest.mark.asyncio
@@ -141,8 +148,7 @@ async def test_get_funding_rate_error_returns_defaults():
     agg._fetch_cryptoquant_funding_rate = AsyncMock(side_effect=RuntimeError("API down"))
 
     result = await agg.get_funding_rate()
-    assert result["rate_pct"] == 0.0
-    assert result["excessive"] is False
+    assert result is None
 
 
 # ---------------------------------------------------------------------------

@@ -7,6 +7,7 @@ external dependencies — no real network, DB, or model I/O.
 
 Decides:
   - REG-0028 — regression coverage for the recorded behavior.
+  - REG-1060 — Drift accuracy uses the real entry P(long); unknown is skipped
 """
 
 from __future__ import annotations
@@ -81,6 +82,9 @@ def _make_executor():
     e.open_positions = MagicMock(return_value=[])
     e.open_positions_safe = AsyncMock(return_value=[])
     e.equity_usd = 1000.0
+    # Synchronous on AbstractExecutor (EXR-018): an AsyncMock coroutine
+    # here would be created every tick and never awaited.
+    e.close_approval_window = MagicMock(return_value=None)
     e.starting_equity_usd = 1000.0
     e.shutdown = AsyncMock(return_value=None)
     return e
@@ -1332,6 +1336,7 @@ class TestTickCorrelationFallback:
     async def test_tick_drift_blocks_tradeable_signal(self):
         """Performance drift gate skips execution even when signal is tradeable."""
         orch = self._make_orch()
+        orch._cfg.trading_mode = TradingMode.LIVE  # drift halt is live-only (EXR-004)
         executor = _make_executor()
         executor.open_positions_safe = AsyncMock(return_value=[])
         orch._executor = executor
@@ -1368,9 +1373,57 @@ class TestTickCorrelationFallback:
         executor.submit_signal.assert_not_called()
 
     @pytest.mark.asyncio
+    async def test_tick_drift_does_not_block_paper_signal(self):
+        """EXR-004: live mode's paper-only secondary timeframe must not drift-halt."""
+        orch = self._make_orch()
+        # The global mode is LIVE, but this non-primary timeframe is paper-only.
+        orch._cfg.trading_mode = TradingMode.LIVE
+        orch._primary_tf = Timeframe.SCALPING
+        executor = _make_executor()
+        executor.open_positions_safe = AsyncMock(return_value=[])
+        orch._non_primary_executor = executor
+        orch._executor = _make_executor()
+
+        signal = MagicMock()
+        signal.tradeable = True
+        signal.regime = None
+        signal.p_long = 0.8
+        signal.p_bet = 0.8
+        signal.direction = 1
+        signal.kelly_result = MagicMock()
+        signal.kelly_result.entry_price = 65_000.0
+        signal.ensemble_point_estimate = None
+        executor.submit_signal = AsyncMock(return_value=("paper-trade", "opened"))
+        engine = AsyncMock()
+        engine.tick = AsyncMock(return_value=signal)
+        orch._engines[Timeframe.INTRADAY.value] = engine
+
+        tracker = MagicMock()
+        tracker.correlation_scalar = MagicMock(return_value=1.0)
+        tracker.push_bar_returns = MagicMock()
+
+        with (
+            patch("src.engine.orchestrator.get_portfolio_correlation", return_value=tracker),
+            patch(
+                "src.engine.orchestrator.compute_win_loss_stats", return_value=(0, 0.0, 0.0, 0.0)
+            ),
+            patch("src.engine.orchestrator.update_metrics"),
+            patch.object(
+                orch._drift_adapter,
+                "check_drift",
+                return_value={"drifted": True, "metric": "sharpe", "reason": "below floor"},
+            ) as chk,
+        ):
+            await orch._tick(Timeframe.INTRADAY)
+
+        chk.assert_not_called()
+        executor.submit_signal.assert_awaited_once()
+
+    @pytest.mark.asyncio
     async def test_drift_triggers_retrain_task(self):
         """Drift detection must schedule an immediate retrain task (not just block)."""
         orch = self._make_orch()
+        orch._cfg.trading_mode = TradingMode.LIVE  # drift halt is live-only (EXR-004)
         executor = _make_executor()
         executor.open_positions_safe = AsyncMock(return_value=[])
         orch._executor = executor
@@ -1423,6 +1476,7 @@ class TestTickCorrelationFallback:
         """Overlap guard: a still-running retrain task must not be duplicated
         by a second drift trigger on the same timeframe."""
         orch = self._make_orch()
+        orch._cfg.trading_mode = TradingMode.LIVE  # drift halt is live-only (EXR-004)
         executor = _make_executor()
         executor.open_positions_safe = AsyncMock(return_value=[])
         orch._executor = executor
@@ -1481,6 +1535,7 @@ class TestTickCorrelationFallback:
         task by the time this (now-finished) task's done-callback fires,
         the callback must not delete the newer task's registration."""
         orch = self._make_orch()
+        orch._cfg.trading_mode = TradingMode.LIVE  # drift halt is live-only (EXR-004)
         executor = _make_executor()
         executor.open_positions_safe = AsyncMock(return_value=[])
         orch._executor = executor
@@ -1534,6 +1589,7 @@ class TestTickCorrelationFallback:
         """A failed drift-triggered retrain's done-callback must record the
         error and clear the (now-finished) task slot."""
         orch = self._make_orch()
+        orch._cfg.trading_mode = TradingMode.LIVE  # drift halt is live-only (EXR-004)
         executor = _make_executor()
         executor.open_positions_safe = AsyncMock(return_value=[])
         orch._executor = executor

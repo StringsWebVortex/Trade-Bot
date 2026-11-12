@@ -162,8 +162,10 @@ def test_size_dd_halt_gives_zero():
 def test_size_dd_taper_reduces_notional():
     equity_ok = CAPITAL * 0.99  # no drawdown
     equity_dd = CAPITAL * 0.87  # ~13% drawdown → taper
-    r1 = vol_target_size(CAPITAL, equity_ok, HWM, realized_vol_pct=20.0)
-    r2 = vol_target_size(CAPITAL, equity_dd, HWM, realized_vol_pct=20.0)
+    # High enough vol that neither result reaches the 25% notional cap, which
+    # would otherwise flatten the difference the haircut makes.
+    r1 = vol_target_size(CAPITAL, equity_ok, HWM, realized_vol_pct=60.0)
+    r2 = vol_target_size(CAPITAL, equity_dd, HWM, realized_vol_pct=60.0)
     assert r1.notional_usd > r2.notional_usd
 
 

@@ -26,6 +26,8 @@ from dataclasses import dataclass
 # with actual historical OHLCV-derived return series fetched via the
 # existing providers; these are stand-ins for known drawdown magnitudes
 # so the simulator has a concrete numeric input to run against.
+# NOTE (STR-24): only the scenario NAMES drive run_all_known_scenarios; the
+# caller supplies the return series, so these values are illustrative.
 KNOWN_CRISIS_SCENARIOS: dict[str, list[float]] = {
     "2018_crypto_winter": [-0.12, -0.08, -0.15, -0.05, -0.10, -0.07, -0.09],
     "2020_covid_crash": [-0.30, -0.05, 0.10, -0.08, 0.05, -0.03, 0.07],

@@ -7,7 +7,7 @@ requirements.txt finds torch already satisfied; a pre-pass that may resolve an
 older wheel than requirements.txt accepts lets pip fetch torch again from PyPI,
 which is the CUDA-bundling wheel GOV-015/REG-0012 keep out. rag-ingest.yml
 kept the 2.3 floor after #509 aligned the other two, so it is checked here too
-(nightly-quality.yml joins once its open edits land).
+(and nightly-quality.yml, aligned with the rest in Block C).
 
 OPS-012: npm audit passes with a warning when the registry cannot be reached.
 That is deliberate on pull requests, but on the weekly schedule and a manual
@@ -41,7 +41,13 @@ def _requirements_torch_spec() -> str:
 
 
 @pytest.mark.parametrize(
-    "path", [".github/workflows/ci.yml", ".github/workflows/rag-ingest.yml", "Dockerfile"]
+    "path",
+    [
+        ".github/workflows/ci.yml",
+        ".github/workflows/rag-ingest.yml",
+        ".github/workflows/nightly-quality.yml",
+        "Dockerfile",
+    ],
 )
 def test_cpu_torch_prepass_matches_requirements_spec(path: str) -> None:
     """REG-1600: every CPU-index pre-pass carries requirements.txt's torch spec."""

@@ -1,0 +1,26 @@
+{
+  "id": "REG-1718",
+  "kind": "regression",
+  "title": "An approval never blocks the tick, and an approved trade is re-validated before it fills",
+  "statement": "In RESTRICTED (above notional_limit_usd) and MANUAL mode submit_signal queues the trade and returns 'queued' without waiting, and never queues a second request for a symbol/timeframe that has one open. An approved request is an intent executed only by the next tick of that symbol/timeframe whose own signal is still tradeable, so the gate stack, meta-label gate and Kelly have just run on fresh data; it fills at that tick's price, only in the approved direction, only while the price is within risk.approval_max_price_drift_bps of the price the request showed, and at no more than the approved notional. Any failed check rejects it, an intent its next tick does not execute lapses, and a RESTRICTED request past approval_timeout_s can no longer be approved.",
+  "criticality": "high",
+  "subsystem": "execution",
+  "status": "verified",
+  "source": "OPS-2026-10-28",
+  "failure_mode": "submit_signal awaited the operator inside the tick, stalling that timeframe for up to approval_timeout_s (RESTRICTED) or indefinitely (MANUAL), and on approval filled the pre-wait Kelly size at the price captured before the wait with no gate re-run, so a trade could fill on a stale price after a halt, a drawdown breach or a regime change. The executor tests drove the approval round trip with a concurrent approve task and asserted only that the trade opened, so nothing checked the price, the gates or the tick; the deciding test now approves, moves the price and the direction, and asserts the fill price, the size cap, the lapse and the non-blocking return.",
+  "owning_modules": [
+    "src/execution/base.py",
+    "src/execution/paper.py",
+    "src/execution/live.py",
+    "src/engine/orchestrator.py",
+    "src/config.py"
+  ],
+  "depends_on": [],
+  "verification": [
+    {
+      "test": "tests/test_exr018_approval_requeue.py",
+      "test_type": "regression"
+    }
+  ],
+  "notes": "Audit EXR-018 (rest). layer: test-suite"
+}

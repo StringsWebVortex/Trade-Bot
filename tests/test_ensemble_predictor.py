@@ -2,6 +2,7 @@
 
 Decides:
   - RES-025 — regression coverage for the recorded behavior.
+  - REG-1714 — sequence members forecast from the realised return window.
 """
 
 from __future__ import annotations
@@ -36,7 +37,7 @@ def _make_features(n: int = 50, seed: int = 42) -> pd.DataFrame:
 def _fitted_predictor() -> EnsemblePredictor:
     """An ensemble with at least one fitted member, so predict() does not refuse."""
     ep = EnsemblePredictor()
-    X = _make_features(60)
+    X = _make_features(120)
     ep.fit(X, pd.Series(X["a"] * 1.5 + X["b"]))
     return ep
 
@@ -99,26 +100,19 @@ class TestARIMAPredictor:
         ts = pd.Series(np.cumsum(np.random.default_rng(1).standard_normal(60)) + 100)
         p.fit(ts)
         if p.model is not None:
-            # NOTE: statsmodels' forecast() returns a Series whose index
-            # continues from the end of the training series (e.g. label 60
-            # for a 60-row fit), so the real `self.model.forecast(steps=1)[0]`
-            # label lookup raises KeyError for any non-trivial series and
-            # always falls into the except branch in practice (suspected
-            # production bug — not fixed here, out of scope for this test
-            # pass). Mock a 0-indexed forecast result to exercise the
-            # intended success path.
-            with patch.object(p.model, "forecast", return_value=pd.Series([42.0], index=[0])):
-                pred = p.predict(_make_features(1))
-            assert pred == pytest.approx(42.0)
+            pred = p.predict(_make_features(1), recent_returns=ts.to_numpy()[-30:])
+            assert np.isfinite(pred)
 
-    def test_predict_forecast_exception_returns_zero(self):
+    def test_predict_forecast_exception_is_raised_not_zeroed(self):
         p = ARIMAPredictor()
         ts = pd.Series(np.cumsum(np.random.default_rng(1).standard_normal(60)) + 100)
         p.fit(ts)
         if p.model is not None:
-            with patch.object(p.model, "forecast", side_effect=RuntimeError("boom")):
-                pred = p.predict(_make_features(1))
-            assert pred == 0.0
+            with (
+                patch.object(p.model, "apply", side_effect=RuntimeError("boom")),
+                pytest.raises(RuntimeError, match="boom"),
+            ):
+                p.predict(_make_features(1), recent_returns=ts.to_numpy()[-30:])
 
 
 # ---------------------------------------------------------------------------
@@ -169,14 +163,14 @@ class TestXGBoostPredictor:
             p.fit(X, y)
         assert p.model is None
 
-    def test_predict_exception_returns_zero(self):
+    def test_predict_exception_propagates(self):
         p = XGBoostPredictor()
         X = _make_features(80)
         y = pd.Series(X["a"] + X["b"])
         p.fit(X, y)
         with patch.object(p.model, "predict", side_effect=RuntimeError("boom")):
-            result = p.predict(X.iloc[:1])
-        assert result == 0.0
+            with pytest.raises(RuntimeError, match="boom"):
+                p.predict(X.iloc[:1])
 
 
 # ---------------------------------------------------------------------------
@@ -255,10 +249,10 @@ class TestLSTMPredictor:
         ):
             p.fit(X, y)
         assert p.model is not None
-        pred = p.predict(X[:1].reshape(1, -1))
+        pred = p.predict(_make_features(1), recent_returns=X[0, :, 0])
         assert isinstance(pred, float)
 
-    def test_predict_exception_returns_zero(self):
+    def test_predict_exception_is_raised_not_zeroed(self):
         p = LSTMPredictor(hidden_dim=4, lookback=5, epochs=1)
         rng = np.random.default_rng(3)
         X = rng.standard_normal((30, 5, 1)).astype(np.float32)
@@ -267,9 +261,11 @@ class TestLSTMPredictor:
             "src.intelligence.ensemble_predictor._torch_fits_memory_budget", return_value=True
         ):
             p.fit(X, y)
-        with patch.object(p.model, "eval", side_effect=RuntimeError("boom")):
-            result = p.predict(X[:1].reshape(1, -1))
-        assert result == 0.0
+        with (
+            patch.object(p.model, "eval", side_effect=RuntimeError("boom")),
+            pytest.raises(RuntimeError, match="boom"),
+        ):
+            p.predict(_make_features(1), recent_returns=X[0, :, 0])
 
 
 # ---------------------------------------------------------------------------
@@ -334,16 +330,15 @@ class TestGaussianProcessPredictor:
         # (unfitted) instance; rmse never gets updated past the exception.
         assert p.rmse == np.inf
 
-    def test_predict_with_uncertainty_exception_returns_fallback(self):
+    def test_predict_with_uncertainty_exception_propagates(self):
         p = GaussianProcessPredictor()
         X = _make_features(20)
         y = pd.Series(X["a"] * 1.5)
         p.fit(X, y)
         assert p.model is not None
         with patch.object(p.model, "predict", side_effect=RuntimeError("boom")):
-            point, unc = p.predict_with_uncertainty(X.iloc[:1])
-        assert point == 0.0
-        assert unc == 0.2
+            with pytest.raises(RuntimeError, match="boom"):
+                p.predict_with_uncertainty(X.iloc[:1])
 
     def test_fit_subsamples_to_max_train_samples(self):
         """Exact GP inference is O(n^3) -- large live-retrain sample counts
@@ -424,14 +419,14 @@ class TestTreeEnsemblePredictor:
         assert p.rmse == np.inf
         assert p._bootstrap_models == []
 
-    def test_predict_exception_returns_zero(self):
+    def test_predict_exception_propagates(self):
         p = TreeEnsemblePredictor(n_estimators=10, n_bootstrap=2)
         X = _make_features(80)
         y = pd.Series(X["a"] + X["b"])
         p.fit(X, y)
         with patch.object(p.model, "predict", side_effect=RuntimeError("boom")):
-            result = p.predict(X.iloc[:1])
-        assert result == 0.0
+            with pytest.raises(RuntimeError, match="boom"):
+                p.predict(X.iloc[:1])
 
     def test_predict_with_uncertainty_exception_falls_back_to_rmse(self):
         p = TreeEnsemblePredictor(n_estimators=10, n_bootstrap=2)
@@ -497,15 +492,17 @@ class TestEnsemblePredictor:
 
     def test_fit_and_predict(self):
         ep = EnsemblePredictor()
-        X = _make_features(60)
+        X = _make_features(120)
         y = pd.Series(X["a"] * 2.0)
         with patch(
             "src.intelligence.ensemble_predictor._torch_fits_memory_budget", return_value=True
         ):
             ep.fit(X, y)
-        result = ep.predict(X.iloc[:1])
+        result = ep.predict(X.iloc[:1], recent_returns=y.to_numpy())
         assert isinstance(result, EnsemblePrediction)
+        # The LSTM forecasts from the supplied realised-return window.
         assert len(result.individual_predictions) == 5
+        assert "lstm" in result.individual_predictions
 
     def test_build_lstm_sequences_insufficient(self):
         y = pd.Series([1.0, 2.0, 3.0])
@@ -538,9 +535,11 @@ class TestEnsemblePredictor:
     def test_fit_skips_lstm_on_insufficient_data(self):
         ep = EnsemblePredictor()
         X = _make_features(10)
-        y = pd.Series(X["a"])  # len(y)=10 <= default lstm lookback=20
+        y = pd.Series(X["a"])  # insufficient for a reliable OOS score
         ep.fit(X, y)  # should not raise despite LSTM having too little data
-        assert abs(sum(ep.weights.values()) - 1.0) < 1e-9
+        assert all(weight == 0.0 for weight in ep.weights.values())
+        with pytest.raises(RuntimeError, match="valid out-of-sample score"):
+            ep.predict(X.iloc[:1])
 
     def test_fit_model_exception_is_caught(self):
         ep = EnsemblePredictor()
@@ -576,7 +575,7 @@ class TestPredictRow:
 
     def test_builds_correctly_ordered_row_from_dict(self):
         ep = EnsemblePredictor()
-        X = _make_features(60)
+        X = _make_features(120)
         y = pd.Series(X["a"] * 2.0)
         ep.fit(X, y)
         result = ep.predict_row({"b": 1.0, "a": 0.5})  # deliberately out of order
@@ -584,7 +583,7 @@ class TestPredictRow:
 
     def test_accepts_a_pandas_series(self):
         ep = EnsemblePredictor()
-        X = _make_features(60)
+        X = _make_features(120)
         y = pd.Series(X["a"] * 2.0)
         ep.fit(X, y)
         row = X.iloc[-1]
@@ -595,7 +594,7 @@ class TestPredictRow:
 class TestEnsemblePersistence:
     def test_save_and_load_round_trip(self, tmp_path):
         ep = EnsemblePredictor()
-        X = _make_features(60)
+        X = _make_features(120)
         y = pd.Series(X["a"] * 2.0)
         ep.fit(X, y)
 
@@ -650,7 +649,7 @@ class TestEnsemblePersistence:
         if not _torch_installed():
             pytest.skip("torch not installed")
         ep = EnsemblePredictor()
-        X = _make_features(60)
+        X = _make_features(120)
         y = pd.Series(X["a"] * 2.0)
         with patch(
             "src.intelligence.ensemble_predictor._torch_fits_memory_budget", return_value=True
@@ -719,4 +718,4 @@ def test_lstm_predict_returns_zero_if_lazy_runtime_disappears():
         patch("src.intelligence.ensemble_predictor._torch_installed", return_value=True),
         patch("src.intelligence.ensemble_predictor._load_torch_runtime", return_value=None),
     ):
-        assert p.predict(_make_features(5)) == 0.0
+        assert p.predict(_make_features(5), recent_returns=np.zeros(p.lookback)) == 0.0

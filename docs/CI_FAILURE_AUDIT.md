@@ -1,5 +1,7 @@
 # Audit: the 84 failed CI runs on `main`
 
+Note: file paths in the tables below are as they were at the audited commits and may no longer exist.
+
 `main` accumulated 84 `ci.yml` push runs that ended in `failure` (plus 77
 `cancelled` and 38 `success`, 199 total). Those runs are merged history: their
 logs are immutable and their pull requests are closed, so none of them can be

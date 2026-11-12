@@ -962,8 +962,10 @@ def test_websocket_rejects_bad_key(mock_state):
 
 
 def test_websocket_full_tick_cycle(mock_state):
+    from src.api.access_control import Role
+
     async def _allow_ws(ws):
-        return None
+        return Role.TRADE_AUTHORIZING
 
     with patch("src.api.main.verify_ws_key", side_effect=_allow_ws):
         client = _get_client()
@@ -1177,7 +1179,7 @@ def test_performance_drift_exception(mock_state):
     client = _get_client()
     resp = client.get("/performance-drift", headers={"x-api-key": _API_KEY})
     assert resp.status_code == 200
-    assert resp.json() == {"error": "drift boom"}
+    assert resp.json() == {"error": "Internal error."}
 
 
 # ---------------------------------------------------------------------------
@@ -1201,7 +1203,7 @@ def test_intelligence_coverage_exception(mock_state):
     client = _get_client()
     resp = client.get("/intelligence/coverage", headers={"x-api-key": _API_KEY})
     assert resp.status_code == 200
-    assert resp.json() == {"error": "cov boom"}
+    assert resp.json() == {"error": "Internal error."}
 
 
 # ---------------------------------------------------------------------------

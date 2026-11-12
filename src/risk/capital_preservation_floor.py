@@ -21,8 +21,14 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from pathlib import Path
+
+import structlog
 
 from src.eventbus import get_event_bus
+from src.risk.state_persistence import StateUnreadableError, load_state, save_state
+
+log = structlog.get_logger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,7 +48,7 @@ class CapitalPreservationFloor:
     re_authorize() from within this module or any other risk module.
     """
 
-    def __init__(self, max_drawdown_pct: float = 0.30) -> None:
+    def __init__(self, max_drawdown_pct: float = 0.30, state_path: Path | None = None) -> None:
         if not 0.0 < max_drawdown_pct < 1.0:
             raise ValueError(f"max_drawdown_pct must be in (0, 1), got {max_drawdown_pct}")
         self._max_drawdown_pct = max_drawdown_pct
@@ -50,6 +56,55 @@ class CapitalPreservationFloor:
         self._halted: bool = False
         self._halt_reason: str = ""
         self._last_reauth: ReAuthorization | None = None
+        # EXR-013: with a state_path, halted/peak/reauth survive a restart.
+        self._state_path = state_path
+        self._restore()
+
+    def _restore(self) -> None:
+        if self._state_path is None:
+            return
+        try:
+            state = load_state(self._state_path)
+            if state is None:
+                return
+            peak = float(state["peak_equity"])
+            if not math.isfinite(peak) or peak < 0.0:
+                raise StateUnreadableError("non-finite peak")
+            self._peak_equity = peak
+            self._halted = bool(state["halted"])
+            self._halt_reason = str(state.get("halt_reason", ""))
+            reauth = state.get("last_reauth")
+            if isinstance(reauth, dict):
+                self._last_reauth = ReAuthorization(
+                    authorized_by=str(reauth["authorized_by"]),
+                    reason=str(reauth["reason"]),
+                    at_ms=int(reauth["at_ms"]),
+                )
+        except (StateUnreadableError, KeyError, TypeError, ValueError) as exc:
+            # An unreadable file cannot rule out a halt: fail closed.
+            self._halted = True
+            self._halt_reason = f"capital floor state unreadable, failing closed: {exc}"
+            log.critical("capital_floor.state_unreadable", error=str(exc))
+
+    def _persist(self) -> None:
+        if self._state_path is None:
+            return
+        reauth = self._last_reauth
+        save_state(
+            self._state_path,
+            {
+                "halted": self._halted,
+                "halt_reason": self._halt_reason,
+                "peak_equity": self._peak_equity,
+                "last_reauth": None
+                if reauth is None
+                else {
+                    "authorized_by": reauth.authorized_by,
+                    "reason": reauth.reason,
+                    "at_ms": reauth.at_ms,
+                },
+            },
+        )
 
     def update_equity(self, equity_usd: float) -> bool:
         """
@@ -81,7 +136,10 @@ class CapitalPreservationFloor:
         if equity_usd < 0.0:
             raise ValueError(f"equity_usd must be non-negative, got {equity_usd}")
 
+        new_peak = equity_usd > self._peak_equity
         self._peak_equity = max(self._peak_equity, equity_usd)
+        if new_peak and not self._halted:
+            self._persist()
         if self._halted:
             return False
 
@@ -93,6 +151,7 @@ class CapitalPreservationFloor:
                     f"drawdown {drawdown_pct:.3f} >= floor {self._max_drawdown_pct:.3f} "
                     f"(peak={self._peak_equity:.2f}, current={equity_usd:.2f})"
                 )
+                self._persist()
                 # The outermost backstop tripping is the single most
                 # important thing this process can tell an operator, and it
                 # never auto-clears -- someone has to come and re-authorize
@@ -131,6 +190,7 @@ class CapitalPreservationFloor:
         self._halted = False
         self._halt_reason = ""
         self._last_reauth = ReAuthorization(authorized_by=authorized_by, reason=reason, at_ms=at_ms)
+        self._persist()
         get_event_bus().publish(
             "capital_floor",
             {

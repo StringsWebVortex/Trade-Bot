@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
-Render docs/quality/REQUIREMENTS_TRACEABILITY.md from config/quality_registry.json.
+Render docs/quality/REQUIREMENTS_TRACEABILITY.md from the quality registry
+(config/quality_registry.json plus config/quality_registry.d/).
 
 The traceability matrix is the document an auditor and an on-call operator both
 read, and a hand-maintained matrix is exactly the kind of file that says a
@@ -10,11 +11,15 @@ not on disk fails the build rather than the matrix.
 
 Usage:
     python3 scripts/generate_quality_docs.py            # write the document
-    python3 scripts/generate_quality_docs.py --check    # fail if it is stale
+    python3 scripts/generate_quality_docs.py --check    # render it, write nothing
 
---check is what CI runs. It exits 1 when the file on disk differs from what the
-registry would produce, which catches someone editing the prose instead of the
-data.
+The document is not committed (GOV-071). A committed copy was rewritten by
+every pull request that touched the registry, so any two such pull requests
+conflicted in it whatever order they merged in. It is generated on demand
+instead, and there is no hand-edited copy to drift from the data.
+
+--check is what CI runs. It loads and validates the registry and renders the
+document in memory; it exits non-zero when that fails.
 """
 
 from __future__ import annotations
@@ -63,13 +68,12 @@ STATUS_LABELS = {
 PREAMBLE = """<!--
 GENERATED FILE — DO NOT EDIT BY HAND.
 
-Source of truth: config/quality_registry.json
+Source of truth: config/quality_registry.json and config/quality_registry.d/
 Regenerate with: python3 scripts/generate_quality_docs.py
 CI check:        python3 scripts/generate_quality_docs.py --check
 
-Editing this file directly will be reverted by the next regeneration and will
-fail CI. Change the registry instead; the registry is reviewed as a diff and
-validated by src/quality/registry.py at load time.
+This file is not committed; it is rendered on demand from the registry, which
+is reviewed as a diff and validated by src/quality/registry.py at load time.
 -->
 
 # Requirements traceability
@@ -104,7 +108,8 @@ FOOTER_TEMPLATE = """
 
 ## Governance
 
-This document is generated from `config/quality_registry.json`, which is
+This document is generated from `config/quality_registry.json` and the
+per-entry files in `config/quality_registry.d/`, which are
 validated on load by `src/quality/registry.py` and in CI by
 `tests/quality/test_quality_registry.py`. The validation is not decorative:
 
@@ -122,7 +127,8 @@ validated on load by `src/quality/registry.py` and in CI by
   requirement. A mistyped kind cannot hide an invariant among the requirements.
 - Every `depends_on` must resolve, and the dependency graph must be acyclic.
 
-To add or change an entry, edit the registry and regenerate this file. See
+To add an entry, add one `config/quality_registry.d/<ID>.json` file; to
+change an existing entry, edit it where it lives. See
 `docs/quality/QUALITY_POLICY.md` for the policy these requirements serve,
 `docs/quality/TEST_STRATEGY.md` for the taxonomy the `test_type` column draws
 on, and `docs/quality/IMPLEMENTATION_PLAN.md` for what each phase delivers.
@@ -227,7 +233,7 @@ def main() -> int:
     parser.add_argument(
         "--check",
         action="store_true",
-        help="exit non-zero if the file on disk is stale instead of rewriting it",
+        help="render the document in memory and write nothing; exit non-zero on failure",
     )
     args = parser.parse_args()
 
@@ -235,17 +241,7 @@ def main() -> int:
     rendered = render(registry)
 
     if args.check:
-        if not OUTPUT.exists():
-            print(f"{OUTPUT.relative_to(PROJECT_ROOT)} is missing; run without --check")
-            return 1
-        current = OUTPUT.read_text(encoding="utf-8")
-        if current != rendered:
-            print(
-                f"{OUTPUT.relative_to(PROJECT_ROOT)} is stale. "
-                f"Run: python3 scripts/generate_quality_docs.py"
-            )
-            return 1
-        print(f"{OUTPUT.relative_to(PROJECT_ROOT)} is up to date.")
+        print(f"{OUTPUT.relative_to(PROJECT_ROOT)} renders: {len(registry)} entries.")
         return 0
 
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)

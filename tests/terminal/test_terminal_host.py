@@ -276,9 +276,91 @@ class TestShellIntegration:
         assert text == RCFILE
         # The user's own configuration loads first; the hooks are added after.
         assert text.index('. "$HOME/.bashrc"') < text.index("PROMPT_COMMAND=")
-        assert "133;D;" in text and "133;C" in text and "133;E;" in text
+        assert "133;%s;D;" in text and "133;%s;C" in text and "133;%s;E;" in text
 
     def test_only_bash_is_integrated(self, tmp_path):
         rc = tmp_path / "rc.sh"
         assert shell_argv("/usr/bin/bash", rc) == ["/usr/bin/bash", "--rcfile", str(rc), "-i"]
         assert shell_argv("/usr/bin/zsh", rc) == ["/usr/bin/zsh", "-i"]
+
+
+def _legacy_terminal_state_dir(monkeypatch, tmp_path):
+    from src.terminal import config as terminal_config
+
+    state_home = tmp_path / "xdg-state"
+    path = state_home / "tradebot-terminal"
+    path.mkdir(parents=True)
+    monkeypatch.delenv(terminal_config._ENV_PREFIX + "STATE_DIR", raising=False)
+    monkeypatch.setenv("XDG_STATE_HOME", str(state_home))
+    return terminal_config, path
+
+
+def test_state_dir_marker_creation_is_idempotent(tmp_path):
+    from src.terminal import config as terminal_config
+
+    path = tmp_path / "state"
+    path.mkdir()
+    marker = path / terminal_config.STATE_DIR_MARKER
+    marker.write_text("existing marker", encoding="utf-8")
+
+    terminal_config._write_state_dir_marker(path)
+
+    assert marker.read_text(encoding="utf-8") == "existing marker"
+
+
+def test_legacy_state_dir_without_a_token_is_not_marked(monkeypatch, tmp_path):
+    terminal_config, path = _legacy_terminal_state_dir(monkeypatch, tmp_path)
+    (path / "termd.log").write_text("log", encoding="utf-8")
+
+    terminal_config._mark_legacy_state_dir(path)
+
+    assert not (path / terminal_config.STATE_DIR_MARKER).exists()
+
+
+def test_legacy_state_dir_with_unexpected_files_is_not_marked(monkeypatch, tmp_path):
+    terminal_config, path = _legacy_terminal_state_dir(monkeypatch, tmp_path)
+    (path / "token").write_text("t" * 64, encoding="utf-8")
+    (path / "unexpected").write_text("not owned by the terminal", encoding="utf-8")
+
+    terminal_config._mark_legacy_state_dir(path)
+
+    assert not (path / terminal_config.STATE_DIR_MARKER).exists()
+
+
+def test_legacy_state_dir_with_a_short_token_is_not_marked(monkeypatch, tmp_path):
+    terminal_config, path = _legacy_terminal_state_dir(monkeypatch, tmp_path)
+    (path / "token").write_text("short", encoding="utf-8")
+
+    terminal_config._mark_legacy_state_dir(path)
+
+    assert not (path / terminal_config.STATE_DIR_MARKER).exists()
+
+
+def test_legacy_state_dir_inventory_errors_are_ignored(monkeypatch, tmp_path):
+    terminal_config, path = _legacy_terminal_state_dir(monkeypatch, tmp_path)
+    original_iterdir = Path.iterdir
+
+    def fail_inventory(self):
+        if self == path:
+            raise OSError("inventory unavailable")
+        return original_iterdir(self)
+
+    monkeypatch.setattr(Path, "iterdir", fail_inventory)
+    terminal_config._mark_legacy_state_dir(path)
+
+    assert not (path / terminal_config.STATE_DIR_MARKER).exists()
+
+
+def test_managed_state_dir_rejects_a_symlink_directory(tmp_path):
+    from src.terminal import config as terminal_config
+
+    target = tmp_path / "target"
+    target.mkdir()
+    (target / terminal_config.STATE_DIR_MARKER).write_text(
+        terminal_config.STATE_DIR_MARKER_CONTENT,
+        encoding="utf-8",
+    )
+    link = tmp_path / "link"
+    link.symlink_to(target, target_is_directory=True)
+
+    assert not terminal_config.is_managed_state_dir(link)

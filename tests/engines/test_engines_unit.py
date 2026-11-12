@@ -554,7 +554,7 @@ async def test_e13_requires_macro():
 def test_e13_granger_skips_constant_series():
     from src.engines.e13_contagion import E13Contagion
 
-    btc = np.random.randn(50)
+    btc = np.random.default_rng(0).standard_normal(50)
     # Constant SPX series → should return {} without crashing
     macro = {"spx_series": np.ones(50)}
     result = E13Contagion._granger_causality(btc, macro)

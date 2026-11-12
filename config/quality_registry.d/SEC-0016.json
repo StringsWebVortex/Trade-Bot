@@ -1,0 +1,22 @@
+{
+  "id": "SEC-0016",
+  "kind": "security_regression",
+  "title": "A runtime operator's name and kind come from their credential, not the request body",
+  "statement": "With OPERATOR_CREDENTIALS set, every /runtime write resolves its change-manager Actor from the operator secret alone: the matching credential supplies the name and the kind (human or ai), and a body whose operator or actor_kind disagrees is refused with 403, an unknown secret with 401, and a malformed or ambiguous credential map (shared secret, ai credential on OPERATOR_SECRET) with 503. Without it, the OPERATOR_SECRET holder is the human operator and actor_kind can only lower that to ai. Approval still needs no second person, so a solo human operator is not blocked.",
+  "criticality": "high",
+  "subsystem": "security",
+  "status": "verified",
+  "source": "OPS-2026-10-28",
+  "failure_mode": "actor_for built the Actor from the caller-chosen operator name and actor_kind, checked only against one shared OPERATOR_SECRET, so an AI client holding the secret sent actor_kind=human and became an approver of LIVE_GATED, SHADOW and CANARY changes, and the audit recorded whatever name it typed. ChangeManager.approve trusts the Actor's kind, and no test sent a kind that disagreed with the caller's identity; the deciding test now does, through actor_for and through the approve route.",
+  "owning_modules": [
+    "src/api/runtime_control.py"
+  ],
+  "depends_on": [],
+  "verification": [
+    {
+      "test": "tests/security/test_operator_credential_identity.py",
+      "test_type": "security"
+    }
+  ],
+  "notes": "Audit API-012 (option 2: credential-bound identity, no four-eyes rule). Requester != approver is deliberately not enforced so a single human operator can still approve. layer: test-suite"
+}
