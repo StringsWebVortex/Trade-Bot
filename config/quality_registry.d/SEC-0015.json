@@ -1,0 +1,28 @@
+{
+  "id": "SEC-0015",
+  "kind": "security_regression",
+  "title": "/runtime/agent agent-control ledgers require the runtime-change permission",
+  "statement": "GET /runtime/agent serves the .git/agent-control task manifests (objective, branch, baseline and current SHA, next action) and the branch-audit ledger only to a key holding Permission.CHANGE_RUNTIME; a read-only key gets 403 without any ledger content, and the Runtime panel shows that 403 as a missing operator key rather than as a rejected key or an empty ledger.",
+  "criticality": "medium",
+  "subsystem": "security",
+  "status": "verified",
+  "source": "OPS-2026-10-28",
+  "failure_mode": "The route used the runtime read dependencies (VIEW_STATUS), which Role.READ_ONLY holds, so any read-only dashboard key could read in-flight engineering work: task objectives, branches, SHAs and the branch-audit ledger. The deciding test asserted the defect itself by fetching the ledgers with the read-only key; it now asserts 403 for that key and 200 for the operator key, so a route that drops back to VIEW_STATUS fails it.",
+  "owning_modules": [
+    "src/api/main.py",
+    "frontend/src/components/panels/RuntimePanel.jsx",
+    "frontend/src/components/panels/runtimeModel.js"
+  ],
+  "verification": [
+    {
+      "test": "tests/runtime/test_runtime_endpoints.py",
+      "test_type": "regression"
+    },
+    {
+      "test": "frontend/src/components/panels/runtimeModel.test.js",
+      "test_type": "regression"
+    }
+  ],
+  "depends_on": [],
+  "notes": "Audit API-023. layer: test-suite"
+}

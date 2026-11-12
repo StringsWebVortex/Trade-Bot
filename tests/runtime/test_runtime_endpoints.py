@@ -2,7 +2,10 @@
 mutation needs CHANGE_RUNTIME plus the operator second factor and goes through
 the change manager, and an AI client can request but never approve.
 
-Decides: RES-017, RES-018"""
+The agent-control ledgers (GET /runtime/agent) need CHANGE_RUNTIME, so a
+read-only key gets 403 (SEC-0015).
+
+Decides: RES-017, RES-018, SEC-0015"""
 
 from __future__ import annotations
 
@@ -254,14 +257,17 @@ def _task(task_id: str) -> TaskRun:
     )
 
 
-def test_agent_ledgers_are_served_read_only(
+def test_agent_ledgers_refuse_a_read_only_key(
     api: Api, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     client, _ = api
     TaskStore(tmp_path).save(_task("TB-RUN-20261007-0001"))
     (tmp_path / "tasks" / "TB-RUN-20261007-0002.json").write_text("{bad", encoding="utf-8")
     monkeypatch.setenv(STATE_DIR_ENV, str(tmp_path))
-    body = client.get("/runtime/agent", headers=READ).json()
+    refused = client.get("/runtime/agent", headers=READ)
+    assert refused.status_code == 403
+    assert "TB-RUN-20261007-0001" not in refused.text
+    body = client.get("/runtime/agent", headers=TRADE).json()
     (task,) = body["tasks"]
     assert (task["phase"], task["status"], task["steps_total"]) == ("IMPLEMENTING", "ACTIVE", 0)
     assert body["branch_audit"] == []

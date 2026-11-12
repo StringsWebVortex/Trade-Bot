@@ -30,7 +30,7 @@ Rules:
 - Identify the exact file and relevant function.
 - Explain the impact and reproduction conditions.
 - implement proper, actual, absolute, valid, practical fix.
-- Never remove anything (which causing the tests or PR workflow to fail) for just making the workflow/tests to pass. 
+- Never remove anything (which causing the tests or PR workflow to fail) for just making the workflow/tests to pass.
 - Never remove failed code, debug it to pass the workflow/tests.
 - keep Readme.md and other relevant documentations upto date according to codebase actual state
 

@@ -309,26 +309,3 @@ class TestEmergencyFlatten:
 
         assert self._place(executor, direction=1) is None
         assert calls["n"] == 2  # the flatten was attempted
-
-
-def test_an_approval_that_disappears_before_resolution_is_not_approved():
-    """The event fires, but the queue entry is gone by the time the waiter
-    reclaims it -- that is refused, never read as an approval."""
-    executor = _make_executor()
-
-    async def _run():
-        request = MagicMock()
-        request._event = asyncio.Event()
-        request._event.set()
-
-        class _RacyQueue(dict):
-            """Hands out the request, then loses it -- another task popped it."""
-
-            def pop(self, key, default=None):
-                super().pop(key, default)
-                return None
-
-        executor._approval_queue = _RacyQueue({"req-1": request})
-        return await executor._await_approval("req-1", 0.5)
-
-    assert asyncio.run(_run()) == (False, "")

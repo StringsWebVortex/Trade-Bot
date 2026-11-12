@@ -57,7 +57,7 @@ Own the assignment until every feasible in-scope requirement is implemented and 
 Return complete implemented/executed user resuest in your active workflow response containing:
 - files changed
 - steps implemented
-- never deliver statements for in-scope step. scope should implemented before you finish your response. 
+- never deliver statements for in-scope step. scope should implemented before you finish your response.
 - always deliver implemented/executed response.
 
 

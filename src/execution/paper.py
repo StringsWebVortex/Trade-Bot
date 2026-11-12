@@ -9,6 +9,10 @@ real orders.  Handles all three execution modes:
                 auto-skip on approval_timeout_s
   MANUAL      — every trade queued for explicit operator approval
 
+  An approval never blocks the tick: the trade is queued and the next tick
+  that still passes every gate executes it, re-validated (EXR-018, see
+  src/execution/base.py).
+
 Position lifecycle:
   open_position()  → stores entry, deducts notional from cash
   close_position() → computes PnL, returns cash + PnL, persists trade record
@@ -40,7 +44,14 @@ from src.config import ExecutionMode, TradingMode, get_settings, runtime_config
 from src.data.storage import AnyStorageBackend, BlendAudit, EquityRecord, TradeRecord
 from src.diagnostics.attribution import AttributedFill, get_attribution_tracker
 from src.eventbus import get_event_bus
-from src.execution.base import AbstractExecutor
+from src.execution.base import (
+    AbstractExecutor,
+    ApprovalRequest,
+    expire_unresolved_approvals,
+    lapse_approved_intents,
+    open_approval_for,
+    revalidate_approved_intent,
+)
 from src.execution.idempotency import (
     DuplicateOrderError,
     IdempotencyRegistry,
@@ -134,56 +145,6 @@ class PaperPosition:
         if self.direction == 1:
             return (price - self.entry_price) * self.quantity
         return (self.entry_price - price) * self.quantity
-
-
-# ---------------------------------------------------------------------------
-# Approval request — used in RESTRICTED and MANUAL modes
-# ---------------------------------------------------------------------------
-
-
-@dataclass
-class ApprovalRequest:
-    """
-    Pending trade awaiting operator approval.
-
-    resolved  : set to True when approved or rejected
-    approved  : True = proceed, False = skip
-    operator  : ID of approving operator (or 'auto_timeout')
-    """
-
-    request_id: str
-    symbol: str
-    timeframe: str
-    direction: int
-    notional_usd: float
-    entry_price: float
-    quantity: float
-    kelly_fraction: float
-    regime_state: int
-    meta_label_prob: float
-    raw_signal: float
-    created_at: float  # time.monotonic()
-
-    resolved: bool = field(default=False)
-    approved: bool = field(default=False)
-    operator: str = field(default="")
-    # Event-based notification — eliminates busy-poll lock contention (VUL-024)
-    _event: asyncio.Event = field(default_factory=asyncio.Event, repr=False)
-
-    def to_dict(self) -> dict[str, object]:
-        return {
-            "request_id": self.request_id,
-            "symbol": self.symbol,
-            "timeframe": self.timeframe,
-            "direction": "long" if self.direction == 1 else "short",
-            "notional_usd": round(self.notional_usd, 2),
-            "entry_price": round(self.entry_price, 4),
-            "quantity": self.quantity,
-            "kelly_fraction": round(self.kelly_fraction, 4),
-            "regime_state": self.regime_state,
-            "meta_label_prob": round(self.meta_label_prob, 4),
-            "raw_signal": round(self.raw_signal, 4) if self.raw_signal is not None else None,
-        }
 
 
 # ---------------------------------------------------------------------------
@@ -323,9 +284,10 @@ class PaperExecutor(AbstractExecutor):
 
         Returns (trade_id, outcome) where outcome is one of:
           'opened'    — position opened immediately
-          'queued'    — approval request created (RESTRICTED/MANUAL)
-          'skipped'   — auto-skip on timeout (RESTRICTED only)
-          'rejected'  — gate failed or operator rejected
+          'queued'    — approval request created or still awaiting the
+                        operator (RESTRICTED/MANUAL); never blocks
+          'rejected'  — open failed, or an approved intent failed
+                        re-validation against this fresh signal
 
         Parameters
         ----------
@@ -377,22 +339,7 @@ class PaperExecutor(AbstractExecutor):
                 )
                 return trade_id, "opened" if trade_id else "rejected"
             # Above limit — needs approval
-            req_id = await self._enqueue_approval(
-                symbol,
-                timeframe,
-                direction,
-                kelly_result,
-                regime_state,
-                meta_label_prob,
-                raw_signal,
-            )
-            # Wait for approval with timeout
-            approved, operator = await self._await_approval(
-                req_id, self._risk_cfg.approval_timeout_s
-            )
-            if not approved:
-                return None, "skipped"
-            trade_id = await self._open_position_internal(
+            return await self._submit_through_approval(
                 symbol,
                 timeframe,
                 direction,
@@ -401,30 +348,15 @@ class PaperExecutor(AbstractExecutor):
                 meta_label_prob,
                 raw_signal,
                 current_price,
-                approved_by=operator,
+                timeout_s=self._risk_cfg.approval_timeout_s,
                 strategy_id=strategy_id,
                 blend_audit=blend_audit,
             )
-            return trade_id, "opened" if trade_id else "rejected"
 
         if mode == ExecutionMode.MANUAL:
-            req_id = await self._enqueue_approval(
-                symbol,
-                timeframe,
-                direction,
-                kelly_result,
-                regime_state,
-                meta_label_prob,
-                raw_signal,
-            )
-            # EXR-018: bounded wait. An unbounded one stalled the tick loop and
-            # filled at the original, possibly hours-old, price and quantity.
-            approved, operator = await self._await_approval(
-                req_id, self._risk_cfg.approval_timeout_s
-            )
-            if not approved:
-                return None, "rejected"
-            trade_id = await self._open_position_internal(
+            # No timeout in MANUAL — the operator decides, however long that
+            # takes; the approved intent is still re-validated on execution.
+            return await self._submit_through_approval(
                 symbol,
                 timeframe,
                 direction,
@@ -433,11 +365,10 @@ class PaperExecutor(AbstractExecutor):
                 meta_label_prob,
                 raw_signal,
                 current_price,
-                approved_by=operator,
+                timeout_s=None,
                 strategy_id=strategy_id,
                 blend_audit=blend_audit,
             )
-            return trade_id, "opened" if trade_id else "rejected"
 
         # Should never reach — ExecutionMode enum is exhaustive
         raise RuntimeError(f"Unknown execution mode: {mode!r}")  # pragma: no cover
@@ -754,16 +685,22 @@ class PaperExecutor(AbstractExecutor):
     ) -> bool:
         """
         Resolve a pending approval request.
-        Sets asyncio.Event to wake _await_approval immediately (VUL-024).
+
+        An approval does not trade here: it records an approved intent that
+        the next tick of the same symbol/timeframe executes only if its fresh
+        signal passes every gate and re-validation (EXR-018). A request past
+        its timeout is expired first, so a late approval is refused.
         """
         async with self._lock:
+            now = time.monotonic()
+            expire_unresolved_approvals(self._approval_queue, now)
             req = self._approval_queue.get(request_id)
             if req is None or req.resolved:
                 return False
             req.resolved = True
             req.approved = approved
             req.operator = operator
-            req._event.set()
+            req.resolved_at = now
 
         get_event_bus().publish(
             "approval",
@@ -784,6 +721,94 @@ class PaperExecutor(AbstractExecutor):
         )
         return True
 
+    def close_approval_window(self, symbol: str, timeframe: str) -> None:
+        """Drop an approved intent that already had its tick (EXR-018)."""
+        for req in lapse_approved_intents(self._approval_queue, symbol, timeframe):
+            self._log.warning(
+                "paper.approval_intent_lapsed",
+                request_id=req.request_id,
+                symbol=symbol,
+                timeframe=timeframe,
+                operator=req.operator,
+            )
+
+    async def _submit_through_approval(
+        self,
+        symbol: str,
+        timeframe: str,
+        direction: int,
+        kelly_result: KellyResult,
+        regime_state: int,
+        meta_label_prob: float,
+        raw_signal: float,
+        current_price: float,
+        timeout_s: float | None,
+        strategy_id: str = "signal_engine_v1",
+        blend_audit: BlendAudit | None = None,
+    ) -> tuple[str | None, str]:
+        """
+        Queue-and-return approval routing (EXR-018). Never awaits an operator.
+
+        No open request for this symbol/timeframe: queue one at the current
+        price and return "queued". One still awaiting the operator: return
+        "queued" without a duplicate. An approved intent: this call is a
+        fresh signal that already passed the gate stack, so execute it with
+        the fresh size and price if revalidate_approved_intent() allows,
+        otherwise reject it. The timeframe loop serialises calls per key.
+        """
+        async with self._lock:
+            expire_unresolved_approvals(self._approval_queue, time.monotonic())
+            req = open_approval_for(self._approval_queue, symbol, timeframe)
+            if req is not None and req.approved:
+                self._approval_queue.pop(req.request_id, None)
+
+        if req is None:
+            await self._enqueue_approval(
+                symbol,
+                timeframe,
+                direction,
+                kelly_result,
+                regime_state,
+                meta_label_prob,
+                raw_signal,
+                reference_price=current_price,
+                timeout_s=timeout_s,
+            )
+            return None, "queued"
+        if not req.approved:
+            return None, "queued"
+
+        fill_kelly, reason = revalidate_approved_intent(
+            req,
+            direction=direction,
+            kelly_result=kelly_result,
+            current_price=current_price,
+            max_price_drift_bps=self._risk_cfg.approval_max_price_drift_bps,
+        )
+        if fill_kelly is None:
+            self._log.warning(
+                "paper.approval_revalidation_failed",
+                request_id=req.request_id,
+                reason=reason,
+                approved_price=req.entry_price,
+                current_price=current_price,
+            )
+            return None, "rejected"
+        trade_id = await self._open_position_internal(
+            symbol,
+            timeframe,
+            direction,
+            fill_kelly,
+            regime_state,
+            meta_label_prob,
+            raw_signal,
+            current_price,
+            approved_by=req.operator,
+            strategy_id=strategy_id,
+            blend_audit=blend_audit,
+        )
+        return trade_id, "opened" if trade_id else "rejected"
+
     def _pending_approvals_unsafe(self) -> list[dict[str, object]]:
         """
         Unresolved approvals, pruning resolved entries older than an hour.
@@ -791,12 +816,16 @@ class PaperExecutor(AbstractExecutor):
         H-05: the prune must live here, not in one of the two public
         accessors, or the queue only shrinks when a caller happens to use
         that one. No locking — call from a sync context or under self._lock.
+        An approved intent is never pruned here: its tick executes it or
+        close_approval_window() drops it.
         """
-        cutoff = time.monotonic() - 3600.0
+        now = time.monotonic()
+        expire_unresolved_approvals(self._approval_queue, now)
+        cutoff = now - 3600.0
         to_prune = [
             rid
             for rid, req in self._approval_queue.items()
-            if req.resolved and req.created_at < cutoff
+            if req.resolved and not req.approved and req.created_at < cutoff
         ]
         for rid in to_prune:
             self._approval_queue.pop(rid, None)
@@ -1138,6 +1167,8 @@ class PaperExecutor(AbstractExecutor):
         regime_state: int,
         meta_label_prob: float,
         raw_signal: float,
+        reference_price: float = 0.0,
+        timeout_s: float | None = None,
     ) -> str:
         """Create an ApprovalRequest and add to the queue."""
         req_id = str(uuid.uuid4())
@@ -1147,13 +1178,16 @@ class PaperExecutor(AbstractExecutor):
             timeframe=timeframe,
             direction=direction,
             notional_usd=kelly_result.notional_usd,
-            entry_price=0.0,  # filled at execution time
+            # The price the operator approves against; execution re-checks
+            # the fresh price against it (EXR-018).
+            entry_price=reference_price,
             quantity=kelly_result.quantity,
             kelly_fraction=kelly_result.adjusted_fraction,
             regime_state=regime_state,
             meta_label_prob=meta_label_prob,
             raw_signal=raw_signal,
             created_at=time.monotonic(),
+            timeout_s=timeout_s,
         )
         async with self._lock:
             self._approval_queue[req_id] = req
@@ -1183,42 +1217,6 @@ class PaperExecutor(AbstractExecutor):
             notional_usd=round(kelly_result.notional_usd, 2),
         )
         return req_id
-
-    async def _await_approval(
-        self,
-        request_id: str,
-        timeout_s: float | None,
-    ) -> tuple[bool, str]:
-        """
-        Wait for approval using asyncio.Event — replaces 250ms busy-poll (VUL-024).
-        Returns (approved, operator_id).
-        """
-        async with self._lock:
-            req = self._approval_queue.get(request_id)
-        if req is None:
-            return False, ""
-
-        try:
-            await asyncio.wait_for(req._event.wait(), timeout=timeout_s)
-        except TimeoutError:
-            async with self._lock:
-                timed_out = self._approval_queue.pop(request_id, None)
-                if timed_out is not None:
-                    timed_out.resolved = True
-                    timed_out.approved = False
-                    timed_out.operator = "auto_timeout"
-            self._log.warning(
-                "paper.approval_timeout",
-                request_id=request_id,
-                timeout_s=timeout_s,
-            )
-            return False, "auto_timeout"
-
-        async with self._lock:
-            resolved = self._approval_queue.pop(request_id, None)
-        if resolved is None:
-            return False, ""
-        return resolved.approved, resolved.operator
 
     def _equity_usd(self) -> float:
         """Total equity = cash + sum of unrealized PnL."""

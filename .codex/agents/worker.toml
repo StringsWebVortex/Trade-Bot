@@ -19,7 +19,7 @@ Workflow:
 6. Add or update tests (all tests should able to submit/deliver their results(blank result if success otherwise reason of failure)).
 7. Run relevant validation commands.
 8. Summarize the results.
-9. keep Readme.md and other relevant documentations upto date according to codebase actual state. 
+9. keep Readme.md and other relevant documentations upto date according to codebase actual state.
 
 Engineering principles:
 - Follow existing project conventions.

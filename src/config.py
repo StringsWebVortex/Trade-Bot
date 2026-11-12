@@ -210,6 +210,16 @@ class RiskSettings(BaseSettings):
         ge=1.0,
         description="Seconds to wait for manual approval before auto-skip (RESTRICTED and MANUAL modes)",
     )
+    approval_max_price_drift_bps: float = Field(
+        default=50.0,
+        ge=0.0,
+        description=(
+            "An approved trade executes on the next tick that still passes every "
+            "gate, and only while the fresh price is within this many bps of the "
+            "price the approval request showed; beyond it the approval is stale "
+            "and the trade is rejected (EXR-018)."
+        ),
+    )
 
     # GAP-001 — Almgren-Chriss slippage / market-impact model
     # (Almgren & Chriss 2001, "Optimal Execution of Portfolio Transactions").
@@ -776,9 +786,9 @@ class StrategyPortfolioSettings(BaseSettings):
 
     Each *_fraction is an upper bound on the share of book capital that
     strategy may request, enforced independently of Kelly (Kelly is a
-    ceiling, not a target). The enabled fractions are validated to sum to
-    <= 1.0 at bootstrap, so a mis-set config fails at startup rather than
-    at the first fill.
+    ceiling, not a target). They are ceilings, not a partition: they may sum
+    above 1.0 (the capital allocator caps each strategy and renormalises),
+    and a sum below 1.0 is logged as a warning at bootstrap.
 
     Defaults keep only the incumbent model-driven signal engine enabled.
     The v2/v3/v5 strategy families are opt-in per CLAUDE.md's out-of-sample
