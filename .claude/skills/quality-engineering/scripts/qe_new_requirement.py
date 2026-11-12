@@ -11,7 +11,9 @@ complaining rather than the one that says something true.
 
 So this builds the entry from the rules instead: the kind follows from the id
 prefix, the status decides whether `planned_in` or `verification` is present,
-and the result is validated before it is written.
+and the result is validated before it is written. It is written as its own
+file, `config/quality_registry.d/<ID>.json`, so two branches that each add an
+entry never touch the same lines (GOV-071).
 
     qe_new_requirement.py --id REG-0042 --title "..." --statement "..." \\
         --subsystem execution --criticality high --source QE-51 \\
@@ -35,11 +37,14 @@ from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from qe_registry_refs import GitUnavailable, ids_on_refs  # noqa: E402
+from qe_registry_refs import GitUnavailable, ids_on_refs, read_document  # noqa: E402
 
 SKILL_DIR = Path(__file__).resolve().parent.parent
 REPO = SKILL_DIR.parent.parent.parent
 REGISTRY_PATH = REPO / "config" / "quality_registry.json"
+#: New entries are written here, one file each, never appended to the base
+#: file: two branches adding entries then never conflict (GOV-071).
+OVERLAY_DIR = REGISTRY_PATH.with_suffix(".d")
 SCHEMA_PATH = REPO / "config" / "quality_registry.schema.json"
 
 KIND_BY_PREFIX = {
@@ -48,7 +53,7 @@ KIND_BY_PREFIX = {
     "SEC-": "security_regression",
 }
 
-ID_RE = re.compile(r"^(INV-[0-9]{3}|REG-[0-9]{4}|SEC-[0-9]{4}|[A-Z]{3,5}-[0-9]{3})$")
+ID_RE = re.compile(r"^(INV-[0-9]{3,}|REG-[0-9]{4,}|SEC-[0-9]{4,}|[A-Z]{3,5}-[0-9]{3,})$")
 
 
 def kind_for(entry_id: str) -> str:
@@ -227,7 +232,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    registry = json.loads(REGISTRY_PATH.read_text(encoding="utf-8"))
+    registry = read_document(REGISTRY_PATH)
 
     taken = taken_ids(registry, local_only=args.local_only)
 
@@ -260,12 +265,16 @@ def main(argv: list[str] | None = None) -> int:
         print("\n(dry run: nothing written)")
         return 0
 
-    REGISTRY_PATH.write_text(
-        json.dumps(registry, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
-    )
+    OVERLAY_DIR.mkdir(parents=True, exist_ok=True)
+    target = OVERLAY_DIR / f"{entry['id']}.json"
+    target.write_text(json.dumps(entry, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     print(f"[ok  ] added {entry['id']} ({entry['kind']}, {entry['status']})")
-    print("       next: write the test, then regenerate the traceability document:")
-    print("       python3 scripts/generate_quality_docs.py")
+    try:
+        display_target = target.relative_to(REPO)
+    except ValueError:
+        # Tests and callers may point the scaffolder at an isolated temp tree.
+        display_target = target
+    print(f"       in {display_target}; next: write the test that decides it")
     return 0
 
 

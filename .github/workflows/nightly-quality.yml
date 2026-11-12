@@ -48,7 +48,7 @@ jobs:
           pip install --index-url https://download.pytorch.org/whl/cpu "torch>=2.14.0,<3.0"
           pip install -r requirements.txt -r requirements-dev.txt
           # Deliberately not in requirements-dev: see scripts/check_mutation_score.py.
-          pip install mutmut
+          pip install mutmut==2.5.1
 
       - name: Mutation score
         run: |

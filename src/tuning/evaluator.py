@@ -23,6 +23,7 @@ import statistics
 from dataclasses import dataclass
 from typing import Final
 
+import numpy as np
 from scipy import stats as scipy_stats
 from scipy.stats import norm, ttest_ind, ttest_rel
 
@@ -51,6 +52,11 @@ class MetricComparison:
     p_value: float
     significant_improvement: bool
     significant_regression: bool
+    # Challenger metric samples, kept for audit/deflation. DSR may consume
+    # them only when challenger_samples_are_returns explicitly says they are
+    # raw returns rather than fold-level metric observations.
+    challenger_samples: tuple[float, ...] = ()
+    challenger_samples_are_returns: bool = False
 
 
 @dataclass(frozen=True)
@@ -62,6 +68,12 @@ class EvaluationResult:
     @property
     def any_significant_regression(self) -> bool:
         return any(c.significant_regression for c in self.comparisons)
+
+    def comparison(self, metric_name: str) -> MetricComparison:
+        for c in self.comparisons:
+            if c.metric_name == metric_name:
+                return c
+        raise KeyError(f"metric {metric_name!r} not in evaluation result")
 
     def improved(self, metric_name: str) -> bool:
         for c in self.comparisons:
@@ -164,8 +176,18 @@ class ChallengerEvaluator:
     """
 
     def compare_metric(
-        self, metric_name: str, champion_samples: list[float], challenger_samples: list[float]
+        self,
+        metric_name: str,
+        champion_samples: list[float],
+        challenger_samples: list[float],
+        *,
+        samples_are_returns: bool = False,
     ) -> MetricComparison:
+        if len(champion_samples) != len(challenger_samples):
+            raise InsufficientSampleError(
+                f"{metric_name!r}: paired comparison requires equal sample counts, got "
+                f"champion={len(champion_samples)}, challenger={len(challenger_samples)}"
+            )
         if len(champion_samples) < _MIN_SAMPLE_SIZE or len(challenger_samples) < _MIN_SAMPLE_SIZE:
             raise InsufficientSampleError(
                 f"{metric_name!r}: need >= {_MIN_SAMPLE_SIZE} samples per arm, got "
@@ -200,6 +222,8 @@ class ChallengerEvaluator:
             p_value=p_value,
             significant_improvement=significant_improvement,
             significant_regression=significant_regression,
+            challenger_samples=tuple(float(x) for x in challenger_samples),
+            challenger_samples_are_returns=samples_are_returns,
         )
 
     def compare_proportion(

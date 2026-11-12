@@ -108,6 +108,10 @@ def _classify(address: ipaddress.IPv4Address | ipaddress.IPv6Address) -> str:
         return "reserved"
     if address.is_private:
         return "private network"
+    if not address.is_global:
+        # Catch-all for ranges that are neither named nor `is_private`, e.g.
+        # the carrier-grade NAT block 100.64.0.0/10 (API-020).
+        return "non-global range"
     return ""
 
 

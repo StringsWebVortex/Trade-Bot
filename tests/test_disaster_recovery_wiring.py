@@ -23,6 +23,8 @@ def _make_executor(holdings, *, local=None, fetch_raises=False):
 
     storage = MagicMock()
     storage.latest_equity = AsyncMock(return_value=None)
+    storage.fetch_equity_curve = AsyncMock(return_value=[])
+    storage.fetch_trades = AsyncMock(return_value=[])
     fetcher = MagicMock()
     if fetch_raises:
         fetcher.fetch_exchange_holdings = AsyncMock(side_effect=RuntimeError("exchange down"))

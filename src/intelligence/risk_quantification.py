@@ -89,6 +89,10 @@ class RiskQuantifier:
         3. Monte Carlo: Simulate market paths
         """
 
+        returns = np.asarray(returns, dtype=float)
+        if returns.size == 0 or not np.all(np.isfinite(returns)):
+            raise ValueError("returns must be non-empty and finite")
+
         if method == "historical":
             var = np.quantile(returns, 1 - confidence_level)
 

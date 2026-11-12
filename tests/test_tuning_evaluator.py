@@ -13,17 +13,17 @@ from src.tuning.evaluator import (
 def test_compare_metric_significant_improvement() -> None:
     evaluator = ChallengerEvaluator()
     champion = [0.01 + 0.001 * (i % 5) for i in range(40)]
-    challenger = [0.05 + 0.001 * (i % 5) for i in range(40)]
+    challenger = [0.05 + 0.001 * (i % 5) + 0.0002 * (i % 3) for i in range(40)]
     comparison = evaluator.compare_metric("oos_sharpe", champion, challenger)
     assert comparison.significant_improvement
     assert not comparison.significant_regression
-    assert comparison.delta == pytest.approx(0.04)
+    assert comparison.delta == pytest.approx(0.040195)
 
 
 def test_compare_metric_significant_regression() -> None:
     evaluator = ChallengerEvaluator()
     champion = [0.05 + 0.001 * (i % 5) for i in range(40)]
-    challenger = [0.01 + 0.001 * (i % 5) for i in range(40)]
+    challenger = [0.01 + 0.001 * (i % 5) + 0.0002 * (i % 3) for i in range(40)]
     comparison = evaluator.compare_metric("oos_sharpe", champion, challenger)
     assert comparison.significant_regression
     assert not comparison.significant_improvement
@@ -38,6 +38,12 @@ def test_compare_metric_noise_not_significant() -> None:
     comparison = evaluator.compare_metric("oos_sharpe", champion, challenger)
     assert not comparison.significant_improvement
     assert not comparison.significant_regression
+
+
+def test_compare_metric_requires_paired_samples() -> None:
+    evaluator = ChallengerEvaluator()
+    with pytest.raises(InsufficientSampleError, match="equal sample counts"):
+        evaluator.compare_metric("oos_sharpe", [0.01] * 10, [0.02] * 11)
 
 
 def test_compare_metric_insufficient_sample_raises() -> None:
@@ -92,7 +98,7 @@ def test_evaluation_result_any_significant_regression() -> None:
     good = evaluator.compare_metric(
         "oos_sharpe",
         [0.01 + 0.001 * (i % 5) for i in range(40)],
-        [0.05 + 0.001 * (i % 5) for i in range(40)],
+        [0.05 + 0.001 * (i % 5) + 0.0002 * (i % 3) for i in range(40)],
     )
     bad = evaluator.compare_proportion(
         "max_drawdown_inverted",

@@ -843,6 +843,21 @@ class DrawdownTracker:
         self._current: float = starting_equity
         self._daily_start: float = starting_equity
 
+    @classmethod
+    def restored(
+        cls, starting_equity: float, *, peak: float, daily_start: float, current: float
+    ) -> DrawdownTracker:
+        """
+        Rebuild a tracker after a restart (EXR-010) from stored equity: the
+        stored all-time peak and today's opening equity, rather than the
+        configured starting capital for both.
+        """
+        tracker = cls(starting_equity)
+        tracker.update(peak)
+        tracker.reset_daily(daily_start)
+        tracker.update(current)
+        return tracker
+
     def update(self, equity: float) -> None:
         """Update current equity and rolling peak."""
         self._current = equity

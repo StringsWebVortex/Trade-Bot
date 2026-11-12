@@ -45,7 +45,7 @@ import structlog
 
 from src.terminal import procfs
 from src.terminal.buffer import OutputBuffer
-from src.terminal.config import TerminalConfig
+from src.terminal.config import TerminalConfig, scrubbed_environment
 from src.terminal.markers import Marker, MarkerScanner
 from src.terminal.protocol import ProtocolError, new_session_id
 from src.terminal.registry import ProcessRegistry
@@ -198,7 +198,7 @@ class SessionManager:
         self._registry = registry
         self._on_session = on_session
         self._on_output = on_output
-        self._base_env = dict(os.environ if base_env is None else base_env)
+        self._base_env = scrubbed_environment(base_env)
         self._shell = shell or self._base_env.get("SHELL") or "/bin/bash"
         self._proc = proc_root
         self._clock = clock

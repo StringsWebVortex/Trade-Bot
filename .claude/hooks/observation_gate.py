@@ -81,6 +81,8 @@ NOISE_RE = re.compile(
 )
 GIT_STATUS_RE = re.compile(r"^[ MADRCU?!]{1,2}\s+\S")
 COMMAND_DIFF_RE = re.compile(r"(?i)\bgit\s+(?:diff|show)\b")
+# The one sanctioned CI diagnostic route; its report must not be cut to 3 lines (DOC-021).
+COMMAND_PRFAIL_RE = re.compile(r"^\s*\./scripts/prfail\s+--pr\s+[1-9][0-9]*\s*$")
 COMMAND_STATUS_RE = re.compile(r"(?i)\bgit\s+status(?:\s|$)")
 
 
@@ -197,6 +199,9 @@ def summarize_execution(text: str, *, command: str = "") -> str:
         return ""
     if COMMAND_DIFF_RE.search(command) or _looks_like_diff(text):
         return summarize_diff(text)
+
+    if COMMAND_PRFAIL_RE.match(command):
+        return summarize_generic(text)
 
     lines = _normalize_lines(text)
     limits = _limits()

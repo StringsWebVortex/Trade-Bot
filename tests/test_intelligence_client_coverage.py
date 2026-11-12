@@ -130,8 +130,7 @@ async def test_get_exchange_netflow_error_returns_defaults():
     agg._fetch_glassnode_netflow = AsyncMock(side_effect=RuntimeError("API down"))
 
     result = await agg.get_exchange_netflow("BTC")
-    assert result["netflow"] == 0.0
-    assert result["tscore"] == 0.0
+    assert result is None  # INT-019: missing, not fabricated zeros
 
 
 @pytest.mark.asyncio
@@ -140,8 +139,7 @@ async def test_get_whale_activity_error_returns_defaults():
     agg._fetch_glassnode_whale_activity = AsyncMock(side_effect=RuntimeError("API down"))
 
     result = await agg.get_whale_activity("BTC")
-    assert result["ratio"] == 1.0
-    assert result["sentiment"] == "neutral"
+    assert result is None
 
 
 @pytest.mark.asyncio
@@ -150,8 +148,7 @@ async def test_get_funding_rate_error_returns_defaults():
     agg._fetch_cryptoquant_funding_rate = AsyncMock(side_effect=RuntimeError("API down"))
 
     result = await agg.get_funding_rate()
-    assert result["rate_pct"] == 0.0
-    assert result["excessive"] is False
+    assert result is None
 
 
 # ---------------------------------------------------------------------------

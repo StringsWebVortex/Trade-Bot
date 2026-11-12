@@ -20,7 +20,6 @@ learns to return a score.
 
 from __future__ import annotations
 
-import json
 import subprocess
 import sys
 from pathlib import Path
@@ -183,6 +182,27 @@ class TestReadinessIsAConjunction:
         # what this condition is for: a renamed test turns a claim red.
         assert check_claimed_tests_exist(registry, tmp_path)
 
+    def test_a_pytest_node_id_checks_its_file_not_the_full_node_id(self, tmp_path):
+        from types import SimpleNamespace
+
+        from scripts.check_production_readiness import check_claimed_tests_exist
+
+        test_file = tmp_path / "tests" / "test_example.py"
+        test_file.parent.mkdir()
+        test_file.write_text("def test_example(): pass\n", encoding="utf-8")
+        registry = SimpleNamespace(
+            entries=[
+                SimpleNamespace(
+                    id="REG-TEST",
+                    verification=[
+                        SimpleNamespace(test="tests/test_example.py::test_example"),
+                    ],
+                ),
+            ],
+        )
+
+        assert check_claimed_tests_exist(registry, tmp_path) == []
+
     def test_the_traceability_document_is_in_sync(self):
         from scripts.check_production_readiness import check_traceability_is_in_sync
 
@@ -208,5 +228,7 @@ class TestTheMaturityClaim:
         assert (REPO / artifact).exists(), f"{artifact} is claimed but absent"
 
     def test_the_registry_records_the_whole_programme(self):
-        registry = json.loads((REPO / "config/quality_registry.json").read_text())
+        from src.quality.registry import read_registry_document
+
+        registry = read_registry_document(REPO / "config/quality_registry.json")
         assert len(registry["entries"]) >= 90

@@ -513,7 +513,8 @@ class TestClosePosition:
         trade_id, _ = await executor.submit_signal("BTC/USDT", "15m", 1, kelly, 1, 0.6, 0.5, 100.0)
         await executor.close_position(trade_id, exit_price=110.0, exit_reason="profit_target")
         trades = await storage.fetch_trades(symbol="BTC/USDT")
-        assert trades[0].exit_price == 110.0
+        # A long exit sells through the default 2 bps spread, not at the mark.
+        assert trades[0].exit_price == pytest.approx(110.0 * (1.0 - 2.0 / 10_000.0))
         assert trades[0].exit_reason == "profit_target"
 
 
@@ -586,9 +587,11 @@ class TestApprovalQueueManagement:
         assert executor.pending_approvals() == []
 
     @pytest.mark.asyncio
-    async def test_pending_approvals_prunes_old_resolved_entries(self, executor):
+    async def test_pending_approvals_unsafe_prunes_old_resolved_entries(self, executor):
         """H-05: resolved entries older than 1 hour must be pruned from the
-        queue entirely, not just filtered out of the returned list."""
+        queue entirely, not just filtered out of the returned list. The sync
+        public accessor is read-only (EXR-030); pruning belongs to the
+        lock-holding path, `_pending_approvals_unsafe` / `pending_approvals_safe`."""
         import time as _time
 
         from src.execution.paper import ApprovalRequest
@@ -610,7 +613,7 @@ class TestApprovalQueueManagement:
         )
         executor._approval_queue["old-resolved"] = old_resolved
 
-        result = executor.pending_approvals()
+        result = executor._pending_approvals_unsafe()
         assert result == []
         assert "old-resolved" not in executor._approval_queue
 

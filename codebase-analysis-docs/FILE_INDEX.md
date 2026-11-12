@@ -13,7 +13,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 
 | # | Priority | Path | Type | Lines | SHA8 | Why it matters |
 | ---: | --- | --- | --- | ---: | --- | --- |
-| 1 | P0 | .github/workflows/ci-diagnostics.yml | YAML | 43 | 2f499a19 | SHA-bound CI diagnostics collector |
+| 1 | P0 | .github/workflows/ci-diagnostics.yml | YAML | 45 | 6fa5fcf4 | SHA-bound CI diagnostics collector |
 | 2 | P0 | .github/workflows/ci.yml | YAML | 415 | 2abf41de | CI jobs and gate composition |
 | 3 | P0 | AGENTS.md | Markdown | 562 | 2d19c12a | Engineering workflow and safety contract |
 | 4 | P0 | CLAUDE.md | Markdown | 734 | 09c55581 | Architecture, quality, CI and project policy |
@@ -21,7 +21,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 6 | P0 | Makefile | Other text/source | 45 | f5f88b46 | Developer commands governed by repository policy |
 | 7 | P0 | README.md | Markdown | 470 | 7db18899 | Purpose, usage and declared architecture |
 | 8 | P0 | config/architecture_layers.json | JSON | 78 | 734d6397 | Enforced import layering |
-| 9 | P0 | config/command_policy.json | JSON | 304 | a0f8c0c7 | Tool command and CI observation policy |
+| 9 | P0 | config/command_policy.json | JSON | 165 | 26cd52dc | Tool command and CI observation policy |
 | 10 | P0 | config/horizons.yaml | YAML | 53 | 2ede87ec | Auxiliary prediction horizon definitions |
 | 11 | P0 | config/math_registry.json | JSON | 1903 | 8fa18ffc | Mathematical object registry |
 | 12 | P0 | config/quality_registry.json | JSON | 7197 | 1b7844ef | Requirements, regressions and deciding tests |
@@ -57,7 +57,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 42 | P0 | src/intelligence/client.py | Python | 715 | b8d78a07 | Provider aggregator and caches |
 | 43 | P0 | src/models/model_registry.py | Python | 156 | 91ea9f0b | Model bundle and promotion |
 | 44 | P0 | src/models/online_trainer.py | Python | 377 | e55987c8 | Online prediction/outcome learning |
-| 45 | P0 | src/models/trainer.py | Python | 1639 | 77a4dac0 | Training, CPCV/OOS metrics and artifact validation |
+| 45 | P0 | src/models/trainer.py | Python | 1810 | fd444f83 | Training, CPCV/OOS metrics and artifact validation |
 | 46 | P0 | src/regime/detector.py | Python | 828 | 4ca13328 | HMM regime detector |
 | 47 | P0 | src/risk/gates.py | Python | 1298 | 8e910ab4 | Sequential trading gates and exits |
 | 48 | P0 | src/runtime/changes.py | Python | 786 | 9fe782ad | Runtime change lifecycle and audit |
@@ -75,7 +75,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 5 | P0 | Makefile | Other text/source | 45 | f5f88b46 | Developer commands governed by repository policy |
 | 6 | P0 | README.md | Markdown | 470 | 7db18899 | Purpose, usage and declared architecture |
 | 7 | P0 | config/architecture_layers.json | JSON | 78 | 734d6397 | Enforced import layering |
-| 8 | P0 | config/command_policy.json | JSON | 304 | a0f8c0c7 | Tool command and CI observation policy |
+| 8 | P0 | config/command_policy.json | JSON | 165 | 26cd52dc | Tool command and CI observation policy |
 | 9 | P0 | config/horizons.yaml | YAML | 53 | 2ede87ec | Auxiliary prediction horizon definitions |
 | 10 | P0 | config/math_registry.json | JSON | 1903 | 8fa18ffc | Mathematical object registry |
 | 11 | P0 | config/quality_registry.json | JSON | 7197 | 1b7844ef | Requirements, regressions and deciding tests |
@@ -111,20 +111,20 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 41 | P0 | src/intelligence/client.py | Python | 715 | b8d78a07 | Provider aggregator and caches |
 | 42 | P0 | src/models/model_registry.py | Python | 156 | 91ea9f0b | Model bundle and promotion |
 | 43 | P0 | src/models/online_trainer.py | Python | 377 | e55987c8 | Online prediction/outcome learning |
-| 44 | P0 | src/models/trainer.py | Python | 1639 | 77a4dac0 | Training, CPCV/OOS metrics and artifact validation |
+| 44 | P0 | src/models/trainer.py | Python | 1810 | fd444f83 | Training, CPCV/OOS metrics and artifact validation |
 | 45 | P0 | src/regime/detector.py | Python | 828 | 4ca13328 | HMM regime detector |
 | 46 | P0 | src/risk/gates.py | Python | 1298 | 8e910ab4 | Sequential trading gates and exits |
 | 47 | P0 | src/runtime/changes.py | Python | 786 | 9fe782ad | Runtime change lifecycle and audit |
 | 48 | P0 | src/runtime/contracts.py | Python | 504 | ad764291 | Runtime state/action/capability contracts |
 | 49 | P0 | src/runtime/platform.py | Python | 145 | 1c7162da | Runtime composition root |
-| 50 | P0 | src/runtime/production.py | Python | 418 | 55696d76 | Production discovery/controllers/reconciliation |
+| 50 | P0 | src/runtime/production.py | Python | 421 | 3ece1420 | Production discovery/controllers/reconciliation |
 | 51 | P0 | src/strategies/bootstrap.py | Python | 205 | 7c5e2f94 | Config-enabled strategy registration |
 | 52 | P0 | src/strategies/registry.py | Python | 143 | 5ef08896 | Strategy protocol and ID registry |
 | 53 | P0 | src/terminal/protocol.py | Python | 216 | ed293ffb | Terminal protocol validation |
-| 54 | P0 | src/terminal/server.py | Python | 644 | 10681519 | PTY terminal daemon |
-| 55 | P0 | src/tuning/scheduler.py | Python | 677 | 8811eaa0 | Optional tuning scheduler |
-| 56 | P0 | src/workers/orchestrator.py | Python | 807 | a4f5750a | Horizon and ECC worker orchestration |
-| 57 | P0 | src/workers/trader.py | Python | 138 | 687738d8 | Headless main trading loop |
+| 54 | P0 | src/terminal/server.py | Python | 647 | e6fa9e24 | PTY terminal daemon |
+| 55 | P0 | src/tuning/scheduler.py | Python | 712 | 93bd994d | Optional tuning scheduler |
+| 56 | P0 | src/workers/orchestrator.py | Python | 872 | b3684b6b | Horizon and ECC worker orchestration |
+| 57 | P0 | src/workers/trader.py | Python | 144 | b63ee6b6 | Headless main trading loop |
 | 58 | P0 | tests/test_engine_seam_contract.py | Python | 205 | fd684c46 | Positional E-01…E-18 contract test |
 | 59 | P1 | .github/CODEOWNERS | Other text/source | 18 | 7fd71f34 |  |
 | 60 | P1 | .github/ISSUE_TEMPLATE/bug_report.md | Markdown | 17 | 12f0ae93 |  |
@@ -133,8 +133,8 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 63 | P1 | .github/dependabot.yml | YAML | 67 | bef3b14e |  |
 | 64 | P1 | .github/mermaid-puppeteer-config.json | JSON | 6 | c73c7331 |  |
 | 65 | P1 | .github/pull_request_template.md | Markdown | 15 | e8ad60ce |  |
-| 66 | P1 | .github/rulesets/main-protection.json | JSON | 110 | 585c7190 |  |
-| 67 | P1 | .github/workflows/ci-diagnostics.yml | YAML | 43 | 2f499a19 |  |
+| 66 | P1 | .github/rulesets/main-protection.json | JSON | 111 | c3566fef |  |
+| 67 | P1 | .github/workflows/ci-diagnostics.yml | YAML | 45 | 6fa5fcf4 |  |
 | 68 | P1 | .github/workflows/codeql.yml | YAML | 118 | 92cec6ba |  |
 | 69 | P1 | .github/workflows/codex-pr-handoff.yml | YAML | 76 | 7810b996 |  |
 | 70 | P1 | .github/workflows/deploy.yml | YAML | 187 | e32b046a |  |
@@ -144,13 +144,13 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 74 | P1 | .github/workflows/release.yml | YAML | 133 | b595cd54 |  |
 | 75 | P1 | .github/workflows/security.yml | YAML | 490 | 0d555204 |  |
 | 76 | P1 | .github/workflows/workflow-lint.yml | YAML | 112 | efae0a17 |  |
-| 77 | P1 | config/arch_baseline.json | JSON | 39 | e87a9ea6 |  |
+| 77 | P1 | config/arch_baseline.json | JSON | 74 | 7b1d381b |  |
 | 78 | P1 | config/exchange_key_posture.json | JSON | 23 | eed97927 |  |
 | 79 | P1 | config/intelligence.yaml | YAML | 24 | 19139199 |  |
 | 80 | P1 | config/math_registry.schema.json | JSON | 250 | 0c6cac56 |  |
 | 81 | P1 | config/mutation_thresholds.json | JSON | 53 | 6b50a258 |  |
 | 82 | P1 | config/observation_boundary.json | JSON | 103 | ee3b28e7 |  |
-| 83 | P1 | config/performance_baselines.json | JSON | 69 | 86112a85 |  |
+| 83 | P1 | config/performance_baselines.json | JSON | 69 | ece98302 |  |
 | 84 | P1 | config/quality_registry.d/REG-1708.json | JSON | 23 | ae70eab8 |  |
 | 85 | P1 | config/quality_registry.d/REG-1709.json | JSON | 22 | 439ace8b |  |
 | 86 | P1 | config/quality_registry.d/REG-1710.json | JSON | 22 | 5a88898b |  |

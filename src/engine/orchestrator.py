@@ -103,9 +103,16 @@ from src.strategies.signal_engine_adapter import (
     STRATEGY_ID_SIGNAL_ENGINE,
     SignalEngineStrategy,
 )
+from src.tuning import state as tuning_state
 from src.tuning.meta_allocator import get_allocation_controller
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
+
+
+def _watch_background_task(task: asyncio.Task[Any]) -> asyncio.Task[Any]:
+    """Register a long-lived engine task with the runtime health monitor."""
+    get_monitor().watch_task(task)
+    return task
 
 
 def _blend_audit(result: SignalResult) -> BlendAudit | None:
@@ -279,18 +286,48 @@ def _aggregate_venue_positions(
     ]
 
 
+class _NoBaseline(Exception):
+    """Internal control flow: no measured drift baseline exists."""
+
+
+def baseline_from_training(result: Any) -> PerformanceBaseline | None:
+    """Build a drift baseline from measured CPCV results; return None if invalid."""
+    if result is None:
+        return None
+    try:
+        sharpe = float(result.oos_sharpe)
+        acc = float(result.accuracy)
+        dd = float(result.max_drawdown) / 100.0  # TrainingResult reports percent
+        n_raw = float(result.n_trades)
+        if (
+            not all(math.isfinite(v) for v in (sharpe, acc, dd, n_raw))
+            or not 0.0 <= acc <= 1.0
+            or not 0.0 <= dd <= 1.0
+            or n_raw <= 0
+            or not n_raw.is_integer()
+        ):
+            return None
+        n = int(n_raw)
+        return PerformanceBaseline(
+            train_sharpe=sharpe,
+            oos_sharpe=sharpe,
+            train_accuracy=acc,
+            oos_accuracy=acc,
+            train_win_rate=None,  # CPCV measures directional accuracy, not trade win rate
+            max_drawdown_pct=dd,
+            trades_in_backtest=n,
+        )
+    except (AttributeError, TypeError, ValueError, OverflowError):
+        return None
+
+
 def _apply_crypto_box_scale(
     result: Any,
     scale: float,
     price: float,
     precision: dict[str, float],
 ) -> Any:
-    """Shrink the sized order (quantity and notional) by the crypto-box scale.
-
-    EXR-006: scaling only ``adjusted_fraction`` never reached the order, which
-    is sized from ``quantity``/``notional_usd``. Shrink-only; a trade that falls
-    below exchange minimums is marked untradeable instead of sent full size.
-    """
+    """Shrink the sized order by the crypto-box scale; reject below-minimum size."""
     kelly = result.kelly_result
     if kelly is None:
         return result
@@ -392,6 +429,8 @@ class Orchestrator:
 
         # GAP-003: Performance drift detector (initialized in startup after models trained)
         self._drift_detector: PerformanceDriftDetector | None = None
+        # Primary-direction TrainingResult per timeframe (EXR-005 baseline source).
+        self._training_results: dict[str, Any] = {}
         self._drift_adapter = DriftIntegrationAdapter(self._drift_detector)
 
         # Dedicated single-thread executor for CPU-bound training (NEW-002).
@@ -634,19 +673,16 @@ class Orchestrator:
         # Initialize drift detector with baseline from trained models (GAP-003)
         # Extract OOS Sharpe, accuracy, win rate, max DD from primary model
         if self._primary_tf in self._trainers:
-            trainer = self._trainers[self._primary_tf]
-            # Attempt to read OOS metrics from trainer's internal cache
-            # If available, create baseline; otherwise skip drift detection
+            # EXR-005: only a baseline measured by the CPCV run is used.
+            # Missing/invalid metrics => no drift detector, no kill switches.
             try:
-                baseline = PerformanceBaseline(
-                    train_sharpe=getattr(trainer, "train_sharpe", 2.0),
-                    oos_sharpe=getattr(trainer, "oos_sharpe", 1.5),
-                    train_accuracy=getattr(trainer, "train_accuracy", 0.60),
-                    oos_accuracy=getattr(trainer, "oos_accuracy", 0.58),
-                    train_win_rate=getattr(trainer, "train_win_rate", 0.55),
-                    max_drawdown_pct=getattr(trainer, "max_drawdown_pct", 0.10),
-                    trades_in_backtest=getattr(trainer, "trades_count", 400),
-                )
+                baseline = baseline_from_training(self._training_results.get(self._primary_tf))
+                if baseline is None:
+                    self._log.warning(
+                        "orchestrator.drift_baseline_unavailable",
+                        action="continuing_without_drift_detection_or_kill_switches",
+                    )
+                    raise _NoBaseline
                 self._drift_detector = PerformanceDriftDetector(baseline)
                 self._drift_adapter = DriftIntegrationAdapter(self._drift_detector)
                 self._log.info(
@@ -655,6 +691,14 @@ class Orchestrator:
                     baseline_accuracy=baseline.oos_accuracy,
                 )
                 self._register_kill_switches(baseline)
+                # Promotions made from here on are watched against this same
+                # measured baseline (STR-04). The tuning singleton is always
+                # constructed, even while its master switch is disabled.
+                tuning_state.runner.set_probation_detector_factory(
+                    lambda: PerformanceDriftDetector(baseline)
+                )
+            except _NoBaseline:
+                pass
             except Exception as exc:
                 self._log.warning(
                     "orchestrator.drift_detector_init_failed",
@@ -735,6 +779,8 @@ class Orchestrator:
                 ensemble=ensemble,
                 online_trainer=online_trainer,
             )
+            if getattr(self, "_symbol_precision", None):
+                self._engines[tf.value].set_symbol_precision(self._symbol_precision)  # EXR-016
             self._model_state[tf.value] = "ready"
             # Direction/meta readiness is required; the ensemble and online
             # learner are additive. Keep the core model ready when an optional
@@ -897,15 +943,22 @@ class Orchestrator:
         self._log.info("orchestrator.run_start")
 
         tasks = [
-            asyncio.create_task(self._midnight_reset_loop(), name="midnight_reset"),
-            asyncio.create_task(self._position_monitor_loop(), name="position_monitor"),
-            asyncio.create_task(self._allocation_rebalance_loop(), name="allocation_rebalance"),
+            _watch_background_task(
+                asyncio.create_task(self._midnight_reset_loop(), name="midnight_reset")
+            ),
+            _watch_background_task(
+                asyncio.create_task(self._position_monitor_loop(), name="position_monitor")
+            ),
+            _watch_background_task(
+                asyncio.create_task(self._allocation_rebalance_loop(), name="allocation_rebalance")
+            ),
         ]
 
         # Crypto-Box background data provider loops (no-op when CRYPTO_BOX!=true)
         provider_tasks: list[asyncio.Task[None]] = []
         if self._crypto_box.enabled:
             provider_tasks = self._crypto_box_provider_tasks()
+            provider_tasks = [_watch_background_task(task) for task in provider_tasks]
 
         # The sub-second price path. src/data/orderbook_stream.py is a working
         # Binance depth + aggTrade client that, until now, nothing in src/
@@ -913,9 +966,15 @@ class Orchestrator:
         # nothing, while mark-to-market waited on a 5s REST poll.
         if self._cfg.binance.orderbook_stream_enabled:
             tasks.append(
-                asyncio.create_task(self._orderbook_stream_loop(), name="orderbook_stream")
+                _watch_background_task(
+                    asyncio.create_task(self._orderbook_stream_loop(), name="orderbook_stream")
+                )
             )
-            tasks.append(asyncio.create_task(self._price_preview_loop(), name="price_preview"))
+            tasks.append(
+                _watch_background_task(
+                    asyncio.create_task(self._price_preview_loop(), name="price_preview")
+                )
+            )
 
         self._run_tasks = tuple(tasks)
         tasks.extend(provider_tasks)
@@ -925,7 +984,9 @@ class Orchestrator:
         try:
             if await self._warm_up_unless_stopped():
                 loops = [
-                    asyncio.create_task(self._timeframe_loop(tf), name=f"loop_{tf.value}")
+                    _watch_background_task(
+                        asyncio.create_task(self._timeframe_loop(tf), name=f"loop_{tf.value}")
+                    )
                     for tf in self._timeframes
                     if tf.value in self._engines
                 ]
@@ -1427,12 +1488,14 @@ class Orchestrator:
         if tf == Timeframe.SCALPING and (
             self._intelligence_task is None or self._intelligence_task.done()
         ):
-            self._intelligence_task = asyncio.create_task(
-                self._process_intelligence_bar(
-                    tf,
-                    regime_id=result.regime.state if result.regime is not None else None,
-                ),
-                name="intelligence_source_bar",
+            self._intelligence_task = _watch_background_task(
+                asyncio.create_task(
+                    self._process_intelligence_bar(
+                        tf,
+                        regime_id=result.regime.state if result.regime is not None else None,
+                    ),
+                    name="intelligence_source_bar",
+                )
             )
 
         # When V6 is enabled, its fused horizon decision is an additional
@@ -1592,7 +1655,13 @@ class Orchestrator:
         # Route to executor if tradeable
         if result.tradeable and result.kelly_result is not None:
             # Check Gate 6: Performance drift (GAP-003)
-            drift_status = self._drift_adapter.check_drift()
+            # EXR-004: live-only, consistent with evaluate_all_gates; halting
+            # paper on drift would stop the run that gathers the evidence.
+            drift_status = (
+                self._drift_adapter.check_drift()
+                if self._cfg.trading_mode == TradingMode.LIVE and executor is self._executor
+                else {}
+            )
             if drift_status.get("drifted"):
                 self._log.warning(
                     "orchestrator.signal_blocked_drift",
@@ -1609,9 +1678,11 @@ class Orchestrator:
                         "orchestrator.drift_triggered_retrain",
                         timeframe=tf.value,
                     )
-                    task = asyncio.create_task(
-                        self._train_models(tf),
-                        name=f"retrain_{tf.value}_drift",
+                    task = _watch_background_task(
+                        asyncio.create_task(
+                            self._train_models(tf),
+                            name=f"retrain_{tf.value}_drift",
+                        )
                     )
 
                     def _drift_retrain_done(t: asyncio.Task, _tf: str = tf.value) -> None:
@@ -1788,9 +1859,11 @@ class Orchestrator:
         if tf == self._primary_tf and self._tick_counts[tf.value] % _RETRAIN_INTERVAL_TICKS == 0:
             prior = self._retrain_tasks.get(tf.value)
             if prior is None or prior.done():
-                task = asyncio.create_task(
-                    self._train_models(tf),
-                    name=f"retrain_{tf.value}",
+                task = _watch_background_task(
+                    asyncio.create_task(
+                        self._train_models(tf),
+                        name=f"retrain_{tf.value}",
+                    )
                 )
 
                 # SCAN2-003: log exceptions from the fire-and-forget retrain task;
@@ -1837,7 +1910,9 @@ class Orchestrator:
             self._log.warning("orchestrator.manual_retrain_skipped", timeframe=tf.value)
             return "already_running"
 
-        task = asyncio.create_task(self._train_models(tf), name=f"manual_retrain_{tf.value}")
+        task = _watch_background_task(
+            asyncio.create_task(self._train_models(tf), name=f"manual_retrain_{tf.value}")
+        )
 
         def _done(t: asyncio.Task, _tf: str = tf.value) -> None:
             if not t.cancelled() and t.exception() is not None:
@@ -2134,6 +2209,8 @@ class Orchestrator:
                 trainer.save(
                     dir_result.model, meta_result.model, self._cfg.storage.model_dir, version
                 )
+
+            self._training_results[tf.value] = dir_result
 
             # Diversified prediction ensemble (ARIMA/XGBoost/LSTM/GP/TreeEnsemble) --
             # additive to direction/meta training, never blocks it. A failure here
@@ -2476,6 +2553,8 @@ class Orchestrator:
         strategies are skipped — startup can run twice in a process.
         """
         manager = get_strategy_kill_switch_manager()
+        # EXR-013: restore strategies disabled before a restart.
+        manager.enable_persistence(state_file("strategy_kill_switch"))
         for strategy in get_default_registry().all():
             try:
                 if manager.is_registered(strategy.strategy_id):
@@ -2515,10 +2594,14 @@ class Orchestrator:
             )
 
         timeout = 1.0
+        freshness_budget = timeout
         adapter = self._intelligence_adapter
         intelligence = getattr(adapter, "_intel", None) if adapter is not None else None
         if intelligence is not None:
             timeout = max(0.05, float(intelligence._cfg.get("inference_timeout_seconds", 1.0)))
+            freshness_budget = max(
+                0.05, float(intelligence._cfg.get("max_prediction_age_seconds", 20.0))
+            )
         task = self._intelligence_task
         if task is not None and not task.done():
             try:
@@ -2533,18 +2616,78 @@ class Orchestrator:
 
         decision = getattr(intelligence, "last_decision", None)
         observed_at = getattr(intelligence, "last_horizon_ts", None)
+        observed_symbol = getattr(intelligence, "last_horizon_symbol", None)
+        expected_symbol = getattr(self, "_symbol", None)
+        reason: str | None = None
         if not isinstance(decision, dict) or observed_at is None:
             reason = "horizon_intelligence_unavailable"
-        elif time.time() - float(observed_at) > timeout:
-            reason = "horizon_decision_stale"
-        elif decision.get("action") not in {"BUY", "SELL"}:
-            reason = str(decision.get("abstain_reason") or "horizon_decision_abstained")
+        elif expected_symbol is not None and observed_symbol != expected_symbol:
+            reason = "horizon_symbol_mismatch"
         else:
-            horizon_direction = 1 if decision["action"] == "BUY" else -1
-            signal_direction = 1 if result.direction == 1 else -1
-            if horizon_direction == signal_direction:
-                return result
-            reason = "horizon_direction_disagrees_with_signal_engine"
+            try:
+                age = time.time() - float(observed_at)
+            except (TypeError, ValueError, OverflowError):
+                age = math.inf
+            if not math.isfinite(age) or age < 0 or age > timeout:
+                reason = "horizon_decision_stale"
+            elif decision.get("action") not in {"BUY", "SELL"}:
+                reason = str(decision.get("abstain_reason") or "horizon_decision_abstained")
+            elif decision.get("calibrated") is not True:
+                reason = "horizon_decision_uncalibrated"
+            else:
+                horizon_direction = 1 if decision["action"] == "BUY" else -1
+                signal_direction = 1 if result.direction == 1 else -1
+                try:
+                    decision_direction = int(decision.get("direction"))
+                    expected_return = float(decision.get("expected_return"))
+                    uncertainty = float(decision.get("uncertainty"))
+                    contributions = decision.get("contributions")
+                    model_versions = decision.get("model_versions")
+                    freshness = decision.get("freshness_seconds")
+                    expert_ids = set(contributions) if isinstance(contributions, dict) else set()
+                    valid_experts = (
+                        bool(expert_ids)
+                        and expert_ids == set(model_versions or {})
+                        and expert_ids == set(freshness or {})
+                        and all(
+                            isinstance(model_versions[key], str) and model_versions[key]
+                            for key in expert_ids
+                        )
+                        and all(
+                            math.isfinite(float(contributions[key]))
+                            and float(contributions[key]) > 0.0
+                            for key in expert_ids
+                        )
+                        and all(
+                            math.isfinite(float(freshness[key]))
+                            and 0.0 <= float(freshness[key]) <= freshness_budget
+                            for key in expert_ids
+                        )
+                        and math.isclose(
+                            sum(float(contributions[key]) for key in expert_ids),
+                            1.0,
+                            rel_tol=1e-6,
+                            abs_tol=1e-6,
+                        )
+                    )
+                    valid_decision = (
+                        decision_direction == horizon_direction
+                        and decision.get("conflict") is False
+                        and math.isfinite(expected_return)
+                        and math.isfinite(uncertainty)
+                        and uncertainty > 0.0
+                        and abs(expected_return) > uncertainty
+                        and (1 if expected_return > 0 else -1) == horizon_direction
+                        and valid_experts
+                    )
+                except (TypeError, ValueError, OverflowError):
+                    valid_decision = False
+                if not valid_decision:
+                    reason = "horizon_decision_invalid"
+                elif horizon_direction == signal_direction:
+                    return result
+                else:
+                    reason = "horizon_direction_disagrees_with_signal_engine"
 
         self._log.info(
             "orchestrator.horizon_order_suppressed",
@@ -2557,6 +2700,85 @@ class Orchestrator:
             kelly_result=None,
             skip_reason=f"horizon_{reason}",
         )
+
+    async def _intelligence_risk_context(self, source_tf: Timeframe) -> dict[str, float] | None:
+        """
+        INT-008: measured portfolio risk context for the intelligence layer.
+
+        Every field is a measurement; if any cannot be measured the whole
+        context is None (fail closed) and CryptoIntelligence suppresses its
+        sized signal rather than sizing from a default.
+
+        atr         : mean true range of the last 14 source bars / last close
+        cvar        : mean of the worst 5% (at least one) one-bar losses, as a fraction
+        drawdown    : fractional drawdown from the executor's equity peak
+        daily_loss  : fractional loss vs the daily starting equity (0 if up)
+        odds        : avg win / avg loss from recent closed trades
+        as_of_ts    : wall-clock time of this measurement
+        """
+        try:
+            executor = self._executor_for(self._primary_tf)
+            tracker = getattr(executor, "drawdown_tracker", None)
+            if executor is None or tracker is None:
+                return None
+            latest_ts = await self._storage.latest_bar_ts(self._symbol, source_tf.value)
+            if latest_ts is None:
+                return None
+            bars = await self._storage.fetch_bars(
+                self._symbol, source_tf.value, since_ts=int(latest_ts) - 40 * 60_000, limit=64
+            )
+            if len(bars) < 15:
+                return None
+            true_ranges = []
+            for prev, cur in zip(bars[-15:-1], bars[-14:], strict=True):
+                true_ranges.append(
+                    max(
+                        cur.high - cur.low,
+                        abs(cur.high - prev.close),
+                        abs(cur.low - prev.close),
+                    )
+                )
+            last_close = float(bars[-1].close)
+            if last_close <= 0:
+                return None
+            atr = float(sum(true_ranges) / len(true_ranges)) / last_close
+            closes = [float(b.close) for b in bars]
+            losses = sorted(
+                (-math.log(c1 / c0) for c0, c1 in zip(closes[:-1], closes[1:], strict=True)),
+                reverse=True,
+            )
+            tail = losses[: max(1, math.ceil(0.05 * len(losses)))]
+            cvar = float(sum(tail) / len(tail))
+            _equity, starting, daily_pnl = await executor.get_risk_snapshot()
+            if starting <= 0:
+                return None
+            drawdown = max(0.0, -float(tracker.drawdown_from_peak_pct) / 100.0)
+            daily_loss = max(0.0, -float(daily_pnl) / float(starting))
+            trades = await self._storage.fetch_trades(
+                symbol=self._symbol,
+                trading_mode=self._cfg.trading_mode.value,
+                limit=200,
+            )
+            pnl = [t.pnl_usd for t in reversed(trades) if t.pnl_usd is not None]
+            if len(pnl) < 50:  # below this compute_win_loss_stats returns defaults, not data
+                return None
+            _, avg_win, avg_loss, _ = compute_win_loss_stats(pnl)
+            if not (avg_win > 0 and avg_loss > 0):
+                return None
+            context = {
+                "atr": atr,
+                "cvar": cvar,
+                "drawdown": drawdown,
+                "daily_loss": daily_loss,
+                "odds": float(avg_win) / float(avg_loss),
+                "as_of_ts": time.time(),
+            }
+            if not all(math.isfinite(v) for v in context.values()):
+                return None
+            return context
+        except Exception as exc:
+            self._log.warning("orchestrator.intelligence_risk_context_failed", error=str(exc))
+            return None
 
     async def _process_intelligence_bar(self, tf: Timeframe, regime_id: int | None = None) -> None:
         adapter = self._intelligence_adapter
@@ -2583,6 +2805,7 @@ class Orchestrator:
                 bars = await self._storage.fetch_bars(
                     self._symbol, source_tf.value, since_ts=since_ts, limit=256
                 )
+                risk_context = await self._intelligence_risk_context(source_tf)
                 for bar in bars:
                     await adapter.on_bar(
                         symbol=self._symbol,
@@ -2597,6 +2820,7 @@ class Orchestrator:
                             "volume": bar.volume,
                         },
                         regime_id=regime_id if int(bar.ts) == int(latest_ts) else None,
+                        risk_context=risk_context,
                     )
                     self._last_intelligence_bar_ts = int(bar.ts)
                 if len(bars) == 256:
@@ -2902,6 +3126,7 @@ class Orchestrator:
         actual_direction: int,
         current_equity: float,
         now_ms: int,
+        predicted_prob: float | None = None,
     ) -> None:
         """
         Feed one closed trade to that strategy's kill switch, then evaluate.
@@ -2915,9 +3140,8 @@ class Orchestrator:
         baseline was ever measured for it (see _register_kill_switches),
         and there is nothing to compare against.
 
-        predicted_prob is 0.5 for the same reason the global drift feed
-        uses it: the confidence that produced the entry is not carried on
-        the position record. PnL, direction and equity are still exact.
+        predicted_prob is the entry P(long) carried on the position record;
+        None (unknown) skips the accuracy sample rather than scoring 0.5.
 
         Never raises: a kill-switch fault must not turn a completed exit
         into an error path.
@@ -2931,7 +3155,7 @@ class Orchestrator:
             manager.record_trade_outcome(
                 strategy_id=strategy_id,
                 pnl_usd=pnl_usd,
-                predicted_prob=0.5,
+                predicted_prob=predicted_prob,
                 actual_direction=actual_direction,
                 current_equity=current_equity,
                 starting_equity=self._cfg.starting_capital_usd,
@@ -3268,6 +3492,8 @@ class Orchestrator:
             value = fetched.get(key)
             if value is not None:
                 self._symbol_precision[key] = float(value)
+        for _eng in getattr(self, "_engines", {}).values():
+            _eng.set_symbol_precision(self._symbol_precision)  # EXR-016
         self._log.info(
             "orchestrator.symbol_precision_loaded",
             symbol=self._symbol,
@@ -3608,17 +3834,16 @@ class Orchestrator:
                 )
 
                 # Record trade outcome for drift detection (GAP-003).
-                # predicted_prob is not tracked on the position record, so a
-                # neutral 0.5 is used — drift detection still gets accurate
-                # PnL/direction/equity signal, just without confidence-weighted
-                # prediction tracking for auto-closed trades.
+                # EXR-004: predicted_prob is the entry P(long) stored on the
+                # position (raw_signal); None when unknown, which skips the
+                # accuracy sample instead of scoring a placeholder 0.5.
                 if self._drift_detector:
                     try:
                         await self._drift_adapter.record_closed_trade(
                             trade_id=str(pos["trade_id"]),
                             exit_price=price,
                             pnl_usd=net_pnl,
-                            predicted_prob=0.5,
+                            predicted_prob=pos.get("raw_signal"),
                             actual_direction=(1 if pos["direction"] == "long" else -1),
                             current_equity=executor.equity_usd,
                             starting_equity=self._cfg.starting_capital_usd,
@@ -3641,6 +3866,7 @@ class Orchestrator:
                     actual_direction=(1 if pos["direction"] == "long" else -1),
                     current_equity=executor.equity_usd,
                     now_ms=now_ms,
+                    predicted_prob=pos.get("raw_signal"),
                 )
             except KeyError:
                 # Position was already closed by another path (e.g. a manual

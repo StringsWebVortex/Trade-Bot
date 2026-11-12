@@ -99,7 +99,7 @@ class PaperPosition:
     kelly_fraction: float
     regime_at_entry: int
     meta_label_prob: float
-    raw_signal: float
+    raw_signal: float | None
     approved_by: str
     execution_mode: str
     fee_usd: float
@@ -204,8 +204,21 @@ class PaperExecutor(AbstractExecutor):
         if latest is not None:
             self._cash = latest.cash_usd
             self._peak_equity = latest.peak_equity_usd
-            self._drawdown_tracker = DrawdownTracker(self._starting_capital)
-            self._drawdown_tracker.update(latest.equity_usd)
+            # EXR-010: seed today's opening equity and the stored peak, not the
+            # configured starting capital, so the daily halt still works.
+            day_open_ms = int(
+                datetime.now(tz=UTC).replace(hour=0, minute=0, second=0, microsecond=0).timestamp()
+                * 1000
+            )
+            todays = await self._storage.fetch_equity_curve(
+                TradingMode.PAPER.value, since_ts=day_open_ms, limit=1
+            )
+            self._drawdown_tracker = DrawdownTracker.restored(
+                self._starting_capital,
+                peak=latest.peak_equity_usd,
+                daily_start=todays[0].equity_usd if todays else latest.equity_usd,
+                current=latest.equity_usd,
+            )
             self._log.info(
                 "paper.initialized_from_storage",
                 equity_usd=latest.equity_usd,
@@ -216,6 +229,32 @@ class PaperExecutor(AbstractExecutor):
                 "paper.initialized_fresh",
                 starting_capital=self._starting_capital,
             )
+        # EXR-009: cash in the equity row already excludes open notional, so the
+        # open positions must be rebuilt or equity is understated and they are
+        # never marked, stopped out or closed.
+        for t in await self._storage.fetch_trades(
+            trading_mode=TradingMode.PAPER.value, open_only=True, limit=10_000
+        ):
+            self._positions[t.id] = PaperPosition(
+                trade_id=t.id,
+                symbol=t.symbol,
+                timeframe=t.timeframe,
+                direction=t.direction,
+                entry_price=t.entry_price,
+                quantity=t.quantity,
+                notional_usd=t.notional_usd,
+                entry_ts=t.entry_ts,
+                kelly_fraction=t.kelly_fraction,
+                regime_at_entry=t.regime_at_entry,
+                meta_label_prob=t.meta_label_prob,
+                raw_signal=t.raw_signal,
+                approved_by=t.approved_by or "restored",
+                execution_mode=t.execution_mode,
+                fee_usd=t.fee_usd,
+                current_price=t.entry_price,
+            )
+        if self._positions:
+            self._log.warning("paper.positions_restored", count=len(self._positions))
         self._initialized = True
 
     async def shutdown(self) -> None:
@@ -352,8 +391,12 @@ class PaperExecutor(AbstractExecutor):
         keeps the failure direction consistent: paper never invents a cost it
         cannot estimate, and never silently drops one it can.
         """
-        if pos.adv_20d_at_entry <= 0.0 or pos.quantity <= 0.0 or marked_price <= 0.0:
+        if pos.quantity <= 0.0 or marked_price <= 0.0:
             return marked_price
+        if pos.adv_20d_at_entry <= 0.0:
+            # EXR-014: unknown liquidity fails closed to the default spread cost.
+            adj = marked_price * (self._risk_cfg.slippage_default_spread_bps / 10_000.0)
+            return marked_price - adj if pos.direction == 1 else marked_price + adj
         try:
             estimate = SlippageModel().estimate(
                 symbol=pos.symbol,
@@ -789,8 +832,12 @@ class PaperExecutor(AbstractExecutor):
         return [req.to_dict() for req in self._approval_queue.values() if not req.resolved]
 
     def pending_approvals(self) -> list[dict[str, object]]:
-        """Return all unresolved approval requests as dicts for the API."""
-        return self._pending_approvals_unsafe()
+        """Unresolved approval requests as dicts (read-only; never prunes).
+
+        Pruning of stale resolved entries mutates ``_approval_queue`` and is
+        left to the lock-holding path (``_pending_approvals_unsafe``).
+        """
+        return [req.to_dict() for req in list(self._approval_queue.values()) if not req.resolved]
 
     async def open_positions_safe(self) -> list[dict[str, object]]:
         """
@@ -818,6 +865,7 @@ class PaperExecutor(AbstractExecutor):
                     else 0.0,
                     "peak_unrealized_pct": round(p.peak_unrealized_pct, 3),
                     "regime_at_entry": p.regime_at_entry,
+                    "raw_signal": p.raw_signal,
                     "strategy_id": p.strategy_id,
                     "entry_ts": p.entry_ts,
                 }
@@ -859,6 +907,7 @@ class PaperExecutor(AbstractExecutor):
                 else 0.0,
                 "peak_unrealized_pct": round(p.peak_unrealized_pct, 3),
                 "regime_at_entry": p.regime_at_entry,
+                "raw_signal": p.raw_signal,
                 "strategy_id": p.strategy_id,
                 "entry_ts": p.entry_ts,
             }
@@ -982,7 +1031,12 @@ class PaperExecutor(AbstractExecutor):
 
         # GAP-011: simulate realistic fill price via SlippageModel (same model as gate 0)
         simulated_fill_price = current_price
-        if adv_20d > 0.0 and kelly_result.quantity > 0.0:
+        if adv_20d <= 0.0 and current_price > 0.0:
+            # EXR-014: submit_signal never supplies ADV; fail closed to the
+            # default half-spread cost rather than a free fill.
+            _fb = current_price * (self._risk_cfg.slippage_default_spread_bps / 10_000.0)
+            simulated_fill_price = current_price + _fb if direction == 1 else current_price - _fb
+        elif adv_20d > 0.0 and kelly_result.quantity > 0.0:
             try:
                 _slip = SlippageModel().estimate(
                     symbol=symbol,

@@ -20,9 +20,9 @@ control in this repo lives: the agent's own workflow, pre-commit, and CI.
 - **Claude sessions** — the skill auto-activates on any crypto/trading/risk/key
   task from its `description`. `CLAUDE.md` declares it as outranking
   convenience, and points at the gate.
-- **Code review** — `.claude/agents/code-reviewer.md` runs the gate and applies
-  the red-flag table; `.github/workflows/claude-code-review.yml` passes the same
-  instruction to the PR reviewer.
+- **Code review** — the review route is the CI gate plus the red-flag table in
+  the crypto-architect skill. This repository has no `.claude/agents/` directory
+  and no `claude-code-review.yml` workflow.
 - **pre-commit** — `crypto-architect` hook, full-tree scan, triggered by any
   `src/**.py` change.
 - **CI** — `architecture` job in `ci.yml`. Stdlib-only, so it needs no

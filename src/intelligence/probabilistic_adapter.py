@@ -2,8 +2,10 @@
 ProbabilisticMetricsAdapter
 ===========================
 Wraps BinanceIntelligenceProvider (or any provider returning a raw flat dict)
-and replaces the deterministic scalar outputs with Bayesian-posterior estimates
-from the probabilistic models built in this session.
+and replaces the deterministic scalar outputs with scores from the
+probabilistic models in probabilistic.py.  NOTE (INT-015): those models use
+hand-set, UNCALIBRATED coefficients (BayesianExchangeStressModel.CALIBRATED is
+False); their outputs are heuristic risk scores, not fitted posteriors.
 
 Preserves the EXACT same interface that GateContext expects:
     exchange_stress_score   : float in [0, 1]   (Gate 9 input)
@@ -29,6 +31,7 @@ Authority:
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import Any
 
@@ -67,6 +70,14 @@ class ProbabilisticGateInputs:
     whale_ratio_confidence: float = 0.0
     raw_stress_score: float | None = None  # Pre-Bayesian deterministic score
     raw_whale_ratio: float | None = None
+
+
+def _is_finite(value: Any) -> bool:
+    """True when ``value`` converts to a finite float."""
+    try:
+        return math.isfinite(float(value))
+    except (TypeError, ValueError):
+        return False
 
 
 class ProbabilisticMetricsAdapter:
@@ -122,7 +133,18 @@ class ProbabilisticMetricsAdapter:
         exchange_stress_confidence = 0.0
         raw_stress = raw_metrics.get("exchange_stress_score")
 
-        if raw_stress is not None:
+        stress_inputs = [
+            raw_metrics.get("exchange_netflow_7d_zscore", 0.0),
+            raw_metrics.get("binance_funding_rate_pct", 0.0),
+            raw_metrics.get("cross_exchange_basis_spread_bps", 0.0),
+            raw_metrics.get("exchange_reserve_ratio", 0.35),
+        ]
+        # NaN inputs (IntelligenceAnalyzer emits NaN for basis/reserve) would make
+        # the stress P NaN and every gate comparison False: refuse, fail open (INT-030).
+        stress_finite = all(_is_finite(v) for v in stress_inputs)
+        if raw_stress is not None and not stress_finite:
+            log.warning("probabilistic_adapter.stress_inputs_non_finite", action="gate_fails_open")
+        if raw_stress is not None and stress_finite:
             try:
                 prediction = self._stress_model.predict_failure_probability(
                     netflow_zscore=float(raw_metrics.get("exchange_netflow_7d_zscore", 0.0)),
@@ -137,6 +159,7 @@ class ProbabilisticMetricsAdapter:
                     "probabilistic_adapter.exchange_stress",
                     raw_score=round(float(raw_stress), 4),
                     bayesian_prob=round(exchange_stress_score, 4),
+                    calibrated=self._stress_model.CALIBRATED,
                     confidence=round(exchange_stress_confidence, 3),
                     ci_lower=round(prediction.lower_credible_interval, 4),
                     ci_upper=round(prediction.upper_credible_interval, 4),
@@ -156,7 +179,9 @@ class ProbabilisticMetricsAdapter:
         whale_ratio_confidence = 0.0
         raw_whale = raw_metrics.get("whale_buy_sell_ratio")
 
-        if raw_whale is not None:
+        if raw_whale is not None and not _is_finite(raw_whale):
+            log.warning("probabilistic_adapter.whale_ratio_non_finite", action="gate_fails_open")
+        elif raw_whale is not None:
             try:
                 estimation = self._whale_model.estimate_true_ratio(
                     observed_ratio=float(raw_whale),

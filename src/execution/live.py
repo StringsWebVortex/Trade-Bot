@@ -111,7 +111,7 @@ class LivePosition:
     kelly_fraction: float
     regime_at_entry: int
     meta_label_prob: float
-    raw_signal: float
+    raw_signal: float | None
     approved_by: str
     execution_mode: str
     fee_usd: float
@@ -224,8 +224,21 @@ class LiveExecutor(AbstractExecutor):
         if latest is not None:
             self._cash = latest.cash_usd
             self._peak_equity = latest.peak_equity_usd
-            self._drawdown_tracker = DrawdownTracker(self._starting_capital)
-            self._drawdown_tracker.update(latest.equity_usd)
+            # EXR-010: seed today's opening equity and the stored peak, not the
+            # configured starting capital, so the daily halt still works.
+            day_open_ms = int(
+                datetime.now(tz=UTC).replace(hour=0, minute=0, second=0, microsecond=0).timestamp()
+                * 1000
+            )
+            todays = await self._storage.fetch_equity_curve(
+                TradingMode.LIVE.value, since_ts=day_open_ms, limit=1
+            )
+            self._drawdown_tracker = DrawdownTracker.restored(
+                self._starting_capital,
+                peak=latest.peak_equity_usd,
+                daily_start=todays[0].equity_usd if todays else latest.equity_usd,
+                current=latest.equity_usd,
+            )
             self._log.info(
                 "live.initialized_from_storage",
                 equity_usd=latest.equity_usd,
@@ -233,6 +246,33 @@ class LiveExecutor(AbstractExecutor):
             )
         else:
             self._log.info("live.initialized_fresh", starting_capital=self._starting_capital)
+        # EXR-009: cash in the equity row already excludes open notional, so the
+        # open positions must be rebuilt or equity is understated and they are
+        # never marked, stopped out or closed.
+        for t in await self._storage.fetch_trades(
+            trading_mode=TradingMode.LIVE.value, open_only=True, limit=10_000
+        ):
+            self._positions[t.id] = LivePosition(
+                trade_id=t.id,
+                symbol=t.symbol,
+                timeframe=t.timeframe,
+                exchange_order_id="",
+                direction=t.direction,
+                entry_price=t.entry_price,
+                quantity=t.quantity,
+                notional_usd=t.notional_usd,
+                entry_ts=t.entry_ts,
+                kelly_fraction=t.kelly_fraction,
+                regime_at_entry=t.regime_at_entry,
+                meta_label_prob=t.meta_label_prob,
+                raw_signal=t.raw_signal,
+                approved_by=t.approved_by or "restored",
+                execution_mode=t.execution_mode,
+                fee_usd=t.fee_usd,
+                current_price=t.entry_price,
+            )
+        if self._positions:
+            self._log.warning("live.positions_restored", count=len(self._positions))
         await self._reconcile_with_exchange()
         self._initialized = True
 
@@ -598,6 +638,8 @@ class LiveExecutor(AbstractExecutor):
                     strategy_id=pos.strategy_id,
                 )
             except (ccxt.NetworkError, ccxt.ExchangeError) as exc:
+                if isinstance(exc, ccxt.NetworkError):
+                    self._block_entries_unreconciled(pos.symbol, "close_network_error")
                 self._log.error(
                     "live.close_order_failed",
                     trade_id=trade_id,
@@ -631,9 +673,7 @@ class LiveExecutor(AbstractExecutor):
             # A base-denominated sell fee also consumes inventory. Track the
             # actual remaining balance, not just the order's filled field.
             base_asset = pos.symbol.split("/")[0].upper()
-            base_fee_qty = (
-                self._base_fee_qty(order, base_asset) if pos.direction == 1 else 0.0
-            )
+            base_fee_qty = self._base_fee_qty(order, base_asset) if pos.direction == 1 else 0.0
             fill_tolerance = max(1e-12, pos.quantity * 1e-9)
             if filled_qty > pos.quantity + fill_tolerance:
                 raise RuntimeError(
@@ -675,9 +715,8 @@ class LiveExecutor(AbstractExecutor):
 
             if pos.direction == 1:
                 gross_pnl = (
-                    (actual_exit_price - pos.entry_price) * filled_qty
-                    - pos.entry_price * base_fee_qty
-                )
+                    actual_exit_price - pos.entry_price
+                ) * filled_qty - pos.entry_price * base_fee_qty
             else:
                 gross_pnl = (pos.entry_price - actual_exit_price) * filled_qty
 
@@ -845,8 +884,12 @@ class LiveExecutor(AbstractExecutor):
         return [req.to_dict() for req in self._approval_queue.values() if not req.resolved]
 
     def pending_approvals(self) -> list[dict[str, object]]:
-        """Public interface — delegates to unsafe variant (sync callers only)."""
-        return self._pending_approvals_unsafe()
+        """Unresolved approval requests as dicts (read-only; never prunes).
+
+        Pruning of stale resolved entries mutates ``_approval_queue`` and is
+        left to the lock-holding path (``_pending_approvals_unsafe``).
+        """
+        return [req.to_dict() for req in list(self._approval_queue.values()) if not req.resolved]
 
     async def open_positions_safe(self) -> list[dict[str, object]]:
         """Thread-safe snapshot of open positions for WS heartbeat (VUL-035)."""
@@ -888,6 +931,7 @@ class LiveExecutor(AbstractExecutor):
                 else 0.0,
                 "peak_unrealized_pct": round(p.peak_unrealized_pct, 3),
                 "regime_at_entry": p.regime_at_entry,
+                "raw_signal": p.raw_signal,
                 "strategy_id": p.strategy_id,
                 "entry_ts": p.entry_ts,
             }
@@ -1029,6 +1073,10 @@ class LiveExecutor(AbstractExecutor):
                     strategy_id=strategy_id,
                 )
             except (ccxt.NetworkError, ccxt.ExchangeError) as exc:
+                if isinstance(exc, ccxt.NetworkError):
+                    # A placement request may have reached the venue despite
+                    # the lost response; freeze new entries until reconciled.
+                    self._block_entries_unreconciled(symbol, "entry_network_error")
                 # Restore reserved cash on order failure
                 async with self._lock:
                     self._cash += notional_estimate + fee_estimate
@@ -1369,6 +1417,7 @@ class LiveExecutor(AbstractExecutor):
                 f"{idempotency_key} already submitted as order {exc.record.order_id!r}."
             ) from exc
         except TimeoutError as exc:
+            self._block_entries_unreconciled(symbol, "order_confirmation_unresolved")
             self._log.error(
                 "live.order_confirmation_timeout",
                 symbol=symbol,
@@ -1567,3 +1616,17 @@ class LiveExecutor(AbstractExecutor):
             raise RuntimeError(
                 "LiveExecutor not initialized — call await executor.initialize() first."
             )
+
+    def _block_entries_unreconciled(self, symbol: str, reason: str) -> None:
+        """Block new entries when an order's venue outcome remains unknown."""
+        self._recovery_discrepancies.append(
+            Discrepancy(
+                symbol=symbol,
+                discrepancy_type=DiscrepancyType.MISSING_LOCALLY,
+                local_quantity=0.0,
+                reference_quantity=0.0,
+            )
+        )
+        self._log.critical(
+            "live.ambiguous_execution", symbol=symbol, reason=reason, entries_blocked=True
+        )
