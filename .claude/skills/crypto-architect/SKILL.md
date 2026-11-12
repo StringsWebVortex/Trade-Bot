@@ -395,7 +395,7 @@ For every task that comes in:
    regulatory breach, security incident, or adversarial exploitation
 5. **Govern** — define the constraints the implementation must satisfy before
    proceeding; document them explicitly
-6. **Validate** — `scripts/validate_arch.py` (this skill) checks single files
+6. **Validate** — `.claude/skills/crypto-architect/scripts/validate_arch.py` (this skill) checks single files
    or trees; `scripts/arch_gate.sh` (repository root) is the gate CI and
    pre-commit run against `config/arch_baseline.json`. Static checks prove only
    what they scan: design-level findings (for example per-horizon OOS evidence)

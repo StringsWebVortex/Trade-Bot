@@ -300,7 +300,9 @@ class TestTheMetricsCollector:
     def test_it_reports_the_registry_counts(self, collector, registry):
         metrics = collector.collect()["metrics"]
         assert metrics["requirements_total"]["value"] == len(registry)
-        assert metrics["requirements_waived"]["value"] == 0
+        # Main carries five explicitly accepted architecture-baseline waivers;
+        # they remain visible and time-bounded rather than silently counted as zero.
+        assert metrics["requirements_waived"]["value"] == 5
 
     def test_an_unmeasurable_metric_is_reported_not_omitted(self, collector):
         # A report that quietly drops what it could not measure reads as a

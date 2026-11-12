@@ -26,11 +26,18 @@ from __future__ import annotations
 
 from typing import Any
 
+from src.api.error_hygiene import sanitize_detail
+
 # Warm-up states (Orchestrator.readiness()["warm_up"]) still on their way.
 _WARMING = frozenset({"pending", "deferred", "running"})
 _ENDED_EARLY = frozenset({"failed", "cancelled"})
 _RUNTIME_UNAVAILABLE = "runtime platform unavailable: stored operator intents are not enforced"
 _NOT_STARTED: dict[str, Any] = {"warm_up": "pending", "error": None, "loops_started": False}
+
+
+def _safe(text: Any) -> Any:
+    """API-009: orchestrator error text can carry DSNs, paths and hostnames."""
+    return None if text is None else sanitize_detail(str(text))
 
 
 def _reasons_for_models(
@@ -44,7 +51,7 @@ def _reasons_for_models(
     if warm_up in _WARMING:
         progress = ", ".join(f"{tf} {timeframes[tf]['model']}" for tf in not_ready)
         return [f"model warm-up in progress: {progress or 'queued'}"]
-    return [f"{tf}: {timeframes[tf]['detail'] or 'no engine'}" for tf in not_ready]
+    return [f"{tf}: {_safe(timeframes[tf]['detail']) or 'no engine'}" for tf in not_ready]
 
 
 def readiness_report(
@@ -79,9 +86,10 @@ def readiness_report(
     warm_up = str(orch["warm_up"])
     loops_started = bool(orch["loops_started"])
     timeframes: dict[str, dict[str, Any]] = orch.get("timeframes", {})
-    reasons.extend(_reasons_for_models(warm_up, orch["error"], timeframes))
+    error = _safe(orch["error"])
+    reasons.extend(_reasons_for_models(warm_up, error, timeframes))
     warnings = [
-        f"{tf}: {t['detail']}"
+        f"{tf}: {_safe(t['detail'])}"
         for tf, t in timeframes.items()
         if t["model"] == "ready" and t.get("detail")
     ]
@@ -104,9 +112,9 @@ def readiness_report(
 
     models = {
         "state": warm_up,
-        "error": orch["error"],
+        "error": error,
         "timeframes": {
-            tf: {"state": t["model"], "detail": t["detail"]} for tf, t in timeframes.items()
+            tf: {"state": t["model"], "detail": _safe(t["detail"])} for tf, t in timeframes.items()
         },
     }
     loops = {

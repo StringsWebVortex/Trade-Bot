@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import threading
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import ccxt.async_support as ccxt_async
@@ -643,7 +643,16 @@ async def test_fetch_ohlcv_okx():
     storage = _make_storage()
     f = MarketDataFetcher(storage)
 
-    raw = [[int(datetime.now(UTC).timestamp() * 1000), 1.0, 2.0, 0.5, 1.5, 100.0]]
+    raw = [
+        [
+            int((datetime.now(UTC) - timedelta(hours=1)).timestamp() * 1000),
+            1.0,
+            2.0,
+            0.5,
+            1.5,
+            100.0,
+        ]
+    ]
     mock_okx = MagicMock()
     mock_okx.fetch_ohlcv = AsyncMock(return_value=raw)
     f._okx = mock_okx

@@ -53,12 +53,14 @@ from __future__ import annotations
 import math
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 import numpy as np
 import pandas as pd
 import structlog
+
+from src.data.clock import ensure_utc
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
@@ -105,14 +107,36 @@ class FreshnessBudget:
         """
         if not math.isfinite(timeframe_s) or timeframe_s <= 0:
             raise ValueError(f"timeframe_s must be a positive number, got {timeframe_s!r}")
-        return cls(label=f"ohlcv_{int(timeframe_s)}s_x{bars:g}", max_age_s=timeframe_s * bars)
+        # Extreme-return ceiling scales with bar length: 15% is a corruption
+        # signal on short bars but a real move on a 4h bar in a crash (DAT-022).
+        max_abs_return = min(0.5, max(0.15, 0.15 * math.sqrt(timeframe_s / 3600.0)))
+        return cls(
+            label=f"ohlcv_{int(timeframe_s)}s_x{bars:g}",
+            max_age_s=timeframe_s * bars,
+            max_abs_return=max_abs_return,
+        )
 
 
 #: The historical default: a realtime tick feed, five minutes.
 OHLCV_REALTIME_BUDGET = FreshnessBudget(label="ohlcv_realtime", max_age_s=300.0)
 
-#: Macro series print on business days, so a weekend is not staleness.
-MACRO_BUDGET = FreshnessBudget(label="macro_daily", max_age_s=2 * 86_400.0)
+#: Macro series print on business days. Four calendar days leave room for
+#: the Friday-to-Monday gap; the business-day limit below remains authoritative.
+MACRO_BUDGET = FreshnessBudget(label="macro_daily", max_age_s=5 * 86_400.0)
+MACRO_MAX_STALE_BUSINESS_DAYS = 2
+
+
+def macro_business_days_elapsed(market_date: date, as_of: date) -> int:
+    """Count weekdays strictly after the market date through the current date."""
+    if as_of < market_date:
+        return -1
+    cursor = market_date + timedelta(days=1)
+    elapsed = 0
+    while cursor <= as_of:
+        if cursor.weekday() < 5:
+            elapsed += 1
+        cursor += timedelta(days=1)
+    return elapsed
 
 
 @dataclass
@@ -165,6 +189,9 @@ class DataQualityGate:
         """
         if bars.empty:
             return QualityResult(False, "empty_dataframe")
+        if not pd.api.types.is_integer_dtype(bars.index.dtype):
+            # A DatetimeIndex would be reinterpreted ns->ms by astype("int64").
+            return self._reject(f"index_not_integer_ms: dtype={bars.index.dtype}")
         try:
             timestamps = pd.to_datetime(bars.index.astype("int64"), unit="ms", utc=True)
         except (ValueError, TypeError, OverflowError) as exc:
@@ -303,7 +330,7 @@ class DataQualityGate:
         budget: FreshnessBudget,
         now: datetime | None,
     ) -> str | None:
-        reference = now if now is not None else datetime.now(UTC)
+        reference = ensure_utc(now) if now is not None else datetime.now(UTC)
         age = reference - timestamps.iloc[-1].to_pydatetime()
         if age > timedelta(seconds=budget.max_age_s):
             return (
@@ -417,12 +444,27 @@ class DataQualityGate:
         if not date_str:
             return self._reject("macro_missing_date")
         try:
-            date = datetime.fromisoformat(str(date_str)).replace(tzinfo=UTC)
-        except ValueError:
+            parsed = datetime.fromisoformat(str(date_str).replace("Z", "+00:00"))
+            if parsed.tzinfo is None:
+                market_dt = parsed.replace(tzinfo=UTC)
+            else:
+                market_dt = parsed.astimezone(UTC)
+        except (TypeError, ValueError):
             return self._reject("macro_bad_date_format")
-        age = datetime.now(UTC) - date
+        now = datetime.now(UTC)
+        age = now - market_dt
+        if age.total_seconds() < 0:
+            return self._reject("macro_future_market_date")
         if age > timedelta(seconds=budget.max_age_s):
             return self._reject(f"macro_stale: {age.days} days old, budget {budget.label}")
+        business_days = macro_business_days_elapsed(market_dt.date(), now.date())
+        if business_days < 0:
+            return self._reject("macro_future_market_date")
+        if business_days > MACRO_MAX_STALE_BUSINESS_DAYS:
+            return self._reject(
+                f"macro_stale: {business_days} business days old, "
+                f"maximum {MACRO_MAX_STALE_BUSINESS_DAYS}"
+            )
         return QualityResult(True)
 
     # ------------------------------------------------------------------

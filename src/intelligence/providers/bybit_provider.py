@@ -243,7 +243,7 @@ class BybitIntelligenceProvider(ExchangeIntelligenceProvider):
 
         rates = [r["fundingRate"] for r in history if r.get("fundingRate") is not None]
         if len(rates) < 2:
-            return {"rate_pct": rates[-1] if rates else 0.0, "zscore": 0.0}
+            return {"rate_pct": rates[-1] * 100.0 if rates else 0.0, "zscore": 0.0}
 
         current = rates[-1]
         mu = statistics.mean(rates)
@@ -396,5 +396,13 @@ def get_bybit_intelligence_provider(
             _provider = BybitIntelligenceProvider(
                 symbol=symbol,
                 perp_symbol=perp_symbol,
+            )
+            _provider._singleton_key = (symbol, perp_symbol)
+        # INT-021: the singleton is bound to the first (symbol, perp_symbol);
+        # serving a different symbol from it would return the wrong market's data.
+        if getattr(_provider, "_singleton_key", (symbol, perp_symbol)) != (symbol, perp_symbol):
+            raise ValueError(
+                f"singleton already bound to {_provider._singleton_key}; "
+                f"refusing to serve {(symbol, perp_symbol)}"
             )
         return _provider

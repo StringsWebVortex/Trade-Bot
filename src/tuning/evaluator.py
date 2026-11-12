@@ -3,10 +3,9 @@ Champion-vs-challenger statistical evaluator for the self-tuning subsystem.
 
 Design: docs/SELF_TUNING_DESIGN.md §4 ("Evaluation method").
 
-Uses the same statistical family already trusted in
-src/risk/performance_drift.py (Welch t-test for continuous metrics,
-two-proportion z-test for rate metrics) so there is one audited
-significance-testing approach in the codebase, not two competing ones.
+Uses paired t-tests for continuous metrics evaluated on the same folds,
+and a two-proportion z-test for rate metrics. Pairing removes shared
+market/fold variance instead of treating matched observations as independent.
 
 This module does not run backtests itself -- it takes pre-computed metric
 samples (per-fold or per-trade values) for champion and challenger and
@@ -23,8 +22,9 @@ import statistics
 from dataclasses import dataclass
 from typing import Final
 
+import numpy as np
 from scipy import stats as scipy_stats
-from scipy.stats import norm, ttest_ind
+from scipy.stats import norm, ttest_rel
 
 _SIGNIFICANCE_ALPHA: Final[float] = 0.05
 
@@ -51,6 +51,11 @@ class MetricComparison:
     p_value: float
     significant_improvement: bool
     significant_regression: bool
+    # Challenger metric samples, kept for audit/deflation. DSR may consume
+    # them only when challenger_samples_are_returns explicitly says they are
+    # raw returns rather than fold-level metric observations.
+    challenger_samples: tuple[float, ...] = ()
+    challenger_samples_are_returns: bool = False
 
 
 @dataclass(frozen=True)
@@ -62,6 +67,12 @@ class EvaluationResult:
     @property
     def any_significant_regression(self) -> bool:
         return any(c.significant_regression for c in self.comparisons)
+
+    def comparison(self, metric_name: str) -> MetricComparison:
+        for c in self.comparisons:
+            if c.metric_name == metric_name:
+                return c
+        raise KeyError(f"metric {metric_name!r} not in evaluation result")
 
     def improved(self, metric_name: str) -> bool:
         for c in self.comparisons:
@@ -148,14 +159,23 @@ def deflated_sharpe_ratio(returns: list[float], n_trials: int, benchmark_sr: flo
 
 class ChallengerEvaluator:
     """
-    Compares champion vs. challenger metric samples using Welch's t-test
-    (unequal variance, appropriate when champion/challenger sample sizes
-    or variances differ -- e.g. different numbers of CPCV folds).
+    Compares champion vs. challenger metric samples with a one-sided paired
+    t-test. Both arms must contain the same chronological folds.
     """
 
     def compare_metric(
-        self, metric_name: str, champion_samples: list[float], challenger_samples: list[float]
+        self,
+        metric_name: str,
+        champion_samples: list[float],
+        challenger_samples: list[float],
+        *,
+        samples_are_returns: bool = False,
     ) -> MetricComparison:
+        if len(champion_samples) != len(challenger_samples):
+            raise InsufficientSampleError(
+                f"{metric_name!r}: paired comparison requires equal sample counts, got "
+                f"champion={len(champion_samples)}, challenger={len(challenger_samples)}"
+            )
         if len(champion_samples) < _MIN_SAMPLE_SIZE or len(challenger_samples) < _MIN_SAMPLE_SIZE:
             raise InsufficientSampleError(
                 f"{metric_name!r}: need >= {_MIN_SAMPLE_SIZE} samples per arm, got "
@@ -166,15 +186,23 @@ class ChallengerEvaluator:
         challenger_mean = statistics.mean(challenger_samples)
         delta = challenger_mean - champion_mean
 
-        # Welch's t-test: does not assume equal variance between arms.
-        _, p_value_two_sided = ttest_ind(challenger_samples, champion_samples, equal_var=False)
-        p_value_two_sided = float(p_value_two_sided)
-        # One-tailed p-value in the direction of the observed delta.
-        p_value_one_tailed = p_value_two_sided / 2.0
-
-        significant = p_value_one_tailed < _SIGNIFICANCE_ALPHA and not math.isnan(
-            p_value_one_tailed
+        # Same folds are evaluated under both parameter values. Pairing removes
+        # fold-to-fold market variance and tests the per-fold delta directly.
+        differences = np.asarray(challenger_samples, dtype=float) - np.asarray(
+            champion_samples, dtype=float
         )
+        if float(np.std(differences, ddof=1)) < 1e-15:
+            # A constant paired delta has no empirical variance estimate.
+            # Treat it as insufficient evidence rather than infinite t.
+            p_value_one_tailed = 1.0
+        else:
+            alternative = "greater" if delta > 0 else "less"
+            test = ttest_rel(challenger_samples, champion_samples, alternative=alternative)
+            p_value_one_tailed = float(test.pvalue)
+            if math.isnan(p_value_one_tailed):
+                p_value_one_tailed = 1.0
+
+        significant = p_value_one_tailed < _SIGNIFICANCE_ALPHA
         significant_improvement = significant and delta > 0
         significant_regression = significant and delta < 0
 
@@ -186,6 +214,8 @@ class ChallengerEvaluator:
             p_value=p_value_one_tailed,
             significant_improvement=significant_improvement,
             significant_regression=significant_regression,
+            challenger_samples=tuple(float(x) for x in challenger_samples),
+            challenger_samples_are_returns=samples_are_returns,
         )
 
     def compare_proportion(

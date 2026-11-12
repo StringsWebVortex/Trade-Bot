@@ -966,7 +966,10 @@ class TestAwaitThrottleToken:
         ex._throttle_cfg = OrderThrottleSettings(rate=100.0, burst=1, max_wait_s=1.0)
         ex._throttler = OrderThrottler(rate=100.0, burst=1)
         await ex._await_throttle_token("binance")  # drains the single token
+        start = time.monotonic()
         await ex._await_throttle_token("binance")  # must wait, not raise
+        # Held rather than refused: it returned within the max_wait_s budget.
+        assert time.monotonic() - start < ex._throttle_cfg.max_wait_s
 
     @pytest.mark.asyncio
     async def test_long_backlog_refuses_order(self):
@@ -1017,7 +1020,27 @@ class TestAwaitThrottleToken:
         ex._throttle_cfg = OrderThrottleSettings(rate=0.1, burst=1, max_wait_s=0.5)
         ex._throttler = OrderThrottler(rate=0.1, burst=1)
         await ex._await_throttle_token("binance")  # drain
+
+        real_acquire = ex._throttler.acquire
+        offered: list[ThrottleResult] = []
+
+        def _record_acquire(exchange: str) -> ThrottleResult:
+            result = real_acquire(exchange)
+            offered.append(result)
+            return result
+
+        ex._throttler.acquire = _record_acquire
+        started = time.monotonic()
         await ex._await_throttle_token("binance", is_exit=True)  # must not raise
+        elapsed = time.monotonic() - started
+
+        # The bucket was consulted and refused the order, and the wait it asked
+        # for would have exceeded max_wait_s for an entry...
+        assert len(offered) == 1
+        assert offered[0].allowed is False
+        assert offered[0].wait_s > ex._throttle_cfg.max_wait_s
+        # ...yet the exit returned without waiting for a token.
+        assert elapsed < ex._throttle_cfg.max_wait_s
 
     @pytest.mark.asyncio
     async def test_close_position_exits_through_a_drained_bucket(self):

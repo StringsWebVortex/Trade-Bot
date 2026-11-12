@@ -120,6 +120,21 @@ class OKXSettings(BaseSettings):
     rate_limit_per_second: int = Field(default=10, ge=1)
 
 
+class PaperQualificationSettings(BaseSettings):
+    """Secret that authenticates the paper-qualification record (EXR-020).
+
+    Deliberately not a field of ``Settings`` and never cached: the live gate
+    reads it fresh on every call so a rotated or removed key takes effect at
+    once, and the qualification module needs no direct environment access.
+    """
+
+    model_config = SettingsConfigDict(
+        env_prefix="PAPER_QUALIFICATION_", env_file=".env", extra="ignore"
+    )
+
+    hmac_key: str = Field(default="", description="HMAC key signing the qualification record")
+
+
 # ---------------------------------------------------------------------------
 # Risk constants — López de Prado (2018) AFML + Kelly (1956)
 # ---------------------------------------------------------------------------
@@ -193,7 +208,7 @@ class RiskSettings(BaseSettings):
     approval_timeout_s: float = Field(
         default=30.0,
         ge=1.0,
-        description="Seconds to wait for manual approval before auto-skip in RESTRICTED mode",
+        description="Seconds to wait for manual approval before auto-skip (RESTRICTED and MANUAL modes)",
     )
 
     # GAP-001 — Almgren-Chriss slippage / market-impact model
@@ -679,6 +694,11 @@ class SelfTuningSettings(BaseSettings):
         ge=1,
         description="Minimum closed trades between tuning attempts for the same parameter.",
     )
+    min_bars_between_attempts: int = Field(
+        default=1_000,
+        ge=1,
+        description="Minimum newly closed bars between bar-driven tuning attempts for the same parameter.",
+    )
     min_hours_between_attempts: float = Field(
         default=24.0,
         ge=1.0,
@@ -1009,11 +1029,25 @@ class StrategySettings(BaseSettings):
         description="Block strategy selection during detected regime transitions.",
     )
 
+    @model_validator(mode="after")
+    def _check_cross_field_invariants(self) -> StrategySettings:
+        """An inverted pair silently gates every trade off (API-031)."""
+        if self.mr_min_half_life > self.mr_max_half_life:
+            raise ValueError("mr_min_half_life must be <= mr_max_half_life")
+        if self.mr_exit_z >= self.mr_entry_z:
+            raise ValueError("mr_exit_z must be < mr_entry_z")
+        if self.bo_exit_period > self.bo_entry_period:
+            raise ValueError("bo_exit_period must be <= bo_entry_period")
+        if self.bo_min_atr_pct >= self.bo_max_atr_pct:
+            raise ValueError("bo_min_atr_pct must be < bo_max_atr_pct")
+        return self
+
 
 class Settings(BaseSettings):
     """
     Root settings object.  Single source of truth for the entire application.
-    Loaded once via get_settings() and cached for the process lifetime.
+    Loaded via get_settings() and cached; fields outside the startup-only set
+    may be overridden at runtime through the /controls surface.
 
     Environment variables:
       TRADING_MODE   : "paper" (default) | "live"

@@ -37,6 +37,7 @@ import numpy as np
 import pandas as pd
 import structlog
 from scipy.optimize import minimize
+from scipy.signal import lfilter
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
@@ -70,18 +71,38 @@ class Garch11Params:
         return self.omega / denom
 
 
+def _conditional_variance_path(
+    returns: np.ndarray, omega: float, alpha: float, beta: float, initial_variance: float
+) -> np.ndarray:
+    """Vectorised GARCH recursion using a stable linear filter."""
+    variance = np.empty(len(returns), dtype=float)
+    if not len(returns):
+        return variance
+    variance[0] = max(float(initial_variance), 1e-12)
+    if len(returns) == 1:
+        return variance
+    if beta >= 1.0:
+        # The optimizer constraint rejects this in normal operation; retain a
+        # correct fallback rather than divide by zero if a caller bypasses it.
+        for index in range(1, len(returns)):
+            variance[index] = max(
+                omega + alpha * returns[index - 1] ** 2 + beta * variance[index - 1], 1e-12
+            )
+        return variance
+    long_run = omega / (1.0 - beta)
+    deviation = variance[0] - long_run
+    filtered, _ = lfilter([alpha], [1.0, -beta], returns[:-1] ** 2, zi=[beta * deviation])
+    variance[1:] = long_run + filtered
+    return np.maximum(variance, 1e-12)
+
+
 def _neg_log_likelihood(theta: np.ndarray, scaled_returns: np.ndarray) -> float:
     omega, alpha, beta = theta
     if omega <= 0 or alpha < 0 or beta < 0 or alpha + beta >= 1.0:
         return 1e10
-
-    n = len(scaled_returns)
-    sigma2 = np.empty(n)
-    sigma2[0] = float(np.var(scaled_returns))
-    for t in range(1, n):
-        sigma2[t] = omega + alpha * scaled_returns[t - 1] ** 2 + beta * sigma2[t - 1]
-
-    sigma2 = np.maximum(sigma2, 1e-12)
+    sigma2 = _conditional_variance_path(
+        scaled_returns, float(omega), float(alpha), float(beta), float(np.var(scaled_returns))
+    )
     ll = -0.5 * np.sum(np.log(2 * np.pi * sigma2) + (scaled_returns**2) / sigma2)
     return -float(ll)
 
@@ -159,6 +180,8 @@ def rolling_garch_forecast(
     this the same way as other warm-up-period features in this pipeline
     (see realized_vol_ratio / atr_momentum in src/features/pipeline.py).
     """
+    if refit_every < 1:
+        raise ValueError(f"refit_every must be >= 1, got {refit_every}")
     if window < _MIN_OBS:
         raise ValueError(
             f"window must be >= {_MIN_OBS} observations to fit GARCH(1,1) reliably, got {window}"
@@ -188,14 +211,17 @@ def rolling_garch_forecast(
                     method="L-BFGS-B",
                     bounds=[(1e-10, None), (0.0, 1.0), (0.0, 1.0)],
                 )
+                if not result.success:
+                    raise RuntimeError(f"GARCH optimiser did not converge: {result.message}")
                 omega, alpha, beta = result.x
+                if not np.all(np.isfinite(result.x)):
+                    raise RuntimeError("GARCH optimiser returned non-finite parameters")
                 params = Garch11Params(
                     omega=float(omega), alpha=float(alpha), beta=float(beta), scale=scale
                 )
-                sigma2_path = np.empty(len(train))
-                sigma2_path[0] = var0
-                for t in range(1, len(train)):
-                    sigma2_path[t] = omega + alpha * train[t - 1] ** 2 + beta * sigma2_path[t - 1]
+                sigma2_path = _conditional_variance_path(
+                    train, params.omega, params.alpha, params.beta, var0
+                )
                 last_sigma2 = float(sigma2_path[-1])
             except Exception as exc:
                 log.warning(

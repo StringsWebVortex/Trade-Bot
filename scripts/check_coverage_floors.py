@@ -85,6 +85,10 @@ def _missing_ranges(entry: dict, cap: int = 24) -> str:
 
 def main() -> int:
     report = _coverage_json()
+    if not report.get("files"):
+        # Zero measured files would otherwise print "All 0 measured files" and pass.
+        print("coverage report contains no measured files; refusing to pass")
+        return 1
     failures: list[str] = []
     stale: list[str] = []
 

@@ -23,6 +23,7 @@ import time
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass, field, replace
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import structlog
@@ -85,6 +86,20 @@ class IntelSignal:
     meta: dict[str, Any] = field(default_factory=dict)
 
 
+def resolve_btc_rpc(cfg: dict[str, Any]) -> tuple[str, str, str]:
+    """Return (url, user, password) for the Bitcoin node RPC.
+
+    INT-017: credentials come only from ``btc_node_rpc`` in the config or the
+    ``BTC_RPC_USER`` / ``BTC_RPC_PASS`` environment variables.  There is no
+    default; empty strings mean "not configured".
+    """
+    rpc_cfg = cfg.get("btc_node_rpc") or {}
+    url = str(rpc_cfg.get("url") or "http://127.0.0.1:8332")
+    user = str(rpc_cfg.get("user") or os.environ.get("BTC_RPC_USER") or "")
+    password = str(rpc_cfg.get("pass") or os.environ.get("BTC_RPC_PASS") or "")
+    return url, user, password
+
+
 def load_horizon_specs() -> dict[str, Any]:
     """Public compatibility wrapper for the canonical horizon configuration loader."""
     return _load_horizon_specs(_HORIZONS_CONFIG)
@@ -144,14 +159,18 @@ class CryptoIntelligence:
 
         self._vpin = VPINTracker()
         self._kyle = KyleLambdaEstimator()
-        rpc_cfg = self._cfg.get("btc_node_rpc", {})
-        self._onchain = OnChainFeatureExtractor(
-            rpc=BitcoinRPCClient(
-                url=rpc_cfg.get("url", "http://127.0.0.1:8332"),
-                user=rpc_cfg.get("user", "crypto"),
-                password=rpc_cfg.get("pass", "crypto"),
+        # INT-017: no default credentials. Missing credentials disable the
+        # on-chain RPC (and the ECC thread that needs it) instead of falling
+        # back to a guessable user/password.
+        btc_rpc_url, btc_rpc_user, btc_rpc_pass = resolve_btc_rpc(self._cfg)
+        self._btc_rpc_configured = bool(btc_rpc_user and btc_rpc_pass)
+        if self._btc_rpc_configured:
+            self._onchain = OnChainFeatureExtractor(
+                rpc=BitcoinRPCClient(url=btc_rpc_url, user=btc_rpc_user, password=btc_rpc_pass)
             )
-        )
+        else:
+            log.warning("btc_rpc_credentials_missing_onchain_disabled")
+            self._onchain = None
         self._derivatives = DerivativesFeatureExtractor()
         self._scm = DoWhySCM()
         self._granger = GrangerCausalityDetector()
@@ -165,14 +184,13 @@ class CryptoIntelligence:
         # Worker orchestrator (model workers + ECC thread)
         from src.workers.orchestrator import WorkerOrchestrator
 
-        btc_rpc = self._cfg.get("btc_node_rpc", {})
         self._orchestrator = WorkerOrchestrator(
             n_workers=self._cfg.get("n_workers", 8),
-            btc_rpc_url=btc_rpc.get("url", "http://127.0.0.1:8332"),
-            btc_rpc_user=btc_rpc.get("user", "crypto"),
-            btc_rpc_pass=btc_rpc.get("pass", "crypto"),
+            btc_rpc_url=btc_rpc_url,
+            btc_rpc_user=btc_rpc_user,
+            btc_rpc_pass=btc_rpc_pass,
             ecc_interval=self._cfg.get("ecc_interval_seconds", 60.0),
-            ecc_enabled=bool(self._cfg.get("ecc_enabled", True)),
+            ecc_enabled=bool(self._cfg.get("ecc_enabled", True)) and self._btc_rpc_configured,
         )
 
         # Observability
@@ -490,7 +508,11 @@ class CryptoIntelligence:
         ofi = compute_ofi(bids or [], asks or [])
 
         mempool_ft = await self._fetch_mempool()
-        onchain_ft = await self._onchain.compute(price, 0.0)
+        if self._onchain is not None:
+            onchain_ft = await self._onchain.compute(price, 0.0)
+        else:
+            nan = float("nan")
+            onchain_ft = SimpleNamespace(sopr=nan, nvt=nan, mvrv=nan)
         deriv_ft = self._derivatives.extract(derivatives_data or {})
 
         # Check ECC output from dedicated thread
@@ -658,7 +680,11 @@ class CryptoIntelligence:
         deadline = time.monotonic() + inference_timeout
         expected_horizons = len(specs)
         while len(results_by_task) < expected_horizons and time.monotonic() < deadline:
-            r = self._drain_one(timeout=min(0.1, max(0.0, deadline - time.monotonic())))
+            # INT-016: the queue read blocks for up to `timeout`; run it off the
+            # event loop so other coroutines are not stalled per bar.
+            r = await asyncio.to_thread(
+                self._drain_one, min(0.1, max(0.0, deadline - time.monotonic()))
+            )
             if r is not None and r.task_id in expected_task_ids:
                 results_by_task[r.task_id] = r
             elif r is not None:

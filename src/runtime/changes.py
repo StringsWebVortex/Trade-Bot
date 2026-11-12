@@ -34,10 +34,11 @@ from __future__ import annotations
 import threading
 import uuid
 from collections import deque
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from enum import StrEnum
+from types import MappingProxyType
 from typing import Any
 
 import structlog
@@ -108,24 +109,28 @@ TERMINAL: frozenset[ChangeStatus] = frozenset(
     }
 )
 
-STAGE_FOR: dict[ChangeClass, str] = {
-    ChangeClass.SHADOW_REQUIRED: "shadow",
-    ChangeClass.CANARY_REQUIRED: "canary",
-}
+STAGE_FOR: Mapping[ChangeClass, str] = MappingProxyType(
+    {
+        ChangeClass.SHADOW_REQUIRED: "shadow",
+        ChangeClass.CANARY_REQUIRED: "canary",
+    }
+)
 
 REJECTED_CLASSES: frozenset[ChangeClass] = frozenset(
     {ChangeClass.FORBIDDEN, ChangeClass.DRAIN_REQUIRED, ChangeClass.RESTART_REQUIRED}
 )
 
 # The action that undoes each action, where one exists.
-INVERSE: dict[LifecycleAction, LifecycleAction] = {
-    A.ACTIVATE: A.DEACTIVATE,
-    A.DEACTIVATE: A.ACTIVATE,
-    A.PAUSE: A.RESUME,
-    A.RESUME: A.PAUSE,
-    A.START: A.STOP,
-    A.REPLACE: A.ROLLBACK,
-}
+INVERSE: Mapping[LifecycleAction, LifecycleAction] = MappingProxyType(
+    {
+        A.ACTIVATE: A.DEACTIVATE,
+        A.DEACTIVATE: A.ACTIVATE,
+        A.PAUSE: A.RESUME,
+        A.RESUME: A.PAUSE,
+        A.START: A.STOP,
+        A.REPLACE: A.ROLLBACK,
+    }
+)
 
 
 class ChangeError(RuntimeError):
@@ -579,22 +584,38 @@ class ChangeManager:
                 and horizon_lifecycle is None
             ):
                 raise RuntimeLifecycleUnavailableError("horizon model lifecycle is unavailable")
-            result = self.approve(change_id, actor)
-            if is_horizon_model and result.classification is ChangeClass.SHADOW_REQUIRED:
-                # The adapter was checked and captured before approval.
-                # ChangeManager classification is unchanged by approve().
-                detail = horizon_lifecycle.record_shadow_stage(component)
-                self.record_stage(
-                    change_id,
-                    stage="shadow",
-                    passed=True,
-                    detail=detail,
-                    actor=system_actor,
-                )
-                return self.execute(change_id, system_actor)
-            if result.classification not in STAGE_FOR:
-                return self.execute(change_id, actor)
-            return result
+            # API-013: one lock across approve -> shadow check -> stage ->
+            # execute (the lock is re-entrant), so no other thread observes a
+            # half-decided change, and a failed shadow check ends the change
+            # instead of stranding it APPROVED -- non-terminal, blocking every
+            # later request on the component.
+            with self._lock:
+                result = self.approve(change_id, actor)
+                if is_horizon_model and result.classification is ChangeClass.SHADOW_REQUIRED:
+                    # The adapter was checked and captured before approval.
+                    # ChangeManager classification is unchanged by approve().
+                    try:
+                        detail = horizon_lifecycle.record_shadow_stage(component)
+                    except Exception as exc:
+                        self._move(
+                            self.get(change_id),
+                            ChangeStatus.FAILED,
+                            system_actor.name,
+                            "shadow_check_failed",
+                            result=str(exc),
+                        )
+                        raise
+                    self.record_stage(
+                        change_id,
+                        stage="shadow",
+                        passed=True,
+                        detail=detail,
+                        actor=system_actor,
+                    )
+                    return self.execute(change_id, system_actor)
+                if result.classification not in STAGE_FOR:
+                    return self.execute(change_id, actor)
+                return result
 
         if verb == "execute":
             return self.execute(change_id, actor)

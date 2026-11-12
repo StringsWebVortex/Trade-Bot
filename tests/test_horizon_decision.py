@@ -95,6 +95,7 @@ def test_fusion_serializes_a_complete_decision() -> None:
     assert rendered["regime_id"] == 2
     assert rendered["model_versions"] == {0: "v-0"}
     assert rendered["freshness_seconds"] == {0: 1.0}
+    assert rendered["calibrated"] is True
 
 
 def test_fusion_rejects_each_unusable_forecast_shape() -> None:
