@@ -281,9 +281,7 @@ class TestResolveNext:
         guard = resolve_script[resolve_script.index("conflicted paths") :]
         assert guard.index("git merge --abort") < guard.index("generate_quality_docs.py")
 
-    def test_a_legacy_traceability_conflict_is_force_removed_from_the_index(
-        self, resolve_script
-    ):
+    def test_a_legacy_traceability_conflict_is_force_removed_from_the_index(self, resolve_script):
         """An unmerged index entry needs force; --cached preserves the checkout copy."""
         legacy = resolve_script[
             resolve_script.index("docs/quality/REQUIREMENTS_TRACEABILITY.md)") :

@@ -33,12 +33,12 @@ jobs:
     if: always()
     needs: [dependency-review]
     runs-on: ubuntu-latest
-    env:
-      NEEDS: ${{ toJSON(needs) }}
-      # The action needs github.event.pull_request, which merge_group does not
-      # provide. The dependency review has already run on the PR head.
-      ALLOW_SKIPPED: dependency-review
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Assert dependency review succeeded
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+          # The action needs github.event.pull_request, which merge_group does
+          # not provide. The dependency review has already run on the PR head.
+          ALLOW_SKIPPED: dependency-review
         run: python3 scripts/assert_jobs_green.py
