@@ -7,7 +7,7 @@ requires() and src/api/access_control.py. With only API_SECRET_KEY configured
 every valid key holds that role, so the gates are inert until the optional
 API_READONLY_KEY is set.
 
-Endpoints:
+Endpoints (illustrative, not exhaustive; /openapi.json lists every route):
   GET  /health                     — system health + storage counts
   GET  /status                     — equity, positions, regime, execution mode
   GET  /trades                     — paginated trade history
@@ -653,7 +653,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # SCAN3-012: validate_cors_config moved inside lifespan so misconfiguration
     # raises at startup time, not at import time (which caused confusing traces
     # in test suites and deployment tooling that imports the module for route inspection).
-    validate_cors_config(cfg.api.cors_origins, allow_credentials=True)
+    validate_cors_config(cfg.api.cors_origins, allow_credentials=False)
     # Security: warn loudly if binding outside loopback without TLS proxy
     if cfg.api.host not in ("127.0.0.1", "::1", "localhost"):
         has_tls = bool(os.environ.get("HTTPS_CERT", "").strip())
@@ -802,13 +802,6 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                 task.cancel()
             await asyncio.gather(*ws_tasks, return_exceptions=True)
 
-        # Close the subscription before cancelling, so the fan-out loop's
-        # `async for` ends on its own rather than being torn out of an await.
-        ws_subscription.close()
-        trace_subscription.close()
-        for task in ws_tasks:
-            task.cancel()
-        await asyncio.gather(*ws_tasks, return_exceptions=True)
         if _state.runtime_upgrades is not None:
             _state.runtime_upgrades.close()
         if _state.runtime is not None:
@@ -863,7 +856,7 @@ app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cfg.api.cors_origins,
-    allow_credentials=True,
+    allow_credentials=False,  # auth is header-based (X-API-Key); no cookies (API-024)
     # M-06: restrict to actual HTTP methods used — GET and POST only
     allow_methods=["GET", "POST"],
     allow_headers=["x-api-key", "content-type"],
@@ -2755,7 +2748,7 @@ async def models_status() -> dict[str, Any]:
         else:
             entry["artifact_count"] = 0
 
-    return {"model_dir": str(model_dir), "timeframes": status}
+    return {"timeframes": status}
 
 
 @app.post(
@@ -3260,6 +3253,8 @@ async def get_strategy_portfolio(timeframe: str | None = None) -> dict[str, Any]
     orch = _state.orchestrator
     if orch is None:
         return {"evaluations": {}, "reason": "orchestrator_not_started"}
+    if timeframe is not None:
+        timeframe = _parse_timeframe_or_400(timeframe).value
     payload = orch.portfolio_evaluation(timeframe)
     if timeframe is not None:
         return {"timeframe": timeframe, "evaluation": payload}
@@ -3844,7 +3839,8 @@ async def set_control(name: str, body: SetControlRequest, request: Request) -> d
 # ---------------------------------------------------------------------------
 # Runtime platform (src/runtime) -- RES-017
 #
-# Reads need VIEW_STATUS; every mutation needs CHANGE_RUNTIME plus the
+# Reads need VIEW_STATUS, except the agent-control ledgers, which need
+# CHANGE_RUNTIME (SEC-0015); every mutation needs CHANGE_RUNTIME plus the
 # operator second factor, and goes through the change manager, which
 # classifies it, checks dependencies, applies policy and audits it. No route
 # here reaches a supervisor or a component directly.
@@ -3962,6 +3958,10 @@ _RUNTIME_WRITE = [
     Depends(requires(Permission.CHANGE_RUNTIME)),
     Depends(require_healthy_security_controls),
 ]
+# SEC-0015: the agent ledgers disclose in-flight engineering work (objectives,
+# branches, SHAs), so reading them is operator authority, not VIEW_STATUS. The
+# route changes nothing, so it takes no operator second factor.
+_RUNTIME_OPERATOR_READ = _RUNTIME_WRITE
 
 
 @app.get("/runtime", dependencies=_RUNTIME_READ)
@@ -4019,9 +4019,9 @@ async def runtime_trace(trace_id: str) -> dict[str, Any]:
     return result
 
 
-@app.get("/runtime/agent", dependencies=_RUNTIME_READ)
+@app.get("/runtime/agent", dependencies=_RUNTIME_OPERATOR_READ)
 async def runtime_agent_ledgers() -> dict[str, Any]:
-    """Claude session task manifests and the branch-audit ledger (read-only)."""
+    """Claude session task manifests and the branch-audit ledger; CHANGE_RUNTIME only."""
     return runtime_control.agent_ledgers()
 
 

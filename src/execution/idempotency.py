@@ -40,6 +40,10 @@ from decimal import ROUND_HALF_EVEN, Decimal
 from enum import StrEnum
 from typing import Any, Final
 
+import structlog
+
+log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
+
 __all__ = [
     "DuplicateOrderError",
     "IdempotencyRecord",
@@ -294,15 +298,25 @@ class IdempotencyRegistry:
             del self._records[key]
 
     def _enforce_capacity(self) -> None:
-        # Bound the map even when everything is within TTL. Oldest-first, and
-        # never at the expense of an in-flight key -- dropping one of those
-        # would re-open the duplicate window it exists to close.
+        # Only FAILED keys may be dropped early: an IN_FLIGHT or COMPLETED key
+        # still inside its TTL is what blocks a duplicate submit, so evicting
+        # one re-opens the duplicate-order window (EXR-025). Expired keys are
+        # already removed by _evict_expired. If that is not enough the map is
+        # allowed to exceed max_entries (bounded by the TTL) and we alert.
         overflow = len(self._records) - self._max_entries
         if overflow <= 0:
             return
         evictable = sorted(
-            (r for r in self._records.values() if r.state is not SubmissionState.IN_FLIGHT),
+            (r for r in self._records.values() if r.state is SubmissionState.FAILED),
             key=lambda r: r.updated_at,
         )
         for record in evictable[:overflow]:
             del self._records[record.key]
+        remaining = len(self._records) - self._max_entries
+        if remaining > 0:
+            log.warning(
+                "idempotency_store_over_capacity",
+                over_by=remaining,
+                max_entries=self._max_entries,
+                action="live_keys_retained_to_prevent_duplicate_orders",
+            )

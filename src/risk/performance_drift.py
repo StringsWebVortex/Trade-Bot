@@ -140,9 +140,7 @@ class PerformanceBaseline:
         so a unit mistake made here surfaces at the first drift check — by
         which time the message has nothing to do with the mistake.
         """
-        if self.oos_sharpe_per_trade is not None and not math.isfinite(
-            self.oos_sharpe_per_trade
-        ):
+        if self.oos_sharpe_per_trade is not None and not math.isfinite(self.oos_sharpe_per_trade):
             raise ValueError("PerformanceBaseline.oos_sharpe_per_trade must be finite when set")
         if self.oos_win_rate is not None and not (
             math.isfinite(self.oos_win_rate) and 0.0 <= self.oos_win_rate <= 1.0
@@ -240,7 +238,6 @@ class PerformanceDriftDetector:
         self._total_live_wins: int = 0
         self._max_live_drawdown_pct: float = 0.0
         self._live_equity_peak: float = 0.0
-        self._live_equity_start: float = 0.0
 
     @property
     def baseline(self) -> PerformanceBaseline:
@@ -303,9 +300,6 @@ class PerformanceDriftDetector:
         # Update drawdown tracking
         if current_equity > self._live_equity_peak:
             self._live_equity_peak = current_equity
-
-        if self._live_equity_start == 0:
-            self._live_equity_start = starting_equity
 
         # UI-008: starting_equity <= 0 (bad snapshot / uninitialized caller)
         # previously raised ZeroDivisionError here, which propagates
@@ -540,7 +534,9 @@ class PerformanceDriftDetector:
 
         baseline_winrate = self._baseline.win_rate_baseline
         if baseline_winrate is None:
-            return DriftDetected(drifted=False, reason="No measured out-of-sample or training win-rate baseline")
+            return DriftDetected(
+                drifted=False, reason="No measured out-of-sample or training win-rate baseline"
+            )
         drift_pp = baseline_winrate - live_winrate
         is_significant = _proportion_drop_significant(
             baseline_winrate,

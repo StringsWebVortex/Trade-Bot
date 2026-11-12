@@ -28,7 +28,8 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: tradebot
-      POSTGRES_PASSWORD: tradebot-local
+      # OPS-006: no shipped default. Set POSTGRES_PASSWORD in .env.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
       POSTGRES_DB: tradebot
     volumes:
       - tsdb-data:/var/lib/postgresql/data
@@ -54,10 +55,20 @@ services:
       API_HOST: 0.0.0.0
       API_PORT: "8000"
       STORAGE_BACKEND: timescale
-      STORAGE_TIMESCALE_DSN: postgresql://tradebot:tradebot-local@timescaledb:5432/tradebot
+      STORAGE_TIMESCALE_DSN: postgresql://tradebot:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@timescaledb:5432/tradebot
     depends_on:
       timescaledb:
         condition: service_healthy
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp
+    volumes:
+      - app-data:/app/data
+      - app-logs:/app/logs
+      - app-models:/app/models
     ports:
       - "127.0.0.1:8000:8000"
 
@@ -72,11 +83,24 @@ services:
       - .env
     environment:
       STORAGE_BACKEND: timescale
-      STORAGE_TIMESCALE_DSN: postgresql://tradebot:tradebot-local@timescaledb:5432/tradebot
+      STORAGE_TIMESCALE_DSN: postgresql://tradebot:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@timescaledb:5432/tradebot
     depends_on:
       timescaledb:
         condition: service_healthy
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp
+    volumes:
+      - app-data:/app/data
+      - app-logs:/app/logs
+      - app-models:/app/models
     command: ["python", "-m", "src.workers"]
 
 volumes:
   tsdb-data:
+  app-data:
+  app-logs:
+  app-models:

@@ -5,7 +5,7 @@ Decides:
   - REG-1301 -- OrderNotFound right after placement is retried (EXR-015)
   - REG-1302 -- tick-size amount precision is quantised correctly (EXR-016)
   - REG-1303 -- a cognitive size reduction is requantised (EXR-017)
-  - REG-1304 -- the MANUAL approval wait is bounded (EXR-018)
+  - REG-1304 -- MANUAL approval is queued without blocking (EXR-018)
   - REG-1305 -- a low Hurst exponent warns rather than vetoes (EXR-019)
   - REG-1307 -- drift baselines use the live statistic's units (EXR-021)
 """
@@ -137,11 +137,14 @@ def test_exr017_engine_requantises_cognitive_reduction():
 
 
 @pytest.mark.asyncio
-async def test_exr018_manual_approval_wait_is_bounded(executor):
+async def test_exr018_manual_approval_queues_without_waiting(executor):
     await runtime_config.set_execution_mode(ExecutionMode.MANUAL)
-    executor._await_approval = AsyncMock(return_value=(False, ""))
-    await executor.submit_signal("BTC/USDT", "15m", 1, _kelly(), 1, 0.6, 0.5, 100.0)
-    assert executor._await_approval.await_args.args[1] is not None
+    trade_id, outcome = await executor.submit_signal(
+        "BTC/USDT", "15m", 1, _kelly(), 1, 0.6, 0.5, 100.0
+    )
+    assert (trade_id, outcome) == (None, "queued")
+    (request,) = executor._approval_queue.values()
+    assert request.timeout_s is None
 
 
 def test_exr019_low_hurst_warns_not_vetoes():

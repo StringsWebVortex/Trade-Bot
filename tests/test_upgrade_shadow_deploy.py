@@ -14,6 +14,7 @@ import sys
 from unittest.mock import MagicMock, patch
 
 import numpy as np
+import pytest
 
 from src.upgrade.shadow_deploy import ModelRecord, ShadowDeployer
 
@@ -60,9 +61,10 @@ def test_call_model_falls_back_to_predict_method():
     assert deployer.predict_incumbent(3) == 4
 
 
-def test_call_model_neither_callable_nor_predict_returns_zero():
+def test_call_model_neither_callable_nor_predict_fails_closed():
     deployer = ShadowDeployer(object(), object(), shadow_hours=0.0)
-    assert deployer.predict_incumbent(3) == 0.0
+    with pytest.raises(TypeError, match="callable or expose predict"):
+        deployer.predict_incumbent(3)
 
 
 def test_start_resets_timers_and_marks_active():

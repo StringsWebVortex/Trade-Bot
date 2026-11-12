@@ -4,33 +4,33 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 
 ## Totals
 
-- Tracked paths: 1282
-- Python files: 1055
+- Tracked paths: 1315
+- Python files: 1072
 - P0 anchors: 58
-- P1 files: 1086
+- P1 files: 1122
 
 ## Top 50 reference files
 
 | # | Priority | Path | Type | Lines | SHA8 | Why it matters |
 | ---: | --- | --- | --- | ---: | --- | --- |
-| 1 | P0 | .github/workflows/ci-diagnostics.yml | YAML | 43 | 2f499a19 | SHA-bound CI diagnostics collector |
+| 1 | P0 | .github/workflows/ci-diagnostics.yml | YAML | 45 | 6fa5fcf4 | SHA-bound CI diagnostics collector |
 | 2 | P0 | .github/workflows/ci.yml | YAML | 415 | 2abf41de | CI jobs and gate composition |
 | 3 | P0 | AGENTS.md | Markdown | 562 | 2d19c12a | Engineering workflow and safety contract |
-| 4 | P0 | CLAUDE.md | Markdown | 733 | 551b491d | Architecture, quality, CI and project policy |
-| 5 | P0 | Dockerfile | Other text/source | 145 | db5c42f1 | Container runtime, identity, healthcheck and entrypoint |
-| 6 | P0 | Makefile | Other text/source | 45 | f5f88b46 | Developer commands governed by repository policy |
-| 7 | P0 | README.md | Markdown | 471 | 9d351b5a | Purpose, usage and declared architecture |
+| 4 | P0 | CLAUDE.md | Markdown | 744 | 80d7bfb3 | Architecture, quality, CI and project policy |
+| 5 | P0 | Dockerfile | Other text/source | 150 | a1926964 | Container runtime, identity, healthcheck and entrypoint |
+| 6 | P0 | Makefile | Other text/source | 46 | 9544ed34 | Developer commands governed by repository policy |
+| 7 | P0 | README.md | Markdown | 469 | e038e637 | Purpose, usage and declared architecture |
 | 8 | P0 | config/architecture_layers.json | JSON | 78 | 734d6397 | Enforced import layering |
-| 9 | P0 | config/command_policy.json | JSON | 304 | a0f8c0c7 | Tool command and CI observation policy |
+| 9 | P0 | config/command_policy.json | JSON | 165 | 26cd52dc | Tool command and CI observation policy |
 | 10 | P0 | config/horizons.yaml | YAML | 53 | 2ede87ec | Auxiliary prediction horizon definitions |
-| 11 | P0 | config/math_registry.json | JSON | 1903 | 8fa18ffc | Mathematical object registry |
-| 12 | P0 | config/quality_registry.json | JSON | 9461 | 1ad1cdb0 | Requirements, regressions and deciding tests |
-| 13 | P0 | config/risk.yaml | YAML | 26 | dd4766f8 | Horizon/intelligence risk, distinct from core Settings |
-| 14 | P0 | docker-compose.yml | YAML | 82 | 80ec3eca | API/Timescale/optional-worker composition |
+| 11 | P0 | config/math_registry.json | JSON | 1859 | acf5f447 | Mathematical object registry |
+| 12 | P0 | config/quality_registry.json | JSON | 10802 | e8b82700 | Requirements, regressions and deciding tests |
+| 13 | P0 | config/risk.yaml | YAML | 26 | 3cd32e5e | Horizon/intelligence risk, distinct from core Settings |
+| 14 | P0 | docker-compose.yml | YAML | 106 | eee4d6b9 | API/Timescale/optional-worker composition |
 | 15 | P0 | docs/quality/CI_GATE_ARCHITECTURE.md | Markdown | 255 | 62e800fb | CI gates |
-| 16 | P0 | docs/runtime/RUNTIME_PLATFORM.md | Markdown | 296 | 37fde0ad | Runtime control plane architecture |
+| 16 | P0 | docs/runtime/RUNTIME_PLATFORM.md | Markdown | 327 | e2e2bf58 | Runtime control plane architecture |
 | 17 | P0 | docs/security/THREAT_MODEL.md | Markdown | 341 | ab52c113 | Threat model |
-| 18 | P0 | docs/terminal/ARCHITECTURE.md | Markdown | 217 | ac1b11e0 | Terminal/workspace architecture; historical baseline clearly labeled |
+| 18 | P0 | docs/terminal/ARCHITECTURE.md | Markdown | 219 | 72472191 | Terminal/workspace architecture; historical baseline clearly labeled |
 | 19 | P0 | frontend/package.json | JSON | 47 | d63ddf52 | Node toolchain and frontend scripts |
 | 20 | P0 | frontend/src/App.jsx | React JSX | 514 | 44d9a9ec | Dashboard composition |
 | 21 | P0 | frontend/src/hooks/useApi.js | JavaScript | 536 | 1f84e632 | HTTP and WebSocket client |
@@ -42,26 +42,26 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 27 | P0 | src/api/__main__.py | Python | 42 | f07796d2 | API entrypoint |
 | 28 | P0 | src/api/access_control.py | Python | 84 | 263fe5ed | Permission/role definitions |
 | 29 | P0 | src/api/auth.py | Python | 194 | d33bad47 | API key and role authentication |
-| 30 | P0 | src/api/main.py | Python | 4075 | 3e72d13e | FastAPI lifecycle, REST and WebSocket routes |
-| 31 | P0 | src/config.py | Python | 1492 | 170f7e9c | Primary Pydantic settings and runtime config |
+| 30 | P0 | src/api/main.py | Python | 4076 | 7924f1d7 | FastAPI lifecycle, REST and WebSocket routes |
+| 31 | P0 | src/config.py | Python | 1516 | c952f098 | Primary Pydantic settings and runtime config |
 | 32 | P0 | src/data/clock.py | Python | 125 | 768bcae5 | UTC and venue clock helpers |
 | 33 | P0 | src/data/fetcher.py | Python | 1294 | 0e7e3975 | CCXT data, retries, orderbook, reconnect |
-| 34 | P0 | src/data/storage.py | Python | 2208 | 97ab6842 | SQLite backend, schema and migrations |
-| 35 | P0 | src/data/timescale_storage.py | Python | 1625 | 9c8602f2 | Timescale backend |
-| 36 | P0 | src/engine/orchestrator.py | Python | 3594 | 464d64eb | Main trading loop, tick, portfolio, retrain and position monitor |
-| 37 | P0 | src/engine/signal_engine.py | Python | 1920 | a05db8db | Per-timeframe signal computation |
-| 38 | P0 | src/execution/live.py | Python | 1643 | ccb718ba | Live executor boundary |
+| 34 | P0 | src/data/storage.py | Python | 2237 | 41179623 | SQLite backend, schema and migrations |
+| 35 | P0 | src/data/timescale_storage.py | Python | 1634 | 0610eeb0 | Timescale backend |
+| 36 | P0 | src/engine/orchestrator.py | Python | 3886 | 6d89c44c | Main trading loop, tick, portfolio, retrain and position monitor |
+| 37 | P0 | src/engine/signal_engine.py | Python | 1926 | 4b2d9be9 | Per-timeframe signal computation |
+| 38 | P0 | src/execution/live.py | Python | 1632 | 80e76bb3 | Live executor boundary |
 | 39 | P0 | src/execution/order_fsm.py | Python | 375 | 14f635a5 | Order state machine and fill aggregation |
 | 40 | P0 | src/execution/unified_ledger.py | Python | 89 | 86392a2d | Cross-venue book ledger |
-| 41 | P0 | src/features/pipeline.py | Python | 1250 | 5ca56a6f | Features, labels and train/inference alignment |
-| 42 | P0 | src/intelligence/client.py | Python | 706 | e799d7be | Provider aggregator and caches |
+| 41 | P0 | src/features/pipeline.py | Python | 1251 | 19402e5f | Features, labels and train/inference alignment |
+| 42 | P0 | src/intelligence/client.py | Python | 730 | 763444e0 | Provider aggregator and caches |
 | 43 | P0 | src/models/model_registry.py | Python | 173 | 96ae8c96 | Model bundle and promotion |
 | 44 | P0 | src/models/online_trainer.py | Python | 377 | e55987c8 | Online prediction/outcome learning |
-| 45 | P0 | src/models/trainer.py | Python | 1781 | c0be7036 | Training, CPCV/OOS metrics and artifact validation |
+| 45 | P0 | src/models/trainer.py | Python | 1810 | fd444f83 | Training, CPCV/OOS metrics and artifact validation |
 | 46 | P0 | src/regime/detector.py | Python | 828 | 4ca13328 | HMM regime detector |
-| 47 | P0 | src/risk/gates.py | Python | 1296 | 22e195c5 | Sequential trading gates and exits |
-| 48 | P0 | src/runtime/changes.py | Python | 799 | 054b9f1f | Runtime change lifecycle and audit |
-| 49 | P0 | src/runtime/contracts.py | Python | 504 | ad764291 | Runtime state/action/capability contracts |
+| 47 | P0 | src/risk/gates.py | Python | 1313 | a36d8cb0 | Sequential trading gates and exits |
+| 48 | P0 | src/runtime/changes.py | Python | 807 | 174cc342 | Runtime change lifecycle and audit |
+| 49 | P0 | src/runtime/contracts.py | Python | 507 | 1cd648fb | Runtime state/action/capability contracts |
 | 50 | P0 | src/runtime/platform.py | Python | 145 | 1c7162da | Runtime composition root |
 
 ## Complete tracked-file index
@@ -70,21 +70,21 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | ---: | --- | --- | --- | ---: | --- | --- |
 | 1 | P0 | .github/workflows/ci.yml | YAML | 415 | 2abf41de | CI jobs and gate composition |
 | 2 | P0 | AGENTS.md | Markdown | 562 | 2d19c12a | Engineering workflow and safety contract |
-| 3 | P0 | CLAUDE.md | Markdown | 733 | 551b491d | Architecture, quality, CI and project policy |
-| 4 | P0 | Dockerfile | Other text/source | 145 | db5c42f1 | Container runtime, identity, healthcheck and entrypoint |
-| 5 | P0 | Makefile | Other text/source | 45 | f5f88b46 | Developer commands governed by repository policy |
-| 6 | P0 | README.md | Markdown | 471 | 9d351b5a | Purpose, usage and declared architecture |
+| 3 | P0 | CLAUDE.md | Markdown | 744 | 80d7bfb3 | Architecture, quality, CI and project policy |
+| 4 | P0 | Dockerfile | Other text/source | 150 | a1926964 | Container runtime, identity, healthcheck and entrypoint |
+| 5 | P0 | Makefile | Other text/source | 46 | 9544ed34 | Developer commands governed by repository policy |
+| 6 | P0 | README.md | Markdown | 469 | e038e637 | Purpose, usage and declared architecture |
 | 7 | P0 | config/architecture_layers.json | JSON | 78 | 734d6397 | Enforced import layering |
-| 8 | P0 | config/command_policy.json | JSON | 304 | a0f8c0c7 | Tool command and CI observation policy |
+| 8 | P0 | config/command_policy.json | JSON | 165 | 26cd52dc | Tool command and CI observation policy |
 | 9 | P0 | config/horizons.yaml | YAML | 53 | 2ede87ec | Auxiliary prediction horizon definitions |
-| 10 | P0 | config/math_registry.json | JSON | 1903 | 8fa18ffc | Mathematical object registry |
-| 11 | P0 | config/quality_registry.json | JSON | 9461 | 1ad1cdb0 | Requirements, regressions and deciding tests |
-| 12 | P0 | config/risk.yaml | YAML | 26 | dd4766f8 | Horizon/intelligence risk, distinct from core Settings |
-| 13 | P0 | docker-compose.yml | YAML | 82 | 80ec3eca | API/Timescale/optional-worker composition |
+| 10 | P0 | config/math_registry.json | JSON | 1859 | acf5f447 | Mathematical object registry |
+| 11 | P0 | config/quality_registry.json | JSON | 10802 | e8b82700 | Requirements, regressions and deciding tests |
+| 12 | P0 | config/risk.yaml | YAML | 26 | 3cd32e5e | Horizon/intelligence risk, distinct from core Settings |
+| 13 | P0 | docker-compose.yml | YAML | 106 | eee4d6b9 | API/Timescale/optional-worker composition |
 | 14 | P0 | docs/quality/CI_GATE_ARCHITECTURE.md | Markdown | 255 | 62e800fb | CI gates |
-| 15 | P0 | docs/runtime/RUNTIME_PLATFORM.md | Markdown | 296 | 37fde0ad | Runtime control plane architecture |
+| 15 | P0 | docs/runtime/RUNTIME_PLATFORM.md | Markdown | 327 | e2e2bf58 | Runtime control plane architecture |
 | 16 | P0 | docs/security/THREAT_MODEL.md | Markdown | 341 | ab52c113 | Threat model |
-| 17 | P0 | docs/terminal/ARCHITECTURE.md | Markdown | 217 | ac1b11e0 | Terminal/workspace architecture; historical baseline clearly labeled |
+| 17 | P0 | docs/terminal/ARCHITECTURE.md | Markdown | 219 | 72472191 | Terminal/workspace architecture; historical baseline clearly labeled |
 | 18 | P0 | frontend/package.json | JSON | 47 | d63ddf52 | Node toolchain and frontend scripts |
 | 19 | P0 | frontend/src/App.jsx | React JSX | 514 | 44d9a9ec | Dashboard composition |
 | 20 | P0 | frontend/src/hooks/useApi.js | JavaScript | 536 | 1f84e632 | HTTP and WebSocket client |
@@ -96,26 +96,26 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 26 | P0 | src/api/__main__.py | Python | 42 | f07796d2 | API entrypoint |
 | 27 | P0 | src/api/access_control.py | Python | 84 | 263fe5ed | Permission/role definitions |
 | 28 | P0 | src/api/auth.py | Python | 194 | d33bad47 | API key and role authentication |
-| 29 | P0 | src/api/main.py | Python | 4075 | 3e72d13e | FastAPI lifecycle, REST and WebSocket routes |
-| 30 | P0 | src/config.py | Python | 1492 | 170f7e9c | Primary Pydantic settings and runtime config |
+| 29 | P0 | src/api/main.py | Python | 4076 | 7924f1d7 | FastAPI lifecycle, REST and WebSocket routes |
+| 30 | P0 | src/config.py | Python | 1516 | c952f098 | Primary Pydantic settings and runtime config |
 | 31 | P0 | src/data/clock.py | Python | 125 | 768bcae5 | UTC and venue clock helpers |
 | 32 | P0 | src/data/fetcher.py | Python | 1294 | 0e7e3975 | CCXT data, retries, orderbook, reconnect |
-| 33 | P0 | src/data/storage.py | Python | 2208 | 97ab6842 | SQLite backend, schema and migrations |
-| 34 | P0 | src/data/timescale_storage.py | Python | 1625 | 9c8602f2 | Timescale backend |
-| 35 | P0 | src/engine/orchestrator.py | Python | 3594 | 464d64eb | Main trading loop, tick, portfolio, retrain and position monitor |
-| 36 | P0 | src/engine/signal_engine.py | Python | 1920 | a05db8db | Per-timeframe signal computation |
-| 37 | P0 | src/execution/live.py | Python | 1643 | ccb718ba | Live executor boundary |
+| 33 | P0 | src/data/storage.py | Python | 2237 | 41179623 | SQLite backend, schema and migrations |
+| 34 | P0 | src/data/timescale_storage.py | Python | 1634 | 0610eeb0 | Timescale backend |
+| 35 | P0 | src/engine/orchestrator.py | Python | 3886 | 6d89c44c | Main trading loop, tick, portfolio, retrain and position monitor |
+| 36 | P0 | src/engine/signal_engine.py | Python | 1926 | 4b2d9be9 | Per-timeframe signal computation |
+| 37 | P0 | src/execution/live.py | Python | 1632 | 80e76bb3 | Live executor boundary |
 | 38 | P0 | src/execution/order_fsm.py | Python | 375 | 14f635a5 | Order state machine and fill aggregation |
 | 39 | P0 | src/execution/unified_ledger.py | Python | 89 | 86392a2d | Cross-venue book ledger |
-| 40 | P0 | src/features/pipeline.py | Python | 1250 | 5ca56a6f | Features, labels and train/inference alignment |
-| 41 | P0 | src/intelligence/client.py | Python | 706 | e799d7be | Provider aggregator and caches |
+| 40 | P0 | src/features/pipeline.py | Python | 1251 | 19402e5f | Features, labels and train/inference alignment |
+| 41 | P0 | src/intelligence/client.py | Python | 730 | 763444e0 | Provider aggregator and caches |
 | 42 | P0 | src/models/model_registry.py | Python | 173 | 96ae8c96 | Model bundle and promotion |
 | 43 | P0 | src/models/online_trainer.py | Python | 377 | e55987c8 | Online prediction/outcome learning |
-| 44 | P0 | src/models/trainer.py | Python | 1781 | c0be7036 | Training, CPCV/OOS metrics and artifact validation |
+| 44 | P0 | src/models/trainer.py | Python | 1810 | fd444f83 | Training, CPCV/OOS metrics and artifact validation |
 | 45 | P0 | src/regime/detector.py | Python | 828 | 4ca13328 | HMM regime detector |
-| 46 | P0 | src/risk/gates.py | Python | 1296 | 22e195c5 | Sequential trading gates and exits |
-| 47 | P0 | src/runtime/changes.py | Python | 799 | 054b9f1f | Runtime change lifecycle and audit |
-| 48 | P0 | src/runtime/contracts.py | Python | 504 | ad764291 | Runtime state/action/capability contracts |
+| 46 | P0 | src/risk/gates.py | Python | 1313 | a36d8cb0 | Sequential trading gates and exits |
+| 47 | P0 | src/runtime/changes.py | Python | 807 | 174cc342 | Runtime change lifecycle and audit |
+| 48 | P0 | src/runtime/contracts.py | Python | 507 | 1cd648fb | Runtime state/action/capability contracts |
 | 49 | P0 | src/runtime/platform.py | Python | 145 | 1c7162da | Runtime composition root |
 | 50 | P0 | src/runtime/production.py | Python | 421 | 3ece1420 | Production discovery/controllers/reconciliation |
 | 51 | P0 | src/strategies/bootstrap.py | Python | 205 | 7c5e2f94 | Config-enabled strategy registration |
@@ -123,7 +123,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 53 | P0 | src/terminal/protocol.py | Python | 216 | ed293ffb | Terminal protocol validation |
 | 54 | P0 | src/terminal/server.py | Python | 647 | e6fa9e24 | PTY terminal daemon |
 | 55 | P0 | src/tuning/scheduler.py | Python | 712 | 93bd994d | Optional tuning scheduler |
-| 56 | P0 | src/workers/orchestrator.py | Python | 871 | 152c9c6c | Horizon and ECC worker orchestration |
+| 56 | P0 | src/workers/orchestrator.py | Python | 872 | b3684b6b | Horizon and ECC worker orchestration |
 | 57 | P0 | src/workers/trader.py | Python | 144 | b63ee6b6 | Headless main trading loop |
 | 58 | P0 | tests/test_engine_seam_contract.py | Python | 205 | fd684c46 | Positional E-01…E-18 contract test |
 | 59 | P1 | .github/CODEOWNERS | Other text/source | 18 | 7fd71f34 |  |
@@ -133,1220 +133,1253 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 63 | P1 | .github/dependabot.yml | YAML | 67 | bef3b14e |  |
 | 64 | P1 | .github/mermaid-puppeteer-config.json | JSON | 6 | c73c7331 |  |
 | 65 | P1 | .github/pull_request_template.md | Markdown | 15 | e8ad60ce |  |
-| 66 | P1 | .github/rulesets/main-protection.json | JSON | 110 | 585c7190 |  |
-| 67 | P1 | .github/workflows/ci-diagnostics.yml | YAML | 43 | 2f499a19 |  |
+| 66 | P1 | .github/rulesets/main-protection.json | JSON | 111 | c3566fef |  |
+| 67 | P1 | .github/workflows/ci-diagnostics.yml | YAML | 45 | 6fa5fcf4 |  |
 | 68 | P1 | .github/workflows/codeql.yml | YAML | 118 | 92cec6ba |  |
 | 69 | P1 | .github/workflows/codex-pr-handoff.yml | YAML | 76 | 7810b996 |  |
-| 70 | P1 | .github/workflows/deploy.yml | YAML | 187 | e32b046a |  |
-| 71 | P1 | .github/workflows/nightly-quality.yml | YAML | 141 | 08f2db1b |  |
-| 72 | P1 | .github/workflows/pr-auto-update.yml | YAML | 328 | c6032fae |  |
-| 73 | P1 | .github/workflows/rag-ingest.yml | YAML | 54 | 3ef87ddd |  |
-| 74 | P1 | .github/workflows/release.yml | YAML | 133 | b595cd54 |  |
-| 75 | P1 | .github/workflows/security.yml | YAML | 490 | 0d555204 |  |
-| 76 | P1 | .github/workflows/workflow-lint.yml | YAML | 112 | efae0a17 |  |
-| 77 | P1 | config/arch_baseline.json | JSON | 74 | 706d8223 |  |
-| 78 | P1 | config/exchange_key_posture.json | JSON | 23 | eed97927 |  |
-| 79 | P1 | config/intelligence.yaml | YAML | 24 | 19139199 |  |
-| 80 | P1 | config/math_registry.schema.json | JSON | 250 | 0c6cac56 |  |
-| 81 | P1 | config/mutation_thresholds.json | JSON | 53 | 6b50a258 |  |
-| 82 | P1 | config/observation_boundary.json | JSON | 103 | ee3b28e7 |  |
-| 83 | P1 | config/performance_baselines.json | JSON | 69 | 86112a85 |  |
-| 84 | P1 | config/quality_registry.d/REG-1708.json | JSON | 23 | ae70eab8 |  |
-| 85 | P1 | config/quality_registry.schema.json | JSON | 265 | 0cb44223 |  |
-| 86 | P1 | deploy/alerts.yml | YAML | 70 | 03b321d7 |  |
-| 87 | P1 | deploy/prometheus.yml | YAML | 31 | 1bfcc7dc |  |
-| 88 | P1 | deploy/systemd/tradebot-api.service | Other text/source | 39 | e87631ec |  |
-| 89 | P1 | deploy/systemd/tradebot-worker.service | Other text/source | 36 | 792418f8 |  |
-| 90 | P1 | docs/ARCHITECTURE_GOVERNANCE.md | Markdown | 85 | fbcf4f70 |  |
-| 91 | P1 | docs/CI_FAILURE_AUDIT.md | Markdown | 196 | cb35b2ea |  |
-| 92 | P1 | docs/CLOUD_REVIEW.md | Markdown | 80 | a6658509 |  |
-| 93 | P1 | docs/KNOWLEDGE_GRAPH.md | Markdown | 53 | 25966977 |  |
-| 94 | P1 | docs/MATH_ARCHITECTURE.md | Markdown | 579 | 3cb282f8 |  |
-| 95 | P1 | docs/MATH_FOUNDATIONS.md | Markdown | 800 | dfbc32dd |  |
-| 96 | P1 | docs/MATH_ROADMAP.md | Markdown | 239 | 3780b490 |  |
-| 97 | P1 | docs/ORCHESTRATOR.md | Markdown | 11 | e73c0c57 |  |
-| 98 | P1 | docs/PTC_PATTERN.md | Markdown | 9 | 15fad706 |  |
-| 99 | P1 | docs/Quality-Engineering | Other text/source | 3154 | bcb840bb |  |
-| 100 | P1 | docs/REQUIRED_CHECKS.md | Markdown | 197 | 52ecdf75 |  |
-| 101 | P1 | docs/SCHEMA.md | Markdown | 172 | 38bde920 |  |
-| 102 | P1 | docs/adaptive_horizon_gap_list.md | Markdown | 150 | 0e6ad4f9 |  |
-| 103 | P1 | docs/agent/AGENT_EXECUTION_PROTOCOL.md | Markdown | 202 | 8941b4d5 |  |
-| 104 | P1 | docs/agent/AGENT_RELIABILITY.md | Markdown | 18 | 6534cb22 |  |
-| 105 | P1 | docs/agents/CODEX_SETUP.md | Markdown | 41 | e3485b59 |  |
-| 106 | P1 | docs/operations/DISASTER_RECOVERY.md | Markdown | 136 | 42fa88fb |  |
-| 107 | P1 | docs/ops/COMPLIANCE_CHECKLIST.md | Markdown | 65 | 73c203ea |  |
-| 108 | P1 | docs/ops/KEY_ROTATION.md | Markdown | 52 | 79a54c49 |  |
-| 109 | P1 | docs/ops/LIVE_PROMOTION_CHECKLIST.md | Markdown | 77 | 57d72ca9 |  |
-| 110 | P1 | docs/ops/REALTIME_GUI_PLAN.md | Markdown | 73 | f042d814 |  |
-| 111 | P1 | docs/ops/RUNBOOK.md | Markdown | 95 | 210bbb06 |  |
-| 112 | P1 | docs/quality/IMPLEMENTATION_PLAN.md | Markdown | 214 | cfd7fbbd |  |
-| 113 | P1 | docs/quality/MONEY_AND_TIME.md | Markdown | 147 | 688cc8a3 |  |
-| 114 | P1 | docs/quality/PRODUCTION_READINESS.md | Markdown | 112 | da760303 |  |
-| 115 | P1 | docs/quality/QUALITY_BASELINE.md | Markdown | 125 | bbc75e22 |  |
-| 116 | P1 | docs/quality/QUALITY_METRICS.md | Markdown | 122 | 386b71a5 |  |
-| 117 | P1 | docs/quality/QUALITY_POLICY.md | Markdown | 232 | 8c4629b8 |  |
-| 118 | P1 | docs/quality/REQUIREMENTS_TRACEABILITY.md | Markdown | 5045 | 2a7057bc |  |
-| 119 | P1 | docs/quality/ROOT_CAUSE_TEMPLATE.md | Markdown | 84 | a55b20e9 |  |
-| 120 | P1 | docs/quality/TEST_STRATEGY.md | Markdown | 252 | efbde1ba |  |
-| 121 | P1 | docs/runtime/IMPLEMENTATION_MATRIX.md | Markdown | 79 | 7e5cd563 |  |
-| 122 | P1 | docs/runtime/INTEGRATION_AUDIT.md | Markdown | 165 | 4ad935f9 |  |
-| 123 | P1 | docs/security/GITHUB_SECURITY_CHECKLIST.md | Markdown | 191 | 84971b8c |  |
-| 124 | P1 | docs/security/INCIDENT_RESPONSE.md | Markdown | 167 | 938e0757 |  |
-| 125 | P1 | docs/security/KEY_MANAGEMENT.md | Markdown | 210 | cc3a60ea |  |
-| 126 | P1 | docs/security/SECURITY_POLICY.md | Markdown | 361 | 4d750b78 |  |
-| 127 | P1 | docs/security/claude-cloud-github-only.md | Markdown | 41 | de2c0e75 |  |
-| 128 | P1 | docs/terminal/OPERATIONS.md | Markdown | 204 | f1b999ca |  |
-| 129 | P1 | frontend/src/components/Controls.jsx | React JSX | 183 | 315bb378 |  |
-| 130 | P1 | frontend/src/components/Panel.jsx | React JSX | 111 | 2477557c |  |
-| 131 | P1 | frontend/src/components/StartupBanner.jsx | React JSX | 58 | 60b03901 |  |
-| 132 | P1 | frontend/src/components/StartupBanner.test.jsx | React JSX | 66 | ff10b727 |  |
-| 133 | P1 | frontend/src/components/panels/ApprovalsPanel.jsx | React JSX | 54 | 48c2aa54 |  |
-| 134 | P1 | frontend/src/components/panels/ConfigPanel.jsx | React JSX | 44 | e18dafd9 |  |
-| 135 | P1 | frontend/src/components/panels/ControlHubPanel.jsx | React JSX | 296 | bc07f39f |  |
-| 136 | P1 | frontend/src/components/panels/EquityChart.jsx | React JSX | 102 | a31e7cea |  |
-| 137 | P1 | frontend/src/components/panels/HorizonsPanel.jsx | React JSX | 143 | 403f4ef9 |  |
-| 138 | P1 | frontend/src/components/panels/MonitoringPanel.jsx | React JSX | 314 | ebe53364 |  |
-| 139 | P1 | frontend/src/components/panels/OperationsPanel.jsx | React JSX | 253 | 2c3383a0 |  |
-| 140 | P1 | frontend/src/components/panels/PositionsPanel.jsx | React JSX | 47 | 202c0d59 |  |
-| 141 | P1 | frontend/src/components/panels/RiskControlsPanel.jsx | React JSX | 82 | 1195487e |  |
-| 142 | P1 | frontend/src/components/panels/RuntimePanel.jsx | React JSX | 263 | cb6c2ead |  |
-| 143 | P1 | frontend/src/components/panels/SelfTuningPanel.jsx | React JSX | 95 | 557e223c |  |
-| 144 | P1 | frontend/src/components/panels/StrategiesPanel.jsx | React JSX | 153 | 7e2040f5 |  |
-| 145 | P1 | frontend/src/components/panels/TradesPanel.jsx | React JSX | 99 | 5004c345 |  |
-| 146 | P1 | frontend/src/components/panels/VenuesPanel.jsx | React JSX | 149 | 1bf23f04 |  |
-| 147 | P1 | frontend/src/components/panels/VenuesPanel.test.jsx | React JSX | 178 | c9b499e7 |  |
-| 148 | P1 | frontend/src/components/panels/runtimeModel.js | JavaScript | 123 | 08bc12ef |  |
-| 149 | P1 | frontend/src/components/panels/runtimeModel.test.js | JavaScript | 158 | 73ffd2cc |  |
-| 150 | P1 | frontend/src/components/terminal/ProcessCenter.jsx | React JSX | 203 | f65bdaf7 |  |
-| 151 | P1 | frontend/src/components/terminal/StatusBar.jsx | React JSX | 84 | aa7934c3 |  |
-| 152 | P1 | frontend/src/components/terminal/TerminalDock.jsx | React JSX | 278 | de57d2d0 |  |
-| 153 | P1 | frontend/src/components/terminal/XtermView.jsx | React JSX | 100 | 7249e029 |  |
-| 154 | P1 | frontend/src/components/terminal/terminalUi.test.jsx | React JSX | 520 | cacf81cd |  |
-| 155 | P1 | frontend/src/components/workspace/Workspace.grid.test.jsx | React JSX | 273 | ad4593c3 |  |
-| 156 | P1 | frontend/src/components/workspace/Workspace.jsx | React JSX | 119 | e63a327a |  |
-| 157 | P1 | frontend/src/components/workspace/Workspace.test.jsx | React JSX | 206 | 28440fb7 |  |
-| 158 | P1 | frontend/src/desktop/terminalBridge.test.js | JavaScript | 328 | d102da2d |  |
-| 159 | P1 | frontend/src/hooks/useApi.test.js | JavaScript | 442 | 1a2ca76f |  |
-| 160 | P1 | frontend/src/index.css | CSS | 949 | 0d23705b |  |
-| 161 | P1 | frontend/src/terminal/TerminalContext.jsx | React JSX | 234 | c43cd897 |  |
-| 162 | P1 | frontend/src/terminal/client.js | JavaScript | 326 | 97805d86 |  |
-| 163 | P1 | frontend/src/terminal/client.test.js | JavaScript | 391 | bcef5337 |  |
-| 164 | P1 | frontend/src/utils/format.js | JavaScript | 36 | 889e225a |  |
-| 165 | P1 | frontend/src/workspace/items.js | JavaScript | 30 | ae2ba77e |  |
-| 166 | P1 | frontend/src/workspace/layoutStore.js | JavaScript | 243 | 282ceb0b |  |
-| 167 | P1 | frontend/src/workspace/layoutStore.test.js | JavaScript | 348 | 8ca1d8f3 |  |
-| 168 | P1 | scripts/agent_control.py | Python | 23 | ea56814d |  |
-| 169 | P1 | scripts/apply_ci_patch.py | Python | 314 | 04ed146c |  |
-| 170 | P1 | scripts/apply_repo_ruleset.py | Python | 271 | f09a76cc |  |
-| 171 | P1 | scripts/arch_gate.sh | Shell | 94 | fc5f6d7c |  |
-| 172 | P1 | scripts/assert_jobs_green.py | Python | 150 | 831ced49 |  |
-| 173 | P1 | scripts/backfill.py | Python | 130 | 664b08bf |  |
-| 174 | P1 | scripts/check_coverage_floors.py | Python | 119 | 8fa19e9b |  |
-| 175 | P1 | scripts/check_model_artifacts.py | Python | 67 | 7c968827 |  |
-| 176 | P1 | scripts/check_mutation_score.py | Python | 205 | 1f5eb926 |  |
-| 177 | P1 | scripts/check_production_readiness.py | Python | 178 | 6c642773 |  |
-| 178 | P1 | scripts/check_static_invariants.py | Python | 1875 | 3324fc76 |  |
-| 179 | P1 | scripts/check_supply_chain.py | Python | 367 | 02350a53 |  |
-| 180 | P1 | scripts/ci_diagnostics.py | Python | 1350 | 20e02745 |  |
-| 181 | P1 | scripts/ci_verdict.py | Python | 43 | ede141de |  |
-| 182 | P1 | scripts/codebase_knowledge_index.py | Python | 418 | 26090ac2 |  |
-| 183 | P1 | scripts/codex_pr_handoff.py | Python | 227 | ceffaa47 |  |
-| 184 | P1 | scripts/codex_setup.sh | Shell | 13 | 924229a8 |  |
-| 185 | P1 | scripts/collect_quality_metrics.py | Python | 217 | 43f2c6af |  |
-| 186 | P1 | scripts/generate_math_docs.py | Python | 237 | 588d286e |  |
-| 187 | P1 | scripts/generate_quality_docs.py | Python | 258 | 16dad626 |  |
-| 188 | P1 | scripts/generate_signal_fixtures.py | Python | 89 | 4323a5f5 |  |
-| 189 | P1 | scripts/ingest_kg_repo.py | Python | 111 | bb5283cd |  |
-| 190 | P1 | scripts/ingest_missing.py | Python | 72 | b4ed4495 |  |
-| 191 | P1 | scripts/ingest_repo.py | Python | 123 | 2e2b64e3 |  |
-| 192 | P1 | scripts/install_push_wait_hook.sh | Shell | 16 | 7c2d0d6b |  |
-| 193 | P1 | scripts/local_checks.py | Python | 41 | 51b52a6b |  |
-| 194 | P1 | scripts/npm_audit_verdict.py | Python | 313 | 099c28f4 |  |
-| 195 | P1 | scripts/orchestration_template.py | Python | 81 | 592c1ba9 |  |
-| 196 | P1 | scripts/prfail | Other text/source | 8 | a7a3374f |  |
-| 197 | P1 | scripts/push_wait.py | Python | 361 | 83146728 |  |
-| 198 | P1 | scripts/rag_smoke.py | Python | 76 | 409e0d0d |  |
-| 199 | P1 | scripts/resolve_registry_merge.py | Python | 128 | 22fde313 |  |
-| 200 | P1 | scripts/startup_preflight.py | Python | 605 | 8add17aa |  |
-| 201 | P1 | scripts/timescaledb.sh | Shell | 115 | b847722f |  |
-| 202 | P1 | scripts/write_provenance.py | Python | 172 | 0f8c8cdd |  |
-| 203 | P1 | src/__init__.py | Python | 1 | 01ba4719 |  |
-| 204 | P1 | src/agent_control/__init__.py | Python | 33 | c4fc322b |  |
-| 205 | P1 | src/agent_control/branch_audit.py | Python | 373 | 682c7b6a |  |
-| 206 | P1 | src/agent_control/cli.py | Python | 500 | 4995ee3c |  |
-| 207 | P1 | src/agent_control/completion.py | Python | 236 | 0190908a |  |
-| 208 | P1 | src/agent_control/git_safety.py | Python | 469 | c4c95261 |  |
-| 209 | P1 | src/agent_control/gitstate.py | Python | 311 | cd4f8ff9 |  |
-| 210 | P1 | src/agent_control/hooks.py | Python | 186 | d0297aad |  |
-| 211 | P1 | src/agent_control/model.py | Python | 654 | ff6d3393 |  |
-| 212 | P1 | src/agent_control/reliability.py | Python | 347 | 41701a53 |  |
-| 213 | P1 | src/agent_control/store.py | Python | 152 | 4fac49db |  |
-| 214 | P1 | src/agent_control/workspace.py | Python | 730 | 9b88866f |  |
-| 215 | P1 | src/api/__init__.py | Python | 1 | 01ba4719 |  |
-| 216 | P1 | src/api/control_surface.py | Python | 599 | b0cd0f47 |  |
-| 217 | P1 | src/api/error_hygiene.py | Python | 191 | e525a93b |  |
-| 218 | P1 | src/api/fail_closed.py | Python | 144 | 8c661a47 |  |
-| 219 | P1 | src/api/middleware.py | Python | 53 | 46c6392c |  |
-| 220 | P1 | src/api/object_refs.py | Python | 118 | fd35ed74 |  |
-| 221 | P1 | src/api/operator_secret.py | Python | 58 | 8a2c0862 |  |
-| 222 | P1 | src/api/readiness.py | Python | 145 | 1ecadae2 |  |
-| 223 | P1 | src/api/runtime_control.py | Python | 327 | 479142f8 |  |
-| 224 | P1 | src/api/security_headers.py | Python | 119 | d65ab5d5 |  |
-| 225 | P1 | src/api/ws_guard.py | Python | 182 | 2355808a |  |
-| 226 | P1 | src/causal/__init__.py | Python | 1 | e9a9d97f |  |
-| 227 | P1 | src/causal/asset_gnn.py | Python | 239 | 12712e95 |  |
-| 228 | P1 | src/causal/dowhy_scm.py | Python | 151 | f070e580 |  |
-| 229 | P1 | src/causal/granger.py | Python | 153 | 9ea0517d |  |
-| 230 | P1 | src/data/__init__.py | Python | 1 | 01ba4719 |  |
-| 231 | P1 | src/data/block_height_provider.py | Python | 69 | b283dd39 |  |
-| 232 | P1 | src/data/deribit_provider.py | Python | 138 | c84580bb |  |
-| 233 | P1 | src/data/duckdb_store.py | Python | 188 | ffa0a16c |  |
-| 234 | P1 | src/data/exchange_flow_provider.py | Python | 143 | 507e5b4c |  |
-| 235 | P1 | src/data/feeds.py | Python | 170 | e428e67b |  |
-| 236 | P1 | src/data/macro_provider.py | Python | 121 | 1ae5a9dd |  |
-| 237 | P1 | src/data/orderbook_stream.py | Python | 290 | 957a507c |  |
-| 238 | P1 | src/data/provider_cache.py | Python | 96 | 71eedd48 |  |
-| 239 | P1 | src/data/quality_gate.py | Python | 488 | 599a18aa |  |
-| 240 | P1 | src/data/sentiment_provider.py | Python | 181 | fd7e70b8 |  |
-| 241 | P1 | src/diagnostics/__init__.py | Python | 0 | e3b0c442 |  |
-| 242 | P1 | src/diagnostics/attribution.py | Python | 274 | 64391b74 |  |
-| 243 | P1 | src/diagnostics/audit_trail.py | Python | 193 | f890e29c |  |
-| 244 | P1 | src/diagnostics/behavioural_guard.py | Python | 177 | 08a77c56 |  |
-| 245 | P1 | src/diagnostics/decision_log_writer.py | Python | 65 | 27b315d9 |  |
-| 246 | P1 | src/diagnostics/decision_trace.py | Python | 170 | 5a492736 |  |
-| 247 | P1 | src/diagnostics/disaster_recovery.py | Python | 91 | 54f9957e |  |
-| 248 | P1 | src/diagnostics/failsafe_policy.py | Python | 241 | 6e4d0912 |  |
-| 249 | P1 | src/diagnostics/halt_triggers.py | Python | 228 | de941e38 |  |
-| 250 | P1 | src/diagnostics/instrumentation.py | Python | 178 | bd148cee |  |
-| 251 | P1 | src/diagnostics/metrics.py | Python | 243 | 08c13694 |  |
-| 252 | P1 | src/diagnostics/performance_baseline.py | Python | 215 | 3d567cf7 |  |
-| 253 | P1 | src/diagnostics/recovery_objectives.py | Python | 208 | 826b2e23 |  |
-| 254 | P1 | src/diagnostics/runtime_monitor.py | Python | 454 | 48f770a4 |  |
-| 255 | P1 | src/diagnostics/signal_debugger.py | Python | 605 | 7d7ad6dc |  |
-| 256 | P1 | src/diagnostics/startup_selftest.py | Python | 275 | 0843ed78 |  |
-| 257 | P1 | src/diagnostics/trade_auditor.py | Python | 291 | ed1d4d14 |  |
-| 258 | P1 | src/diagnostics/trade_journal.py | Python | 300 | 587984e7 |  |
-| 259 | P1 | src/ecc/__init__.py | Python | 7 | 3a876b3e |  |
-| 260 | P1 | src/ecc/ecdsa_scan.py | Python | 276 | 8ce33648 |  |
-| 261 | P1 | src/ecc/schnorr_taproot.py | Python | 176 | 87f5e5aa |  |
-| 262 | P1 | src/ecc/secp256k1_cluster.py | Python | 243 | 6ac11b95 |  |
-| 263 | P1 | src/ecc/utxo_curve.py | Python | 133 | 6a49ed41 |  |
-| 264 | P1 | src/ecc/zksnark_detect.py | Python | 233 | 4027603d |  |
-| 265 | P1 | src/engine/__init__.py | Python | 1 | 01ba4719 |  |
-| 266 | P1 | src/engine/crypto_box_adapter.py | Python | 72 | 7189101b |  |
-| 267 | P1 | src/engine/strategy_portfolio.py | Python | 755 | 18445303 |  |
-| 268 | P1 | src/engine/universe_returns.py | Python | 318 | b7ecd613 |  |
-| 269 | P1 | src/engines/__init__.py | Python | 7 | 2334de46 |  |
-| 270 | P1 | src/engines/consensus.py | Python | 473 | 3df6652b |  |
-| 271 | P1 | src/engines/e01_statistical.py | Python | 106 | f7a2ddb9 |  |
-| 272 | P1 | src/engines/e02_microstructure.py | Python | 83 | 9d5ca1c3 |  |
-| 273 | P1 | src/engines/e03_information_theory.py | Python | 133 | 6964c9f3 |  |
-| 274 | P1 | src/engines/e04_fourier.py | Python | 107 | a67b15c4 |  |
-| 275 | P1 | src/engines/e05_onchain.py | Python | 81 | 812837cf |  |
-| 276 | P1 | src/engines/e06_fractal.py | Python | 114 | ae38ec5b |  |
-| 277 | P1 | src/engines/e07_linear_algebra.py | Python | 118 | 4ab056cd |  |
-| 278 | P1 | src/engines/e08_topology.py | Python | 138 | d609acdd |  |
-| 279 | P1 | src/engines/e09_ml_meta.py | Python | 117 | 8a68501b |  |
-| 280 | P1 | src/engines/e10_supply.py | Python | 210 | 53c6a665 |  |
-| 281 | P1 | src/engines/e11_stochastic.py | Python | 120 | 1a718bfa |  |
-| 282 | P1 | src/engines/e12_options.py | Python | 129 | 4994b42d |  |
-| 283 | P1 | src/engines/e13_contagion.py | Python | 161 | dd7483a4 |  |
-| 284 | P1 | src/engines/e14_sentiment.py | Python | 102 | 9da50a2c |  |
-| 285 | P1 | src/engines/e15_rl.py | Python | 162 | e333800a |  |
-| 286 | P1 | src/engines/e16_adversarial.py | Python | 107 | 0750cb5d |  |
-| 287 | P1 | src/engines/e17_liquidity.py | Python | 196 | 24bda7ed |  |
-| 288 | P1 | src/engines/e18_network.py | Python | 229 | 58dd9787 |  |
-| 289 | P1 | src/engines/orchestrator.py | Python | 491 | 64dd6147 |  |
-| 290 | P1 | src/engines/risk_quantifier.py | Python | 63 | aa5769e9 |  |
-| 291 | P1 | src/engines/schema.py | Python | 54 | 267f2836 |  |
-| 292 | P1 | src/engines/signal_gate.py | Python | 83 | 446f9b8d |  |
-| 293 | P1 | src/eventbus/__init__.py | Python | 32 | f081c744 |  |
-| 294 | P1 | src/eventbus/bus.py | Python | 374 | 8d7a0597 |  |
-| 295 | P1 | src/eventbus/envelope.py | Python | 123 | a6618b0d |  |
-| 296 | P1 | src/execution/__init__.py | Python | 1 | 01ba4719 |  |
-| 297 | P1 | src/execution/base.py | Python | 134 | d3cad1e1 |  |
-| 298 | P1 | src/execution/exchange_contract.py | Python | 310 | 7098433d |  |
-| 299 | P1 | src/execution/idempotency.py | Python | 308 | 8eacf415 |  |
-| 300 | P1 | src/execution/live_fsm_integration.py | Python | 128 | 65178552 |  |
-| 301 | P1 | src/execution/mode_persistence.py | Python | 110 | d236a952 |  |
-| 302 | P1 | src/execution/order_manager.py | Python | 585 | 59c1bdb9 |  |
-| 303 | P1 | src/execution/order_throttler.py | Python | 244 | eca0b181 |  |
-| 304 | P1 | src/execution/paper.py | Python | 1288 | 41889c33 |  |
-| 305 | P1 | src/execution/post_trade.py | Python | 253 | 8c262d01 |  |
-| 306 | P1 | src/execution/rl_agent.py | Python | 227 | 35eb445b |  |
-| 307 | P1 | src/execution/router.py | Python | 477 | 17e8ed36 |  |
-| 308 | P1 | src/features/__init__.py | Python | 1 | 01ba4719 |  |
-| 309 | P1 | src/features/_rpc_auth.py | Python | 23 | 0a4a04ae |  |
-| 310 | P1 | src/features/derivatives.py | Python | 86 | 78bfc557 |  |
-| 311 | P1 | src/features/intelligence_features.py | Python | 112 | 085b269c |  |
-| 312 | P1 | src/features/mempool.py | Python | 83 | 235bb406 |  |
-| 313 | P1 | src/features/microstructure.py | Python | 173 | d890a99f |  |
-| 314 | P1 | src/features/nlp.py | Python | 136 | 3908a3e1 |  |
-| 315 | P1 | src/features/onchain.py | Python | 170 | 76c3050e |  |
-| 316 | P1 | src/features/selftest.py | Python | 63 | 5ec849fa |  |
-| 317 | P1 | src/fusion/__init__.py | Python | 1 | e2189aa2 |  |
-| 318 | P1 | src/fusion/cross_attention.py | Python | 73 | c6b4c784 |  |
-| 319 | P1 | src/fusion/horizon_decision.py | Python | 153 | 593a1838 |  |
-| 320 | P1 | src/fusion/meta_network.py | Python | 171 | 4cbe2231 |  |
-| 321 | P1 | src/intel.py | Python | 961 | 8353d624 |  |
-| 322 | P1 | src/intelligence/__init__.py | Python | 17 | ef4aa7e7 |  |
-| 323 | P1 | src/intelligence/calibration.py | Python | 135 | 001de498 |  |
-| 324 | P1 | src/intelligence/causal_inference.py | Python | 455 | 3e488b43 |  |
-| 325 | P1 | src/intelligence/ensemble_predictor.py | Python | 1057 | 6763a168 |  |
-| 326 | P1 | src/intelligence/intelligence_adapter.py | Python | 168 | fb4603f9 |  |
-| 327 | P1 | src/intelligence/lstm_runtime.py | Python | 16 | 39702e4d |  |
-| 328 | P1 | src/intelligence/macro_indicators.py | Python | 147 | a2289d90 |  |
-| 329 | P1 | src/intelligence/macro_regime.py | Python | 79 | 24c6581b |  |
-| 330 | P1 | src/intelligence/metrics.py | Python | 299 | fde9d2d5 |  |
-| 331 | P1 | src/intelligence/onchain/__init__.py | Python | 52 | b9e4092b |  |
-| 332 | P1 | src/intelligence/onchain/arkham_provider.py | Python | 206 | 393c3ba2 |  |
-| 333 | P1 | src/intelligence/onchain/base.py | Python | 335 | 5255c1ea |  |
-| 334 | P1 | src/intelligence/onchain/coinglass_provider.py | Python | 274 | 989b4baa |  |
-| 335 | P1 | src/intelligence/onchain/cryptoquant_provider.py | Python | 248 | 7daa6169 |  |
-| 336 | P1 | src/intelligence/onchain/defillama_provider.py | Python | 150 | 8697cd73 |  |
-| 337 | P1 | src/intelligence/onchain/dune_provider.py | Python | 230 | 76018eb5 |  |
-| 338 | P1 | src/intelligence/onchain/schema.py | Python | 200 | c85cf910 |  |
-| 339 | P1 | src/intelligence/probabilistic.py | Python | 460 | 66765aa1 |  |
-| 340 | P1 | src/intelligence/probabilistic_adapter.py | Python | 224 | ef336ee8 |  |
-| 341 | P1 | src/intelligence/providers/__init__.py | Python | 10 | 074320c3 |  |
-| 342 | P1 | src/intelligence/providers/aggregator.py | Python | 500 | 45d5863f |  |
-| 343 | P1 | src/intelligence/providers/base.py | Python | 128 | 58a79ab0 |  |
-| 344 | P1 | src/intelligence/providers/binance_provider.py | Python | 537 | d0092c66 |  |
-| 345 | P1 | src/intelligence/providers/blockchain_provider.py | Python | 193 | bac40269 |  |
-| 346 | P1 | src/intelligence/providers/bybit_provider.py | Python | 400 | 22b4da95 |  |
-| 347 | P1 | src/intelligence/providers/coingecko_provider.py | Python | 187 | 38c43fab |  |
-| 348 | P1 | src/intelligence/providers/okx_provider.py | Python | 417 | a7cf0423 |  |
-| 349 | P1 | src/intelligence/risk_quantification.py | Python | 425 | 143bc06f |  |
-| 350 | P1 | src/logging_setup.py | Python | 205 | 1359d18b |  |
-| 351 | P1 | src/mathcore/__init__.py | Python | 38 | dab340e0 |  |
-| 352 | P1 | src/mathcore/coding/__init__.py | Python | 18 | a49debd1 |  |
-| 353 | P1 | src/mathcore/coding/mds.py | Python | 175 | d438d481 |  |
-| 354 | P1 | src/mathcore/coding/reed_solomon.py | Python | 159 | d050f357 |  |
-| 355 | P1 | src/mathcore/commitments/__init__.py | Python | 25 | 4340087a |  |
-| 356 | P1 | src/mathcore/commitments/merkle.py | Python | 149 | df33035e |  |
-| 357 | P1 | src/mathcore/constants/__init__.py | Python | 25 | ac48354d |  |
-| 358 | P1 | src/mathcore/constants/nutms.py | Python | 222 | 3036c7bb |  |
-| 359 | P1 | src/mathcore/curves/__init__.py | Python | 40 | f8561580 |  |
-| 360 | P1 | src/mathcore/curves/bls12_381.py | Python | 396 | 601d10fa |  |
-| 361 | P1 | src/mathcore/curves/ed25519.py | Python | 300 | 22d50707 |  |
-| 362 | P1 | src/mathcore/curves/secp256k1.py | Python | 355 | bdbb98a3 |  |
-| 363 | P1 | src/mathcore/derivation/__init__.py | Python | 73 | 0393fc16 |  |
-| 364 | P1 | src/mathcore/derivation/bip32.py | Python | 552 | 77d14b8a |  |
-| 365 | P1 | src/mathcore/derivation/nonces.py | Python | 165 | 885f0e28 |  |
-| 366 | P1 | src/mathcore/derivation/threshold.py | Python | 419 | d2cce1eb |  |
-| 367 | P1 | src/mathcore/fields/__init__.py | Python | 64 | 33acce4e |  |
-| 368 | P1 | src/mathcore/fields/binary_field.py | Python | 241 | 894369cc |  |
-| 369 | P1 | src/mathcore/fields/interpolation.py | Python | 128 | f50fa25a |  |
-| 370 | P1 | src/mathcore/fields/ntt.py | Python | 223 | 929b7cc0 |  |
-| 371 | P1 | src/mathcore/fields/prime_field.py | Python | 357 | 8c7553dd |  |
-| 372 | P1 | src/mathcore/folklore/__init__.py | Python | 31 | e11fec32 |  |
-| 373 | P1 | src/mathcore/folklore/detectors.py | Python | 115 | d592f589 |  |
-| 374 | P1 | src/mathcore/folklore/gate.py | Python | 181 | 8aaf7205 |  |
-| 375 | P1 | src/mathcore/harmonic/__init__.py | Python | 46 | 2e912222 |  |
-| 376 | P1 | src/mathcore/harmonic/fft_spectral.py | Python | 135 | 3ecd676d |  |
-| 377 | P1 | src/mathcore/harmonic/gaussian_lattice.py | Python | 194 | 3ae41450 |  |
-| 378 | P1 | src/mathcore/harmonic/walsh_hadamard.py | Python | 121 | ae89832f |  |
-| 379 | P1 | src/mathcore/lattice/__init__.py | Python | 29 | 673d893c |  |
-| 380 | P1 | src/mathcore/lattice/hnp.py | Python | 212 | 484bc27e |  |
-| 381 | P1 | src/mathcore/lattice/lll.py | Python | 378 | 301a0c44 |  |
-| 382 | P1 | src/mathcore/numbertheory/__init__.py | Python | 96 | b52a8621 |  |
-| 383 | P1 | src/mathcore/numbertheory/continued_fractions.py | Python | 104 | bbced475 |  |
-| 384 | P1 | src/mathcore/numbertheory/crt.py | Python | 168 | b5cc86b0 |  |
-| 385 | P1 | src/mathcore/numbertheory/dlp_bounds.py | Python | 109 | c203bc1e |  |
-| 386 | P1 | src/mathcore/numbertheory/factorization.py | Python | 191 | b43fde74 |  |
-| 387 | P1 | src/mathcore/numbertheory/primality.py | Python | 315 | 49bc9f93 |  |
-| 388 | P1 | src/mathcore/numbertheory/residues.py | Python | 185 | 3d0aef64 |  |
-| 389 | P1 | src/mathcore/numbertheory/safe_primes.py | Python | 272 | f1a5ddc4 |  |
-| 390 | P1 | src/mathcore/probability/__init__.py | Python | 43 | 3fd3ff8b |  |
-| 391 | P1 | src/mathcore/probability/birthday.py | Python | 114 | f1a4ce90 |  |
-| 392 | P1 | src/mathcore/probability/committee.py | Python | 147 | 8dad34ad |  |
-| 393 | P1 | src/mathcore/probability/confirmations.py | Python | 149 | 66daa523 |  |
-| 394 | P1 | src/mathcore/probability/entropy.py | Python | 117 | ef87ac22 |  |
-| 395 | P1 | src/mathcore/probability/reorg.py | Python | 105 | b911aed0 |  |
-| 396 | P1 | src/mathcore/quantum/__init__.py | Python | 53 | 25b7e2d2 |  |
-| 397 | P1 | src/mathcore/quantum/grover.py | Python | 188 | aaa9a864 |  |
-| 398 | P1 | src/mathcore/quantum/shor.py | Python | 302 | 934fb820 |  |
-| 399 | P1 | src/mathcore/registry.py | Python | 446 | 1130480a |  |
-| 400 | P1 | src/models/__init__.py | Python | 1 | 01ba4719 |  |
-| 401 | P1 | src/models/architectures.py | Python | 130 | b313c2fa |  |
-| 402 | P1 | src/models/bert_head.py | Python | 39 | a1dcbcbc |  |
-| 403 | P1 | src/models/cnn.py | Python | 66 | a6d9f953 |  |
-| 404 | P1 | src/models/conformer.py | Python | 117 | a3047bc1 |  |
-| 405 | P1 | src/models/ecc_head.py | Python | 54 | ac47a72a |  |
-| 406 | P1 | src/models/gnn_head.py | Python | 91 | ac22cb11 |  |
-| 407 | P1 | src/models/gru.py | Python | 66 | 35715555 |  |
-| 408 | P1 | src/models/horizon_backfill.py | Python | 191 | 601be0d0 |  |
-| 409 | P1 | src/models/horizon_config.py | Python | 57 | ad98174b |  |
-| 410 | P1 | src/models/horizon_learning.py | Python | 1015 | 4b0ac8c1 |  |
-| 411 | P1 | src/models/horizon_mlp.py | Python | 338 | b2a1e523 |  |
-| 412 | P1 | src/models/leakage.py | Python | 216 | 57616983 |  |
-| 413 | P1 | src/models/lstm.py | Python | 51 | 5fcb6568 |  |
-| 414 | P1 | src/models/mlp.py | Python | 56 | d79a5eb1 |  |
-| 415 | P1 | src/models/nbeats.py | Python | 146 | 0545b607 |  |
-| 416 | P1 | src/models/patchtst.py | Python | 97 | 3e54578b |  |
-| 417 | P1 | src/models/provenance.py | Python | 364 | 51d1d0d6 |  |
-| 418 | P1 | src/models/tcn.py | Python | 125 | a502f868 |  |
-| 419 | P1 | src/models/tft.py | Python | 126 | 84df07bb |  |
-| 420 | P1 | src/quality/__init__.py | Python | 27 | 56d5dfc7 |  |
-| 421 | P1 | src/quality/registry.py | Python | 578 | 297f5bfc |  |
-| 422 | P1 | src/regime/__init__.py | Python | 1 | 01ba4719 |  |
-| 423 | P1 | src/regime/changepoint.py | Python | 148 | f8b8485e |  |
-| 424 | P1 | src/regime/depth_detector_v2.py | Python | 294 | ba9630cc |  |
-| 425 | P1 | src/regime/ensemble.py | Python | 84 | f77f8654 |  |
-| 426 | P1 | src/regime/garch.py | Python | 220 | 18441bf9 |  |
-| 427 | P1 | src/resource_limits.py | Python | 13 | 92f2ac75 |  |
-| 428 | P1 | src/risk/__init__.py | Python | 1 | 01ba4719 |  |
-| 429 | P1 | src/risk/capital_preservation_floor.py | Python | 206 | 1ef3c083 |  |
-| 430 | P1 | src/risk/cognitive_engine.py | Python | 887 | c7cb7324 |  |
-| 431 | P1 | src/risk/conflict_resolver.py | Python | 116 | 04e15a2d |  |
-| 432 | P1 | src/risk/drift_integration.py | Python | 122 | 71fb03cb |  |
-| 433 | P1 | src/risk/execution_cost.py | Python | 154 | 8c6c1c57 |  |
-| 434 | P1 | src/risk/gate.py | Python | 155 | 82aabbf1 |  |
-| 435 | P1 | src/risk/greeks.py | Python | 108 | f7560515 |  |
-| 436 | P1 | src/risk/kelly.py | Python | 862 | c9b80486 |  |
-| 437 | P1 | src/risk/macro_exposure_budget.py | Python | 180 | c73111ed |  |
-| 438 | P1 | src/risk/paper_qualification.py | Python | 326 | 5e8a2f12 |  |
-| 439 | P1 | src/risk/performance_drift.py | Python | 612 | fb8f5a1a |  |
-| 440 | P1 | src/risk/portfolio_agreement.py | Python | 170 | 4581c82a |  |
-| 441 | P1 | src/risk/portfolio_correlation.py | Python | 333 | 2a5c7e12 |  |
-| 442 | P1 | src/risk/slippage.py | Python | 227 | f8525b31 |  |
-| 443 | P1 | src/risk/state_persistence.py | Python | 71 | 6dddbf97 |  |
-| 444 | P1 | src/risk/strategy_correlation.py | Python | 108 | 2d26d59b |  |
-| 445 | P1 | src/risk/strategy_decay.py | Python | 71 | 40d00f5d |  |
-| 446 | P1 | src/risk/strategy_kill_switch.py | Python | 541 | 6dc9fb70 |  |
-| 447 | P1 | src/risk/vol_target_sizer.py | Python | 293 | 5dfc598a |  |
-| 448 | P1 | src/runtime/__init__.py | Python | 27 | 8fa60c2b |  |
-| 449 | P1 | src/runtime/adapters.py | Python | 730 | 930db9da |  |
-| 450 | P1 | src/runtime/adaptive.py | Python | 341 | 49379dd1 |  |
-| 451 | P1 | src/runtime/classification.py | Python | 78 | 9bf41945 |  |
-| 452 | P1 | src/runtime/controllers.py | Python | 244 | 1f6ecb90 |  |
-| 453 | P1 | src/runtime/dependencies.py | Python | 237 | a8e6fe3d |  |
-| 454 | P1 | src/runtime/events.py | Python | 82 | d1b1ee54 |  |
-| 455 | P1 | src/runtime/horizon_models.py | Python | 258 | 40b63730 |  |
-| 456 | P1 | src/runtime/persistence.py | Python | 223 | 3d2debe2 |  |
-| 457 | P1 | src/runtime/reconcile.py | Python | 303 | e3ebc015 |  |
-| 458 | P1 | src/runtime/registry.py | Python | 537 | c2307736 |  |
-| 459 | P1 | src/runtime/supervisor.py | Python | 454 | 37a709f2 |  |
-| 460 | P1 | src/security/__init__.py | Python | 10 | 04ce86e6 |  |
-| 461 | P1 | src/security/api_signer.py | Python | 279 | 08b626dd |  |
-| 462 | P1 | src/security/at_rest.py | Python | 152 | 95820b10 |  |
-| 463 | P1 | src/security/constant_time.py | Python | 137 | 5577b1ef |  |
-| 464 | P1 | src/security/credential_vault.py | Python | 136 | c3cf6658 |  |
-| 465 | P1 | src/security/exchange_key_posture.py | Python | 186 | 38082cf0 |  |
-| 466 | P1 | src/security/key_lifecycle.py | Python | 180 | 62b00db2 |  |
-| 467 | P1 | src/security/pq_transport.py | Python | 131 | f4eb4fea |  |
-| 468 | P1 | src/security/randomness.py | Python | 115 | d626d758 |  |
-| 469 | P1 | src/security/ssrf.py | Python | 191 | 4e5bd58c |  |
-| 470 | P1 | src/security/tls.py | Python | 121 | 4eef92c8 |  |
-| 471 | P1 | src/strategies/__init__.py | Python | 0 | e3b0c442 |  |
-| 472 | P1 | src/strategies/basis_trade.py | Python | 116 | adffe19c |  |
-| 473 | P1 | src/strategies/breakout.py | Python | 106 | dddeb580 |  |
-| 474 | P1 | src/strategies/capital_allocator.py | Python | 289 | 6420c963 |  |
-| 475 | P1 | src/strategies/cross_exchange_arb.py | Python | 88 | 87eaa25e |  |
-| 476 | P1 | src/strategies/filters.py | Python | 621 | 18fc5c6b |  |
-| 477 | P1 | src/strategies/funding_carry.py | Python | 103 | ffb40e4c |  |
-| 478 | P1 | src/strategies/mean_reversion.py | Python | 130 | 13464d4f |  |
-| 479 | P1 | src/strategies/options_carry.py | Python | 170 | ccb47143 |  |
-| 480 | P1 | src/strategies/position_sizing.py | Python | 437 | 2de26394 |  |
-| 481 | P1 | src/strategies/regime_strategy_selector.py | Python | 273 | 13bdbe81 |  |
-| 482 | P1 | src/strategies/signal_engine_adapter.py | Python | 63 | 762dcb31 |  |
-| 483 | P1 | src/strategies/xsec_momentum.py | Python | 91 | a1adb1b6 |  |
-| 484 | P1 | src/terminal/__init__.py | Python | 22 | f18c9e3b |  |
-| 485 | P1 | src/terminal/__main__.py | Python | 10 | 155cb5e6 |  |
-| 486 | P1 | src/terminal/auth.py | Python | 98 | 01b5dabc |  |
-| 487 | P1 | src/terminal/buffer.py | Python | 62 | ff135249 |  |
-| 488 | P1 | src/terminal/cli.py | Python | 806 | 441badbd |  |
-| 489 | P1 | src/terminal/client.py | Python | 132 | 9dd1534e |  |
-| 490 | P1 | src/terminal/config.py | Python | 339 | 1a2b741a |  |
-| 491 | P1 | src/terminal/install.py | Python | 247 | 45fb9ae9 |  |
-| 492 | P1 | src/terminal/jobs.py | Python | 150 | 7e534013 |  |
-| 493 | P1 | src/terminal/markers.py | Python | 118 | 22ca7f09 |  |
-| 494 | P1 | src/terminal/procfs.py | Python | 138 | 8d50fef6 |  |
-| 495 | P1 | src/terminal/registry.py | Python | 268 | c26222ec |  |
-| 496 | P1 | src/terminal/sessions.py | Python | 739 | d38e7d87 |  |
-| 497 | P1 | src/terminal/shell_integration.py | Python | 72 | b13343f7 |  |
-| 498 | P1 | src/tuning/__init__.py | Python | 9 | bef3b3ff |  |
-| 499 | P1 | src/tuning/audit.py | Python | 142 | 2be43241 |  |
-| 500 | P1 | src/tuning/backtest_harness.py | Python | 697 | 3aff84bf |  |
-| 501 | P1 | src/tuning/bayesian_proposer.py | Python | 106 | a627571c |  |
-| 502 | P1 | src/tuning/bootstrap.py | Python | 368 | a02f4e2a |  |
-| 503 | P1 | src/tuning/engine_backtest.py | Python | 352 | 72758591 |  |
-| 504 | P1 | src/tuning/evaluator.py | Python | 276 | 390f6db5 |  |
-| 505 | P1 | src/tuning/factor_search.py | Python | 164 | 87889afc |  |
-| 506 | P1 | src/tuning/gate.py | Python | 113 | eed4dd5c |  |
-| 507 | P1 | src/tuning/live_overrides.py | Python | 178 | 7dfe7bea |  |
-| 508 | P1 | src/tuning/meta_allocator.py | Python | 173 | 959d64f2 |  |
-| 509 | P1 | src/tuning/promotion_gauntlet.py | Python | 140 | c5ddaf51 |  |
-| 510 | P1 | src/tuning/proposer.py | Python | 74 | ac1d5607 |  |
-| 511 | P1 | src/tuning/redteam_scheduler.py | Python | 63 | 0fbe8723 |  |
-| 512 | P1 | src/tuning/registry.py | Python | 170 | fc917aa4 |  |
-| 513 | P1 | src/tuning/runner.py | Python | 352 | 43d993ab |  |
-| 514 | P1 | src/tuning/state.py | Python | 113 | 3bbf0ea6 |  |
-| 515 | P1 | src/tuning/store.py | Python | 208 | b74a8cb4 |  |
-| 516 | P1 | src/tuning/stress_simulator.py | Python | 109 | 18d69055 |  |
-| 517 | P1 | src/tuning/watchdog.py | Python | 205 | fc8dd98a |  |
-| 518 | P1 | src/upgrade/__init__.py | Python | 0 | e3b0c442 |  |
-| 519 | P1 | src/upgrade/maml.py | Python | 181 | 270e0de0 |  |
-| 520 | P1 | src/upgrade/optuna_wf.py | Python | 229 | 326f0f0b |  |
-| 521 | P1 | src/upgrade/registry.py | Python | 246 | 7d7848e1 |  |
-| 522 | P1 | src/upgrade/shadow_deploy.py | Python | 304 | 96f01c41 |  |
-| 523 | P1 | src/workers/__init__.py | Python | 1 | ee15cb65 |  |
-| 524 | P1 | src/workers/__main__.py | Python | 12 | b2b41fb1 |  |
-| 525 | P1 | tests/agent_control/__init__.py | Python | 0 | e3b0c442 |  |
-| 526 | P1 | tests/agent_control/conftest.py | Python | 123 | 8bce4f3e |  |
-| 527 | P1 | tests/agent_control/test_branch_audit.py | Python | 277 | c2e5d55e |  |
-| 528 | P1 | tests/agent_control/test_cli.py | Python | 310 | 63625b96 |  |
-| 529 | P1 | tests/agent_control/test_completion.py | Python | 323 | 85e4eca9 |  |
-| 530 | P1 | tests/agent_control/test_git_safety.py | Python | 238 | 52c26003 |  |
-| 531 | P1 | tests/agent_control/test_gitstate.py | Python | 279 | 5910e557 |  |
-| 532 | P1 | tests/agent_control/test_hooks.py | Python | 224 | 2de9ab66 |  |
-| 533 | P1 | tests/agent_control/test_model.py | Python | 471 | b7fdd280 |  |
-| 534 | P1 | tests/agent_control/test_reliability.py | Python | 324 | fcd2b87a |  |
-| 535 | P1 | tests/agent_control/test_store.py | Python | 148 | 3d540971 |  |
-| 536 | P1 | tests/agent_control/test_workspace.py | Python | 354 | 57897d20 |  |
-| 537 | P1 | tests/api/__init__.py | Python | 0 | e3b0c442 |  |
-| 538 | P1 | tests/api/test_api_runtime_hardening.py | Python | 238 | 0e14a37a |  |
-| 539 | P1 | tests/api/test_authz_and_secrets.py | Python | 310 | a24c69e4 |  |
-| 540 | P1 | tests/api/test_error_hygiene.py | Python | 288 | 749686a5 |  |
-| 541 | P1 | tests/api/test_fail_closed_controls.py | Python | 181 | f3a5af5f |  |
-| 542 | P1 | tests/api/test_injection_and_rate_limiting.py | Python | 283 | 7dc17358 |  |
-| 543 | P1 | tests/api/test_kill_switch_durability.py | Python | 164 | 88051657 |  |
-| 544 | P1 | tests/api/test_security_headers.py | Python | 225 | f136203f |  |
-| 545 | P1 | tests/api/test_ssrf_protection.py | Python | 270 | 0309ccc9 |  |
-| 546 | P1 | tests/api/test_websocket_frame_guard.py | Python | 258 | a13bf930 |  |
-| 547 | P1 | tests/authentication/__init__.py | Python | 0 | e3b0c442 |  |
-| 548 | P1 | tests/authentication/test_api_authentication.py | Python | 207 | 7fd81d32 |  |
-| 549 | P1 | tests/authorization/__init__.py | Python | 0 | e3b0c442 |  |
-| 550 | P1 | tests/authorization/test_authorization_matrix.py | Python | 194 | 23135614 |  |
-| 551 | P1 | tests/authorization/test_object_references.py | Python | 183 | fe2a77b6 |  |
-| 552 | P1 | tests/component/__init__.py | Python | 0 | e3b0c442 |  |
-| 553 | P1 | tests/component/test_clock_policy.py | Python | 164 | 2b63ae2d |  |
-| 554 | P1 | tests/component/test_data_quality_gate.py | Python | 474 | cce1da8a |  |
-| 555 | P1 | tests/component/test_money_representation.py | Python | 231 | 44d8855e |  |
-| 556 | P1 | tests/conftest.py | Python | 358 | 65b337e1 |  |
-| 557 | P1 | tests/contract/__init__.py | Python | 0 | e3b0c442 |  |
-| 558 | P1 | tests/contract/test_exchange_order_contract.py | Python | 242 | 75a6c856 |  |
-| 559 | P1 | tests/engines/__init__.py | Python | 0 | e3b0c442 |  |
-| 560 | P1 | tests/engines/test_adapter_wiring.py | Python | 70 | 4916ed8a |  |
-| 561 | P1 | tests/engines/test_backtest.py | Python | 126 | 3107dc69 |  |
-| 562 | P1 | tests/engines/test_backtest_runners.py | Python | 231 | 58c8a2f7 |  |
-| 563 | P1 | tests/engines/test_consensus.py | Python | 264 | 96a251ef |  |
-| 564 | P1 | tests/engines/test_consensus_edges.py | Python | 158 | 8b8e3146 |  |
-| 565 | P1 | tests/engines/test_crypto_box_adapter.py | Python | 89 | 27cb79da |  |
-| 566 | P1 | tests/engines/test_data_providers.py | Python | 140 | f6ed3e19 |  |
-| 567 | P1 | tests/engines/test_data_providers_extended.py | Python | 208 | 0d544565 |  |
-| 568 | P1 | tests/engines/test_depth_detector_v2.py | Python | 162 | 58259645 |  |
-| 569 | P1 | tests/engines/test_deribit_provider.py | Python | 158 | 39492821 |  |
-| 570 | P1 | tests/engines/test_e17_orderbook_and_scale.py | Python | 116 | deedd476 |  |
-| 571 | P1 | tests/engines/test_engine_guard_and_error_paths.py | Python | 624 | f0ecef2f |  |
-| 572 | P1 | tests/engines/test_engine_paths.py | Python | 847 | 9db4e39c |  |
-| 573 | P1 | tests/engines/test_engines_unit.py | Python | 881 | a6e2bb3b |  |
-| 574 | P1 | tests/engines/test_flow_and_height_providers.py | Python | 198 | 4f67b2aa |  |
-| 575 | P1 | tests/engines/test_manipulation_and_liquidity.py | Python | 236 | 983733cc |  |
-| 576 | P1 | tests/engines/test_orchestrator.py | Python | 151 | 29a619eb |  |
-| 577 | P1 | tests/engines/test_provider_cache.py | Python | 73 | 8885885f |  |
-| 578 | P1 | tests/engines/test_risk_quantifier.py | Python | 55 | 4fa24690 |  |
-| 579 | P1 | tests/engines/test_schema.py | Python | 44 | e8c4e0f2 |  |
-| 580 | P1 | tests/engines/test_security.py | Python | 147 | 50513634 |  |
-| 581 | P1 | tests/engines/test_sentiment_provider.py | Python | 228 | 00742d4a |  |
-| 582 | P1 | tests/engines/test_signal_gate.py | Python | 72 | 09d639bd |  |
-| 583 | P1 | tests/engines/test_supply_and_quality.py | Python | 127 | 6a9dd379 |  |
-| 584 | P1 | tests/execution/__init__.py | Python | 0 | e3b0c442 |  |
-| 585 | P1 | tests/execution/test_idempotency_end_to_end.py | Python | 251 | 80e6ae28 |  |
-| 586 | P1 | tests/execution/test_order_fsm_totality.py | Python | 255 | e76f01d1 |  |
-| 587 | P1 | tests/execution/test_venue_precision.py | Python | 195 | ae997cde |  |
-| 588 | P1 | tests/features/__init__.py | Python | 0 | e3b0c442 |  |
-| 589 | P1 | tests/features/test_closed_bar_inference.py | Python | 47 | 03bdc756 |  |
-| 590 | P1 | tests/features/test_feature_determinism.py | Python | 220 | 3fb9be0c |  |
-| 591 | P1 | tests/fixtures/signals/BTCUSDT_15m_case_001.json | JSON | 63 | 5da10c05 |  |
-| 592 | P1 | tests/fixtures/signals/BTCUSDT_15m_case_002.json | JSON | 63 | 413041da |  |
-| 593 | P1 | tests/fixtures/signals/BTCUSDT_15m_case_003.json | JSON | 63 | 270784b7 |  |
-| 594 | P1 | tests/fixtures/signals/ETHUSDT_15m_case_001.json | JSON | 64 | 1bc7bdcf |  |
-| 595 | P1 | tests/fixtures/signals/ETHUSDT_15m_case_002.json | JSON | 43 | 044b27e5 |  |
-| 596 | P1 | tests/fixtures/signals/ETHUSDT_15m_case_003.json | JSON | 45 | 75426f64 |  |
-| 597 | P1 | tests/fuzz/__init__.py | Python | 0 | e3b0c442 |  |
-| 598 | P1 | tests/fuzz/test_malformed_input_is_safe.py | Python | 291 | 14090dac |  |
-| 599 | P1 | tests/intelligence/__init__.py | Python | 0 | e3b0c442 |  |
-| 600 | P1 | tests/intelligence/onchain/__init__.py | Python | 0 | e3b0c442 |  |
-| 601 | P1 | tests/intelligence/onchain/test_arkham_provider.py | Python | 261 | 3dd22d48 |  |
-| 602 | P1 | tests/intelligence/onchain/test_base.py | Python | 147 | e7044b9f |  |
-| 603 | P1 | tests/intelligence/onchain/test_coinglass_provider.py | Python | 333 | d64ae3a5 |  |
-| 604 | P1 | tests/intelligence/onchain/test_cryptoquant_provider.py | Python | 316 | b41b126d |  |
-| 605 | P1 | tests/intelligence/onchain/test_defillama_provider.py | Python | 204 | f2874f66 |  |
-| 606 | P1 | tests/intelligence/onchain/test_dune_provider.py | Python | 341 | dffadbc8 |  |
-| 607 | P1 | tests/intelligence/onchain/test_onchain_aggregator_integration.py | Python | 207 | 646628db |  |
-| 608 | P1 | tests/intelligence/onchain/test_onchain_gating.py | Python | 118 | b94ff04b |  |
-| 609 | P1 | tests/intelligence/onchain/test_schema.py | Python | 203 | 2b7240df |  |
-| 610 | P1 | tests/models/__init__.py | Python | 0 | e3b0c442 |  |
-| 611 | P1 | tests/models/test_cpcv_purging.py | Python | 180 | 16aaebcd |  |
-| 612 | P1 | tests/models/test_lookahead.py | Python | 273 | bfd4bced |  |
-| 613 | P1 | tests/models/test_model_artifacts.py | Python | 237 | da56233f |  |
-| 614 | P1 | tests/models/test_model_drift_demotion.py | Python | 245 | 023b0416 |  |
-| 615 | P1 | tests/models/test_model_provenance.py | Python | 413 | 40defb51 |  |
-| 616 | P1 | tests/models/test_model_safety.py | Python | 180 | 2f832c68 |  |
-| 617 | P1 | tests/models/test_research_firewall.py | Python | 258 | 92dac5eb |  |
-| 618 | P1 | tests/performance/__init__.py | Python | 0 | e3b0c442 |  |
-| 619 | P1 | tests/performance/test_performance_baselines.py | Python | 217 | bcb11a27 |  |
-| 620 | P1 | tests/portfolio/__init__.py | Python | 0 | e3b0c442 |  |
-| 621 | P1 | tests/portfolio/test_portfolio_limits.py | Python | 252 | f6326b7b |  |
-| 622 | P1 | tests/production/__init__.py | Python | 0 | e3b0c442 |  |
-| 623 | P1 | tests/production/test_behavioural_guard.py | Python | 155 | 2451908c |  |
-| 624 | P1 | tests/production/test_halt_triggers.py | Python | 176 | 49c26802 |  |
-| 625 | P1 | tests/production/test_production_gate.py | Python | 212 | 52a13c99 |  |
-| 626 | P1 | tests/production/test_startup_selftest.py | Python | 188 | 665c9c6b |  |
-| 627 | P1 | tests/property/__init__.py | Python | 0 | e3b0c442 |  |
-| 628 | P1 | tests/property/test_position_sizing_properties.py | Python | 245 | 50ec596c |  |
-| 629 | P1 | tests/pyg_stub.py | Python | 74 | 9ec25dff |  |
-| 630 | P1 | tests/qualification/__init__.py | Python | 0 | e3b0c442 |  |
-| 631 | P1 | tests/qualification/test_paper_qualification.py | Python | 354 | 5b7920e4 |  |
-| 632 | P1 | tests/qualification/test_self_tuning_firewall.py | Python | 186 | c81f7179 |  |
-| 633 | P1 | tests/quality/__init__.py | Python | 0 | e3b0c442 |  |
-| 634 | P1 | tests/quality/test_qe_id_allocation.py | Python | 226 | 926782b5 |  |
-| 635 | P1 | tests/quality/test_qe_skill.py | Python | 358 | 1a667c83 |  |
-| 636 | P1 | tests/quality/test_quality_docs_in_sync.py | Python | 72 | ef1e542a |  |
-| 637 | P1 | tests/quality/test_quality_registry.py | Python | 802 | fb2963cb |  |
-| 638 | P1 | tests/quality/test_quality_registry_schema.py | Python | 268 | 4b19c115 |  |
-| 639 | P1 | tests/recovery/__init__.py | Python | 0 | e3b0c442 |  |
-| 640 | P1 | tests/recovery/test_chaos_suite.py | Python | 173 | ead89296 |  |
-| 641 | P1 | tests/recovery/test_concurrency_races.py | Python | 202 | 431870be |  |
-| 642 | P1 | tests/recovery/test_crash_replay.py | Python | 245 | ca6bb263 |  |
-| 643 | P1 | tests/recovery/test_failsafe_policy.py | Python | 167 | 1af08f6a |  |
-| 644 | P1 | tests/recovery/test_recovery_objectives.py | Python | 198 | 00a98f52 |  |
-| 645 | P1 | tests/regime/__init__.py | Python | 0 | e3b0c442 |  |
-| 646 | P1 | tests/regime/test_garch.py | Python | 148 | 8a4195c0 |  |
-| 647 | P1 | tests/regression/__init__.py | Python | 0 | e3b0c442 |  |
-| 648 | P1 | tests/regression/test_ci_failure_locks.py | Python | 67 | 6c0933bb |  |
-| 649 | P1 | tests/regression/test_halts_drift_failclosed.py | Python | 193 | caf02ccc |  |
-| 650 | P1 | tests/regression/test_metrics_payload.py | Python | 120 | 094976c7 |  |
-| 651 | P1 | tests/regression/test_phase6_math_strategy_lows.py | Python | 163 | b2ced63e |  |
-| 652 | P1 | tests/regression/test_regression_registry_contract.py | Python | 846 | a2605544 |  |
-| 653 | P1 | tests/regression/unraisable.py | Python | 19 | 8f8b1064 |  |
-| 654 | P1 | tests/required_import.py | Python | 22 | 14788dee |  |
-| 655 | P1 | tests/risk/__init__.py | Python | 0 | e3b0c442 |  |
-| 656 | P1 | tests/risk/test_probability_bounds.py | Python | 137 | a3b65a78 |  |
-| 657 | P1 | tests/risk/test_risk_limit_boundaries.py | Python | 300 | 37b9b36e |  |
-| 658 | P1 | tests/runtime/__init__.py | Python | 0 | e3b0c442 |  |
-| 659 | P1 | tests/runtime/_production.py | Python | 128 | bb4e5d02 |  |
-| 660 | P1 | tests/runtime/_support.py | Python | 126 | df465141 |  |
-| 661 | P1 | tests/runtime/conftest.py | Python | 12 | 8b454b0c |  |
-| 662 | P1 | tests/runtime/test_adaptive_lifecycle.py | Python | 196 | b074db7e |  |
-| 663 | P1 | tests/runtime/test_bounded_control_plane.py | Python | 121 | 06cd3bec |  |
-| 664 | P1 | tests/runtime/test_capabilities.py | Python | 81 | b97da1aa |  |
-| 665 | P1 | tests/runtime/test_causal_tracing.py | Python | 191 | f4f60285 |  |
-| 666 | P1 | tests/runtime/test_change_authorization.py | Python | 74 | 37958ed3 |  |
-| 667 | P1 | tests/runtime/test_change_manager.py | Python | 172 | 53304d88 |  |
-| 668 | P1 | tests/runtime/test_concurrency.py | Python | 70 | 3b3fc64f |  |
-| 669 | P1 | tests/runtime/test_continuous_reconciliation.py | Python | 246 | db640638 |  |
-| 670 | P1 | tests/runtime/test_contracts.py | Python | 205 | bcdfaada |  |
-| 671 | P1 | tests/runtime/test_controller_contracts.py | Python | 208 | a16e4161 |  |
-| 672 | P1 | tests/runtime/test_decide_lifecycle_atomic.py | Python | 51 | 090078e2 |  |
-| 673 | P1 | tests/runtime/test_dependencies.py | Python | 73 | 3e5fe2b2 |  |
-| 674 | P1 | tests/runtime/test_dependency_cycles.py | Python | 59 | 9c9ed6f7 |  |
-| 675 | P1 | tests/runtime/test_desired_state.py | Python | 156 | 1a6f8e00 |  |
-| 676 | P1 | tests/runtime/test_engine_tracing.py | Python | 165 | 6f6e13d9 |  |
-| 677 | P1 | tests/runtime/test_failure_injection.py | Python | 204 | 149ddccb |  |
-| 678 | P1 | tests/runtime/test_impact_analysis.py | Python | 91 | ba6dd5c1 |  |
-| 679 | P1 | tests/runtime/test_integration.py | Python | 118 | 861b84cd |  |
-| 680 | P1 | tests/runtime/test_lifecycle.py | Python | 98 | 53c2bc30 |  |
-| 681 | P1 | tests/runtime/test_production_controllers.py | Python | 210 | 9f0ce0c6 |  |
-| 682 | P1 | tests/runtime/test_production_runtime.py | Python | 312 | 67f5b0db |  |
-| 683 | P1 | tests/runtime/test_promotion_gates.py | Python | 30 | 11cc41e1 |  |
-| 684 | P1 | tests/runtime/test_reconciliation.py | Python | 133 | 0da8ef79 |  |
-| 685 | P1 | tests/runtime/test_recovery.py | Python | 104 | 05e3dcba |  |
-| 686 | P1 | tests/runtime/test_registry.py | Python | 216 | 9d20d15a |  |
-| 687 | P1 | tests/runtime/test_registry_adapters.py | Python | 228 | b36d5369 |  |
-| 688 | P1 | tests/runtime/test_registry_identity.py | Python | 87 | 84d0a300 |  |
-| 689 | P1 | tests/runtime/test_registry_resync.py | Python | 217 | 1e61af91 |  |
-| 690 | P1 | tests/runtime/test_rollback.py | Python | 84 | 1d543635 |  |
-| 691 | P1 | tests/runtime/test_rollout.py | Python | 128 | b69600b3 |  |
-| 692 | P1 | tests/runtime/test_runtime_endpoints.py | Python | 272 | 0823b183 |  |
-| 693 | P1 | tests/runtime/test_runtime_loop_resilience.py | Python | 184 | 878f7724 |  |
-| 694 | P1 | tests/runtime/test_runtime_safety.py | Python | 340 | 7b3cb9d3 |  |
-| 695 | P1 | tests/runtime/test_runtime_state.py | Python | 47 | 2bd44e1f |  |
-| 696 | P1 | tests/runtime/test_supervisor_failures.py | Python | 124 | e3c6ab66 |  |
-| 697 | P1 | tests/runtime/test_supervisors.py | Python | 220 | fc8b9145 |  |
-| 698 | P1 | tests/security/__init__.py | Python | 0 | e3b0c442 |  |
-| 699 | P1 | tests/security/test_at_rest_encryption.py | Python | 180 | bffe6f38 |  |
-| 700 | P1 | tests/security/test_audit_chain_tamper_evidence.py | Python | 213 | c38f3d7d |  |
-| 701 | P1 | tests/security/test_exchange_key_posture.py | Python | 199 | 903dc8cc |  |
-| 702 | P1 | tests/security/test_filelock_cve_floor.py | Python | 48 | 6349f915 |  |
-| 703 | P1 | tests/security/test_gitignore_secret_files.py | Python | 109 | 0b6a69d2 |  |
-| 704 | P1 | tests/security/test_key_lifecycle.py | Python | 164 | c9167446 |  |
-| 705 | P1 | tests/security/test_no_custom_primitives.py | Python | 231 | f46e5ca8 |  |
-| 706 | P1 | tests/security/test_npm_audit_fix_available_gate.py | Python | 368 | 85de0d16 |  |
-| 707 | P1 | tests/security/test_randomness_and_tls.py | Python | 238 | 43a0cb62 |  |
-| 708 | P1 | tests/security/test_secret_leak_provocation.py | Python | 134 | d1d4041f |  |
-| 709 | P1 | tests/security/test_signing_and_constant_time.py | Python | 230 | 0cf7fdfc |  |
-| 710 | P1 | tests/security/test_urllib3_cve_floor.py | Python | 47 | 48687978 |  |
-| 711 | P1 | tests/signals/__init__.py | Python | 0 | e3b0c442 |  |
-| 712 | P1 | tests/signals/golden.py | Python | 321 | 7d6fc493 |  |
-| 713 | P1 | tests/signals/test_golden_signals.py | Python | 166 | a7893a63 |  |
-| 714 | P1 | tests/supply_chain/__init__.py | Python | 0 | e3b0c442 |  |
-| 715 | P1 | tests/supply_chain/test_artifact_provenance.py | Python | 162 | 9c1cf238 |  |
-| 716 | P1 | tests/supply_chain/test_container_posture.py | Python | 177 | c88c57a9 |  |
-| 717 | P1 | tests/supply_chain/test_supply_chain_posture.py | Python | 466 | 8025b432 |  |
-| 718 | P1 | tests/terminal/__init__.py | Python | 0 | e3b0c442 |  |
-| 719 | P1 | tests/terminal/_support.py | Python | 350 | 06109a83 |  |
-| 720 | P1 | tests/terminal/conftest.py | Python | 50 | b7931e73 |  |
-| 721 | P1 | tests/terminal/test_terminal_cli.py | Python | 651 | 18fae5bf |  |
-| 722 | P1 | tests/terminal/test_terminal_host.py | Python | 284 | 342b5d4a |  |
-| 723 | P1 | tests/terminal/test_terminal_install_jobs.py | Python | 301 | 2cc29f89 |  |
-| 724 | P1 | tests/terminal/test_terminal_markers_buffer.py | Python | 104 | 9e5c40b8 |  |
-| 725 | P1 | tests/terminal/test_terminal_protocol.py | Python | 161 | 57c8c650 |  |
-| 726 | P1 | tests/terminal/test_terminal_registry.py | Python | 167 | 54ed8244 |  |
-| 727 | P1 | tests/terminal/test_terminal_server.py | Python | 540 | e767a615 |  |
-| 728 | P1 | tests/terminal/test_terminal_sessions.py | Python | 439 | 08e7a756 |  |
-| 729 | P1 | tests/test_access_control.py | Python | 57 | 504259f9 |  |
-| 730 | P1 | tests/test_access_control_wiring.py | Python | 143 | 64d001ec |  |
-| 731 | P1 | tests/test_agent_reliability_boundary.py | Python | 39 | e9e2d4ba |  |
-| 732 | P1 | tests/test_api_and_fsm_coverage.py | Python | 176 | b0cfe603 |  |
-| 733 | P1 | tests/test_api_auth_middleware.py | Python | 234 | 33be5fe7 |  |
-| 734 | P1 | tests/test_api_dunder_main.py | Python | 49 | b2a7da69 |  |
-| 735 | P1 | tests/test_api_main_coverage.py | Python | 1692 | 63bc6969 |  |
-| 736 | P1 | tests/test_api_main_edges.py | Python | 107 | 5b383da8 |  |
-| 737 | P1 | tests/test_api_main_endpoints_coverage.py | Python | 509 | 4fa05756 |  |
-| 738 | P1 | tests/test_api_operations_endpoints.py | Python | 203 | fae70eb8 |  |
-| 739 | P1 | tests/test_api_role_enforcement.py | Python | 174 | 4e7cff8d |  |
-| 740 | P1 | tests/test_api_signer_audit.py | Python | 174 | fff8d678 |  |
-| 741 | P1 | tests/test_api_terminal_jobs.py | Python | 196 | 6297ede6 |  |
-| 742 | P1 | tests/test_apply_ci_patch.py | Python | 109 | 43624da5 |  |
-| 743 | P1 | tests/test_apply_repo_ruleset.py | Python | 288 | e1799986 |  |
-| 744 | P1 | tests/test_arch_baseline_is_current.py | Python | 79 | 1ae91139 |  |
-| 745 | P1 | tests/test_architecture_layers.py | Python | 181 | 954aa9c3 |  |
-| 746 | P1 | tests/test_assert_jobs_green.py | Python | 244 | d7a5bcca |  |
-| 747 | P1 | tests/test_attribution.py | Python | 267 | 79185ed1 |  |
-| 748 | P1 | tests/test_audit_chain_integrity_endpoint.py | Python | 167 | eeb84b92 |  |
-| 749 | P1 | tests/test_audit_trail.py | Python | 81 | ce39ac7b |  |
-| 750 | P1 | tests/test_audit_trail_bounded.py | Python | 87 | 7f027a79 |  |
-| 751 | P1 | tests/test_basis_trade.py | Python | 141 | 91778723 |  |
-| 752 | P1 | tests/test_binary_field.py | Python | 279 | f9f3d0af |  |
-| 753 | P1 | tests/test_bip32.py | Python | 673 | c15f0915 |  |
-| 754 | P1 | tests/test_birthday.py | Python | 134 | 90ef283f |  |
-| 755 | P1 | tests/test_bls12_381.py | Python | 170 | 29a4e941 |  |
-| 756 | P1 | tests/test_breakout.py | Python | 98 | 3c5fc7a8 |  |
-| 757 | P1 | tests/test_calibration.py | Python | 114 | 2514e0b9 |  |
-| 758 | P1 | tests/test_capital_allocator.py | Python | 303 | a5e4e9e9 |  |
-| 759 | P1 | tests/test_capital_allocator_edges.py | Python | 154 | 5e5831b6 |  |
-| 760 | P1 | tests/test_capital_preservation_floor.py | Python | 128 | daacb978 |  |
-| 761 | P1 | tests/test_causal_asset_gnn.py | Python | 114 | e3a52934 |  |
-| 762 | P1 | tests/test_causal_asset_gnn_pyg.py | Python | 78 | b3e0219f |  |
-| 763 | P1 | tests/test_causal_dowhy_scm.py | Python | 125 | 7eb0139c |  |
-| 764 | P1 | tests/test_causal_inference.py | Python | 243 | 917865bc |  |
-| 765 | P1 | tests/test_causal_modules.py | Python | 220 | ae5d9554 |  |
-| 766 | P1 | tests/test_changepoint.py | Python | 123 | e4fefb9a |  |
-| 767 | P1 | tests/test_ci_diagnostics.py | Python | 462 | ac1855cc |  |
-| 768 | P1 | tests/test_ci_diagnostics_log_unavailable.py | Python | 117 | a5b82fb8 |  |
-| 769 | P1 | tests/test_ci_diagnostics_never_self_blocks.py | Python | 169 | 006fd261 |  |
-| 770 | P1 | tests/test_ci_failure_notify_workflow.py | Python | 54 | de207c83 |  |
-| 771 | P1 | tests/test_ci_log_access.py | Python | 320 | 71f874d0 |  |
-| 772 | P1 | tests/test_ci_notice_supersession.py | Python | 65 | e65d0b45 |  |
-| 773 | P1 | tests/test_ci_workflow_cost.py | Python | 235 | fb0a0315 |  |
-| 774 | P1 | tests/test_codebase_knowledge_index.py | Python | 216 | d45bbe00 |  |
-| 775 | P1 | tests/test_codex_pr_handoff.py | Python | 296 | 38f498d9 |  |
-| 776 | P1 | tests/test_coding.py | Python | 176 | c980e95b |  |
-| 777 | P1 | tests/test_cognitive_engine.py | Python | 700 | 0e658cfe |  |
-| 778 | P1 | tests/test_command_schema_policy.py | Python | 382 | 09d4ee2e |  |
-| 779 | P1 | tests/test_common_claude_cli.py | Python | 129 | 4eaba7c6 |  |
-| 780 | P1 | tests/test_config.py | Python | 164 | 7cbfdba0 |  |
-| 781 | P1 | tests/test_config_feature_settings.py | Python | 28 | 980e84d3 |  |
-| 782 | P1 | tests/test_config_strategy_field.py | Python | 54 | bf6fe6b9 |  |
-| 783 | P1 | tests/test_confirmations.py | Python | 195 | c2e28bc8 |  |
-| 784 | P1 | tests/test_constant_time_timing.py | Python | 114 | 3d301fe7 |  |
-| 785 | P1 | tests/test_control_surface.py | Python | 333 | f51e1b27 |  |
-| 786 | P1 | tests/test_control_write.py | Python | 239 | 605c0718 |  |
-| 787 | P1 | tests/test_coverage_boost.py | Python | 446 | a3a83684 |  |
-| 788 | P1 | tests/test_coverage_boost2.py | Python | 394 | e911097a |  |
-| 789 | P1 | tests/test_coverage_boost3.py | Python | 738 | 813901ba |  |
-| 790 | P1 | tests/test_coverage_boost4.py | Python | 311 | 4776b184 |  |
-| 791 | P1 | tests/test_coverage_boost5.py | Python | 572 | 7908050d |  |
-| 792 | P1 | tests/test_coverage_boost6.py | Python | 196 | 3ab4d6b6 |  |
-| 793 | P1 | tests/test_coverage_mid_batch.py | Python | 254 | 94b0772c |  |
-| 794 | P1 | tests/test_cross_exchange_arb.py | Python | 105 | 74948a3a |  |
-| 795 | P1 | tests/test_crt.py | Python | 236 | dd77ffd3 |  |
-| 796 | P1 | tests/test_crypto_architect_skill.py | Python | 359 | 5730d555 |  |
-| 797 | P1 | tests/test_crypto_intel_main.py | Python | 166 | c76abb0b |  |
-| 798 | P1 | tests/test_crypto_intel_signal_path.py | Python | 733 | 68ff99b3 |  |
-| 799 | P1 | tests/test_crypto_intel_v6_coverage.py | Python | 830 | 2f3e13a8 |  |
-| 800 | P1 | tests/test_crypto_predictor_regressions.py | Python | 209 | daa0bf5b |  |
-| 801 | P1 | tests/test_cvar_notional_cap.py | Python | 142 | 8fd8fa91 |  |
-| 802 | P1 | tests/test_data_duckdb_feeds.py | Python | 172 | 2d8520e8 |  |
-| 803 | P1 | tests/test_data_feeds.py | Python | 187 | 1920d4fc |  |
-| 804 | P1 | tests/test_data_intel_low_findings.py | Python | 205 | 35abfa2b |  |
-| 805 | P1 | tests/test_decision_log_wiring.py | Python | 170 | a348027d |  |
-| 806 | P1 | tests/test_decision_log_writer.py | Python | 81 | afa3c7c2 |  |
-| 807 | P1 | tests/test_deploy_workflow_inputs.py | Python | 32 | 3dfd4520 |  |
-| 808 | P1 | tests/test_depth_detector_v2_edges.py | Python | 135 | 0bdbfaa9 |  |
-| 809 | P1 | tests/test_detector.py | Python | 538 | bfd78fe3 |  |
-| 810 | P1 | tests/test_diagnostic_route_boundary.py | Python | 82 | 15394b75 |  |
-| 811 | P1 | tests/test_diagnostics_instrumentation.py | Python | 152 | 9fdf13b6 |  |
-| 812 | P1 | tests/test_disaster_recovery.py | Python | 67 | 7fae5b13 |  |
-| 813 | P1 | tests/test_disaster_recovery_wiring.py | Python | 240 | 920a175c |  |
-| 814 | P1 | tests/test_drift_gate_wiring.py | Python | 157 | 37d1a317 |  |
-| 815 | P1 | tests/test_drift_integration_coverage.py | Python | 121 | 4e121733 |  |
-| 816 | P1 | tests/test_duckdb_path_is_per_worker.py | Python | 64 | 0f155e82 |  |
-| 817 | P1 | tests/test_ecc.py | Python | 152 | e7daca12 |  |
-| 818 | P1 | tests/test_ecc_curve_boundary.py | Python | 95 | c9449358 |  |
-| 819 | P1 | tests/test_ecc_node_rpc.py | Python | 195 | 8d8fb128 |  |
-| 820 | P1 | tests/test_ecc_schnorr_taproot.py | Python | 128 | 16eae3a6 |  |
-| 821 | P1 | tests/test_ecc_secp256k1_cluster.py | Python | 173 | f9b10a30 |  |
-| 822 | P1 | tests/test_ecc_worker_pipeline.py | Python | 270 | 7754331d |  |
-| 823 | P1 | tests/test_ecdsa_scan_coverage.py | Python | 128 | 997c9ce3 |  |
-| 824 | P1 | tests/test_ecdsa_scanner_bounded.py | Python | 86 | 79208487 |  |
-| 825 | P1 | tests/test_ed25519.py | Python | 378 | 9a3cca13 |  |
-| 826 | P1 | tests/test_engine_signal_plumbing_fixes.py | Python | 151 | 011aca61 |  |
-| 827 | P1 | tests/test_engines_e01_statistical.py | Python | 126 | 11b40a3e |  |
-| 828 | P1 | tests/test_ensemble_blend_tuning.py | Python | 212 | 21a48168 |  |
-| 829 | P1 | tests/test_ensemble_failure_semantics.py | Python | 206 | 212f0fb6 |  |
-| 830 | P1 | tests/test_ensemble_predictor.py | Python | 722 | fe57bf0d |  |
-| 831 | P1 | tests/test_ensemble_train_timeout.py | Python | 117 | 85944e5a |  |
-| 832 | P1 | tests/test_entropy.py | Python | 126 | 4d8517ca |  |
-| 833 | P1 | tests/test_env_example_documents_required_settings.py | Python | 71 | b753314c |  |
-| 834 | P1 | tests/test_event_bus.py | Python | 361 | 7a4f5b8c |  |
-| 835 | P1 | tests/test_event_bus_producers.py | Python | 149 | 6bf17c29 |  |
-| 836 | P1 | tests/test_event_bus_producers_observability.py | Python | 449 | 4c65d24b |  |
-| 837 | P1 | tests/test_event_bus_producers_remaining.py | Python | 168 | 46f506e2 |  |
-| 838 | P1 | tests/test_event_loop_acquisition.py | Python | 58 | 9f6f4687 |  |
-| 839 | P1 | tests/test_exec_accounting_fixes.py | Python | 200 | e5fb8d4b |  |
-| 840 | P1 | tests/test_exec_idempotency_fills.py | Python | 151 | f6942dfd |  |
-| 841 | P1 | tests/test_execution_cost.py | Python | 106 | 683acb8b |  |
-| 842 | P1 | tests/test_execution_rl_agent.py | Python | 290 | 2a31e273 |  |
-| 843 | P1 | tests/test_execution_router_coverage.py | Python | 359 | 1f942832 |  |
-| 844 | P1 | tests/test_execution_router_rl_posttrade.py | Python | 216 | 9fb3e905 |  |
-| 845 | P1 | tests/test_executor_fee_accounting.py | Python | 166 | 5e010a48 |  |
-| 846 | P1 | tests/test_executor_residual_paths.py | Python | 334 | 7b30600a |  |
-| 847 | P1 | tests/test_factor_search.py | Python | 90 | a3a7b85e |  |
-| 848 | P1 | tests/test_feature_bar_gaps.py | Python | 108 | f161a476 |  |
-| 849 | P1 | tests/test_feature_derivatives_nlp_tft.py | Python | 147 | a355cee7 |  |
-| 850 | P1 | tests/test_feature_microstructure_mempool.py | Python | 181 | 44cc558d |  |
-| 851 | P1 | tests/test_features.py | Python | 664 | 3975b3a6 |  |
-| 852 | P1 | tests/test_features_mempool.py | Python | 75 | 1638304f |  |
-| 853 | P1 | tests/test_features_nlp.py | Python | 154 | 92fb571d |  |
-| 854 | P1 | tests/test_features_onchain.py | Python | 125 | f0b5ac42 |  |
-| 855 | P1 | tests/test_fetcher_coverage.py | Python | 969 | afb9e552 |  |
-| 856 | P1 | tests/test_fetcher_retry_jitter.py | Python | 97 | c46c0cc0 |  |
-| 857 | P1 | tests/test_fetcher_symbol_precision.py | Python | 94 | fef0ec91 |  |
-| 858 | P1 | tests/test_fetcher_venue_degradation.py | Python | 195 | 505ce832 |  |
-| 859 | P1 | tests/test_folklore_gate.py | Python | 213 | 3c91b2db |  |
-| 860 | P1 | tests/test_frontend_audit_scope.py | Python | 190 | 3ee1a873 |  |
-| 861 | P1 | tests/test_funding_carry.py | Python | 101 | cc7256d7 |  |
-| 862 | P1 | tests/test_gap015_backfill.py | Python | 394 | 1b36ebf2 |  |
-| 863 | P1 | tests/test_gap015_intelligence_training.py | Python | 150 | 5f0a0cbc |  |
-| 864 | P1 | tests/test_garch_unit.py | Python | 194 | 3803a805 |  |
-| 865 | P1 | tests/test_gates_advisory_scalar_aggregation.py | Python | 106 | e6e333c5 |  |
-| 866 | P1 | tests/test_gates_non_finite.py | Python | 273 | 6711fbaa |  |
-| 867 | P1 | tests/test_gaussian_lattice.py | Python | 176 | 91e52ba7 |  |
-| 868 | P1 | tests/test_github_route_contract.py | Python | 428 | 41661832 |  |
-| 869 | P1 | tests/test_granger_detector.py | Python | 113 | 5e6ab530 |  |
-| 870 | P1 | tests/test_greeks.py | Python | 86 | 4fa249eb |  |
-| 871 | P1 | tests/test_greeks_caps_wiring.py | Python | 165 | 110864bf |  |
-| 872 | P1 | tests/test_harmonic_spectral.py | Python | 164 | 18e9a936 |  |
-| 873 | P1 | tests/test_hnp.py | Python | 261 | e9d9fc6b |  |
-| 874 | P1 | tests/test_horizon_backfill.py | Python | 239 | bde9dded |  |
-| 875 | P1 | tests/test_horizon_decision.py | Python | 153 | 7532add5 |  |
-| 876 | P1 | tests/test_horizon_mlp.py | Python | 1382 | 4fc46c8c |  |
-| 877 | P1 | tests/test_horizon_order_gate.py | Python | 98 | 202dbcb5 |  |
-| 878 | P1 | tests/test_horizon_promotion.py | Python | 397 | 6a9b3a5d |  |
-| 879 | P1 | tests/test_horizon_risk_context.py | Python | 49 | 49a2ce74 |  |
-| 880 | P1 | tests/test_horizon_runtime.py | Python | 281 | 45c98138 |  |
-| 881 | P1 | tests/test_horizons.py | Python | 242 | 62a918a8 |  |
-| 882 | P1 | tests/test_horizons_endpoint.py | Python | 179 | e9ba0580 |  |
-| 883 | P1 | tests/test_idempotency.py | Python | 449 | 064037c3 |  |
-| 884 | P1 | tests/test_ingest_keeps_previous_index.py | Python | 147 | ea50b2bc |  |
-| 885 | P1 | tests/test_instrumentation.py | Python | 230 | 98bd4609 |  |
-| 886 | P1 | tests/test_integration_full_pipeline.py | Python | 291 | f49fa5aa |  |
-| 887 | P1 | tests/test_intelligence_adapter.py | Python | 189 | 5ebab68c |  |
-| 888 | P1 | tests/test_intelligence_client_coverage.py | Python | 721 | 4a9e428c |  |
-| 889 | P1 | tests/test_intelligence_features_coverage.py | Python | 145 | cbdab333 |  |
-| 890 | P1 | tests/test_intelligence_metrics.py | Python | 243 | 40c73454 |  |
-| 891 | P1 | tests/test_intelligence_persistence.py | Python | 140 | 8843cc8d |  |
-| 892 | P1 | tests/test_intelligence_providers.py | Python | 1661 | 51915cb1 |  |
-| 893 | P1 | tests/test_intelligence_runtime_wiring.py | Python | 43 | d52a6e91 |  |
-| 894 | P1 | tests/test_interpolation.py | Python | 120 | 674a369b |  |
-| 895 | P1 | tests/test_kelly.py | Python | 828 | 6bdb8135 |  |
-| 896 | P1 | tests/test_kelly_gaps.py | Python | 501 | 854b752d |  |
-| 897 | P1 | tests/test_kelly_notional_cap.py | Python | 187 | 04389fe0 |  |
-| 898 | P1 | tests/test_kelly_size_scalar.py | Python | 128 | d4e2d987 |  |
-| 899 | P1 | tests/test_kg_assemble.py | Python | 64 | 088181c4 |  |
-| 900 | P1 | tests/test_kg_db.py | Python | 46 | 3102007c |  |
-| 901 | P1 | tests/test_kg_extract.py | Python | 30 | 0c00023b |  |
-| 902 | P1 | tests/test_kg_ingest.py | Python | 22 | d89b5d91 |  |
-| 903 | P1 | tests/test_kg_query.py | Python | 79 | 0ec21c2f |  |
-| 904 | P1 | tests/test_kg_resolve.py | Python | 37 | ff9b7ea5 |  |
-| 905 | P1 | tests/test_law12_cipher_suite_pattern.py | Python | 97 | a4f90962 |  |
-| 906 | P1 | tests/test_live_additional_coverage.py | Python | 409 | 13f38076 |  |
-| 907 | P1 | tests/test_live_executor_coverage.py | Python | 1074 | f5eb42d9 |  |
-| 908 | P1 | tests/test_live_executor_fsm.py | Python | 294 | 7152c4b2 |  |
-| 909 | P1 | tests/test_live_fill_quantity.py | Python | 94 | 6099f076 |  |
-| 910 | P1 | tests/test_live_fsm_integration.py | Python | 164 | 38096cc5 |  |
-| 911 | P1 | tests/test_live_settings.py | Python | 212 | 05dec3e5 |  |
-| 912 | P1 | tests/test_lll.py | Python | 396 | fc3c3cad |  |
-| 913 | P1 | tests/test_local_checks.py | Python | 64 | fb3a418a |  |
-| 914 | P1 | tests/test_logging_setup.py | Python | 101 | f0decaf8 |  |
-| 915 | P1 | tests/test_lowest_covered_modules.py | Python | 231 | cde4a13f |  |
-| 916 | P1 | tests/test_macro_exposure_budget.py | Python | 56 | 6cea4259 |  |
-| 917 | P1 | tests/test_macro_exposure_budget_check.py | Python | 96 | eaf0edf4 |  |
-| 918 | P1 | tests/test_macro_exposure_wiring.py | Python | 132 | 06d72fc1 |  |
-| 919 | P1 | tests/test_macro_indicators.py | Python | 126 | b8615e60 |  |
-| 920 | P1 | tests/test_macro_provider_coverage.py | Python | 167 | eddb2b10 |  |
-| 921 | P1 | tests/test_macro_regime.py | Python | 47 | 0f37b396 |  |
-| 922 | P1 | tests/test_math_registry.py | Python | 512 | d1a14f6d |  |
-| 923 | P1 | tests/test_math_strategies_audit_fixes.py | Python | 422 | 7d962559 |  |
-| 924 | P1 | tests/test_mean_reversion.py | Python | 159 | af359f2b |  |
-| 925 | P1 | tests/test_merge_queue_wiring.py | Python | 115 | aae98bf8 |  |
-| 926 | P1 | tests/test_merkle.py | Python | 131 | a18482ab |  |
-| 927 | P1 | tests/test_meta_allocator.py | Python | 163 | ecc97eaa |  |
-| 928 | P1 | tests/test_meta_network_loss.py | Python | 181 | 52c11624 |  |
-| 929 | P1 | tests/test_metrics.py | Python | 128 | fe796cce |  |
-| 930 | P1 | tests/test_mode_persistence_atomic_failure.py | Python | 42 | 19916925 |  |
-| 931 | P1 | tests/test_model_architectures.py | Python | 96 | 9784974a |  |
-| 932 | P1 | tests/test_model_eval_leakage.py | Python | 249 | 3e1259aa |  |
-| 933 | P1 | tests/test_model_feature_columns_by_name.py | Python | 188 | 0c6d2c0f |  |
-| 934 | P1 | tests/test_model_loading_integrity.py | Python | 86 | 5279f9b5 |  |
-| 935 | P1 | tests/test_model_registry.py | Python | 114 | 8cffe584 |  |
-| 936 | P1 | tests/test_model_registry_promotion_gate.py | Python | 60 | 60154e3f |  |
-| 937 | P1 | tests/test_model_trainer_coverage.py | Python | 1217 | 0ba5f420 |  |
-| 938 | P1 | tests/test_models_gnn_head.py | Python | 41 | ff4a7fe2 |  |
-| 939 | P1 | tests/test_models_gnn_head_pyg.py | Python | 46 | 5aeb6ee0 |  |
-| 940 | P1 | tests/test_mongo_client_reuse.py | Python | 91 | 190bba2b |  |
-| 941 | P1 | tests/test_mth020_lattice_and_pairing_cost.py | Python | 141 | 6a0153ea |  |
-| 942 | P1 | tests/test_no_claude_automation.py | Python | 56 | d5c1bfe7 |  |
-| 943 | P1 | tests/test_ntt.py | Python | 156 | dbe3cf15 |  |
-| 944 | P1 | tests/test_numbertheory_analytics.py | Python | 287 | 5d2d0bf4 |  |
-| 945 | P1 | tests/test_nutms.py | Python | 82 | 67f6f381 |  |
-| 946 | P1 | tests/test_observation_boundary_contract.py | Python | 301 | a4492759 |  |
-| 947 | P1 | tests/test_observation_failure.py | Python | 42 | 0d9f7362 |  |
-| 948 | P1 | tests/test_observation_gate.py | Python | 207 | dd7919bf |  |
-| 949 | P1 | tests/test_onchain_arkham_cryptoquant.py | Python | 222 | 3e33d989 |  |
-| 950 | P1 | tests/test_onchain_base_coverage.py | Python | 363 | 9cf6718e |  |
-| 951 | P1 | tests/test_onchain_no_fabricated_values.py | Python | 127 | 5e49492c |  |
-| 952 | P1 | tests/test_onchain_providers_coverage.py | Python | 489 | a38f7b2c |  |
-| 953 | P1 | tests/test_onchain_rate_limiter.py | Python | 141 | a3b9dd61 |  |
-| 954 | P1 | tests/test_online_trainer.py | Python | 268 | 083587c3 |  |
-| 955 | P1 | tests/test_online_trainer_wiring.py | Python | 312 | 155a684d |  |
-| 956 | P1 | tests/test_options_carry.py | Python | 54 | 3fc82e22 |  |
-| 957 | P1 | tests/test_orchestratable_safety.py | Python | 105 | 14404fbe |  |
-| 958 | P1 | tests/test_orchestrator.py | Python | 302 | 9270230d |  |
-| 959 | P1 | tests/test_orchestrator_allocation_rebalance.py | Python | 202 | b8991616 |  |
-| 960 | P1 | tests/test_orchestrator_coverage.py | Python | 1631 | 45b269fd |  |
-| 961 | P1 | tests/test_orchestrator_crypto_box_paths.py | Python | 422 | c2d3f09e |  |
-| 962 | P1 | tests/test_orchestrator_extra_coverage.py | Python | 1576 | 96552bc7 |  |
-| 963 | P1 | tests/test_orchestrator_pkg_planner.py | Python | 61 | 16f461f4 |  |
-| 964 | P1 | tests/test_orchestrator_pkg_run.py | Python | 67 | 4593b436 |  |
-| 965 | P1 | tests/test_orchestrator_pkg_synthesizer.py | Python | 24 | 886ce774 |  |
-| 966 | P1 | tests/test_orchestrator_pkg_worker.py | Python | 18 | f681910b |  |
-| 967 | P1 | tests/test_orchestrator_registry_publish.py | Python | 130 | 710f80f2 |  |
-| 968 | P1 | tests/test_orchestrator_residual_arms.py | Python | 337 | 3bf9c521 |  |
-| 969 | P1 | tests/test_orchestrator_shadow_routing.py | Python | 117 | 1f30befe |  |
-| 970 | P1 | tests/test_orchestrator_strategy_correlation.py | Python | 270 | 07c7416e |  |
-| 971 | P1 | tests/test_orchestrator_strategy_portfolio.py | Python | 1006 | 1368f85d |  |
-| 972 | P1 | tests/test_orchestrator_trace_id.py | Python | 104 | d83d9eb2 |  |
-| 973 | P1 | tests/test_order_fsm.py | Python | 448 | 7131ca04 |  |
-| 974 | P1 | tests/test_order_fsm_registry.py | Python | 196 | e4be2652 |  |
-| 975 | P1 | tests/test_order_fsm_transition_table.py | Python | 45 | 619dfda6 |  |
-| 976 | P1 | tests/test_order_manager.py | Python | 351 | 6630c734 |  |
-| 977 | P1 | tests/test_order_manager_fill_validation.py | Python | 99 | 8e2f56d2 |  |
-| 978 | P1 | tests/test_order_manager_incremental_fill.py | Python | 127 | 08fbbf5b |  |
-| 979 | P1 | tests/test_order_manager_log_context.py | Python | 101 | 845ae29b |  |
-| 980 | P1 | tests/test_order_manager_partial_fills.py | Python | 151 | 4c2dd069 |  |
-| 981 | P1 | tests/test_order_throttler.py | Python | 265 | a82e08ab |  |
-| 982 | P1 | tests/test_orderbook_stream_coverage.py | Python | 259 | 538331e7 |  |
-| 983 | P1 | tests/test_orderbook_stream_publish.py | Python | 179 | 3567e651 |  |
-| 984 | P1 | tests/test_paper_executor.py | Python | 872 | 3bc1624e |  |
-| 985 | P1 | tests/test_paper_only_timeframe_routing.py | Python | 90 | e01ca3ef |  |
-| 986 | P1 | tests/test_percent_vs_fraction_units.py | Python | 105 | 37edfb9c |  |
-| 987 | P1 | tests/test_performance_drift.py | Python | 582 | ded23fb2 |  |
-| 988 | P1 | tests/test_performance_drift_drawdown_basis.py | Python | 102 | 47b3a849 |  |
-| 989 | P1 | tests/test_performance_drift_edges.py | Python | 164 | 1c42a434 |  |
-| 990 | P1 | tests/test_phase5_execution_fixes.py | Python | 210 | c89e49e5 |  |
-| 991 | P1 | tests/test_phase7_ops_findings.py | Python | 77 | 3bff132e |  |
-| 992 | P1 | tests/test_portfolio_agreement.py | Python | 129 | cf44a5a2 |  |
-| 993 | P1 | tests/test_portfolio_correlation.py | Python | 441 | 7a70d63a |  |
-| 994 | P1 | tests/test_position_sizing.py | Python | 618 | 10e49696 |  |
-| 995 | P1 | tests/test_post_trade_bounded_history.py | Python | 116 | efe91648 |  |
-| 996 | P1 | tests/test_pq_transport_honesty.py | Python | 71 | 192085cb |  |
-| 997 | P1 | tests/test_pr_auto_update_workflow.py | Python | 322 | 7aca0311 |  |
-| 998 | P1 | tests/test_pre_tool_use_hook.py | Python | 508 | 9388a7b6 |  |
-| 999 | P1 | tests/test_prfail_exact_lines.py | Python | 389 | 7fc69ed4 |  |
-| 1000 | P1 | tests/test_price_preview_path.py | Python | 477 | 01b18608 |  |
-| 1001 | P1 | tests/test_primality.py | Python | 292 | 5aa66d08 |  |
-| 1002 | P1 | tests/test_prime_field.py | Python | 311 | abe47d09 |  |
-| 1003 | P1 | tests/test_probabilistic_adapter.py | Python | 116 | b16f3d8c |  |
-| 1004 | P1 | tests/test_probabilistic_engine.py | Python | 317 | 4b7caa08 |  |
-| 1005 | P1 | tests/test_probability_consensus.py | Python | 154 | 62d07bb8 |  |
-| 1006 | P1 | tests/test_prometheus_scrape_auth.py | Python | 35 | 13c1a091 |  |
-| 1007 | P1 | tests/test_promotion_gauntlet.py | Python | 206 | ed1a66ea |  |
-| 1008 | P1 | tests/test_promotion_gauntlet_wiring.py | Python | 201 | bd3daaaa |  |
-| 1009 | P1 | tests/test_provider_basis_stale_suppression.py | Python | 109 | 1a673bb2 |  |
-| 1010 | P1 | tests/test_provider_basis_sync.py | Python | 101 | 7608bef8 |  |
-| 1011 | P1 | tests/test_provider_close_leak.py | Python | 77 | 733a0cf2 |  |
-| 1012 | P1 | tests/test_provider_pure_logic.py | Python | 132 | 35fec4e7 |  |
-| 1013 | P1 | tests/test_push_wait.py | Python | 398 | 992bd9f4 |  |
-| 1014 | P1 | tests/test_quantum_margins.py | Python | 535 | f4b8fb74 |  |
-| 1015 | P1 | tests/test_rag_mongo_db.py | Python | 57 | 2887ca7d |  |
-| 1016 | P1 | tests/test_rag_mongo_embeddings.py | Python | 46 | a77ec316 |  |
-| 1017 | P1 | tests/test_rag_mongo_generate.py | Python | 28 | c7782361 |  |
-| 1018 | P1 | tests/test_rag_mongo_ingest.py | Python | 48 | ed0ffcd1 |  |
-| 1019 | P1 | tests/test_rag_mongo_pipeline.py | Python | 22 | 6deb9cb9 |  |
-| 1020 | P1 | tests/test_rag_mongo_retrieve.py | Python | 36 | c7c8c4c9 |  |
-| 1021 | P1 | tests/test_readme_gate_list_matches_stack.py | Python | 84 | a4e7e8e0 |  |
-| 1022 | P1 | tests/test_redteam_scheduler.py | Python | 54 | 05d2ee81 |  |
-| 1023 | P1 | tests/test_regime_detector_v2_paths.py | Python | 125 | 9df85875 |  |
-| 1024 | P1 | tests/test_regime_ensemble.py | Python | 47 | 81362b87 |  |
-| 1025 | P1 | tests/test_regime_multi_init_selection.py | Python | 161 | 816c7101 |  |
-| 1026 | P1 | tests/test_regime_strategy_selector.py | Python | 280 | 4c6b6a95 |  |
-| 1027 | P1 | tests/test_required_import_in_ci.py | Python | 50 | ea095a7e |  |
-| 1028 | P1 | tests/test_residual_gaps_batch2.py | Python | 416 | b120cc3a |  |
-| 1029 | P1 | tests/test_residual_gaps_batch3.py | Python | 262 | 4b089f1b |  |
-| 1030 | P1 | tests/test_residual_gaps_batch4.py | Python | 296 | ec896dea |  |
-| 1031 | P1 | tests/test_residues.py | Python | 229 | c88d674d |  |
-| 1032 | P1 | tests/test_resolve_registry_merge.py | Python | 100 | 7beb8e53 |  |
-| 1033 | P1 | tests/test_restart_persistence.py | Python | 261 | f2ae72b7 |  |
-| 1034 | P1 | tests/test_review_build_context.py | Python | 97 | 42731935 |  |
-| 1035 | P1 | tests/test_review_retrieval.py | Python | 71 | 52be750e |  |
-| 1036 | P1 | tests/test_rfc6979_nonces.py | Python | 178 | 0af4946b |  |
-| 1037 | P1 | tests/test_risk_controls_api.py | Python | 628 | 4ccb97f8 |  |
-| 1038 | P1 | tests/test_risk_gate.py | Python | 180 | 63870140 |  |
-| 1039 | P1 | tests/test_risk_gates.py | Python | 413 | 1938500a |  |
-| 1040 | P1 | tests/test_risk_gates_coverage.py | Python | 328 | 557dedb8 |  |
-| 1041 | P1 | tests/test_risk_gates_intelligence.py | Python | 149 | 21eec210 |  |
-| 1042 | P1 | tests/test_risk_pure_logic.py | Python | 332 | fc922b6e |  |
-| 1043 | P1 | tests/test_risk_quantification.py | Python | 277 | c0715ef0 |  |
-| 1044 | P1 | tests/test_router_fee_parsing.py | Python | 221 | 711816d4 |  |
-| 1045 | P1 | tests/test_rpc_basic_auth.py | Python | 105 | 0782f493 |  |
-| 1046 | P1 | tests/test_runtime_monitor_concurrent_probes.py | Python | 182 | e340073b |  |
-| 1047 | P1 | tests/test_runtime_monitor_coverage.py | Python | 469 | a3efb58c |  |
-| 1048 | P1 | tests/test_safe_primes.py | Python | 438 | 1d4ae1d2 |  |
-| 1049 | P1 | tests/test_script_fixes_scr018.py | Python | 181 | 0bf6674c |  |
-| 1050 | P1 | tests/test_scripts_path_bootstrap.py | Python | 95 | c4c1c928 |  |
-| 1051 | P1 | tests/test_secp256k1.py | Python | 448 | c4cb6103 |  |
-| 1052 | P1 | tests/test_security_pqc_posture.py | Python | 76 | 00928e99 |  |
-| 1053 | P1 | tests/test_self_tuning_api.py | Python | 200 | 8e6498f2 |  |
-| 1054 | P1 | tests/test_self_tuning_settings.py | Python | 30 | e6355fa6 |  |
-| 1055 | P1 | tests/test_selftest_rate_limit.py | Python | 118 | b1ab3ae0 |  |
-| 1056 | P1 | tests/test_settings_env_namespace.py | Python | 68 | da535ba6 |  |
-| 1057 | P1 | tests/test_shadow_model_promotion.py | Python | 401 | 381394fd |  |
-| 1058 | P1 | tests/test_shell_exec.py | Python | 598 | 1d75c218 |  |
-| 1059 | P1 | tests/test_signal_debugger.py | Python | 350 | d8b1aed6 |  |
-| 1060 | P1 | tests/test_signal_debugger_coverage.py | Python | 451 | 8a186db7 |  |
-| 1061 | P1 | tests/test_signal_debugger_selftest_guards.py | Python | 67 | 38029a96 |  |
-| 1062 | P1 | tests/test_signal_engine.py | Python | 1993 | 0102f884 |  |
-| 1063 | P1 | tests/test_signal_engine_adapter.py | Python | 119 | b073a15f |  |
-| 1064 | P1 | tests/test_signal_engine_partial_branches.py | Python | 137 | d4e3e551 |  |
-| 1065 | P1 | tests/test_signal_engine_residual_paths.py | Python | 354 | 531c09d3 |  |
-| 1066 | P1 | tests/test_slippage.py | Python | 183 | 5e33dbf9 |  |
-| 1067 | P1 | tests/test_small_module_gaps.py | Python | 414 | 916bf762 |  |
-| 1068 | P1 | tests/test_startup_readiness.py | Python | 844 | 4829f182 |  |
-| 1069 | P1 | tests/test_static_invariants.py | Python | 1589 | 193b3bc9 |  |
-| 1070 | P1 | tests/test_static_invariants_blind_spots.py | Python | 140 | 44ec7d50 |  |
-| 1071 | P1 | tests/test_storage.py | Python | 1111 | 31dce6c8 |  |
-| 1072 | P1 | tests/test_storage_write_rollback.py | Python | 102 | e5d9d7f3 |  |
-| 1073 | P1 | tests/test_strategies_filters.py | Python | 628 | 1a6e0663 |  |
-| 1074 | P1 | tests/test_strategy_bootstrap.py | Python | 232 | 1189a934 |  |
-| 1075 | P1 | tests/test_strategy_correlation.py | Python | 113 | bcfb1913 |  |
-| 1076 | P1 | tests/test_strategy_decay.py | Python | 52 | c93f7256 |  |
-| 1077 | P1 | tests/test_strategy_filters.py | Python | 468 | fafe1bb8 |  |
-| 1078 | P1 | tests/test_strategy_kill_switch.py | Python | 208 | aa5fdd2f |  |
-| 1079 | P1 | tests/test_strategy_kill_switch_wiring.py | Python | 251 | 5a1e83cb |  |
-| 1080 | P1 | tests/test_strategy_portfolio.py | Python | 781 | dfdccba9 |  |
-| 1081 | P1 | tests/test_strategy_registry.py | Python | 175 | fa7a81fa |  |
-| 1082 | P1 | tests/test_stress_simulator.py | Python | 138 | 6d469112 |  |
-| 1083 | P1 | tests/test_stress_test_endpoint.py | Python | 168 | a7216740 |  |
-| 1084 | P1 | tests/test_suite_speed_budget.py | Python | 152 | 73c584d2 |  |
-| 1085 | P1 | tests/test_threshold.py | Python | 536 | 20237e4a |  |
-| 1086 | P1 | tests/test_timescale_initialize_migrations.py | Python | 163 | c362dded |  |
-| 1087 | P1 | tests/test_timescale_mock_coverage.py | Python | 884 | b1a60c82 |  |
-| 1088 | P1 | tests/test_timescale_storage.py | Python | 1013 | 7e8749b3 |  |
-| 1089 | P1 | tests/test_timescale_storage_fake_pool.py | Python | 346 | 05fc212a |  |
-| 1090 | P1 | tests/test_timescaledb_script.py | Python | 138 | e966aba4 |  |
-| 1091 | P1 | tests/test_tools_example_tools.py | Python | 49 | aadb0a71 |  |
-| 1092 | P1 | tests/test_tools_registry.py | Python | 94 | 7df6f271 |  |
-| 1093 | P1 | tests/test_trade_auditor.py | Python | 267 | bae99d09 |  |
-| 1094 | P1 | tests/test_trade_journal.py | Python | 272 | a1a06f96 |  |
-| 1095 | P1 | tests/test_tuning_audit.py | Python | 72 | d3c0247a |  |
-| 1096 | P1 | tests/test_tuning_backtest_harness.py | Python | 517 | c59fec83 |  |
-| 1097 | P1 | tests/test_tuning_bayesian_proposer.py | Python | 102 | 806c4e51 |  |
-| 1098 | P1 | tests/test_tuning_bootstrap.py | Python | 298 | 89fa0043 |  |
-| 1099 | P1 | tests/test_tuning_evaluator.py | Python | 208 | 37bd6396 |  |
-| 1100 | P1 | tests/test_tuning_feature_window_oos.py | Python | 86 | db0701f9 |  |
-| 1101 | P1 | tests/test_tuning_gate.py | Python | 94 | c99d6c66 |  |
-| 1102 | P1 | tests/test_tuning_gate_multiple_testing.py | Python | 87 | 9ba0cba9 |  |
-| 1103 | P1 | tests/test_tuning_live_overrides.py | Python | 212 | 637a54a0 |  |
-| 1104 | P1 | tests/test_tuning_promotion_rollback_wiring.py | Python | 138 | 1b1bfbe7 |  |
-| 1105 | P1 | tests/test_tuning_proposer.py | Python | 63 | a14c668d |  |
-| 1106 | P1 | tests/test_tuning_registry.py | Python | 132 | 23d737c0 |  |
-| 1107 | P1 | tests/test_tuning_runner.py | Python | 305 | 764f934b |  |
-| 1108 | P1 | tests/test_tuning_scheduler.py | Python | 1203 | 21214898 |  |
-| 1109 | P1 | tests/test_tuning_store.py | Python | 86 | 02b00855 |  |
-| 1110 | P1 | tests/test_tuning_store_rollback.py | Python | 112 | eaaab96d |  |
-| 1111 | P1 | tests/test_tuning_watchdog.py | Python | 181 | 55783c70 |  |
-| 1112 | P1 | tests/test_tuning_watchdog_rollback_exhaustion.py | Python | 106 | b112dc12 |  |
-| 1113 | P1 | tests/test_unenforced_config_knobs.py | Python | 254 | 017a68d4 |  |
-| 1114 | P1 | tests/test_unified_ledger.py | Python | 74 | 1aba3c25 |  |
-| 1115 | P1 | tests/test_unified_ledger_wiring.py | Python | 202 | 79f1a38e |  |
-| 1116 | P1 | tests/test_universe_returns.py | Python | 281 | 8f951606 |  |
-| 1117 | P1 | tests/test_upgrade_modules.py | Python | 280 | a443c429 |  |
-| 1118 | P1 | tests/test_upgrade_optuna_wf.py | Python | 122 | 5d224880 |  |
-| 1119 | P1 | tests/test_upgrade_optuna_wf_leakage.py | Python | 75 | c9c14466 |  |
-| 1120 | P1 | tests/test_upgrade_registry.py | Python | 246 | 76980677 |  |
-| 1121 | P1 | tests/test_upgrade_shadow_deploy.py | Python | 186 | 4c2280de |  |
-| 1122 | P1 | tests/test_upgrade_shadow_deploy_significance.py | Python | 86 | 3264a0ed |  |
-| 1123 | P1 | tests/test_venue_api.py | Python | 345 | 341d0ab2 |  |
-| 1124 | P1 | tests/test_venue_controls.py | Python | 271 | 7f06c733 |  |
-| 1125 | P1 | tests/test_venue_controls_api.py | Python | 220 | b94cea38 |  |
-| 1126 | P1 | tests/test_vol_target_sizer.py | Python | 213 | 2fbf4ca2 |  |
-| 1127 | P1 | tests/test_whale_gate_advisory.py | Python | 103 | f93c3d14 |  |
-| 1128 | P1 | tests/test_whale_ratio_failure_path.py | Python | 77 | 4bdd41b9 |  |
-| 1129 | P1 | tests/test_worker_trader.py | Python | 264 | 96403a32 |  |
-| 1130 | P1 | tests/test_workers_orchestrator.py | Python | 204 | 8a5f1126 |  |
-| 1131 | P1 | tests/test_workers_orchestrator_coverage.py | Python | 538 | 8ebe5d1c |  |
-| 1132 | P1 | tests/test_ws_auth_query_param.py | Python | 135 | f2cf255b |  |
-| 1133 | P1 | tests/test_ws_broadcaster.py | Python | 128 | b0deb4c0 |  |
-| 1134 | P1 | tests/test_ws_publish_lag_metric.py | Python | 182 | c3cfea00 |  |
-| 1135 | P1 | tests/test_ws_subscriptions.py | Python | 360 | 4c5214a6 |  |
-| 1136 | P1 | tests/test_xsec_momentum.py | Python | 86 | 5307f89d |  |
-| 1137 | P1 | tests/test_zksnark_detect_coverage.py | Python | 164 | 0f281e5c |  |
-| 1138 | P1 | tests/trading/__init__.py | Python | 0 | e3b0c442 |  |
-| 1139 | P1 | tests/trading/invariants/__init__.py | Python | 0 | e3b0c442 |  |
-| 1140 | P1 | tests/trading/invariants/test_inv_001_max_notional.py | Python | 213 | 060fd71f |  |
-| 1141 | P1 | tests/trading/invariants/test_inv_002_capital_preservation_halt.py | Python | 157 | d4e31b12 |  |
-| 1142 | P1 | tests/trading/invariants/test_inv_004_non_finite.py | Python | 307 | 9906a7ce |  |
-| 1143 | P1 | tests/trading/invariants/test_inv_005_disabled_mode.py | Python | 123 | 6611a4a0 |  |
-| 1144 | P1 | tests/trading/invariants/test_inv_006_risk_engine_failure.py | Python | 171 | 32c8cd83 |  |
-| 1145 | P2 | .agents/skills/trade-bot-code-review-pr/SKILL.md | Markdown | 23 | f7724554 |  |
-| 1146 | P2 | .agents/skills/trade-bot-cookbook-engineering/SKILL.md | Markdown | 22 | 1db44afc |  |
-| 1147 | P2 | .agents/skills/trade-bot-delivery/SKILL.md | Markdown | 18 | 10984afa |  |
-| 1148 | P2 | .agents/skills/trade-bot-evaluation-optimization/SKILL.md | Markdown | 18 | 6a9dcbb5 |  |
-| 1149 | P2 | .agents/skills/trade-bot-evidence-first/SKILL.md | Markdown | 20 | 7478d0d0 |  |
-| 1150 | P2 | .agents/skills/trade-bot-openai-sdk-integration/SKILL.md | Markdown | 20 | 03900dfe |  |
-| 1151 | P2 | .agents/skills/trade-bot-parallel-development/SKILL.md | Markdown | 42 | eb29101f |  |
-| 1152 | P2 | .agents/skills/trade-bot-root-cause-debugging/SKILL.md | Markdown | 24 | 3918f734 |  |
-| 1153 | P2 | .claude/hooks/_gh_contract.py | Python | 497 | 53c7cbc6 |  |
-| 1154 | P2 | .claude/hooks/completion_gate.py | Python | 25 | 4753b1c8 |  |
-| 1155 | P2 | .claude/hooks/observation_failure.py | Python | 93 | 6a2ba65b |  |
-| 1156 | P2 | .claude/hooks/observation_gate.py | Python | 620 | 0d23a6ff |  |
-| 1157 | P2 | .claude/hooks/pre_tool_use.py | Python | 1036 | fd662711 |  |
-| 1158 | P2 | .claude/hooks/precompact_checkpoint.py | Python | 25 | d68a10de |  |
-| 1159 | P2 | .claude/hooks/quality_gate.py | Python | 27 | 2c809a53 |  |
-| 1160 | P2 | .claude/hooks/session-start.sh | Shell | 116 | 52bfdaa6 |  |
-| 1161 | P2 | .claude/hooks/task_lifecycle.py | Python | 35 | 74f6c16a |  |
-| 1162 | P2 | .claude/launch.json | JSON | 11 | 0983b089 |  |
-| 1163 | P2 | .claude/settings.json | JSON | 219 | 3d486023 |  |
-| 1164 | P2 | .claude/skills/crypto-architect/SKILL.md | Markdown | 420 | dd35ecc2 |  |
-| 1165 | P2 | .claude/skills/crypto-architect/references/blockchain.md | Markdown | 181 | 2d70217a |  |
-| 1166 | P2 | .claude/skills/crypto-architect/references/compliance.md | Markdown | 261 | bb2f02dd |  |
-| 1167 | P2 | .claude/skills/crypto-architect/references/defi.md | Markdown | 235 | 27d5381e |  |
-| 1168 | P2 | .claude/skills/crypto-architect/references/ecc-crypto.md | Markdown | 251 | 67fcffbf |  |
-| 1169 | P2 | .claude/skills/crypto-architect/references/exchanges.md | Markdown | 195 | 6865ca93 |  |
-| 1170 | P2 | .claude/skills/crypto-architect/references/market-microstructure.md | Markdown | 259 | d7443ded |  |
-| 1171 | P2 | .claude/skills/crypto-architect/references/ml-models.md | Markdown | 258 | 8ac7bcef |  |
-| 1172 | P2 | .claude/skills/crypto-architect/references/on-chain-data.md | Markdown | 257 | 9e09e960 |  |
-| 1173 | P2 | .claude/skills/crypto-architect/references/probability.md | Markdown | 210 | ca3710b4 |  |
-| 1174 | P2 | .claude/skills/crypto-architect/references/realtime-systems.md | Markdown | 284 | d5243823 |  |
-| 1175 | P2 | .claude/skills/crypto-architect/references/risk.md | Markdown | 245 | 544dcc01 |  |
-| 1176 | P2 | .claude/skills/crypto-architect/references/security.md | Markdown | 244 | d2af5b67 |  |
-| 1177 | P2 | .claude/skills/crypto-architect/references/strategies.md | Markdown | 225 | 5e391269 |  |
-| 1178 | P2 | .claude/skills/crypto-architect/scripts/validate_arch.py | Python | 1606 | b5c87009 |  |
-| 1179 | P2 | .claude/skills/local-checks/SKILL.md | Markdown | 32 | e95dd706 |  |
-| 1180 | P2 | .claude/skills/quality-engineering/SKILL.md | Markdown | 195 | 8e88bfd7 |  |
-| 1181 | P2 | .claude/skills/quality-engineering/qe.config.json | JSON | 192 | 24789fb9 |  |
-| 1182 | P2 | .claude/skills/quality-engineering/references/workflow.md | Markdown | 123 | bd0c298a |  |
-| 1183 | P2 | .claude/skills/quality-engineering/schemas/change_plan.schema.json | JSON | 142 | 4acb9555 |  |
-| 1184 | P2 | .claude/skills/quality-engineering/schemas/qe_config.schema.json | JSON | 121 | f560d02d |  |
-| 1185 | P2 | .claude/skills/quality-engineering/scripts/qe_gate.py | Python | 488 | b333999c |  |
-| 1186 | P2 | .claude/skills/quality-engineering/scripts/qe_new_requirement.py | Python | 273 | 312ae225 |  |
-| 1187 | P2 | .claude/skills/quality-engineering/scripts/qe_registry_refs.py | Python | 151 | 7bbe41fa |  |
-| 1188 | P2 | .codex/AUTONOMOUS_TASK_PROMPT.md | Markdown | 62 | d5d878b6 |  |
-| 1189 | P2 | .codex/IMPLEMENTATION.md | Markdown | 228 | 34e220df |  |
-| 1190 | P2 | .codex/agents/docs-researcher.toml | TOML | 32 | dd85dc27 |  |
-| 1191 | P2 | .codex/agents/explorer.toml | TOML | 32 | c12ca20e |  |
-| 1192 | P2 | .codex/agents/implementer.toml | TOML | 63 | 0563b998 |  |
-| 1193 | P2 | .codex/agents/reviewer.toml | TOML | 45 | 31e5bcff |  |
-| 1194 | P2 | .codex/agents/worker.toml | TOML | 46 | 08b2ffc4 |  |
-| 1195 | P2 | .codex/config.toml | TOML | 7 | 6935ae7d |  |
-| 1196 | P2 | .editorconfig | Text/config | 21 | 36a1d25e |  |
-| 1197 | P2 | .env.example | Other text/source | 91 | 391f695f |  |
-| 1198 | P2 | .gitattributes | Other text/source | 7 | 73db96a2 |  |
-| 1199 | P2 | .githooks/reference-transaction | Other text/source | 10 | 28eb38fd |  |
-| 1200 | P2 | .gitignore | Text/config | 50 | 4153a7d4 |  |
-| 1201 | P2 | .pre-commit-config.yaml | YAML | 38 | 962e0c94 |  |
-| 1202 | P2 | .python-version | Other text/source | 1 | 49a506dd |  |
-| 1203 | P2 | .test_durations | Other text/source | 8977 | fa218480 |  |
-| 1204 | P2 | .vscode/extensions.json | JSON | 10 | c0ffbb03 |  |
-| 1205 | P2 | .vscode/settings.json | JSON | 9 | 35d5bf39 |  |
-| 1206 | P2 | CONTRIBUTING.md | Markdown | 61 | 04155331 |  |
-| 1207 | P2 | LICENSE | Other text/source | 21 | 49a961c5 |  |
-| 1208 | P2 | SECURITY.md | Markdown | 78 | 4c96f444 |  |
-| 1209 | P2 | common/__init__.py | Python | 0 | e3b0c442 |  |
-| 1210 | P2 | common/claude_cli.py | Python | 79 | fbe378e7 |  |
-| 1211 | P2 | common/command_schema.py | Python | 623 | c1c65a9b |  |
-| 1212 | P2 | common/shell_exec.py | Python | 467 | a47d0514 |  |
-| 1213 | P2 | crypto-predictor/ARCHITECTURE.md | Markdown | 251 | 0c17cd95 |  |
-| 1214 | P2 | crypto-predictor/README.md | Markdown | 116 | 78148b0a |  |
-| 1215 | P2 | crypto-predictor/backtest.py | Python | 188 | 50e9f598 |  |
-| 1216 | P2 | crypto-predictor/data_fetch.py | Python | 74 | cde705ee |  |
-| 1217 | P2 | crypto-predictor/data_fetch_kraken.py | Python | 55 | 72e74d38 |  |
-| 1218 | P2 | crypto-predictor/indicators.py | Python | 109 | 0c688cf6 |  |
-| 1219 | P2 | crypto-predictor/risk.py | Python | 98 | f0ae604b |  |
-| 1220 | P2 | crypto-predictor/validation.py | Python | 127 | 43336585 |  |
-| 1221 | P2 | crypto-predictor/volatility.py | Python | 84 | bf46ec4a |  |
-| 1222 | P2 | docs/agents/OPENAI_COOKBOOK_ADOPTION.md | Markdown | 41 | 7c9a78f0 |  |
-| 1223 | P2 | docs/next_plan_findings.md | Markdown | 21 | 620b7b2a |  |
-| 1224 | P2 | docs/security/ci-diagnostics.md | Markdown | 145 | c8b8f61a |  |
-| 1225 | P2 | frontend/.nvmrc | Text/config | 1 | f14b4987 |  |
-| 1226 | P2 | frontend/browser-e2e/dashboard.e2e.jsx | React JSX | 360 | ea0f5239 |  |
-| 1227 | P2 | frontend/electron/main.cjs | CommonJS | 185 | afcd257f |  |
-| 1228 | P2 | frontend/electron/preload.cjs | CommonJS | 28 | 5b584536 |  |
-| 1229 | P2 | frontend/electron/security.cjs | Other text/source | 64 | 2dcefbc6 |  |
-| 1230 | P2 | frontend/electron/terminalBridge.cjs | CommonJS | 230 | fadfbaff |  |
-| 1231 | P2 | frontend/index.html | HTML | 14 | 937890f7 |  |
-| 1232 | P2 | frontend/linux/tradebot-dashboard.desktop | Desktop-entry config | 9 | d8c53c4f |  |
-| 1233 | P2 | frontend/package-lock.json | JSON | 4854 | dd172379 |  |
-| 1234 | P2 | frontend/postcss.config.js | JavaScript | 7 | ad943233 |  |
-| 1235 | P2 | frontend/public/icon.svg | Vector asset | 15 | 9a6da623 |  |
-| 1236 | P2 | frontend/scripts/build-icons.mjs | ES module | 36 | 4489c079 |  |
-| 1237 | P2 | frontend/scripts/install-desktop-shortcut.sh | Shell | 86 | 6a03fdd9 |  |
-| 1238 | P2 | frontend/src/approvals.js | JavaScript | 9 | a282face |  |
-| 1239 | P2 | frontend/src/approvals.test.js | JavaScript | 17 | cf00b67c |  |
-| 1240 | P2 | frontend/src/buildGuard.js | JavaScript | 57 | 1a9b0dc3 |  |
-| 1241 | P2 | frontend/src/components/Controls.test.jsx | React JSX | 106 | cf6f9c5a |  |
-| 1242 | P2 | frontend/src/components/ErrorBoundary.jsx | React JSX | 33 | 4ffb65c6 |  |
-| 1243 | P2 | frontend/src/components/panels/ControlHubPanel.test.jsx | React JSX | 50 | b321eca5 |  |
-| 1244 | P2 | frontend/src/security/frontendSecurity.test.jsx | React JSX | 108 | 1b269f1b |  |
-| 1245 | P2 | frontend/tailwind.config.js | JavaScript | 43 | a8d2f444 |  |
-| 1246 | P2 | frontend/vite.config.js | JavaScript | 43 | 82982458 |  |
-| 1247 | P2 | frontend/vitest.browser.config.js | JavaScript | 19 | 968832f5 |  |
-| 1248 | P2 | frontend/vitest.config.js | JavaScript | 14 | d37c0445 |  |
-| 1249 | P2 | kg/__init__.py | Python | 0 | e3b0c442 |  |
-| 1250 | P2 | kg/assemble.py | Python | 48 | 991327ed |  |
-| 1251 | P2 | kg/config.py | Python | 12 | 02f60bb4 |  |
-| 1252 | P2 | kg/db.py | Python | 39 | 29dd8727 |  |
-| 1253 | P2 | kg/extract.py | Python | 21 | c97eece2 |  |
-| 1254 | P2 | kg/ingest.py | Python | 9 | 34d740a2 |  |
-| 1255 | P2 | kg/query.py | Python | 55 | 5ad9efb1 |  |
-| 1256 | P2 | kg/resolve.py | Python | 30 | 2277a38a |  |
-| 1257 | P2 | kg/schema.py | Python | 42 | 86f3afdb |  |
-| 1258 | P2 | kg_cli.py | Python | 30 | e83e37da |  |
-| 1259 | P2 | orchestrator/__init__.py | Python | 0 | e3b0c442 |  |
-| 1260 | P2 | orchestrator/config.py | Python | 15 | b9451580 |  |
-| 1261 | P2 | orchestrator/planner.py | Python | 47 | 3c48142f |  |
-| 1262 | P2 | orchestrator/run.py | Python | 67 | 2d6754d1 |  |
-| 1263 | P2 | orchestrator/synthesizer.py | Python | 18 | 3f5f44bf |  |
-| 1264 | P2 | orchestrator/worker.py | Python | 27 | a4668aae |  |
-| 1265 | P2 | orchestrator_cli.py | Python | 16 | 1817eda3 |  |
-| 1266 | P2 | rag_cli.py | Python | 39 | 47b9e6bf |  |
-| 1267 | P2 | rag_mongo/__init__.py | Python | 0 | e3b0c442 |  |
-| 1268 | P2 | rag_mongo/config.py | Python | 14 | da9922ab |  |
-| 1269 | P2 | rag_mongo/db.py | Python | 80 | 0a1ac336 |  |
-| 1270 | P2 | rag_mongo/embeddings.py | Python | 21 | 9635c55e |  |
-| 1271 | P2 | rag_mongo/generate.py | Python | 19 | 2eaea14b |  |
-| 1272 | P2 | rag_mongo/ingest.py | Python | 21 | b3d1dff7 |  |
-| 1273 | P2 | rag_mongo/pipeline.py | Python | 7 | b445a01a |  |
-| 1274 | P2 | rag_mongo/retrieve.py | Python | 20 | 553da338 |  |
-| 1275 | P2 | requirements-topology-optional.txt | Text | 9 | 69f74fd0 |  |
-| 1276 | P2 | review/__init__.py | Python | 0 | e3b0c442 |  |
-| 1277 | P2 | review/build_context.py | Python | 75 | 3de69e47 |  |
-| 1278 | P2 | review/config.py | Python | 8 | b6dbb57a |  |
-| 1279 | P2 | review/retrieval.py | Python | 60 | 9c4e1629 |  |
-| 1280 | P2 | tools/__init__.py | Python | 0 | e3b0c442 |  |
-| 1281 | P2 | tools/example_tools.py | Python | 50 | bf4d6a53 |  |
-| 1282 | P2 | tools/registry.py | Python | 114 | c3a96723 |  |
+| 70 | P1 | .github/workflows/dependency-review.yml | YAML | 44 | ad5b4ba3 |  |
+| 71 | P1 | .github/workflows/deploy.yml | YAML | 195 | d63227f5 |  |
+| 72 | P1 | .github/workflows/nightly-quality.yml | YAML | 141 | 3bd3af3c |  |
+| 73 | P1 | .github/workflows/pr-auto-update.yml | YAML | 331 | 0c4af0ac |  |
+| 74 | P1 | .github/workflows/pyre.yml | YAML | 46 | f87c1e48 |  |
+| 75 | P1 | .github/workflows/rag-ingest.yml | YAML | 54 | 3ef87ddd |  |
+| 76 | P1 | .github/workflows/release.yml | YAML | 133 | b595cd54 |  |
+| 77 | P1 | .github/workflows/security.yml | YAML | 490 | 0d555204 |  |
+| 78 | P1 | .github/workflows/workflow-lint.yml | YAML | 112 | efae0a17 |  |
+| 79 | P1 | config/arch_baseline.json | JSON | 74 | 7b1d381b |  |
+| 80 | P1 | config/exchange_key_posture.json | JSON | 23 | eed97927 |  |
+| 81 | P1 | config/intelligence.yaml | YAML | 24 | 19139199 |  |
+| 82 | P1 | config/math_registry.schema.json | JSON | 250 | 0c6cac56 |  |
+| 83 | P1 | config/mutation_thresholds.json | JSON | 53 | 6b50a258 |  |
+| 84 | P1 | config/observation_boundary.json | JSON | 103 | ee3b28e7 |  |
+| 85 | P1 | config/performance_baselines.json | JSON | 69 | ece98302 |  |
+| 86 | P1 | config/quality_registry.d/GOV-071.json | JSON | 27 | ee9bae0f |  |
+| 87 | P1 | config/quality_registry.d/REG-1708.json | JSON | 23 | ae70eab8 |  |
+| 88 | P1 | config/quality_registry.d/REG-1709.json | JSON | 22 | 439ace8b |  |
+| 89 | P1 | config/quality_registry.d/REG-1710.json | JSON | 22 | 5a88898b |  |
+| 90 | P1 | config/quality_registry.d/REG-1711.json | JSON | 22 | f4d3451f |  |
+| 91 | P1 | config/quality_registry.d/REG-1712.json | JSON | 22 | 0397c94a |  |
+| 92 | P1 | config/quality_registry.d/REG-1713.json | JSON | 26 | eb910ed2 |  |
+| 93 | P1 | config/quality_registry.d/REG-1714.json | JSON | 27 | 9c6f1a26 |  |
+| 94 | P1 | config/quality_registry.d/REG-1715.json | JSON | 24 | 2b103583 |  |
+| 95 | P1 | config/quality_registry.d/REG-1716.json | JSON | 23 | d065acb2 |  |
+| 96 | P1 | config/quality_registry.d/REG-1717.json | JSON | 23 | 37af000b |  |
+| 97 | P1 | config/quality_registry.d/REG-1718.json | JSON | 26 | afc83068 |  |
+| 98 | P1 | config/quality_registry.d/REG-1719.json | JSON | 26 | b618085b |  |
+| 99 | P1 | config/quality_registry.d/SEC-0013.json | JSON | 22 | 378593a8 |  |
+| 100 | P1 | config/quality_registry.d/SEC-0014.json | JSON | 26 | 1770842c |  |
+| 101 | P1 | config/quality_registry.d/SEC-0015.json | JSON | 28 | 48583c8f |  |
+| 102 | P1 | config/quality_registry.d/SEC-0016.json | JSON | 22 | ca0495c1 |  |
+| 103 | P1 | config/quality_registry.d/SEC-0017.json | JSON | 23 | 473d7279 |  |
+| 104 | P1 | config/quality_registry.schema.json | JSON | 265 | 0cb44223 |  |
+| 105 | P1 | deploy/alerts.yml | YAML | 70 | 03b321d7 |  |
+| 106 | P1 | deploy/prometheus.yml | YAML | 31 | 1bfcc7dc |  |
+| 107 | P1 | deploy/systemd/tradebot-api.service | Other text/source | 39 | e87631ec |  |
+| 108 | P1 | deploy/systemd/tradebot-worker.service | Other text/source | 36 | 792418f8 |  |
+| 109 | P1 | docs/ARCHITECTURE_GOVERNANCE.md | Markdown | 91 | 95e4b72b |  |
+| 110 | P1 | docs/CI_FAILURE_AUDIT.md | Markdown | 198 | 59d5cd73 |  |
+| 111 | P1 | docs/CLOUD_REVIEW.md | Markdown | 80 | a6658509 |  |
+| 112 | P1 | docs/KNOWLEDGE_GRAPH.md | Markdown | 54 | 913f979f |  |
+| 113 | P1 | docs/MATH_ARCHITECTURE.md | Markdown | 579 | 3cb282f8 |  |
+| 114 | P1 | docs/MATH_FOUNDATIONS.md | Markdown | 792 | 2e71b41f |  |
+| 115 | P1 | docs/MATH_ROADMAP.md | Markdown | 239 | 3780b490 |  |
+| 116 | P1 | docs/ORCHESTRATOR.md | Markdown | 11 | e73c0c57 |  |
+| 117 | P1 | docs/PTC_PATTERN.md | Markdown | 9 | 15fad706 |  |
+| 118 | P1 | docs/Quality-Engineering | Other text/source | 3154 | bcb840bb |  |
+| 119 | P1 | docs/REQUIRED_CHECKS.md | Markdown | 197 | 52ecdf75 |  |
+| 120 | P1 | docs/SCHEMA.md | Markdown | 172 | 38bde920 |  |
+| 121 | P1 | docs/adaptive_horizon_gap_list.md | Markdown | 150 | 0e6ad4f9 |  |
+| 122 | P1 | docs/agent/AGENT_EXECUTION_PROTOCOL.md | Markdown | 202 | 8941b4d5 |  |
+| 123 | P1 | docs/agent/AGENT_RELIABILITY.md | Markdown | 18 | 6534cb22 |  |
+| 124 | P1 | docs/agents/CODEX_SETUP.md | Markdown | 41 | e3485b59 |  |
+| 125 | P1 | docs/operations/DISASTER_RECOVERY.md | Markdown | 136 | 42fa88fb |  |
+| 126 | P1 | docs/ops/COMPLIANCE_CHECKLIST.md | Markdown | 65 | 73c203ea |  |
+| 127 | P1 | docs/ops/KEY_ROTATION.md | Markdown | 52 | 79a54c49 |  |
+| 128 | P1 | docs/ops/LIVE_PROMOTION_CHECKLIST.md | Markdown | 77 | 57d72ca9 |  |
+| 129 | P1 | docs/ops/REALTIME_GUI_PLAN.md | Markdown | 73 | f042d814 |  |
+| 130 | P1 | docs/ops/RUNBOOK.md | Markdown | 95 | 77bcd7d9 |  |
+| 131 | P1 | docs/quality/IMPLEMENTATION_PLAN.md | Markdown | 214 | cfd7fbbd |  |
+| 132 | P1 | docs/quality/MONEY_AND_TIME.md | Markdown | 147 | 688cc8a3 |  |
+| 133 | P1 | docs/quality/PRODUCTION_READINESS.md | Markdown | 112 | da760303 |  |
+| 134 | P1 | docs/quality/QUALITY_BASELINE.md | Markdown | 125 | bbc75e22 |  |
+| 135 | P1 | docs/quality/QUALITY_METRICS.md | Markdown | 122 | 386b71a5 |  |
+| 136 | P1 | docs/quality/QUALITY_POLICY.md | Markdown | 232 | 8c4629b8 |  |
+| 137 | P1 | docs/quality/REQUIREMENTS_TRACEABILITY.md | Markdown | 6031 | 355d391e |  |
+| 138 | P1 | docs/quality/ROOT_CAUSE_TEMPLATE.md | Markdown | 84 | a55b20e9 |  |
+| 139 | P1 | docs/quality/TEST_STRATEGY.md | Markdown | 254 | c6116534 |  |
+| 140 | P1 | docs/runtime/IMPLEMENTATION_MATRIX.md | Markdown | 79 | 7e5cd563 |  |
+| 141 | P1 | docs/runtime/INTEGRATION_AUDIT.md | Markdown | 165 | 4ad935f9 |  |
+| 142 | P1 | docs/security/GITHUB_SECURITY_CHECKLIST.md | Markdown | 191 | 84971b8c |  |
+| 143 | P1 | docs/security/INCIDENT_RESPONSE.md | Markdown | 167 | 938e0757 |  |
+| 144 | P1 | docs/security/KEY_MANAGEMENT.md | Markdown | 210 | cc3a60ea |  |
+| 145 | P1 | docs/security/SECURITY_POLICY.md | Markdown | 361 | 4d750b78 |  |
+| 146 | P1 | docs/security/claude-cloud-github-only.md | Markdown | 41 | de2c0e75 |  |
+| 147 | P1 | docs/terminal/OPERATIONS.md | Markdown | 204 | f1b999ca |  |
+| 148 | P1 | frontend/src/components/Controls.jsx | React JSX | 183 | 315bb378 |  |
+| 149 | P1 | frontend/src/components/Panel.jsx | React JSX | 111 | 2477557c |  |
+| 150 | P1 | frontend/src/components/StartupBanner.jsx | React JSX | 58 | 60b03901 |  |
+| 151 | P1 | frontend/src/components/StartupBanner.test.jsx | React JSX | 66 | ff10b727 |  |
+| 152 | P1 | frontend/src/components/panels/ApprovalsPanel.jsx | React JSX | 54 | 48c2aa54 |  |
+| 153 | P1 | frontend/src/components/panels/ConfigPanel.jsx | React JSX | 44 | e18dafd9 |  |
+| 154 | P1 | frontend/src/components/panels/ControlHubPanel.jsx | React JSX | 296 | bc07f39f |  |
+| 155 | P1 | frontend/src/components/panels/EquityChart.jsx | React JSX | 102 | a31e7cea |  |
+| 156 | P1 | frontend/src/components/panels/HorizonsPanel.jsx | React JSX | 143 | 403f4ef9 |  |
+| 157 | P1 | frontend/src/components/panels/MonitoringPanel.jsx | React JSX | 314 | ebe53364 |  |
+| 158 | P1 | frontend/src/components/panels/OperationsPanel.jsx | React JSX | 253 | 2c3383a0 |  |
+| 159 | P1 | frontend/src/components/panels/PositionsPanel.jsx | React JSX | 47 | 202c0d59 |  |
+| 160 | P1 | frontend/src/components/panels/RiskControlsPanel.jsx | React JSX | 82 | 1195487e |  |
+| 161 | P1 | frontend/src/components/panels/RuntimePanel.jsx | React JSX | 265 | 1fb0e507 |  |
+| 162 | P1 | frontend/src/components/panels/SelfTuningPanel.jsx | React JSX | 95 | 557e223c |  |
+| 163 | P1 | frontend/src/components/panels/StrategiesPanel.jsx | React JSX | 153 | 7e2040f5 |  |
+| 164 | P1 | frontend/src/components/panels/TradesPanel.jsx | React JSX | 99 | 5004c345 |  |
+| 165 | P1 | frontend/src/components/panels/VenuesPanel.jsx | React JSX | 149 | 1bf23f04 |  |
+| 166 | P1 | frontend/src/components/panels/VenuesPanel.test.jsx | React JSX | 178 | c9b499e7 |  |
+| 167 | P1 | frontend/src/components/panels/runtimeModel.js | JavaScript | 136 | c195e361 |  |
+| 168 | P1 | frontend/src/components/panels/runtimeModel.test.js | JavaScript | 169 | c5ee8889 |  |
+| 169 | P1 | frontend/src/components/terminal/ProcessCenter.jsx | React JSX | 203 | f65bdaf7 |  |
+| 170 | P1 | frontend/src/components/terminal/StatusBar.jsx | React JSX | 84 | aa7934c3 |  |
+| 171 | P1 | frontend/src/components/terminal/TerminalDock.jsx | React JSX | 278 | de57d2d0 |  |
+| 172 | P1 | frontend/src/components/terminal/XtermView.jsx | React JSX | 100 | 7249e029 |  |
+| 173 | P1 | frontend/src/components/terminal/terminalUi.test.jsx | React JSX | 520 | cacf81cd |  |
+| 174 | P1 | frontend/src/components/workspace/Workspace.grid.test.jsx | React JSX | 273 | ad4593c3 |  |
+| 175 | P1 | frontend/src/components/workspace/Workspace.jsx | React JSX | 119 | e63a327a |  |
+| 176 | P1 | frontend/src/components/workspace/Workspace.test.jsx | React JSX | 206 | 28440fb7 |  |
+| 177 | P1 | frontend/src/desktop/terminalBridge.test.js | JavaScript | 328 | d102da2d |  |
+| 178 | P1 | frontend/src/hooks/useApi.test.js | JavaScript | 442 | 1a2ca76f |  |
+| 179 | P1 | frontend/src/index.css | CSS | 949 | 0d23705b |  |
+| 180 | P1 | frontend/src/terminal/TerminalContext.jsx | React JSX | 234 | c43cd897 |  |
+| 181 | P1 | frontend/src/terminal/client.js | JavaScript | 326 | 97805d86 |  |
+| 182 | P1 | frontend/src/terminal/client.test.js | JavaScript | 391 | bcef5337 |  |
+| 183 | P1 | frontend/src/utils/format.js | JavaScript | 36 | 889e225a |  |
+| 184 | P1 | frontend/src/workspace/items.js | JavaScript | 30 | ae2ba77e |  |
+| 185 | P1 | frontend/src/workspace/layoutStore.js | JavaScript | 243 | 282ceb0b |  |
+| 186 | P1 | frontend/src/workspace/layoutStore.test.js | JavaScript | 348 | 8ca1d8f3 |  |
+| 187 | P1 | scripts/agent_control.py | Python | 23 | ea56814d |  |
+| 188 | P1 | scripts/apply_ci_patch.py | Python | 314 | 04ed146c |  |
+| 189 | P1 | scripts/apply_repo_ruleset.py | Python | 292 | d98183a7 |  |
+| 190 | P1 | scripts/arch_gate.sh | Shell | 94 | fc5f6d7c |  |
+| 191 | P1 | scripts/assert_jobs_green.py | Python | 151 | cdf5cb03 |  |
+| 192 | P1 | scripts/backfill.py | Python | 130 | 664b08bf |  |
+| 193 | P1 | scripts/check_coverage_floors.py | Python | 123 | 809921a0 |  |
+| 194 | P1 | scripts/check_model_artifacts.py | Python | 77 | 5e6268f1 |  |
+| 195 | P1 | scripts/check_mutation_score.py | Python | 259 | b6f0341e |  |
+| 196 | P1 | scripts/check_production_readiness.py | Python | 181 | 294a7458 |  |
+| 197 | P1 | scripts/check_static_invariants.py | Python | 1875 | 3324fc76 |  |
+| 198 | P1 | scripts/check_supply_chain.py | Python | 455 | 0e92c528 |  |
+| 199 | P1 | scripts/ci_diagnostics.py | Python | 1382 | 1d40b673 |  |
+| 200 | P1 | scripts/ci_verdict.py | Python | 43 | ede141de |  |
+| 201 | P1 | scripts/codebase_knowledge_index.py | Python | 418 | 26090ac2 |  |
+| 202 | P1 | scripts/codex_pr_handoff.py | Python | 227 | ceffaa47 |  |
+| 203 | P1 | scripts/codex_setup.sh | Shell | 13 | 924229a8 |  |
+| 204 | P1 | scripts/collect_quality_metrics.py | Python | 217 | 43f2c6af |  |
+| 205 | P1 | scripts/generate_math_docs.py | Python | 237 | 588d286e |  |
+| 206 | P1 | scripts/generate_quality_docs.py | Python | 254 | 9f851771 |  |
+| 207 | P1 | scripts/generate_signal_fixtures.py | Python | 89 | 4323a5f5 |  |
+| 208 | P1 | scripts/ingest_kg_repo.py | Python | 111 | bb5283cd |  |
+| 209 | P1 | scripts/ingest_missing.py | Python | 72 | b4ed4495 |  |
+| 210 | P1 | scripts/ingest_repo.py | Python | 123 | 2e2b64e3 |  |
+| 211 | P1 | scripts/install_push_wait_hook.sh | Shell | 16 | 7c2d0d6b |  |
+| 212 | P1 | scripts/local_checks.py | Python | 41 | 51b52a6b |  |
+| 213 | P1 | scripts/npm_audit_verdict.py | Python | 312 | 66e7c057 |  |
+| 214 | P1 | scripts/orchestration_template.py | Python | 81 | 592c1ba9 |  |
+| 215 | P1 | scripts/prfail | Other text/source | 8 | a7a3374f |  |
+| 216 | P1 | scripts/push_wait.py | Python | 361 | 83146728 |  |
+| 217 | P1 | scripts/rag_smoke.py | Python | 76 | 409e0d0d |  |
+| 218 | P1 | scripts/resolve_registry_merge.py | Python | 128 | 22fde313 |  |
+| 219 | P1 | scripts/startup_preflight.py | Python | 618 | 9a3520f1 |  |
+| 220 | P1 | scripts/timescaledb.sh | Shell | 115 | b847722f |  |
+| 221 | P1 | scripts/write_provenance.py | Python | 175 | 7bfe51d3 |  |
+| 222 | P1 | src/__init__.py | Python | 1 | 01ba4719 |  |
+| 223 | P1 | src/agent_control/__init__.py | Python | 33 | c4fc322b |  |
+| 224 | P1 | src/agent_control/branch_audit.py | Python | 373 | 682c7b6a |  |
+| 225 | P1 | src/agent_control/cli.py | Python | 500 | 4995ee3c |  |
+| 226 | P1 | src/agent_control/completion.py | Python | 236 | 0190908a |  |
+| 227 | P1 | src/agent_control/git_safety.py | Python | 469 | c4c95261 |  |
+| 228 | P1 | src/agent_control/gitstate.py | Python | 311 | cd4f8ff9 |  |
+| 229 | P1 | src/agent_control/hooks.py | Python | 186 | d0297aad |  |
+| 230 | P1 | src/agent_control/model.py | Python | 654 | ff6d3393 |  |
+| 231 | P1 | src/agent_control/reliability.py | Python | 347 | 41701a53 |  |
+| 232 | P1 | src/agent_control/store.py | Python | 152 | 4fac49db |  |
+| 233 | P1 | src/agent_control/workspace.py | Python | 730 | 9b88866f |  |
+| 234 | P1 | src/api/__init__.py | Python | 1 | 01ba4719 |  |
+| 235 | P1 | src/api/control_surface.py | Python | 599 | e8a7e59e |  |
+| 236 | P1 | src/api/error_hygiene.py | Python | 191 | e525a93b |  |
+| 237 | P1 | src/api/fail_closed.py | Python | 144 | 8c661a47 |  |
+| 238 | P1 | src/api/middleware.py | Python | 61 | 383ba9cb |  |
+| 239 | P1 | src/api/object_refs.py | Python | 118 | fd35ed74 |  |
+| 240 | P1 | src/api/operator_secret.py | Python | 58 | 8a2c0862 |  |
+| 241 | P1 | src/api/readiness.py | Python | 145 | 1ecadae2 |  |
+| 242 | P1 | src/api/runtime_control.py | Python | 444 | d6e49834 |  |
+| 243 | P1 | src/api/security_headers.py | Python | 119 | d65ab5d5 |  |
+| 244 | P1 | src/api/ws_guard.py | Python | 182 | 2355808a |  |
+| 245 | P1 | src/causal/__init__.py | Python | 1 | e9a9d97f |  |
+| 246 | P1 | src/causal/asset_gnn.py | Python | 265 | 27707e11 |  |
+| 247 | P1 | src/causal/dowhy_scm.py | Python | 151 | f070e580 |  |
+| 248 | P1 | src/causal/granger.py | Python | 169 | 175deb8e |  |
+| 249 | P1 | src/data/__init__.py | Python | 1 | 01ba4719 |  |
+| 250 | P1 | src/data/block_height_provider.py | Python | 69 | b283dd39 |  |
+| 251 | P1 | src/data/deribit_provider.py | Python | 149 | b075ffc8 |  |
+| 252 | P1 | src/data/duckdb_store.py | Python | 212 | f36225cf |  |
+| 253 | P1 | src/data/exchange_flow_provider.py | Python | 143 | b8960368 |  |
+| 254 | P1 | src/data/feeds.py | Python | 170 | e428e67b |  |
+| 255 | P1 | src/data/macro_provider.py | Python | 148 | 0b390045 |  |
+| 256 | P1 | src/data/orderbook_stream.py | Python | 392 | e5df56ed |  |
+| 257 | P1 | src/data/provider_cache.py | Python | 96 | 71eedd48 |  |
+| 258 | P1 | src/data/quality_gate.py | Python | 518 | 063d3d1d |  |
+| 259 | P1 | src/data/sentiment_provider.py | Python | 246 | 2134daa1 |  |
+| 260 | P1 | src/diagnostics/__init__.py | Python | 0 | e3b0c442 |  |
+| 261 | P1 | src/diagnostics/attribution.py | Python | 274 | 64391b74 |  |
+| 262 | P1 | src/diagnostics/audit_trail.py | Python | 193 | f890e29c |  |
+| 263 | P1 | src/diagnostics/behavioural_guard.py | Python | 177 | 08a77c56 |  |
+| 264 | P1 | src/diagnostics/decision_log_writer.py | Python | 65 | 27b315d9 |  |
+| 265 | P1 | src/diagnostics/decision_trace.py | Python | 170 | 5a492736 |  |
+| 266 | P1 | src/diagnostics/disaster_recovery.py | Python | 91 | 54f9957e |  |
+| 267 | P1 | src/diagnostics/failsafe_policy.py | Python | 241 | 6e4d0912 |  |
+| 268 | P1 | src/diagnostics/halt_triggers.py | Python | 228 | de941e38 |  |
+| 269 | P1 | src/diagnostics/instrumentation.py | Python | 178 | bd148cee |  |
+| 270 | P1 | src/diagnostics/metrics.py | Python | 243 | 08c13694 |  |
+| 271 | P1 | src/diagnostics/performance_baseline.py | Python | 215 | 3d567cf7 |  |
+| 272 | P1 | src/diagnostics/recovery_objectives.py | Python | 208 | 826b2e23 |  |
+| 273 | P1 | src/diagnostics/runtime_monitor.py | Python | 454 | 48f770a4 |  |
+| 274 | P1 | src/diagnostics/signal_debugger.py | Python | 605 | 7d7ad6dc |  |
+| 275 | P1 | src/diagnostics/startup_selftest.py | Python | 275 | 0843ed78 |  |
+| 276 | P1 | src/diagnostics/trade_auditor.py | Python | 291 | ed1d4d14 |  |
+| 277 | P1 | src/diagnostics/trade_journal.py | Python | 300 | 587984e7 |  |
+| 278 | P1 | src/ecc/__init__.py | Python | 7 | 3a876b3e |  |
+| 279 | P1 | src/ecc/ecdsa_scan.py | Python | 276 | 8ce33648 |  |
+| 280 | P1 | src/ecc/schnorr_taproot.py | Python | 176 | 87f5e5aa |  |
+| 281 | P1 | src/ecc/secp256k1_cluster.py | Python | 243 | 6ac11b95 |  |
+| 282 | P1 | src/ecc/utxo_curve.py | Python | 133 | 6a49ed41 |  |
+| 283 | P1 | src/ecc/zksnark_detect.py | Python | 233 | 4027603d |  |
+| 284 | P1 | src/engine/__init__.py | Python | 1 | 01ba4719 |  |
+| 285 | P1 | src/engine/crypto_box_adapter.py | Python | 72 | 7189101b |  |
+| 286 | P1 | src/engine/strategy_portfolio.py | Python | 759 | 8965b420 |  |
+| 287 | P1 | src/engine/universe_returns.py | Python | 318 | b7ecd613 |  |
+| 288 | P1 | src/engines/__init__.py | Python | 7 | 2334de46 |  |
+| 289 | P1 | src/engines/consensus.py | Python | 473 | 3df6652b |  |
+| 290 | P1 | src/engines/e01_statistical.py | Python | 106 | f7a2ddb9 |  |
+| 291 | P1 | src/engines/e02_microstructure.py | Python | 83 | 9d5ca1c3 |  |
+| 292 | P1 | src/engines/e03_information_theory.py | Python | 133 | 6964c9f3 |  |
+| 293 | P1 | src/engines/e04_fourier.py | Python | 107 | a67b15c4 |  |
+| 294 | P1 | src/engines/e05_onchain.py | Python | 81 | 812837cf |  |
+| 295 | P1 | src/engines/e06_fractal.py | Python | 114 | ae38ec5b |  |
+| 296 | P1 | src/engines/e07_linear_algebra.py | Python | 118 | 4ab056cd |  |
+| 297 | P1 | src/engines/e08_topology.py | Python | 138 | d609acdd |  |
+| 298 | P1 | src/engines/e09_ml_meta.py | Python | 117 | 8a68501b |  |
+| 299 | P1 | src/engines/e10_supply.py | Python | 210 | 53c6a665 |  |
+| 300 | P1 | src/engines/e11_stochastic.py | Python | 120 | 1a718bfa |  |
+| 301 | P1 | src/engines/e12_options.py | Python | 129 | 4994b42d |  |
+| 302 | P1 | src/engines/e13_contagion.py | Python | 161 | dd7483a4 |  |
+| 303 | P1 | src/engines/e14_sentiment.py | Python | 102 | 9da50a2c |  |
+| 304 | P1 | src/engines/e15_rl.py | Python | 162 | e333800a |  |
+| 305 | P1 | src/engines/e16_adversarial.py | Python | 107 | 0750cb5d |  |
+| 306 | P1 | src/engines/e17_liquidity.py | Python | 196 | 24bda7ed |  |
+| 307 | P1 | src/engines/e18_network.py | Python | 229 | 58dd9787 |  |
+| 308 | P1 | src/engines/orchestrator.py | Python | 491 | 64dd6147 |  |
+| 309 | P1 | src/engines/risk_quantifier.py | Python | 63 | aa5769e9 |  |
+| 310 | P1 | src/engines/schema.py | Python | 54 | 267f2836 |  |
+| 311 | P1 | src/engines/signal_gate.py | Python | 83 | 446f9b8d |  |
+| 312 | P1 | src/eventbus/__init__.py | Python | 32 | f081c744 |  |
+| 313 | P1 | src/eventbus/bus.py | Python | 374 | 8d7a0597 |  |
+| 314 | P1 | src/eventbus/envelope.py | Python | 123 | a6618b0d |  |
+| 315 | P1 | src/execution/__init__.py | Python | 1 | 01ba4719 |  |
+| 316 | P1 | src/execution/base.py | Python | 301 | 465ed694 |  |
+| 317 | P1 | src/execution/exchange_contract.py | Python | 320 | 56c3bfb7 |  |
+| 318 | P1 | src/execution/idempotency.py | Python | 322 | d983e8a7 |  |
+| 319 | P1 | src/execution/live_fsm_integration.py | Python | 128 | 65178552 |  |
+| 320 | P1 | src/execution/mode_persistence.py | Python | 110 | d236a952 |  |
+| 321 | P1 | src/execution/order_manager.py | Python | 585 | 59c1bdb9 |  |
+| 322 | P1 | src/execution/order_throttler.py | Python | 244 | eca0b181 |  |
+| 323 | P1 | src/execution/paper.py | Python | 1290 | 82f32d0e |  |
+| 324 | P1 | src/execution/post_trade.py | Python | 253 | 8c262d01 |  |
+| 325 | P1 | src/execution/rl_agent.py | Python | 227 | 35eb445b |  |
+| 326 | P1 | src/execution/router.py | Python | 477 | de93fab8 |  |
+| 327 | P1 | src/features/__init__.py | Python | 1 | 01ba4719 |  |
+| 328 | P1 | src/features/_rpc_auth.py | Python | 23 | 0a4a04ae |  |
+| 329 | P1 | src/features/derivatives.py | Python | 86 | 78bfc557 |  |
+| 330 | P1 | src/features/intelligence_features.py | Python | 112 | 085b269c |  |
+| 331 | P1 | src/features/mempool.py | Python | 86 | a2a9ed48 |  |
+| 332 | P1 | src/features/microstructure.py | Python | 173 | d890a99f |  |
+| 333 | P1 | src/features/nlp.py | Python | 136 | 3908a3e1 |  |
+| 334 | P1 | src/features/onchain.py | Python | 170 | 76c3050e |  |
+| 335 | P1 | src/features/selftest.py | Python | 63 | 5ec849fa |  |
+| 336 | P1 | src/fusion/__init__.py | Python | 1 | e2189aa2 |  |
+| 337 | P1 | src/fusion/cross_attention.py | Python | 73 | c6b4c784 |  |
+| 338 | P1 | src/fusion/horizon_decision.py | Python | 156 | 9b8ff647 |  |
+| 339 | P1 | src/fusion/meta_network.py | Python | 171 | 4cbe2231 |  |
+| 340 | P1 | src/intel.py | Python | 981 | 0fd4ca30 |  |
+| 341 | P1 | src/intelligence/__init__.py | Python | 17 | ef4aa7e7 |  |
+| 342 | P1 | src/intelligence/calibration.py | Python | 135 | 001de498 |  |
+| 343 | P1 | src/intelligence/ensemble_predictor.py | Python | 1147 | 0144addd |  |
+| 344 | P1 | src/intelligence/intelligence_adapter.py | Python | 170 | 172003ac |  |
+| 345 | P1 | src/intelligence/lstm_runtime.py | Python | 16 | 39702e4d |  |
+| 346 | P1 | src/intelligence/macro_indicators.py | Python | 147 | a2289d90 |  |
+| 347 | P1 | src/intelligence/macro_regime.py | Python | 79 | 24c6581b |  |
+| 348 | P1 | src/intelligence/metrics.py | Python | 299 | fde9d2d5 |  |
+| 349 | P1 | src/intelligence/onchain/__init__.py | Python | 52 | b9e4092b |  |
+| 350 | P1 | src/intelligence/onchain/arkham_provider.py | Python | 212 | 40b46602 |  |
+| 351 | P1 | src/intelligence/onchain/base.py | Python | 342 | 5550fb78 |  |
+| 352 | P1 | src/intelligence/onchain/coinglass_provider.py | Python | 268 | 3d92fb16 |  |
+| 353 | P1 | src/intelligence/onchain/cryptoquant_provider.py | Python | 252 | b6f58249 |  |
+| 354 | P1 | src/intelligence/onchain/defillama_provider.py | Python | 150 | d9972608 |  |
+| 355 | P1 | src/intelligence/onchain/dune_provider.py | Python | 231 | 6a599bec |  |
+| 356 | P1 | src/intelligence/onchain/schema.py | Python | 209 | 1be2b779 |  |
+| 357 | P1 | src/intelligence/probabilistic.py | Python | 470 | 97810560 |  |
+| 358 | P1 | src/intelligence/probabilistic_adapter.py | Python | 227 | 5ad14f75 |  |
+| 359 | P1 | src/intelligence/providers/__init__.py | Python | 10 | 074320c3 |  |
+| 360 | P1 | src/intelligence/providers/aggregator.py | Python | 519 | a725e32a |  |
+| 361 | P1 | src/intelligence/providers/base.py | Python | 163 | b95a55df |  |
+| 362 | P1 | src/intelligence/providers/binance_provider.py | Python | 516 | ccb41578 |  |
+| 363 | P1 | src/intelligence/providers/blockchain_provider.py | Python | 198 | e5fab90a |  |
+| 364 | P1 | src/intelligence/providers/bybit_provider.py | Python | 395 | d6be355f |  |
+| 365 | P1 | src/intelligence/providers/coingecko_provider.py | Python | 195 | 979017a8 |  |
+| 366 | P1 | src/intelligence/providers/okx_provider.py | Python | 393 | abe65a9d |  |
+| 367 | P1 | src/intelligence/risk_quantification.py | Python | 384 | 8bbab425 |  |
+| 368 | P1 | src/logging_setup.py | Python | 205 | 1359d18b |  |
+| 369 | P1 | src/mathcore/__init__.py | Python | 38 | dab340e0 |  |
+| 370 | P1 | src/mathcore/coding/__init__.py | Python | 18 | a49debd1 |  |
+| 371 | P1 | src/mathcore/coding/mds.py | Python | 175 | d438d481 |  |
+| 372 | P1 | src/mathcore/coding/reed_solomon.py | Python | 159 | d050f357 |  |
+| 373 | P1 | src/mathcore/commitments/__init__.py | Python | 25 | 4340087a |  |
+| 374 | P1 | src/mathcore/commitments/merkle.py | Python | 149 | df33035e |  |
+| 375 | P1 | src/mathcore/constants/__init__.py | Python | 25 | ac48354d |  |
+| 376 | P1 | src/mathcore/constants/nutms.py | Python | 226 | c650a454 |  |
+| 377 | P1 | src/mathcore/curves/__init__.py | Python | 40 | f8561580 |  |
+| 378 | P1 | src/mathcore/curves/bls12_381.py | Python | 396 | 601d10fa |  |
+| 379 | P1 | src/mathcore/curves/ed25519.py | Python | 300 | 22d50707 |  |
+| 380 | P1 | src/mathcore/curves/secp256k1.py | Python | 355 | bdbb98a3 |  |
+| 381 | P1 | src/mathcore/derivation/__init__.py | Python | 73 | 0393fc16 |  |
+| 382 | P1 | src/mathcore/derivation/bip32.py | Python | 552 | 77d14b8a |  |
+| 383 | P1 | src/mathcore/derivation/nonces.py | Python | 165 | 885f0e28 |  |
+| 384 | P1 | src/mathcore/derivation/threshold.py | Python | 419 | d2cce1eb |  |
+| 385 | P1 | src/mathcore/fields/__init__.py | Python | 64 | 33acce4e |  |
+| 386 | P1 | src/mathcore/fields/binary_field.py | Python | 241 | 894369cc |  |
+| 387 | P1 | src/mathcore/fields/interpolation.py | Python | 128 | f50fa25a |  |
+| 388 | P1 | src/mathcore/fields/ntt.py | Python | 223 | 929b7cc0 |  |
+| 389 | P1 | src/mathcore/fields/prime_field.py | Python | 357 | 8c7553dd |  |
+| 390 | P1 | src/mathcore/folklore/__init__.py | Python | 31 | e11fec32 |  |
+| 391 | P1 | src/mathcore/folklore/detectors.py | Python | 115 | d592f589 |  |
+| 392 | P1 | src/mathcore/folklore/gate.py | Python | 181 | 8aaf7205 |  |
+| 393 | P1 | src/mathcore/harmonic/__init__.py | Python | 46 | 2e912222 |  |
+| 394 | P1 | src/mathcore/harmonic/fft_spectral.py | Python | 135 | 3ecd676d |  |
+| 395 | P1 | src/mathcore/harmonic/gaussian_lattice.py | Python | 194 | 3ae41450 |  |
+| 396 | P1 | src/mathcore/harmonic/walsh_hadamard.py | Python | 121 | ae89832f |  |
+| 397 | P1 | src/mathcore/lattice/__init__.py | Python | 29 | 673d893c |  |
+| 398 | P1 | src/mathcore/lattice/hnp.py | Python | 212 | 484bc27e |  |
+| 399 | P1 | src/mathcore/lattice/lll.py | Python | 378 | 301a0c44 |  |
+| 400 | P1 | src/mathcore/numbertheory/__init__.py | Python | 96 | b52a8621 |  |
+| 401 | P1 | src/mathcore/numbertheory/continued_fractions.py | Python | 104 | bbced475 |  |
+| 402 | P1 | src/mathcore/numbertheory/crt.py | Python | 168 | b5cc86b0 |  |
+| 403 | P1 | src/mathcore/numbertheory/dlp_bounds.py | Python | 109 | c203bc1e |  |
+| 404 | P1 | src/mathcore/numbertheory/factorization.py | Python | 191 | b43fde74 |  |
+| 405 | P1 | src/mathcore/numbertheory/primality.py | Python | 315 | 49bc9f93 |  |
+| 406 | P1 | src/mathcore/numbertheory/residues.py | Python | 185 | 3d0aef64 |  |
+| 407 | P1 | src/mathcore/numbertheory/safe_primes.py | Python | 272 | f1a5ddc4 |  |
+| 408 | P1 | src/mathcore/probability/__init__.py | Python | 43 | 3fd3ff8b |  |
+| 409 | P1 | src/mathcore/probability/birthday.py | Python | 114 | f1a4ce90 |  |
+| 410 | P1 | src/mathcore/probability/committee.py | Python | 147 | 8dad34ad |  |
+| 411 | P1 | src/mathcore/probability/confirmations.py | Python | 149 | 66daa523 |  |
+| 412 | P1 | src/mathcore/probability/entropy.py | Python | 117 | ef87ac22 |  |
+| 413 | P1 | src/mathcore/probability/reorg.py | Python | 105 | b911aed0 |  |
+| 414 | P1 | src/mathcore/quantum/__init__.py | Python | 53 | 25b7e2d2 |  |
+| 415 | P1 | src/mathcore/quantum/grover.py | Python | 188 | aaa9a864 |  |
+| 416 | P1 | src/mathcore/quantum/shor.py | Python | 302 | 934fb820 |  |
+| 417 | P1 | src/mathcore/registry.py | Python | 446 | 1130480a |  |
+| 418 | P1 | src/models/__init__.py | Python | 1 | 01ba4719 |  |
+| 419 | P1 | src/models/architectures.py | Python | 130 | b313c2fa |  |
+| 420 | P1 | src/models/bert_head.py | Python | 39 | a1dcbcbc |  |
+| 421 | P1 | src/models/cnn.py | Python | 66 | a6d9f953 |  |
+| 422 | P1 | src/models/conformer.py | Python | 117 | a3047bc1 |  |
+| 423 | P1 | src/models/ecc_head.py | Python | 54 | ac47a72a |  |
+| 424 | P1 | src/models/gnn_head.py | Python | 91 | ac22cb11 |  |
+| 425 | P1 | src/models/gru.py | Python | 66 | 35715555 |  |
+| 426 | P1 | src/models/horizon_backfill.py | Python | 191 | 601be0d0 |  |
+| 427 | P1 | src/models/horizon_config.py | Python | 57 | ad98174b |  |
+| 428 | P1 | src/models/horizon_learning.py | Python | 1024 | 08b1b96d |  |
+| 429 | P1 | src/models/horizon_mlp.py | Python | 338 | b2a1e523 |  |
+| 430 | P1 | src/models/leakage.py | Python | 216 | 57616983 |  |
+| 431 | P1 | src/models/lstm.py | Python | 51 | 5fcb6568 |  |
+| 432 | P1 | src/models/mlp.py | Python | 56 | d79a5eb1 |  |
+| 433 | P1 | src/models/nbeats.py | Python | 146 | 0545b607 |  |
+| 434 | P1 | src/models/patchtst.py | Python | 97 | 3e54578b |  |
+| 435 | P1 | src/models/provenance.py | Python | 364 | 51d1d0d6 |  |
+| 436 | P1 | src/models/tcn.py | Python | 125 | a502f868 |  |
+| 437 | P1 | src/models/tft.py | Python | 126 | 84df07bb |  |
+| 438 | P1 | src/quality/__init__.py | Python | 27 | 56d5dfc7 |  |
+| 439 | P1 | src/quality/registry.py | Python | 615 | a9299732 |  |
+| 440 | P1 | src/regime/__init__.py | Python | 1 | 01ba4719 |  |
+| 441 | P1 | src/regime/changepoint.py | Python | 148 | f8b8485e |  |
+| 442 | P1 | src/regime/depth_detector_v2.py | Python | 392 | 3ba8ec54 |  |
+| 443 | P1 | src/regime/ensemble.py | Python | 84 | f77f8654 |  |
+| 444 | P1 | src/regime/garch.py | Python | 246 | 5224e26a |  |
+| 445 | P1 | src/resource_limits.py | Python | 13 | 92f2ac75 |  |
+| 446 | P1 | src/risk/__init__.py | Python | 1 | 01ba4719 |  |
+| 447 | P1 | src/risk/capital_preservation_floor.py | Python | 206 | 1ef3c083 |  |
+| 448 | P1 | src/risk/cognitive_engine.py | Python | 887 | c7cb7324 |  |
+| 449 | P1 | src/risk/conflict_resolver.py | Python | 116 | 04e15a2d |  |
+| 450 | P1 | src/risk/drift_integration.py | Python | 122 | 71fb03cb |  |
+| 451 | P1 | src/risk/execution_cost.py | Python | 196 | ddd00f62 |  |
+| 452 | P1 | src/risk/gate.py | Python | 168 | 5438888d |  |
+| 453 | P1 | src/risk/greeks.py | Python | 108 | f7560515 |  |
+| 454 | P1 | src/risk/kelly.py | Python | 862 | c9b80486 |  |
+| 455 | P1 | src/risk/macro_exposure_budget.py | Python | 180 | c73111ed |  |
+| 456 | P1 | src/risk/paper_qualification.py | Python | 326 | 5e8a2f12 |  |
+| 457 | P1 | src/risk/performance_drift.py | Python | 608 | 8c979d65 |  |
+| 458 | P1 | src/risk/portfolio_agreement.py | Python | 170 | 4581c82a |  |
+| 459 | P1 | src/risk/portfolio_correlation.py | Python | 322 | a1a5f506 |  |
+| 460 | P1 | src/risk/slippage.py | Python | 227 | f8525b31 |  |
+| 461 | P1 | src/risk/state_persistence.py | Python | 71 | 6dddbf97 |  |
+| 462 | P1 | src/risk/strategy_correlation.py | Python | 108 | 2d26d59b |  |
+| 463 | P1 | src/risk/strategy_decay.py | Python | 71 | 40d00f5d |  |
+| 464 | P1 | src/risk/strategy_kill_switch.py | Python | 541 | 6dc9fb70 |  |
+| 465 | P1 | src/risk/vol_target_sizer.py | Python | 307 | 824d087b |  |
+| 466 | P1 | src/runtime/__init__.py | Python | 27 | 8fa60c2b |  |
+| 467 | P1 | src/runtime/adapters.py | Python | 730 | 930db9da |  |
+| 468 | P1 | src/runtime/adaptive.py | Python | 341 | 49379dd1 |  |
+| 469 | P1 | src/runtime/classification.py | Python | 78 | 9bf41945 |  |
+| 470 | P1 | src/runtime/controllers.py | Python | 244 | 1f6ecb90 |  |
+| 471 | P1 | src/runtime/dependencies.py | Python | 237 | a8e6fe3d |  |
+| 472 | P1 | src/runtime/events.py | Python | 82 | d1b1ee54 |  |
+| 473 | P1 | src/runtime/horizon_models.py | Python | 258 | 40b63730 |  |
+| 474 | P1 | src/runtime/persistence.py | Python | 223 | 3d2debe2 |  |
+| 475 | P1 | src/runtime/reconcile.py | Python | 303 | e3ebc015 |  |
+| 476 | P1 | src/runtime/registry.py | Python | 537 | c2307736 |  |
+| 477 | P1 | src/runtime/supervisor.py | Python | 457 | cea0191c |  |
+| 478 | P1 | src/security/__init__.py | Python | 12 | dcb2545c |  |
+| 479 | P1 | src/security/api_signer.py | Python | 290 | 9107adb1 |  |
+| 480 | P1 | src/security/at_rest.py | Python | 152 | 95820b10 |  |
+| 481 | P1 | src/security/constant_time.py | Python | 137 | 5577b1ef |  |
+| 482 | P1 | src/security/credential_vault.py | Python | 141 | 1e55c122 |  |
+| 483 | P1 | src/security/exchange_key_posture.py | Python | 213 | 7bdcd7b4 |  |
+| 484 | P1 | src/security/key_lifecycle.py | Python | 180 | 62b00db2 |  |
+| 485 | P1 | src/security/pq_transport.py | Python | 131 | f4eb4fea |  |
+| 486 | P1 | src/security/randomness.py | Python | 115 | d626d758 |  |
+| 487 | P1 | src/security/ssrf.py | Python | 296 | 32e6a3a8 |  |
+| 488 | P1 | src/security/tls.py | Python | 121 | fcbd50b2 |  |
+| 489 | P1 | src/strategies/__init__.py | Python | 0 | e3b0c442 |  |
+| 490 | P1 | src/strategies/basis_trade.py | Python | 116 | adffe19c |  |
+| 491 | P1 | src/strategies/breakout.py | Python | 106 | dddeb580 |  |
+| 492 | P1 | src/strategies/capital_allocator.py | Python | 289 | 6420c963 |  |
+| 493 | P1 | src/strategies/cross_exchange_arb.py | Python | 88 | 87eaa25e |  |
+| 494 | P1 | src/strategies/filters.py | Python | 621 | 18fc5c6b |  |
+| 495 | P1 | src/strategies/funding_carry.py | Python | 103 | ffb40e4c |  |
+| 496 | P1 | src/strategies/mean_reversion.py | Python | 130 | 13464d4f |  |
+| 497 | P1 | src/strategies/options_carry.py | Python | 170 | ccb47143 |  |
+| 498 | P1 | src/strategies/position_sizing.py | Python | 437 | 2de26394 |  |
+| 499 | P1 | src/strategies/regime_strategy_selector.py | Python | 273 | 13bdbe81 |  |
+| 500 | P1 | src/strategies/signal_engine_adapter.py | Python | 63 | 762dcb31 |  |
+| 501 | P1 | src/strategies/xsec_momentum.py | Python | 91 | a1adb1b6 |  |
+| 502 | P1 | src/terminal/__init__.py | Python | 22 | f18c9e3b |  |
+| 503 | P1 | src/terminal/__main__.py | Python | 10 | 155cb5e6 |  |
+| 504 | P1 | src/terminal/auth.py | Python | 98 | 01b5dabc |  |
+| 505 | P1 | src/terminal/buffer.py | Python | 62 | ff135249 |  |
+| 506 | P1 | src/terminal/cli.py | Python | 806 | 90f61f53 |  |
+| 507 | P1 | src/terminal/client.py | Python | 132 | 9dd1534e |  |
+| 508 | P1 | src/terminal/config.py | Python | 339 | 1a2b741a |  |
+| 509 | P1 | src/terminal/install.py | Python | 246 | eb7c4fb6 |  |
+| 510 | P1 | src/terminal/jobs.py | Python | 150 | 7e534013 |  |
+| 511 | P1 | src/terminal/markers.py | Python | 133 | 433c6475 |  |
+| 512 | P1 | src/terminal/procfs.py | Python | 138 | 8d50fef6 |  |
+| 513 | P1 | src/terminal/registry.py | Python | 268 | c26222ec |  |
+| 514 | P1 | src/terminal/sessions.py | Python | 747 | f0492a9f |  |
+| 515 | P1 | src/terminal/shell_integration.py | Python | 82 | c00ef3b4 |  |
+| 516 | P1 | src/tuning/__init__.py | Python | 9 | bef3b3ff |  |
+| 517 | P1 | src/tuning/audit.py | Python | 142 | 2be43241 |  |
+| 518 | P1 | src/tuning/backtest_harness.py | Python | 697 | 3aff84bf |  |
+| 519 | P1 | src/tuning/bayesian_proposer.py | Python | 106 | a627571c |  |
+| 520 | P1 | src/tuning/bootstrap.py | Python | 368 | a02f4e2a |  |
+| 521 | P1 | src/tuning/engine_backtest.py | Python | 352 | 98595ed1 |  |
+| 522 | P1 | src/tuning/evaluator.py | Python | 284 | 209c597d |  |
+| 523 | P1 | src/tuning/factor_search.py | Python | 164 | 87889afc |  |
+| 524 | P1 | src/tuning/gate.py | Python | 113 | eed4dd5c |  |
+| 525 | P1 | src/tuning/live_overrides.py | Python | 178 | 7dfe7bea |  |
+| 526 | P1 | src/tuning/meta_allocator.py | Python | 173 | 959d64f2 |  |
+| 527 | P1 | src/tuning/promotion_gauntlet.py | Python | 140 | c5ddaf51 |  |
+| 528 | P1 | src/tuning/proposer.py | Python | 74 | ac1d5607 |  |
+| 529 | P1 | src/tuning/redteam_scheduler.py | Python | 63 | 0fbe8723 |  |
+| 530 | P1 | src/tuning/registry.py | Python | 170 | fc917aa4 |  |
+| 531 | P1 | src/tuning/runner.py | Python | 352 | 43d993ab |  |
+| 532 | P1 | src/tuning/state.py | Python | 113 | 3bbf0ea6 |  |
+| 533 | P1 | src/tuning/store.py | Python | 208 | b74a8cb4 |  |
+| 534 | P1 | src/tuning/stress_simulator.py | Python | 109 | 18d69055 |  |
+| 535 | P1 | src/tuning/watchdog.py | Python | 205 | fc8dd98a |  |
+| 536 | P1 | src/upgrade/__init__.py | Python | 0 | e3b0c442 |  |
+| 537 | P1 | src/upgrade/maml.py | Python | 181 | 270e0de0 |  |
+| 538 | P1 | src/upgrade/optuna_wf.py | Python | 229 | 326f0f0b |  |
+| 539 | P1 | src/upgrade/registry.py | Python | 246 | 7d7848e1 |  |
+| 540 | P1 | src/upgrade/shadow_deploy.py | Python | 304 | 96f01c41 |  |
+| 541 | P1 | src/workers/__init__.py | Python | 1 | ee15cb65 |  |
+| 542 | P1 | src/workers/__main__.py | Python | 12 | b2b41fb1 |  |
+| 543 | P1 | tests/agent_control/__init__.py | Python | 0 | e3b0c442 |  |
+| 544 | P1 | tests/agent_control/conftest.py | Python | 123 | 8bce4f3e |  |
+| 545 | P1 | tests/agent_control/test_branch_audit.py | Python | 277 | ce70050a |  |
+| 546 | P1 | tests/agent_control/test_cli.py | Python | 310 | 63625b96 |  |
+| 547 | P1 | tests/agent_control/test_completion.py | Python | 323 | 85e4eca9 |  |
+| 548 | P1 | tests/agent_control/test_git_safety.py | Python | 257 | b8a4eb59 |  |
+| 549 | P1 | tests/agent_control/test_gitstate.py | Python | 279 | 5910e557 |  |
+| 550 | P1 | tests/agent_control/test_hooks.py | Python | 224 | 2de9ab66 |  |
+| 551 | P1 | tests/agent_control/test_model.py | Python | 471 | b7fdd280 |  |
+| 552 | P1 | tests/agent_control/test_reliability.py | Python | 334 | b107e7a1 |  |
+| 553 | P1 | tests/agent_control/test_store.py | Python | 148 | 3d540971 |  |
+| 554 | P1 | tests/agent_control/test_workspace.py | Python | 354 | 57897d20 |  |
+| 555 | P1 | tests/api/__init__.py | Python | 0 | e3b0c442 |  |
+| 556 | P1 | tests/api/test_api_runtime_hardening.py | Python | 249 | 8b45f349 |  |
+| 557 | P1 | tests/api/test_authz_and_secrets.py | Python | 310 | 2d9141d3 |  |
+| 558 | P1 | tests/api/test_error_hygiene.py | Python | 288 | 749686a5 |  |
+| 559 | P1 | tests/api/test_fail_closed_controls.py | Python | 181 | f3a5af5f |  |
+| 560 | P1 | tests/api/test_injection_and_rate_limiting.py | Python | 283 | 7dc17358 |  |
+| 561 | P1 | tests/api/test_kill_switch_durability.py | Python | 179 | 3a3e06b8 |  |
+| 562 | P1 | tests/api/test_security_headers.py | Python | 225 | f136203f |  |
+| 563 | P1 | tests/api/test_ssrf_protection.py | Python | 271 | 15bdd0f3 |  |
+| 564 | P1 | tests/api/test_websocket_frame_guard.py | Python | 258 | a13bf930 |  |
+| 565 | P1 | tests/authentication/__init__.py | Python | 0 | e3b0c442 |  |
+| 566 | P1 | tests/authentication/test_api_authentication.py | Python | 207 | 7fd81d32 |  |
+| 567 | P1 | tests/authorization/__init__.py | Python | 0 | e3b0c442 |  |
+| 568 | P1 | tests/authorization/test_authorization_matrix.py | Python | 194 | 23135614 |  |
+| 569 | P1 | tests/authorization/test_object_references.py | Python | 183 | fe2a77b6 |  |
+| 570 | P1 | tests/component/__init__.py | Python | 0 | e3b0c442 |  |
+| 571 | P1 | tests/component/test_clock_policy.py | Python | 164 | 2b63ae2d |  |
+| 572 | P1 | tests/component/test_data_quality_gate.py | Python | 525 | 46ede58d |  |
+| 573 | P1 | tests/component/test_money_representation.py | Python | 231 | 44d8855e |  |
+| 574 | P1 | tests/conftest.py | Python | 358 | 65b337e1 |  |
+| 575 | P1 | tests/contract/__init__.py | Python | 0 | e3b0c442 |  |
+| 576 | P1 | tests/contract/test_exchange_order_contract.py | Python | 251 | 2aa268d2 |  |
+| 577 | P1 | tests/engines/__init__.py | Python | 0 | e3b0c442 |  |
+| 578 | P1 | tests/engines/test_adapter_wiring.py | Python | 70 | 4916ed8a |  |
+| 579 | P1 | tests/engines/test_backtest.py | Python | 126 | 3107dc69 |  |
+| 580 | P1 | tests/engines/test_backtest_runners.py | Python | 231 | 58c8a2f7 |  |
+| 581 | P1 | tests/engines/test_consensus.py | Python | 264 | 96a251ef |  |
+| 582 | P1 | tests/engines/test_consensus_edges.py | Python | 158 | 8b8e3146 |  |
+| 583 | P1 | tests/engines/test_crypto_box_adapter.py | Python | 89 | 27cb79da |  |
+| 584 | P1 | tests/engines/test_data_providers.py | Python | 140 | 9a498339 |  |
+| 585 | P1 | tests/engines/test_data_providers_extended.py | Python | 216 | 44d294fb |  |
+| 586 | P1 | tests/engines/test_depth_detector_v2.py | Python | 162 | 8942ee1b |  |
+| 587 | P1 | tests/engines/test_deribit_provider.py | Python | 159 | 65db1beb |  |
+| 588 | P1 | tests/engines/test_e17_orderbook_and_scale.py | Python | 116 | deedd476 |  |
+| 589 | P1 | tests/engines/test_engine_guard_and_error_paths.py | Python | 624 | f0ecef2f |  |
+| 590 | P1 | tests/engines/test_engine_paths.py | Python | 847 | 9db4e39c |  |
+| 591 | P1 | tests/engines/test_engines_unit.py | Python | 881 | 6d4479a7 |  |
+| 592 | P1 | tests/engines/test_flow_and_height_providers.py | Python | 198 | 4f67b2aa |  |
+| 593 | P1 | tests/engines/test_manipulation_and_liquidity.py | Python | 236 | 983733cc |  |
+| 594 | P1 | tests/engines/test_orchestrator.py | Python | 151 | 29a619eb |  |
+| 595 | P1 | tests/engines/test_provider_cache.py | Python | 73 | 8885885f |  |
+| 596 | P1 | tests/engines/test_risk_quantifier.py | Python | 55 | 4fa24690 |  |
+| 597 | P1 | tests/engines/test_schema.py | Python | 44 | e8c4e0f2 |  |
+| 598 | P1 | tests/engines/test_security.py | Python | 147 | 50513634 |  |
+| 599 | P1 | tests/engines/test_sentiment_provider.py | Python | 295 | c915faf0 |  |
+| 600 | P1 | tests/engines/test_signal_gate.py | Python | 72 | 09d639bd |  |
+| 601 | P1 | tests/engines/test_supply_and_quality.py | Python | 127 | 6a9dd379 |  |
+| 602 | P1 | tests/execution/__init__.py | Python | 0 | e3b0c442 |  |
+| 603 | P1 | tests/execution/test_idempotency_end_to_end.py | Python | 251 | 80e6ae28 |  |
+| 604 | P1 | tests/execution/test_order_fsm_totality.py | Python | 255 | e76f01d1 |  |
+| 605 | P1 | tests/execution/test_venue_precision.py | Python | 195 | ae997cde |  |
+| 606 | P1 | tests/features/__init__.py | Python | 0 | e3b0c442 |  |
+| 607 | P1 | tests/features/test_closed_bar_inference.py | Python | 47 | 03bdc756 |  |
+| 608 | P1 | tests/features/test_feature_determinism.py | Python | 220 | 3fb9be0c |  |
+| 609 | P1 | tests/fixtures/signals/BTCUSDT_15m_case_001.json | JSON | 63 | 5da10c05 |  |
+| 610 | P1 | tests/fixtures/signals/BTCUSDT_15m_case_002.json | JSON | 63 | 413041da |  |
+| 611 | P1 | tests/fixtures/signals/BTCUSDT_15m_case_003.json | JSON | 63 | 270784b7 |  |
+| 612 | P1 | tests/fixtures/signals/ETHUSDT_15m_case_001.json | JSON | 64 | 1bc7bdcf |  |
+| 613 | P1 | tests/fixtures/signals/ETHUSDT_15m_case_002.json | JSON | 43 | 044b27e5 |  |
+| 614 | P1 | tests/fixtures/signals/ETHUSDT_15m_case_003.json | JSON | 45 | 75426f64 |  |
+| 615 | P1 | tests/fuzz/__init__.py | Python | 0 | e3b0c442 |  |
+| 616 | P1 | tests/fuzz/test_malformed_input_is_safe.py | Python | 291 | 14090dac |  |
+| 617 | P1 | tests/intelligence/__init__.py | Python | 0 | e3b0c442 |  |
+| 618 | P1 | tests/intelligence/onchain/__init__.py | Python | 0 | e3b0c442 |  |
+| 619 | P1 | tests/intelligence/onchain/test_arkham_provider.py | Python | 261 | 3dd22d48 |  |
+| 620 | P1 | tests/intelligence/onchain/test_base.py | Python | 147 | e7044b9f |  |
+| 621 | P1 | tests/intelligence/onchain/test_coinglass_provider.py | Python | 335 | 871462a7 |  |
+| 622 | P1 | tests/intelligence/onchain/test_cryptoquant_provider.py | Python | 316 | b41b126d |  |
+| 623 | P1 | tests/intelligence/onchain/test_defillama_provider.py | Python | 204 | f2874f66 |  |
+| 624 | P1 | tests/intelligence/onchain/test_dune_provider.py | Python | 341 | aebdcec9 |  |
+| 625 | P1 | tests/intelligence/onchain/test_onchain_aggregator_integration.py | Python | 207 | 646628db |  |
+| 626 | P1 | tests/intelligence/onchain/test_onchain_gating.py | Python | 118 | b94ff04b |  |
+| 627 | P1 | tests/intelligence/onchain/test_schema.py | Python | 206 | 967643ca |  |
+| 628 | P1 | tests/models/__init__.py | Python | 0 | e3b0c442 |  |
+| 629 | P1 | tests/models/test_cpcv_purging.py | Python | 180 | 16aaebcd |  |
+| 630 | P1 | tests/models/test_lookahead.py | Python | 273 | bfd4bced |  |
+| 631 | P1 | tests/models/test_model_artifacts.py | Python | 237 | da56233f |  |
+| 632 | P1 | tests/models/test_model_drift_demotion.py | Python | 245 | 023b0416 |  |
+| 633 | P1 | tests/models/test_model_provenance.py | Python | 413 | 40defb51 |  |
+| 634 | P1 | tests/models/test_model_safety.py | Python | 180 | 2f832c68 |  |
+| 635 | P1 | tests/models/test_research_firewall.py | Python | 256 | 5159015e |  |
+| 636 | P1 | tests/performance/__init__.py | Python | 0 | e3b0c442 |  |
+| 637 | P1 | tests/performance/test_performance_baselines.py | Python | 242 | b07c795b |  |
+| 638 | P1 | tests/portfolio/__init__.py | Python | 0 | e3b0c442 |  |
+| 639 | P1 | tests/portfolio/test_portfolio_limits.py | Python | 252 | f6326b7b |  |
+| 640 | P1 | tests/production/__init__.py | Python | 0 | e3b0c442 |  |
+| 641 | P1 | tests/production/test_behavioural_guard.py | Python | 155 | 2451908c |  |
+| 642 | P1 | tests/production/test_halt_triggers.py | Python | 176 | 49c26802 |  |
+| 643 | P1 | tests/production/test_production_gate.py | Python | 234 | d6689ce7 |  |
+| 644 | P1 | tests/production/test_startup_selftest.py | Python | 188 | 665c9c6b |  |
+| 645 | P1 | tests/property/__init__.py | Python | 0 | e3b0c442 |  |
+| 646 | P1 | tests/property/test_position_sizing_properties.py | Python | 245 | 50ec596c |  |
+| 647 | P1 | tests/pyg_stub.py | Python | 74 | 9ec25dff |  |
+| 648 | P1 | tests/qualification/__init__.py | Python | 0 | e3b0c442 |  |
+| 649 | P1 | tests/qualification/test_paper_qualification.py | Python | 392 | a3ab1642 |  |
+| 650 | P1 | tests/qualification/test_self_tuning_firewall.py | Python | 194 | c9f96225 |  |
+| 651 | P1 | tests/quality/__init__.py | Python | 0 | e3b0c442 |  |
+| 652 | P1 | tests/quality/test_qe_id_allocation.py | Python | 226 | 926782b5 |  |
+| 653 | P1 | tests/quality/test_qe_skill.py | Python | 360 | 6a619c67 |  |
+| 654 | P1 | tests/quality/test_quality_docs_in_sync.py | Python | 87 | 48d7db3a |  |
+| 655 | P1 | tests/quality/test_quality_registry.py | Python | 828 | 892bb036 |  |
+| 656 | P1 | tests/quality/test_quality_registry_schema.py | Python | 271 | 329f5bb4 |  |
+| 657 | P1 | tests/quality/test_registry_entry_files.py | Python | 160 | 40ff2b53 |  |
+| 658 | P1 | tests/recovery/__init__.py | Python | 0 | e3b0c442 |  |
+| 659 | P1 | tests/recovery/test_chaos_suite.py | Python | 173 | ead89296 |  |
+| 660 | P1 | tests/recovery/test_concurrency_races.py | Python | 202 | 431870be |  |
+| 661 | P1 | tests/recovery/test_crash_replay.py | Python | 245 | ca6bb263 |  |
+| 662 | P1 | tests/recovery/test_failsafe_policy.py | Python | 167 | 1af08f6a |  |
+| 663 | P1 | tests/recovery/test_recovery_objectives.py | Python | 198 | 00a98f52 |  |
+| 664 | P1 | tests/regime/__init__.py | Python | 0 | e3b0c442 |  |
+| 665 | P1 | tests/regime/test_garch.py | Python | 148 | 8a4195c0 |  |
+| 666 | P1 | tests/regression/__init__.py | Python | 0 | e3b0c442 |  |
+| 667 | P1 | tests/regression/test_ci_failure_locks.py | Python | 67 | 6c0933bb |  |
+| 668 | P1 | tests/regression/test_halts_drift_failclosed.py | Python | 193 | caf02ccc |  |
+| 669 | P1 | tests/regression/test_metrics_payload.py | Python | 120 | 094976c7 |  |
+| 670 | P1 | tests/regression/test_phase6_math_strategy_lows.py | Python | 163 | b2ced63e |  |
+| 671 | P1 | tests/regression/test_regression_registry_contract.py | Python | 432 | 013a9f37 |  |
+| 672 | P1 | tests/regression/unraisable.py | Python | 19 | 8f8b1064 |  |
+| 673 | P1 | tests/required_import.py | Python | 22 | 14788dee |  |
+| 674 | P1 | tests/risk/__init__.py | Python | 0 | e3b0c442 |  |
+| 675 | P1 | tests/risk/test_probability_bounds.py | Python | 137 | a3b65a78 |  |
+| 676 | P1 | tests/risk/test_risk_limit_boundaries.py | Python | 300 | 37b9b36e |  |
+| 677 | P1 | tests/runtime/__init__.py | Python | 0 | e3b0c442 |  |
+| 678 | P1 | tests/runtime/_production.py | Python | 128 | bb4e5d02 |  |
+| 679 | P1 | tests/runtime/_support.py | Python | 126 | df465141 |  |
+| 680 | P1 | tests/runtime/conftest.py | Python | 12 | 8b454b0c |  |
+| 681 | P1 | tests/runtime/test_adaptive_lifecycle.py | Python | 196 | b074db7e |  |
+| 682 | P1 | tests/runtime/test_bounded_control_plane.py | Python | 121 | 06cd3bec |  |
+| 683 | P1 | tests/runtime/test_capabilities.py | Python | 81 | b97da1aa |  |
+| 684 | P1 | tests/runtime/test_causal_tracing.py | Python | 191 | f4f60285 |  |
+| 685 | P1 | tests/runtime/test_change_authorization.py | Python | 74 | 37958ed3 |  |
+| 686 | P1 | tests/runtime/test_change_manager.py | Python | 172 | 53304d88 |  |
+| 687 | P1 | tests/runtime/test_concurrency.py | Python | 70 | 3b3fc64f |  |
+| 688 | P1 | tests/runtime/test_continuous_reconciliation.py | Python | 246 | db640638 |  |
+| 689 | P1 | tests/runtime/test_contracts.py | Python | 205 | bcdfaada |  |
+| 690 | P1 | tests/runtime/test_controller_contracts.py | Python | 208 | a16e4161 |  |
+| 691 | P1 | tests/runtime/test_decide_lifecycle_atomic.py | Python | 51 | 090078e2 |  |
+| 692 | P1 | tests/runtime/test_dependencies.py | Python | 73 | 3e5fe2b2 |  |
+| 693 | P1 | tests/runtime/test_dependency_cycles.py | Python | 59 | 9c9ed6f7 |  |
+| 694 | P1 | tests/runtime/test_desired_state.py | Python | 156 | 1a6f8e00 |  |
+| 695 | P1 | tests/runtime/test_engine_tracing.py | Python | 165 | 6f6e13d9 |  |
+| 696 | P1 | tests/runtime/test_failure_injection.py | Python | 204 | 149ddccb |  |
+| 697 | P1 | tests/runtime/test_impact_analysis.py | Python | 91 | ba6dd5c1 |  |
+| 698 | P1 | tests/runtime/test_integration.py | Python | 118 | 861b84cd |  |
+| 699 | P1 | tests/runtime/test_lifecycle.py | Python | 98 | 53c2bc30 |  |
+| 700 | P1 | tests/runtime/test_production_controllers.py | Python | 210 | 9f0ce0c6 |  |
+| 701 | P1 | tests/runtime/test_production_runtime.py | Python | 312 | 67f5b0db |  |
+| 702 | P1 | tests/runtime/test_promotion_gates.py | Python | 30 | 11cc41e1 |  |
+| 703 | P1 | tests/runtime/test_reconciliation.py | Python | 133 | 0da8ef79 |  |
+| 704 | P1 | tests/runtime/test_recovery.py | Python | 104 | 05e3dcba |  |
+| 705 | P1 | tests/runtime/test_registry.py | Python | 216 | 9d20d15a |  |
+| 706 | P1 | tests/runtime/test_registry_adapters.py | Python | 228 | b36d5369 |  |
+| 707 | P1 | tests/runtime/test_registry_identity.py | Python | 87 | 84d0a300 |  |
+| 708 | P1 | tests/runtime/test_registry_resync.py | Python | 217 | 1e61af91 |  |
+| 709 | P1 | tests/runtime/test_rollback.py | Python | 84 | 1d543635 |  |
+| 710 | P1 | tests/runtime/test_rollout.py | Python | 128 | b69600b3 |  |
+| 711 | P1 | tests/runtime/test_runtime_endpoints.py | Python | 315 | f9e3e601 |  |
+| 712 | P1 | tests/runtime/test_runtime_loop_resilience.py | Python | 184 | 878f7724 |  |
+| 713 | P1 | tests/runtime/test_runtime_safety.py | Python | 340 | 7b3cb9d3 |  |
+| 714 | P1 | tests/runtime/test_runtime_state.py | Python | 47 | 2bd44e1f |  |
+| 715 | P1 | tests/runtime/test_supervisor_failures.py | Python | 124 | e3c6ab66 |  |
+| 716 | P1 | tests/runtime/test_supervisors.py | Python | 220 | fc8b9145 |  |
+| 717 | P1 | tests/security/__init__.py | Python | 0 | e3b0c442 |  |
+| 718 | P1 | tests/security/test_at_rest_encryption.py | Python | 180 | bffe6f38 |  |
+| 719 | P1 | tests/security/test_audit_chain_tamper_evidence.py | Python | 213 | c38f3d7d |  |
+| 720 | P1 | tests/security/test_exchange_key_posture.py | Python | 199 | 903dc8cc |  |
+| 721 | P1 | tests/security/test_filelock_cve_floor.py | Python | 48 | 6349f915 |  |
+| 722 | P1 | tests/security/test_gitignore_secret_files.py | Python | 109 | 0b6a69d2 |  |
+| 723 | P1 | tests/security/test_key_lifecycle.py | Python | 164 | c9167446 |  |
+| 724 | P1 | tests/security/test_no_custom_primitives.py | Python | 231 | f46e5ca8 |  |
+| 725 | P1 | tests/security/test_npm_audit_fix_available_gate.py | Python | 368 | 85de0d16 |  |
+| 726 | P1 | tests/security/test_operator_credential_identity.py | Python | 194 | 4b749964 |  |
+| 727 | P1 | tests/security/test_randomness_and_tls.py | Python | 238 | 43a0cb62 |  |
+| 728 | P1 | tests/security/test_secret_leak_provocation.py | Python | 134 | d1d4041f |  |
+| 729 | P1 | tests/security/test_signing_and_constant_time.py | Python | 230 | 0cf7fdfc |  |
+| 730 | P1 | tests/security/test_ssrf_pinning.py | Python | 148 | 2bc41703 |  |
+| 731 | P1 | tests/security/test_urllib3_cve_floor.py | Python | 47 | 48687978 |  |
+| 732 | P1 | tests/signals/__init__.py | Python | 0 | e3b0c442 |  |
+| 733 | P1 | tests/signals/golden.py | Python | 321 | 7d6fc493 |  |
+| 734 | P1 | tests/signals/test_golden_signals.py | Python | 166 | a7893a63 |  |
+| 735 | P1 | tests/supply_chain/__init__.py | Python | 0 | e3b0c442 |  |
+| 736 | P1 | tests/supply_chain/test_artifact_provenance.py | Python | 162 | 9c1cf238 |  |
+| 737 | P1 | tests/supply_chain/test_container_posture.py | Python | 177 | c88c57a9 |  |
+| 738 | P1 | tests/supply_chain/test_supply_chain_posture.py | Python | 466 | 8025b432 |  |
+| 739 | P1 | tests/terminal/__init__.py | Python | 0 | e3b0c442 |  |
+| 740 | P1 | tests/terminal/_support.py | Python | 350 | 06109a83 |  |
+| 741 | P1 | tests/terminal/conftest.py | Python | 50 | b7931e73 |  |
+| 742 | P1 | tests/terminal/test_terminal_cli.py | Python | 925 | 90b4baf0 |  |
+| 743 | P1 | tests/terminal/test_terminal_host.py | Python | 366 | 95dd691a |  |
+| 744 | P1 | tests/terminal/test_terminal_install_jobs.py | Python | 301 | 2cc29f89 |  |
+| 745 | P1 | tests/terminal/test_terminal_marker_nonce.py | Python | 96 | ced1e3f7 |  |
+| 746 | P1 | tests/terminal/test_terminal_markers_buffer.py | Python | 104 | 9e5c40b8 |  |
+| 747 | P1 | tests/terminal/test_terminal_protocol.py | Python | 161 | 57c8c650 |  |
+| 748 | P1 | tests/terminal/test_terminal_registry.py | Python | 167 | 54ed8244 |  |
+| 749 | P1 | tests/terminal/test_terminal_server.py | Python | 540 | e767a615 |  |
+| 750 | P1 | tests/terminal/test_terminal_sessions.py | Python | 609 | a122ed34 |  |
+| 751 | P1 | tests/test_access_control.py | Python | 57 | 504259f9 |  |
+| 752 | P1 | tests/test_access_control_wiring.py | Python | 143 | 64d001ec |  |
+| 753 | P1 | tests/test_agent_reliability_boundary.py | Python | 39 | e9e2d4ba |  |
+| 754 | P1 | tests/test_api_and_fsm_coverage.py | Python | 176 | b0cfe603 |  |
+| 755 | P1 | tests/test_api_auth_middleware.py | Python | 234 | 33be5fe7 |  |
+| 756 | P1 | tests/test_api_dunder_main.py | Python | 49 | b2a7da69 |  |
+| 757 | P1 | tests/test_api_main_coverage.py | Python | 1692 | 63bc6969 |  |
+| 758 | P1 | tests/test_api_main_edges.py | Python | 252 | 6f78dc0c |  |
+| 759 | P1 | tests/test_api_main_endpoints_coverage.py | Python | 574 | f277e80f |  |
+| 760 | P1 | tests/test_api_operations_endpoints.py | Python | 203 | fae70eb8 |  |
+| 761 | P1 | tests/test_api_role_enforcement.py | Python | 174 | 4e7cff8d |  |
+| 762 | P1 | tests/test_api_signer_audit.py | Python | 182 | d1bd2d90 |  |
+| 763 | P1 | tests/test_api_terminal_jobs.py | Python | 196 | 6297ede6 |  |
+| 764 | P1 | tests/test_apply_ci_patch.py | Python | 109 | 43624da5 |  |
+| 765 | P1 | tests/test_apply_repo_ruleset.py | Python | 288 | e1799986 |  |
+| 766 | P1 | tests/test_arch_baseline_is_current.py | Python | 83 | f3fc9289 |  |
+| 767 | P1 | tests/test_arch_ignore_scoping.py | Python | 119 | 6efb0e60 |  |
+| 768 | P1 | tests/test_architecture_layers.py | Python | 181 | 954aa9c3 |  |
+| 769 | P1 | tests/test_assert_jobs_green.py | Python | 244 | e9cbd0ce |  |
+| 770 | P1 | tests/test_attribution.py | Python | 267 | 79185ed1 |  |
+| 771 | P1 | tests/test_audit_chain_integrity_endpoint.py | Python | 167 | eeb84b92 |  |
+| 772 | P1 | tests/test_audit_trail.py | Python | 81 | ce39ac7b |  |
+| 773 | P1 | tests/test_audit_trail_bounded.py | Python | 87 | 7f027a79 |  |
+| 774 | P1 | tests/test_basis_trade.py | Python | 141 | 91778723 |  |
+| 775 | P1 | tests/test_binary_field.py | Python | 279 | f9f3d0af |  |
+| 776 | P1 | tests/test_bip32.py | Python | 673 | c15f0915 |  |
+| 777 | P1 | tests/test_birthday.py | Python | 134 | 90ef283f |  |
+| 778 | P1 | tests/test_bls12_381.py | Python | 170 | 29a4e941 |  |
+| 779 | P1 | tests/test_breakout.py | Python | 98 | 3c5fc7a8 |  |
+| 780 | P1 | tests/test_calibration.py | Python | 114 | 2514e0b9 |  |
+| 781 | P1 | tests/test_capital_allocator.py | Python | 303 | a5e4e9e9 |  |
+| 782 | P1 | tests/test_capital_allocator_edges.py | Python | 154 | 5e5831b6 |  |
+| 783 | P1 | tests/test_capital_preservation_floor.py | Python | 128 | daacb978 |  |
+| 784 | P1 | tests/test_causal_asset_gnn.py | Python | 114 | e3a52934 |  |
+| 785 | P1 | tests/test_causal_asset_gnn_pyg.py | Python | 104 | 3c1cb42d |  |
+| 786 | P1 | tests/test_causal_dowhy_scm.py | Python | 125 | 7eb0139c |  |
+| 787 | P1 | tests/test_causal_modules.py | Python | 230 | 22908e3e |  |
+| 788 | P1 | tests/test_changepoint.py | Python | 123 | e4fefb9a |  |
+| 789 | P1 | tests/test_ci_diagnostics.py | Python | 462 | ac1855cc |  |
+| 790 | P1 | tests/test_ci_diagnostics_log_unavailable.py | Python | 117 | a5b82fb8 |  |
+| 791 | P1 | tests/test_ci_diagnostics_never_self_blocks.py | Python | 169 | 006fd261 |  |
+| 792 | P1 | tests/test_ci_failure_notify_workflow.py | Python | 54 | de207c83 |  |
+| 793 | P1 | tests/test_ci_log_access.py | Python | 320 | 71f874d0 |  |
+| 794 | P1 | tests/test_ci_notice_supersession.py | Python | 65 | e65d0b45 |  |
+| 795 | P1 | tests/test_ci_workflow_cost.py | Python | 235 | fb0a0315 |  |
+| 796 | P1 | tests/test_codebase_knowledge_index.py | Python | 216 | d45bbe00 |  |
+| 797 | P1 | tests/test_codex_pr_handoff.py | Python | 296 | 38f498d9 |  |
+| 798 | P1 | tests/test_coding.py | Python | 176 | c980e95b |  |
+| 799 | P1 | tests/test_cognitive_engine.py | Python | 700 | 0e658cfe |  |
+| 800 | P1 | tests/test_command_schema_policy.py | Python | 382 | 09d4ee2e |  |
+| 801 | P1 | tests/test_common_claude_cli.py | Python | 129 | 4eaba7c6 |  |
+| 802 | P1 | tests/test_config.py | Python | 164 | 7cbfdba0 |  |
+| 803 | P1 | tests/test_config_feature_settings.py | Python | 28 | 980e84d3 |  |
+| 804 | P1 | tests/test_config_strategy_field.py | Python | 54 | bf6fe6b9 |  |
+| 805 | P1 | tests/test_confirmations.py | Python | 195 | c2e28bc8 |  |
+| 806 | P1 | tests/test_constant_time_timing.py | Python | 114 | 3d301fe7 |  |
+| 807 | P1 | tests/test_control_surface.py | Python | 333 | f51e1b27 |  |
+| 808 | P1 | tests/test_control_write.py | Python | 239 | 605c0718 |  |
+| 809 | P1 | tests/test_coverage_boost.py | Python | 446 | a3a83684 |  |
+| 810 | P1 | tests/test_coverage_boost2.py | Python | 381 | 17688dc5 |  |
+| 811 | P1 | tests/test_coverage_boost3.py | Python | 698 | f82bf714 |  |
+| 812 | P1 | tests/test_coverage_boost4.py | Python | 311 | 14997aa1 |  |
+| 813 | P1 | tests/test_coverage_boost5.py | Python | 572 | 7908050d |  |
+| 814 | P1 | tests/test_coverage_boost6.py | Python | 196 | 3ab4d6b6 |  |
+| 815 | P1 | tests/test_coverage_floor_regressions.py | Python | 190 | f7631c1b |  |
+| 816 | P1 | tests/test_coverage_mid_batch.py | Python | 254 | 94b0772c |  |
+| 817 | P1 | tests/test_cross_exchange_arb.py | Python | 105 | 74948a3a |  |
+| 818 | P1 | tests/test_crt.py | Python | 236 | dd77ffd3 |  |
+| 819 | P1 | tests/test_crypto_architect_skill.py | Python | 362 | 44989297 |  |
+| 820 | P1 | tests/test_crypto_intel_main.py | Python | 166 | c76abb0b |  |
+| 821 | P1 | tests/test_crypto_intel_signal_path.py | Python | 753 | afc5a394 |  |
+| 822 | P1 | tests/test_crypto_intel_v6_coverage.py | Python | 832 | f6d4dbdd |  |
+| 823 | P1 | tests/test_crypto_predictor_regressions.py | Python | 209 | daa0bf5b |  |
+| 824 | P1 | tests/test_cvar_notional_cap.py | Python | 142 | 8fd8fa91 |  |
+| 825 | P1 | tests/test_daily_drawdown_open_loss.py | Python | 71 | c75ce563 |  |
+| 826 | P1 | tests/test_data_duckdb_feeds.py | Python | 172 | 2d8520e8 |  |
+| 827 | P1 | tests/test_data_feeds.py | Python | 185 | a92d3aff |  |
+| 828 | P1 | tests/test_data_intel_low_findings.py | Python | 205 | 35abfa2b |  |
+| 829 | P1 | tests/test_data_layer_dat_fixes.py | Python | 587 | 91715320 |  |
+| 830 | P1 | tests/test_decision_log_wiring.py | Python | 170 | a348027d |  |
+| 831 | P1 | tests/test_decision_log_writer.py | Python | 81 | afa3c7c2 |  |
+| 832 | P1 | tests/test_deploy_workflow_inputs.py | Python | 32 | 3dfd4520 |  |
+| 833 | P1 | tests/test_depth_detector_v2_edges.py | Python | 278 | 71edf3f0 |  |
+| 834 | P1 | tests/test_detector.py | Python | 538 | bfd78fe3 |  |
+| 835 | P1 | tests/test_diagnostic_route_boundary.py | Python | 82 | 15394b75 |  |
+| 836 | P1 | tests/test_diagnostics_instrumentation.py | Python | 152 | 9fdf13b6 |  |
+| 837 | P1 | tests/test_disaster_recovery.py | Python | 67 | 7fae5b13 |  |
+| 838 | P1 | tests/test_disaster_recovery_wiring.py | Python | 242 | 4433f963 |  |
+| 839 | P1 | tests/test_drift_gate_wiring.py | Python | 157 | 37d1a317 |  |
+| 840 | P1 | tests/test_drift_integration_coverage.py | Python | 121 | 4e121733 |  |
+| 841 | P1 | tests/test_duckdb_path_is_per_worker.py | Python | 64 | 0f155e82 |  |
+| 842 | P1 | tests/test_ecc.py | Python | 152 | e7daca12 |  |
+| 843 | P1 | tests/test_ecc_curve_boundary.py | Python | 95 | c9449358 |  |
+| 844 | P1 | tests/test_ecc_node_rpc.py | Python | 195 | 8d8fb128 |  |
+| 845 | P1 | tests/test_ecc_schnorr_taproot.py | Python | 128 | 16eae3a6 |  |
+| 846 | P1 | tests/test_ecc_secp256k1_cluster.py | Python | 173 | f9b10a30 |  |
+| 847 | P1 | tests/test_ecc_worker_pipeline.py | Python | 270 | 7754331d |  |
+| 848 | P1 | tests/test_ecdsa_scan_coverage.py | Python | 128 | 997c9ce3 |  |
+| 849 | P1 | tests/test_ecdsa_scanner_bounded.py | Python | 86 | 79208487 |  |
+| 850 | P1 | tests/test_ed25519.py | Python | 378 | 9a3cca13 |  |
+| 851 | P1 | tests/test_engine_signal_plumbing_fixes.py | Python | 151 | 011aca61 |  |
+| 852 | P1 | tests/test_engines_e01_statistical.py | Python | 126 | 11b40a3e |  |
+| 853 | P1 | tests/test_ensemble_blend_tuning.py | Python | 212 | 21a48168 |  |
+| 854 | P1 | tests/test_ensemble_failure_semantics.py | Python | 206 | 212f0fb6 |  |
+| 855 | P1 | tests/test_ensemble_predictor.py | Python | 722 | 891200d6 |  |
+| 856 | P1 | tests/test_ensemble_sequence_inputs.py | Python | 227 | 2aeaeb55 |  |
+| 857 | P1 | tests/test_ensemble_train_timeout.py | Python | 117 | 85944e5a |  |
+| 858 | P1 | tests/test_entropy.py | Python | 126 | 4d8517ca |  |
+| 859 | P1 | tests/test_env_example_documents_required_settings.py | Python | 71 | b753314c |  |
+| 860 | P1 | tests/test_event_bus.py | Python | 361 | 7a4f5b8c |  |
+| 861 | P1 | tests/test_event_bus_producers.py | Python | 149 | 6bf17c29 |  |
+| 862 | P1 | tests/test_event_bus_producers_observability.py | Python | 449 | 4c65d24b |  |
+| 863 | P1 | tests/test_event_bus_producers_remaining.py | Python | 168 | 46f506e2 |  |
+| 864 | P1 | tests/test_event_loop_acquisition.py | Python | 58 | 9f6f4687 |  |
+| 865 | P1 | tests/test_exec_accounting_fixes.py | Python | 200 | e5fb8d4b |  |
+| 866 | P1 | tests/test_exec_idempotency_fills.py | Python | 151 | f6942dfd |  |
+| 867 | P1 | tests/test_execution_cost.py | Python | 106 | 683acb8b |  |
+| 868 | P1 | tests/test_execution_rl_agent.py | Python | 290 | 2a31e273 |  |
+| 869 | P1 | tests/test_execution_router_coverage.py | Python | 359 | 1f942832 |  |
+| 870 | P1 | tests/test_execution_router_rl_posttrade.py | Python | 216 | 9fb3e905 |  |
+| 871 | P1 | tests/test_executor_fee_accounting.py | Python | 166 | 5e010a48 |  |
+| 872 | P1 | tests/test_executor_residual_paths.py | Python | 311 | c0a4b51b |  |
+| 873 | P1 | tests/test_exr018_approval_requeue.py | Python | 170 | fa85eba0 |  |
+| 874 | P1 | tests/test_factor_search.py | Python | 90 | a3a7b85e |  |
+| 875 | P1 | tests/test_feature_bar_gaps.py | Python | 108 | f161a476 |  |
+| 876 | P1 | tests/test_feature_derivatives_nlp_tft.py | Python | 147 | a355cee7 |  |
+| 877 | P1 | tests/test_feature_microstructure_mempool.py | Python | 182 | debc1a72 |  |
+| 878 | P1 | tests/test_features.py | Python | 664 | 3975b3a6 |  |
+| 879 | P1 | tests/test_features_mempool.py | Python | 99 | 0377f860 |  |
+| 880 | P1 | tests/test_features_nlp.py | Python | 154 | 92fb571d |  |
+| 881 | P1 | tests/test_features_onchain.py | Python | 125 | f0b5ac42 |  |
+| 882 | P1 | tests/test_fetcher_coverage.py | Python | 978 | 030ef2a5 |  |
+| 883 | P1 | tests/test_fetcher_retry_jitter.py | Python | 97 | c46c0cc0 |  |
+| 884 | P1 | tests/test_fetcher_symbol_precision.py | Python | 94 | fef0ec91 |  |
+| 885 | P1 | tests/test_fetcher_venue_degradation.py | Python | 195 | 505ce832 |  |
+| 886 | P1 | tests/test_folklore_gate.py | Python | 213 | 3c91b2db |  |
+| 887 | P1 | tests/test_frontend_audit_scope.py | Python | 190 | 3ee1a873 |  |
+| 888 | P1 | tests/test_funding_carry.py | Python | 101 | cc7256d7 |  |
+| 889 | P1 | tests/test_gap015_backfill.py | Python | 397 | 158bc562 |  |
+| 890 | P1 | tests/test_gap015_intelligence_training.py | Python | 150 | 5f0a0cbc |  |
+| 891 | P1 | tests/test_garch_unit.py | Python | 194 | 3803a805 |  |
+| 892 | P1 | tests/test_gates_advisory_scalar_aggregation.py | Python | 106 | e6e333c5 |  |
+| 893 | P1 | tests/test_gates_non_finite.py | Python | 273 | 6711fbaa |  |
+| 894 | P1 | tests/test_gaussian_lattice.py | Python | 176 | 91e52ba7 |  |
+| 895 | P1 | tests/test_github_route_contract.py | Python | 428 | 41661832 |  |
+| 896 | P1 | tests/test_granger_detector.py | Python | 113 | 5e6ab530 |  |
+| 897 | P1 | tests/test_greeks.py | Python | 86 | 4fa249eb |  |
+| 898 | P1 | tests/test_greeks_caps_wiring.py | Python | 165 | 110864bf |  |
+| 899 | P1 | tests/test_harmonic_spectral.py | Python | 164 | 18e9a936 |  |
+| 900 | P1 | tests/test_hnp.py | Python | 261 | e9d9fc6b |  |
+| 901 | P1 | tests/test_horizon_backfill.py | Python | 239 | bde9dded |  |
+| 902 | P1 | tests/test_horizon_decision.py | Python | 154 | c16ccaca |  |
+| 903 | P1 | tests/test_horizon_mlp.py | Python | 1382 | 4fc46c8c |  |
+| 904 | P1 | tests/test_horizon_order_gate.py | Python | 251 | 7fe72d77 |  |
+| 905 | P1 | tests/test_horizon_promotion.py | Python | 397 | 6a9b3a5d |  |
+| 906 | P1 | tests/test_horizon_risk_context.py | Python | 49 | 49a2ce74 |  |
+| 907 | P1 | tests/test_horizon_runtime.py | Python | 281 | 45c98138 |  |
+| 908 | P1 | tests/test_horizons.py | Python | 242 | 62a918a8 |  |
+| 909 | P1 | tests/test_horizons_endpoint.py | Python | 179 | e9ba0580 |  |
+| 910 | P1 | tests/test_idempotency.py | Python | 449 | 064037c3 |  |
+| 911 | P1 | tests/test_ingest_keeps_previous_index.py | Python | 147 | ea50b2bc |  |
+| 912 | P1 | tests/test_instrumentation.py | Python | 230 | 98bd4609 |  |
+| 913 | P1 | tests/test_integration_full_pipeline.py | Python | 291 | f49fa5aa |  |
+| 914 | P1 | tests/test_intelligence_adapter.py | Python | 189 | 5ebab68c |  |
+| 915 | P1 | tests/test_intelligence_audit_fixes.py | Python | 469 | 9ef6146a |  |
+| 916 | P1 | tests/test_intelligence_client_coverage.py | Python | 727 | 286ee16b |  |
+| 917 | P1 | tests/test_intelligence_dead_code_and_stress_dedup.py | Python | 63 | 12bf053d |  |
+| 918 | P1 | tests/test_intelligence_features_coverage.py | Python | 145 | cbdab333 |  |
+| 919 | P1 | tests/test_intelligence_metrics.py | Python | 243 | 40c73454 |  |
+| 920 | P1 | tests/test_intelligence_persistence.py | Python | 140 | 8843cc8d |  |
+| 921 | P1 | tests/test_intelligence_providers.py | Python | 1661 | b42994fc |  |
+| 922 | P1 | tests/test_intelligence_runtime_wiring.py | Python | 43 | d52a6e91 |  |
+| 923 | P1 | tests/test_interpolation.py | Python | 120 | 674a369b |  |
+| 924 | P1 | tests/test_kelly.py | Python | 828 | 6bdb8135 |  |
+| 925 | P1 | tests/test_kelly_gaps.py | Python | 501 | 854b752d |  |
+| 926 | P1 | tests/test_kelly_notional_cap.py | Python | 187 | 04389fe0 |  |
+| 927 | P1 | tests/test_kelly_size_scalar.py | Python | 128 | d4e2d987 |  |
+| 928 | P1 | tests/test_kg_assemble.py | Python | 64 | 088181c4 |  |
+| 929 | P1 | tests/test_kg_db.py | Python | 46 | 3102007c |  |
+| 930 | P1 | tests/test_kg_extract.py | Python | 30 | 0c00023b |  |
+| 931 | P1 | tests/test_kg_ingest.py | Python | 22 | d89b5d91 |  |
+| 932 | P1 | tests/test_kg_query.py | Python | 79 | da67c39b |  |
+| 933 | P1 | tests/test_kg_resolve.py | Python | 37 | ff9b7ea5 |  |
+| 934 | P1 | tests/test_kg_subgraph_shared.py | Python | 38 | 7f49f94b |  |
+| 935 | P1 | tests/test_law12_cipher_suite_pattern.py | Python | 97 | a4f90962 |  |
+| 936 | P1 | tests/test_live_additional_coverage.py | Python | 339 | bf9479b0 |  |
+| 937 | P1 | tests/test_live_executor_coverage.py | Python | 1059 | 4fa3f581 |  |
+| 938 | P1 | tests/test_live_executor_fsm.py | Python | 298 | 641021d5 |  |
+| 939 | P1 | tests/test_live_fill_quantity.py | Python | 94 | 6099f076 |  |
+| 940 | P1 | tests/test_live_fsm_integration.py | Python | 164 | 38096cc5 |  |
+| 941 | P1 | tests/test_live_settings.py | Python | 212 | 05dec3e5 |  |
+| 942 | P1 | tests/test_lll.py | Python | 396 | fc3c3cad |  |
+| 943 | P1 | tests/test_local_checks.py | Python | 64 | fb3a418a |  |
+| 944 | P1 | tests/test_logging_setup.py | Python | 101 | f0decaf8 |  |
+| 945 | P1 | tests/test_low_findings_regressions.py | Python | 249 | 43bc08f4 |  |
+| 946 | P1 | tests/test_lowest_covered_modules.py | Python | 231 | cde4a13f |  |
+| 947 | P1 | tests/test_macro_exposure_budget.py | Python | 56 | 6cea4259 |  |
+| 948 | P1 | tests/test_macro_exposure_budget_check.py | Python | 96 | eaf0edf4 |  |
+| 949 | P1 | tests/test_macro_exposure_wiring.py | Python | 132 | 06d72fc1 |  |
+| 950 | P1 | tests/test_macro_indicators.py | Python | 126 | b8615e60 |  |
+| 951 | P1 | tests/test_macro_provider_coverage.py | Python | 180 | ee3722ad |  |
+| 952 | P1 | tests/test_macro_regime.py | Python | 47 | 0f37b396 |  |
+| 953 | P1 | tests/test_math_registry.py | Python | 512 | d1a14f6d |  |
+| 954 | P1 | tests/test_math_strategies_audit_fixes.py | Python | 422 | 7d962559 |  |
+| 955 | P1 | tests/test_mean_reversion.py | Python | 159 | af359f2b |  |
+| 956 | P1 | tests/test_merge_queue_wiring.py | Python | 115 | aae98bf8 |  |
+| 957 | P1 | tests/test_merkle.py | Python | 131 | a18482ab |  |
+| 958 | P1 | tests/test_meta_allocator.py | Python | 163 | ecc97eaa |  |
+| 959 | P1 | tests/test_meta_network_loss.py | Python | 181 | 52c11624 |  |
+| 960 | P1 | tests/test_metrics.py | Python | 128 | fe796cce |  |
+| 961 | P1 | tests/test_mode_persistence_atomic_failure.py | Python | 42 | 19916925 |  |
+| 962 | P1 | tests/test_model_architectures.py | Python | 96 | 9784974a |  |
+| 963 | P1 | tests/test_model_eval_leakage.py | Python | 249 | 3e1259aa |  |
+| 964 | P1 | tests/test_model_feature_columns_by_name.py | Python | 188 | 0c6d2c0f |  |
+| 965 | P1 | tests/test_model_loading_integrity.py | Python | 86 | 5279f9b5 |  |
+| 966 | P1 | tests/test_model_registry.py | Python | 114 | 8cffe584 |  |
+| 967 | P1 | tests/test_model_registry_promotion_gate.py | Python | 60 | 60154e3f |  |
+| 968 | P1 | tests/test_model_trainer_coverage.py | Python | 1207 | 26caf70f |  |
+| 969 | P1 | tests/test_models_gnn_head.py | Python | 41 | ff4a7fe2 |  |
+| 970 | P1 | tests/test_models_gnn_head_pyg.py | Python | 46 | 5aeb6ee0 |  |
+| 971 | P1 | tests/test_mongo_client_reuse.py | Python | 91 | 190bba2b |  |
+| 972 | P1 | tests/test_mth020_lattice_and_pairing_cost.py | Python | 141 | 6a0153ea |  |
+| 973 | P1 | tests/test_no_claude_automation.py | Python | 56 | d5c1bfe7 |  |
+| 974 | P1 | tests/test_ntt.py | Python | 156 | dbe3cf15 |  |
+| 975 | P1 | tests/test_numbertheory_analytics.py | Python | 287 | 5d2d0bf4 |  |
+| 976 | P1 | tests/test_nutms.py | Python | 82 | 67f6f381 |  |
+| 977 | P1 | tests/test_observation_boundary_contract.py | Python | 301 | a4492759 |  |
+| 978 | P1 | tests/test_observation_failure.py | Python | 42 | 0d9f7362 |  |
+| 979 | P1 | tests/test_observation_gate.py | Python | 207 | dd7919bf |  |
+| 980 | P1 | tests/test_onchain_arkham_cryptoquant.py | Python | 222 | 3e33d989 |  |
+| 981 | P1 | tests/test_onchain_base_coverage.py | Python | 365 | 04e7eb33 |  |
+| 982 | P1 | tests/test_onchain_no_fabricated_values.py | Python | 127 | 5e49492c |  |
+| 983 | P1 | tests/test_onchain_providers_coverage.py | Python | 506 | e07c6554 |  |
+| 984 | P1 | tests/test_onchain_rate_limiter.py | Python | 141 | a3b9dd61 |  |
+| 985 | P1 | tests/test_online_trainer.py | Python | 268 | 083587c3 |  |
+| 986 | P1 | tests/test_online_trainer_wiring.py | Python | 312 | 155a684d |  |
+| 987 | P1 | tests/test_options_carry.py | Python | 54 | 3fc82e22 |  |
+| 988 | P1 | tests/test_orchestratable_safety.py | Python | 105 | 14404fbe |  |
+| 989 | P1 | tests/test_orchestrator.py | Python | 302 | 9270230d |  |
+| 990 | P1 | tests/test_orchestrator_allocation_rebalance.py | Python | 202 | b8991616 |  |
+| 991 | P1 | tests/test_orchestrator_coverage.py | Python | 1634 | 8edd91e5 |  |
+| 992 | P1 | tests/test_orchestrator_crypto_box_paths.py | Python | 422 | c2d3f09e |  |
+| 993 | P1 | tests/test_orchestrator_execution_cost.py | Python | 201 | ac79bca3 |  |
+| 994 | P1 | tests/test_orchestrator_extra_coverage.py | Python | 1586 | 1e1bd85c |  |
+| 995 | P1 | tests/test_orchestrator_pkg_planner.py | Python | 61 | 16f461f4 |  |
+| 996 | P1 | tests/test_orchestrator_pkg_run.py | Python | 67 | 4593b436 |  |
+| 997 | P1 | tests/test_orchestrator_pkg_synthesizer.py | Python | 24 | 886ce774 |  |
+| 998 | P1 | tests/test_orchestrator_pkg_worker.py | Python | 18 | f681910b |  |
+| 999 | P1 | tests/test_orchestrator_registry_publish.py | Python | 130 | 710f80f2 |  |
+| 1000 | P1 | tests/test_orchestrator_residual_arms.py | Python | 432 | ada33d7d |  |
+| 1001 | P1 | tests/test_orchestrator_shadow_routing.py | Python | 117 | 1f30befe |  |
+| 1002 | P1 | tests/test_orchestrator_strategy_correlation.py | Python | 270 | 07c7416e |  |
+| 1003 | P1 | tests/test_orchestrator_strategy_portfolio.py | Python | 1006 | 1368f85d |  |
+| 1004 | P1 | tests/test_orchestrator_trace_id.py | Python | 104 | d83d9eb2 |  |
+| 1005 | P1 | tests/test_order_fsm.py | Python | 448 | 7131ca04 |  |
+| 1006 | P1 | tests/test_order_fsm_registry.py | Python | 196 | e4be2652 |  |
+| 1007 | P1 | tests/test_order_fsm_transition_table.py | Python | 45 | 619dfda6 |  |
+| 1008 | P1 | tests/test_order_manager.py | Python | 364 | de91e0ec |  |
+| 1009 | P1 | tests/test_order_manager_fill_validation.py | Python | 99 | 8e2f56d2 |  |
+| 1010 | P1 | tests/test_order_manager_incremental_fill.py | Python | 127 | 08fbbf5b |  |
+| 1011 | P1 | tests/test_order_manager_log_context.py | Python | 101 | 845ae29b |  |
+| 1012 | P1 | tests/test_order_manager_partial_fills.py | Python | 151 | 4c2dd069 |  |
+| 1013 | P1 | tests/test_order_throttler.py | Python | 265 | a82e08ab |  |
+| 1014 | P1 | tests/test_orderbook_stream_coverage.py | Python | 452 | 3b7deb28 |  |
+| 1015 | P1 | tests/test_orderbook_stream_publish.py | Python | 179 | 3567e651 |  |
+| 1016 | P1 | tests/test_paper_executor.py | Python | 778 | e0318d2b |  |
+| 1017 | P1 | tests/test_paper_only_timeframe_routing.py | Python | 90 | e01ca3ef |  |
+| 1018 | P1 | tests/test_percent_vs_fraction_units.py | Python | 105 | 37edfb9c |  |
+| 1019 | P1 | tests/test_performance_drift.py | Python | 582 | ded23fb2 |  |
+| 1020 | P1 | tests/test_performance_drift_drawdown_basis.py | Python | 102 | 47b3a849 |  |
+| 1021 | P1 | tests/test_performance_drift_edges.py | Python | 209 | 2ba61d99 |  |
+| 1022 | P1 | tests/test_phase4_ci_infra_fixes.py | Python | 355 | 8dea1443 |  |
+| 1023 | P1 | tests/test_phase5_execution_fixes.py | Python | 210 | c89e49e5 |  |
+| 1024 | P1 | tests/test_phase6_exec_api_lows.py | Python | 175 | c67293ba |  |
+| 1025 | P1 | tests/test_phase7_ops_findings.py | Python | 83 | d3847806 |  |
+| 1026 | P1 | tests/test_portfolio_agreement.py | Python | 129 | cf44a5a2 |  |
+| 1027 | P1 | tests/test_portfolio_correlation.py | Python | 441 | 7a70d63a |  |
+| 1028 | P1 | tests/test_position_sizing.py | Python | 618 | 10e49696 |  |
+| 1029 | P1 | tests/test_post_trade_bounded_history.py | Python | 116 | efe91648 |  |
+| 1030 | P1 | tests/test_pq_transport_honesty.py | Python | 71 | 192085cb |  |
+| 1031 | P1 | tests/test_pr_auto_update_workflow.py | Python | 330 | 3c784982 |  |
+| 1032 | P1 | tests/test_pre_tool_use_hook.py | Python | 508 | 9388a7b6 |  |
+| 1033 | P1 | tests/test_prfail_exact_lines.py | Python | 389 | 7fc69ed4 |  |
+| 1034 | P1 | tests/test_price_preview_path.py | Python | 477 | 01b18608 |  |
+| 1035 | P1 | tests/test_primality.py | Python | 292 | 5aa66d08 |  |
+| 1036 | P1 | tests/test_prime_field.py | Python | 311 | abe47d09 |  |
+| 1037 | P1 | tests/test_probabilistic_adapter.py | Python | 116 | b16f3d8c |  |
+| 1038 | P1 | tests/test_probabilistic_engine.py | Python | 317 | 4b7caa08 |  |
+| 1039 | P1 | tests/test_probability_consensus.py | Python | 154 | 62d07bb8 |  |
+| 1040 | P1 | tests/test_prometheus_scrape_auth.py | Python | 35 | 13c1a091 |  |
+| 1041 | P1 | tests/test_promotion_gauntlet.py | Python | 206 | ed1a66ea |  |
+| 1042 | P1 | tests/test_promotion_gauntlet_wiring.py | Python | 201 | bd3daaaa |  |
+| 1043 | P1 | tests/test_provider_basis_stale_suppression.py | Python | 109 | 1a673bb2 |  |
+| 1044 | P1 | tests/test_provider_basis_sync.py | Python | 101 | 7608bef8 |  |
+| 1045 | P1 | tests/test_provider_close_leak.py | Python | 77 | 733a0cf2 |  |
+| 1046 | P1 | tests/test_provider_pure_logic.py | Python | 132 | 35fec4e7 |  |
+| 1047 | P1 | tests/test_push_wait.py | Python | 398 | 992bd9f4 |  |
+| 1048 | P1 | tests/test_quantum_margins.py | Python | 535 | f4b8fb74 |  |
+| 1049 | P1 | tests/test_rag_mongo_db.py | Python | 57 | 2887ca7d |  |
+| 1050 | P1 | tests/test_rag_mongo_embeddings.py | Python | 46 | a77ec316 |  |
+| 1051 | P1 | tests/test_rag_mongo_generate.py | Python | 28 | c7782361 |  |
+| 1052 | P1 | tests/test_rag_mongo_ingest.py | Python | 48 | ed0ffcd1 |  |
+| 1053 | P1 | tests/test_rag_mongo_pipeline.py | Python | 22 | 6deb9cb9 |  |
+| 1054 | P1 | tests/test_rag_mongo_retrieve.py | Python | 36 | c7c8c4c9 |  |
+| 1055 | P1 | tests/test_readme_gate_list_matches_stack.py | Python | 84 | a4e7e8e0 |  |
+| 1056 | P1 | tests/test_redteam_scheduler.py | Python | 54 | 05d2ee81 |  |
+| 1057 | P1 | tests/test_regime_detector_v2_paths.py | Python | 125 | 9df85875 |  |
+| 1058 | P1 | tests/test_regime_ensemble.py | Python | 47 | 81362b87 |  |
+| 1059 | P1 | tests/test_regime_multi_init_selection.py | Python | 161 | 816c7101 |  |
+| 1060 | P1 | tests/test_regime_strategy_selector.py | Python | 280 | 4c6b6a95 |  |
+| 1061 | P1 | tests/test_required_import_in_ci.py | Python | 50 | ea095a7e |  |
+| 1062 | P1 | tests/test_residual_gaps_batch2.py | Python | 416 | b120cc3a |  |
+| 1063 | P1 | tests/test_residual_gaps_batch3.py | Python | 262 | 4b089f1b |  |
+| 1064 | P1 | tests/test_residual_gaps_batch4.py | Python | 274 | 59c76418 |  |
+| 1065 | P1 | tests/test_residues.py | Python | 229 | c88d674d |  |
+| 1066 | P1 | tests/test_resolve_registry_merge.py | Python | 100 | 7beb8e53 |  |
+| 1067 | P1 | tests/test_restart_persistence.py | Python | 261 | f2ae72b7 |  |
+| 1068 | P1 | tests/test_review_build_context.py | Python | 136 | 973277d9 |  |
+| 1069 | P1 | tests/test_review_retrieval.py | Python | 71 | 9630982b |  |
+| 1070 | P1 | tests/test_rfc6979_nonces.py | Python | 178 | 0af4946b |  |
+| 1071 | P1 | tests/test_risk_controls_api.py | Python | 628 | 4ccb97f8 |  |
+| 1072 | P1 | tests/test_risk_gate.py | Python | 181 | ab572a52 |  |
+| 1073 | P1 | tests/test_risk_gates.py | Python | 413 | 1938500a |  |
+| 1074 | P1 | tests/test_risk_gates_coverage.py | Python | 328 | 557dedb8 |  |
+| 1075 | P1 | tests/test_risk_gates_intelligence.py | Python | 149 | 21eec210 |  |
+| 1076 | P1 | tests/test_risk_pure_logic.py | Python | 332 | fc922b6e |  |
+| 1077 | P1 | tests/test_risk_quantification.py | Python | 236 | d3779676 |  |
+| 1078 | P1 | tests/test_router_fee_parsing.py | Python | 221 | 711816d4 |  |
+| 1079 | P1 | tests/test_rpc_basic_auth.py | Python | 98 | b891b52c |  |
+| 1080 | P1 | tests/test_runtime_monitor_concurrent_probes.py | Python | 182 | e340073b |  |
+| 1081 | P1 | tests/test_runtime_monitor_coverage.py | Python | 474 | 2492034d |  |
+| 1082 | P1 | tests/test_safe_primes.py | Python | 438 | 1d4ae1d2 |  |
+| 1083 | P1 | tests/test_script_fixes_scr018.py | Python | 181 | 0bf6674c |  |
+| 1084 | P1 | tests/test_scripts_path_bootstrap.py | Python | 95 | c4c1c928 |  |
+| 1085 | P1 | tests/test_secp256k1.py | Python | 448 | c4cb6103 |  |
+| 1086 | P1 | tests/test_security_pqc_posture.py | Python | 76 | 00928e99 |  |
+| 1087 | P1 | tests/test_self_tuning_api.py | Python | 200 | 8e6498f2 |  |
+| 1088 | P1 | tests/test_self_tuning_settings.py | Python | 30 | e6355fa6 |  |
+| 1089 | P1 | tests/test_selftest_rate_limit.py | Python | 118 | b1ab3ae0 |  |
+| 1090 | P1 | tests/test_settings_env_namespace.py | Python | 68 | da535ba6 |  |
+| 1091 | P1 | tests/test_shadow_model_promotion.py | Python | 401 | 381394fd |  |
+| 1092 | P1 | tests/test_shell_exec.py | Python | 598 | 1d75c218 |  |
+| 1093 | P1 | tests/test_signal_debugger.py | Python | 350 | d8b1aed6 |  |
+| 1094 | P1 | tests/test_signal_debugger_coverage.py | Python | 451 | 8a186db7 |  |
+| 1095 | P1 | tests/test_signal_debugger_selftest_guards.py | Python | 67 | 38029a96 |  |
+| 1096 | P1 | tests/test_signal_engine.py | Python | 2000 | d72f77e7 |  |
+| 1097 | P1 | tests/test_signal_engine_adapter.py | Python | 119 | b073a15f |  |
+| 1098 | P1 | tests/test_signal_engine_partial_branches.py | Python | 137 | d4e3e551 |  |
+| 1099 | P1 | tests/test_signal_engine_residual_paths.py | Python | 354 | 531c09d3 |  |
+| 1100 | P1 | tests/test_slippage.py | Python | 183 | 5e33dbf9 |  |
+| 1101 | P1 | tests/test_small_module_gaps.py | Python | 394 | e0ef4b55 |  |
+| 1102 | P1 | tests/test_startup_readiness.py | Python | 844 | 4829f182 |  |
+| 1103 | P1 | tests/test_static_invariants.py | Python | 1589 | 193b3bc9 |  |
+| 1104 | P1 | tests/test_static_invariants_blind_spots.py | Python | 140 | 44ec7d50 |  |
+| 1105 | P1 | tests/test_storage.py | Python | 1111 | 31dce6c8 |  |
+| 1106 | P1 | tests/test_storage_migration_atomicity.py | Python | 117 | c3d3bafa |  |
+| 1107 | P1 | tests/test_storage_write_rollback.py | Python | 102 | e5d9d7f3 |  |
+| 1108 | P1 | tests/test_strategies_filters.py | Python | 628 | 1a6e0663 |  |
+| 1109 | P1 | tests/test_strategy_bootstrap.py | Python | 232 | 1189a934 |  |
+| 1110 | P1 | tests/test_strategy_correlation.py | Python | 113 | bcfb1913 |  |
+| 1111 | P1 | tests/test_strategy_decay.py | Python | 52 | c93f7256 |  |
+| 1112 | P1 | tests/test_strategy_filters.py | Python | 468 | fafe1bb8 |  |
+| 1113 | P1 | tests/test_strategy_kill_switch.py | Python | 276 | d3b51aef |  |
+| 1114 | P1 | tests/test_strategy_kill_switch_wiring.py | Python | 251 | 5a1e83cb |  |
+| 1115 | P1 | tests/test_strategy_portfolio.py | Python | 783 | 0f8b4305 |  |
+| 1116 | P1 | tests/test_strategy_registry.py | Python | 175 | fa7a81fa |  |
+| 1117 | P1 | tests/test_stress_simulator.py | Python | 138 | 6d469112 |  |
+| 1118 | P1 | tests/test_stress_test_endpoint.py | Python | 168 | a7216740 |  |
+| 1119 | P1 | tests/test_suite_speed_budget.py | Python | 152 | 2f68e1c4 |  |
+| 1120 | P1 | tests/test_threshold.py | Python | 536 | 20237e4a |  |
+| 1121 | P1 | tests/test_timescale_initialize_migrations.py | Python | 163 | c362dded |  |
+| 1122 | P1 | tests/test_timescale_mock_coverage.py | Python | 882 | febf4b78 |  |
+| 1123 | P1 | tests/test_timescale_storage.py | Python | 1013 | 7e8749b3 |  |
+| 1124 | P1 | tests/test_timescale_storage_fake_pool.py | Python | 346 | 05fc212a |  |
+| 1125 | P1 | tests/test_timescaledb_script.py | Python | 138 | e966aba4 |  |
+| 1126 | P1 | tests/test_tools_example_tools.py | Python | 49 | aadb0a71 |  |
+| 1127 | P1 | tests/test_tools_registry.py | Python | 94 | 7df6f271 |  |
+| 1128 | P1 | tests/test_trade_auditor.py | Python | 283 | 07eef342 |  |
+| 1129 | P1 | tests/test_trade_journal.py | Python | 272 | a1a06f96 |  |
+| 1130 | P1 | tests/test_tuning_audit.py | Python | 72 | d3c0247a |  |
+| 1131 | P1 | tests/test_tuning_backtest_harness.py | Python | 517 | c59fec83 |  |
+| 1132 | P1 | tests/test_tuning_bayesian_proposer.py | Python | 102 | 806c4e51 |  |
+| 1133 | P1 | tests/test_tuning_bootstrap.py | Python | 298 | 89fa0043 |  |
+| 1134 | P1 | tests/test_tuning_evaluator.py | Python | 209 | 8cf620d8 |  |
+| 1135 | P1 | tests/test_tuning_evaluator_paired.py | Python | 61 | ca03cdcc |  |
+| 1136 | P1 | tests/test_tuning_feature_window_oos.py | Python | 86 | db0701f9 |  |
+| 1137 | P1 | tests/test_tuning_gate.py | Python | 94 | c99d6c66 |  |
+| 1138 | P1 | tests/test_tuning_gate_multiple_testing.py | Python | 87 | 9ba0cba9 |  |
+| 1139 | P1 | tests/test_tuning_live_overrides.py | Python | 212 | 637a54a0 |  |
+| 1140 | P1 | tests/test_tuning_promotion_rollback_wiring.py | Python | 138 | 1b1bfbe7 |  |
+| 1141 | P1 | tests/test_tuning_proposer.py | Python | 63 | a14c668d |  |
+| 1142 | P1 | tests/test_tuning_registry.py | Python | 132 | 23d737c0 |  |
+| 1143 | P1 | tests/test_tuning_runner.py | Python | 305 | 764f934b |  |
+| 1144 | P1 | tests/test_tuning_scheduler.py | Python | 1214 | 5d3185a3 |  |
+| 1145 | P1 | tests/test_tuning_store.py | Python | 86 | 02b00855 |  |
+| 1146 | P1 | tests/test_tuning_store_rollback.py | Python | 112 | eaaab96d |  |
+| 1147 | P1 | tests/test_tuning_watchdog.py | Python | 181 | 55783c70 |  |
+| 1148 | P1 | tests/test_tuning_watchdog_rollback_exhaustion.py | Python | 108 | 8c5a34a5 |  |
+| 1149 | P1 | tests/test_unenforced_config_knobs.py | Python | 254 | 017a68d4 |  |
+| 1150 | P1 | tests/test_unified_ledger.py | Python | 74 | 1aba3c25 |  |
+| 1151 | P1 | tests/test_unified_ledger_wiring.py | Python | 202 | 79f1a38e |  |
+| 1152 | P1 | tests/test_universe_returns.py | Python | 281 | 8f951606 |  |
+| 1153 | P1 | tests/test_upgrade_modules.py | Python | 291 | e7863485 |  |
+| 1154 | P1 | tests/test_upgrade_optuna_wf.py | Python | 122 | 5d224880 |  |
+| 1155 | P1 | tests/test_upgrade_optuna_wf_leakage.py | Python | 75 | c9c14466 |  |
+| 1156 | P1 | tests/test_upgrade_registry.py | Python | 246 | 76980677 |  |
+| 1157 | P1 | tests/test_upgrade_shadow_deploy.py | Python | 188 | 9d7982dc |  |
+| 1158 | P1 | tests/test_upgrade_shadow_deploy_significance.py | Python | 86 | 3264a0ed |  |
+| 1159 | P1 | tests/test_venue_api.py | Python | 345 | 341d0ab2 |  |
+| 1160 | P1 | tests/test_venue_controls.py | Python | 271 | 7f06c733 |  |
+| 1161 | P1 | tests/test_venue_controls_api.py | Python | 220 | b94cea38 |  |
+| 1162 | P1 | tests/test_vol_target_sizer.py | Python | 215 | dee46b89 |  |
+| 1163 | P1 | tests/test_whale_gate_advisory.py | Python | 103 | f93c3d14 |  |
+| 1164 | P1 | tests/test_whale_ratio_failure_path.py | Python | 77 | 4bdd41b9 |  |
+| 1165 | P1 | tests/test_worker_trader.py | Python | 264 | 96403a32 |  |
+| 1166 | P1 | tests/test_workers_orchestrator.py | Python | 204 | 8a5f1126 |  |
+| 1167 | P1 | tests/test_workers_orchestrator_coverage.py | Python | 546 | ffe14045 |  |
+| 1168 | P1 | tests/test_ws_auth_query_param.py | Python | 135 | f2cf255b |  |
+| 1169 | P1 | tests/test_ws_broadcaster.py | Python | 128 | b0deb4c0 |  |
+| 1170 | P1 | tests/test_ws_publish_lag_metric.py | Python | 182 | c3cfea00 |  |
+| 1171 | P1 | tests/test_ws_subscriptions.py | Python | 360 | 4c5214a6 |  |
+| 1172 | P1 | tests/test_xsec_momentum.py | Python | 86 | 5307f89d |  |
+| 1173 | P1 | tests/test_zksnark_detect_coverage.py | Python | 164 | 0f281e5c |  |
+| 1174 | P1 | tests/trading/__init__.py | Python | 0 | e3b0c442 |  |
+| 1175 | P1 | tests/trading/invariants/__init__.py | Python | 0 | e3b0c442 |  |
+| 1176 | P1 | tests/trading/invariants/test_inv_001_max_notional.py | Python | 213 | 060fd71f |  |
+| 1177 | P1 | tests/trading/invariants/test_inv_002_capital_preservation_halt.py | Python | 157 | d4e31b12 |  |
+| 1178 | P1 | tests/trading/invariants/test_inv_004_non_finite.py | Python | 307 | 9906a7ce |  |
+| 1179 | P1 | tests/trading/invariants/test_inv_005_disabled_mode.py | Python | 123 | 6611a4a0 |  |
+| 1180 | P1 | tests/trading/invariants/test_inv_006_risk_engine_failure.py | Python | 171 | 32c8cd83 |  |
+| 1181 | P2 | .agents/skills/trade-bot-cookbook-engineering/SKILL.md | Markdown | 22 | 1db44afc |  |
+| 1182 | P2 | .agents/skills/trade-bot-delivery/SKILL.md | Markdown | 18 | 10984afa |  |
+| 1183 | P2 | .agents/skills/trade-bot-evaluation-optimization/SKILL.md | Markdown | 18 | 6a9dcbb5 |  |
+| 1184 | P2 | .agents/skills/trade-bot-evidence-first/SKILL.md | Markdown | 20 | 7478d0d0 |  |
+| 1185 | P2 | .agents/skills/trade-bot-openai-sdk-integration/SKILL.md | Markdown | 20 | 03900dfe |  |
+| 1186 | P2 | .agents/skills/trade-bot-parallel-development/SKILL.md | Markdown | 42 | eb29101f |  |
+| 1187 | P2 | .agents/skills/trade-bot-root-cause-debugging/SKILL.md | Markdown | 24 | 3918f734 |  |
+| 1188 | P2 | .claude/hooks/_gh_contract.py | Python | 497 | 53c7cbc6 |  |
+| 1189 | P2 | .claude/hooks/completion_gate.py | Python | 25 | 4753b1c8 |  |
+| 1190 | P2 | .claude/hooks/observation_failure.py | Python | 93 | 6a2ba65b |  |
+| 1191 | P2 | .claude/hooks/observation_gate.py | Python | 620 | 0d23a6ff |  |
+| 1192 | P2 | .claude/hooks/pre_tool_use.py | Python | 1036 | fd662711 |  |
+| 1193 | P2 | .claude/hooks/precompact_checkpoint.py | Python | 25 | d68a10de |  |
+| 1194 | P2 | .claude/hooks/quality_gate.py | Python | 27 | 2c809a53 |  |
+| 1195 | P2 | .claude/hooks/session-start.sh | Shell | 116 | 52bfdaa6 |  |
+| 1196 | P2 | .claude/hooks/task_lifecycle.py | Python | 35 | 74f6c16a |  |
+| 1197 | P2 | .claude/launch.json | JSON | 11 | 0983b089 |  |
+| 1198 | P2 | .claude/settings.json | JSON | 219 | 3d486023 |  |
+| 1199 | P2 | .claude/skills/crypto-architect/SKILL.md | Markdown | 420 | 3f4ea481 |  |
+| 1200 | P2 | .claude/skills/crypto-architect/references/blockchain.md | Markdown | 181 | 2d70217a |  |
+| 1201 | P2 | .claude/skills/crypto-architect/references/compliance.md | Markdown | 261 | bb2f02dd |  |
+| 1202 | P2 | .claude/skills/crypto-architect/references/defi.md | Markdown | 235 | 27d5381e |  |
+| 1203 | P2 | .claude/skills/crypto-architect/references/ecc-crypto.md | Markdown | 251 | 67fcffbf |  |
+| 1204 | P2 | .claude/skills/crypto-architect/references/exchanges.md | Markdown | 195 | 6865ca93 |  |
+| 1205 | P2 | .claude/skills/crypto-architect/references/market-microstructure.md | Markdown | 259 | d7443ded |  |
+| 1206 | P2 | .claude/skills/crypto-architect/references/ml-models.md | Markdown | 258 | 8ac7bcef |  |
+| 1207 | P2 | .claude/skills/crypto-architect/references/on-chain-data.md | Markdown | 257 | 9e09e960 |  |
+| 1208 | P2 | .claude/skills/crypto-architect/references/probability.md | Markdown | 210 | ca3710b4 |  |
+| 1209 | P2 | .claude/skills/crypto-architect/references/realtime-systems.md | Markdown | 284 | d5243823 |  |
+| 1210 | P2 | .claude/skills/crypto-architect/references/risk.md | Markdown | 245 | 544dcc01 |  |
+| 1211 | P2 | .claude/skills/crypto-architect/references/security.md | Markdown | 244 | d2af5b67 |  |
+| 1212 | P2 | .claude/skills/crypto-architect/references/strategies.md | Markdown | 225 | 5e391269 |  |
+| 1213 | P2 | .claude/skills/crypto-architect/scripts/validate_arch.py | Python | 1675 | b7765b90 |  |
+| 1214 | P2 | .claude/skills/local-checks/SKILL.md | Markdown | 32 | e95dd706 |  |
+| 1215 | P2 | .claude/skills/quality-engineering/SKILL.md | Markdown | 197 | 8defeef0 |  |
+| 1216 | P2 | .claude/skills/quality-engineering/qe.config.json | JSON | 192 | 0e5d993b |  |
+| 1217 | P2 | .claude/skills/quality-engineering/references/workflow.md | Markdown | 123 | c307907c |  |
+| 1218 | P2 | .claude/skills/quality-engineering/schemas/change_plan.schema.json | JSON | 142 | 4acb9555 |  |
+| 1219 | P2 | .claude/skills/quality-engineering/schemas/qe_config.schema.json | JSON | 121 | f560d02d |  |
+| 1220 | P2 | .claude/skills/quality-engineering/scripts/qe_gate.py | Python | 488 | aa66ea7c |  |
+| 1221 | P2 | .claude/skills/quality-engineering/scripts/qe_new_requirement.py | Python | 282 | 45b5dbf4 |  |
+| 1222 | P2 | .claude/skills/quality-engineering/scripts/qe_registry_refs.py | Python | 225 | 168ed9ee |  |
+| 1223 | P2 | .codex/agents/docs-researcher.toml | TOML | 34 | c35a1312 |  |
+| 1224 | P2 | .codex/agents/explorer.toml | TOML | 33 | a44c7b62 |  |
+| 1225 | P2 | .codex/agents/implementer.toml | TOML | 65 | 41ebe487 |  |
+| 1226 | P2 | .codex/agents/reviewer.toml | TOML | 49 | 507a033e |  |
+| 1227 | P2 | .codex/agents/worker.toml | TOML | 46 | 6d14d1a2 |  |
+| 1228 | P2 | .codex/config.toml | TOML | 7 | 6935ae7d |  |
+| 1229 | P2 | .editorconfig | Text/config | 21 | 36a1d25e |  |
+| 1230 | P2 | .env.example | Other text/source | 106 | aa057c42 |  |
+| 1231 | P2 | .gitattributes | Other text/source | 7 | 73db96a2 |  |
+| 1232 | P2 | .githooks/reference-transaction | Other text/source | 10 | 28eb38fd |  |
+| 1233 | P2 | .gitignore | Text/config | 54 | 2540288c |  |
+| 1234 | P2 | .pre-commit-config.yaml | YAML | 38 | 6ccd1966 |  |
+| 1235 | P2 | .python-version | Other text/source | 1 | 49a506dd |  |
+| 1236 | P2 | .test_durations | Other text/source | 8977 | fa218480 |  |
+| 1237 | P2 | .vscode/extensions.json | JSON | 10 | c0ffbb03 |  |
+| 1238 | P2 | .vscode/settings.json | JSON | 9 | 35d5bf39 |  |
+| 1239 | P2 | CONTRIBUTING.md | Markdown | 61 | 04155331 |  |
+| 1240 | P2 | LICENSE | Other text/source | 21 | 49a961c5 |  |
+| 1241 | P2 | SECURITY.md | Markdown | 78 | 4c96f444 |  |
+| 1242 | P2 | common/__init__.py | Python | 0 | e3b0c442 |  |
+| 1243 | P2 | common/claude_cli.py | Python | 79 | fbe378e7 |  |
+| 1244 | P2 | common/command_schema.py | Python | 623 | c1c65a9b |  |
+| 1245 | P2 | common/shell_exec.py | Python | 467 | a47d0514 |  |
+| 1246 | P2 | crypto-predictor/ARCHITECTURE.md | Markdown | 251 | 0c17cd95 |  |
+| 1247 | P2 | crypto-predictor/README.md | Markdown | 116 | 78148b0a |  |
+| 1248 | P2 | crypto-predictor/backtest.py | Python | 188 | 50e9f598 |  |
+| 1249 | P2 | crypto-predictor/data_fetch.py | Python | 74 | cde705ee |  |
+| 1250 | P2 | crypto-predictor/data_fetch_kraken.py | Python | 60 | 1bb213e9 |  |
+| 1251 | P2 | crypto-predictor/indicators.py | Python | 121 | 168c9257 |  |
+| 1252 | P2 | crypto-predictor/risk.py | Python | 98 | f0ae604b |  |
+| 1253 | P2 | crypto-predictor/validation.py | Python | 127 | 43336585 |  |
+| 1254 | P2 | crypto-predictor/volatility.py | Python | 84 | bf46ec4a |  |
+| 1255 | P2 | docs/agents/OPENAI_COOKBOOK_ADOPTION.md | Markdown | 41 | 7c9a78f0 |  |
+| 1256 | P2 | docs/next_plan_findings.md | Markdown | 21 | 620b7b2a |  |
+| 1257 | P2 | docs/security/ci-diagnostics.md | Markdown | 145 | c8b8f61a |  |
+| 1258 | P2 | frontend/.nvmrc | Text/config | 1 | f14b4987 |  |
+| 1259 | P2 | frontend/browser-e2e/dashboard.e2e.jsx | React JSX | 361 | 9684051d |  |
+| 1260 | P2 | frontend/electron/main.cjs | CommonJS | 185 | afcd257f |  |
+| 1261 | P2 | frontend/electron/preload.cjs | CommonJS | 28 | 5b584536 |  |
+| 1262 | P2 | frontend/electron/security.cjs | Other text/source | 64 | 2dcefbc6 |  |
+| 1263 | P2 | frontend/electron/terminalBridge.cjs | CommonJS | 230 | fadfbaff |  |
+| 1264 | P2 | frontend/index.html | HTML | 14 | 937890f7 |  |
+| 1265 | P2 | frontend/linux/tradebot-dashboard.desktop | Desktop-entry config | 9 | d8c53c4f |  |
+| 1266 | P2 | frontend/package-lock.json | JSON | 4854 | dd172379 |  |
+| 1267 | P2 | frontend/postcss.config.js | JavaScript | 7 | ad943233 |  |
+| 1268 | P2 | frontend/public/icon.svg | Vector asset | 15 | 9a6da623 |  |
+| 1269 | P2 | frontend/scripts/build-icons.mjs | ES module | 36 | 4489c079 |  |
+| 1270 | P2 | frontend/scripts/install-desktop-shortcut.sh | Shell | 86 | 6a03fdd9 |  |
+| 1271 | P2 | frontend/src/approvals.js | JavaScript | 9 | a282face |  |
+| 1272 | P2 | frontend/src/approvals.test.js | JavaScript | 17 | cf00b67c |  |
+| 1273 | P2 | frontend/src/buildGuard.js | JavaScript | 57 | 1a9b0dc3 |  |
+| 1274 | P2 | frontend/src/components/Controls.test.jsx | React JSX | 106 | cf6f9c5a |  |
+| 1275 | P2 | frontend/src/components/ErrorBoundary.jsx | React JSX | 33 | 4ffb65c6 |  |
+| 1276 | P2 | frontend/src/components/panels/ControlHubPanel.test.jsx | React JSX | 50 | b321eca5 |  |
+| 1277 | P2 | frontend/src/security/frontendSecurity.test.jsx | React JSX | 108 | 1b269f1b |  |
+| 1278 | P2 | frontend/tailwind.config.js | JavaScript | 43 | a8d2f444 |  |
+| 1279 | P2 | frontend/vite.config.js | JavaScript | 43 | 82982458 |  |
+| 1280 | P2 | frontend/vitest.browser.config.js | JavaScript | 19 | 968832f5 |  |
+| 1281 | P2 | frontend/vitest.config.js | JavaScript | 14 | d37c0445 |  |
+| 1282 | P2 | kg/__init__.py | Python | 0 | e3b0c442 |  |
+| 1283 | P2 | kg/assemble.py | Python | 48 | 991327ed |  |
+| 1284 | P2 | kg/config.py | Python | 12 | 02f60bb4 |  |
+| 1285 | P2 | kg/db.py | Python | 39 | 29dd8727 |  |
+| 1286 | P2 | kg/extract.py | Python | 21 | c97eece2 |  |
+| 1287 | P2 | kg/ingest.py | Python | 9 | 34d740a2 |  |
+| 1288 | P2 | kg/query.py | Python | 61 | a4a22cf3 |  |
+| 1289 | P2 | kg/resolve.py | Python | 30 | 2277a38a |  |
+| 1290 | P2 | kg/schema.py | Python | 42 | 86f3afdb |  |
+| 1291 | P2 | kg_cli.py | Python | 30 | e83e37da |  |
+| 1292 | P2 | orchestrator/__init__.py | Python | 0 | e3b0c442 |  |
+| 1293 | P2 | orchestrator/config.py | Python | 15 | b9451580 |  |
+| 1294 | P2 | orchestrator/planner.py | Python | 47 | 3c48142f |  |
+| 1295 | P2 | orchestrator/run.py | Python | 67 | 2d6754d1 |  |
+| 1296 | P2 | orchestrator/synthesizer.py | Python | 18 | 3f5f44bf |  |
+| 1297 | P2 | orchestrator/worker.py | Python | 27 | a4668aae |  |
+| 1298 | P2 | orchestrator_cli.py | Python | 16 | 1817eda3 |  |
+| 1299 | P2 | rag_cli.py | Python | 39 | 47b9e6bf |  |
+| 1300 | P2 | rag_mongo/__init__.py | Python | 0 | e3b0c442 |  |
+| 1301 | P2 | rag_mongo/config.py | Python | 14 | da9922ab |  |
+| 1302 | P2 | rag_mongo/db.py | Python | 80 | 0a1ac336 |  |
+| 1303 | P2 | rag_mongo/embeddings.py | Python | 21 | 9635c55e |  |
+| 1304 | P2 | rag_mongo/generate.py | Python | 19 | 2eaea14b |  |
+| 1305 | P2 | rag_mongo/ingest.py | Python | 26 | 12638ef0 |  |
+| 1306 | P2 | rag_mongo/pipeline.py | Python | 7 | b445a01a |  |
+| 1307 | P2 | rag_mongo/retrieve.py | Python | 20 | 553da338 |  |
+| 1308 | P2 | requirements-topology-optional.txt | Text | 9 | 69f74fd0 |  |
+| 1309 | P2 | review/__init__.py | Python | 0 | e3b0c442 |  |
+| 1310 | P2 | review/build_context.py | Python | 91 | f2db8639 |  |
+| 1311 | P2 | review/config.py | Python | 8 | b6dbb57a |  |
+| 1312 | P2 | review/retrieval.py | Python | 53 | d3304677 |  |
+| 1313 | P2 | tools/__init__.py | Python | 0 | e3b0c442 |  |
+| 1314 | P2 | tools/example_tools.py | Python | 50 | bf4d6a53 |  |
+| 1315 | P2 | tools/registry.py | Python | 109 | 48a1b28b |  |

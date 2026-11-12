@@ -210,6 +210,16 @@ class RiskSettings(BaseSettings):
         ge=1.0,
         description="Seconds to wait for manual approval before auto-skip (RESTRICTED and MANUAL modes)",
     )
+    approval_max_price_drift_bps: float = Field(
+        default=50.0,
+        ge=0.0,
+        description=(
+            "An approved trade executes on the next tick that still passes every "
+            "gate, and only while the fresh price is within this many bps of the "
+            "price the approval request showed; beyond it the approval is stale "
+            "and the trade is rejected (EXR-018)."
+        ),
+    )
 
     # GAP-001 — Almgren-Chriss slippage / market-impact model
     # (Almgren & Chriss 2001, "Optimal Execution of Portfolio Transactions").
@@ -776,9 +786,9 @@ class StrategyPortfolioSettings(BaseSettings):
 
     Each *_fraction is an upper bound on the share of book capital that
     strategy may request, enforced independently of Kelly (Kelly is a
-    ceiling, not a target). The enabled fractions are validated to sum to
-    <= 1.0 at bootstrap, so a mis-set config fails at startup rather than
-    at the first fill.
+    ceiling, not a target). They are ceilings, not a partition: they may sum
+    above 1.0 (the capital allocator caps each strategy and renormalises),
+    and a sum below 1.0 is logged as a warning at bootstrap.
 
     Defaults keep only the incumbent model-driven signal engine enabled.
     The v2/v3/v5 strategy families are opt-in per CLAUDE.md's out-of-sample
@@ -1029,11 +1039,25 @@ class StrategySettings(BaseSettings):
         description="Block strategy selection during detected regime transitions.",
     )
 
+    @model_validator(mode="after")
+    def _check_cross_field_invariants(self) -> StrategySettings:
+        """An inverted pair silently gates every trade off (API-031)."""
+        if self.mr_min_half_life > self.mr_max_half_life:
+            raise ValueError("mr_min_half_life must be <= mr_max_half_life")
+        if self.mr_exit_z >= self.mr_entry_z:
+            raise ValueError("mr_exit_z must be < mr_entry_z")
+        if self.bo_exit_period > self.bo_entry_period:
+            raise ValueError("bo_exit_period must be <= bo_entry_period")
+        if self.bo_min_atr_pct >= self.bo_max_atr_pct:
+            raise ValueError("bo_min_atr_pct must be < bo_max_atr_pct")
+        return self
+
 
 class Settings(BaseSettings):
     """
     Root settings object.  Single source of truth for the entire application.
-    Loaded once via get_settings() and cached for the process lifetime.
+    Loaded via get_settings() and cached; fields outside the startup-only set
+    may be overridden at runtime through the /controls surface.
 
     Environment variables:
       TRADING_MODE   : "paper" (default) | "live"

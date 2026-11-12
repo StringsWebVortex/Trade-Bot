@@ -58,6 +58,41 @@ def tickers_are_synchronous(
     return skew <= max_skew_ms
 
 
+# Exchange stress score weights (sum to 1.0), shared by every venue provider.
+STRESS_WEIGHT_BASIS: float = 0.35
+STRESS_WEIGHT_FUNDING_Z: float = 0.40
+STRESS_WEIGHT_OI: float = 0.25
+
+
+def exchange_stress_score(
+    basis_bps: float,
+    funding_zscore: float,
+    oi_change_pct: float,
+) -> float:
+    """
+    Exchange stress composite [0, 1]. Higher = more stress.
+
+    Components, each normalised to [0, 1] before weighting:
+      basis_bps     : extreme basis in either direction signals fragmentation
+                      (100 bps saturates)
+      funding_zscore: high |z| = elevated leverage (3 sigma saturates)
+      oi_change_pct : an OI drop = forced deleveraging (-5% saturates); a rise
+                      contributes nothing
+
+    One definition for Binance, OKX and Bybit, so the venues cannot drift
+    apart and the aggregator compares like with like.
+    """
+    basis_stress = min(abs(basis_bps) / 100.0, 1.0)
+    funding_stress = min(abs(funding_zscore) / 3.0, 1.0)
+    oi_stress = min(max(-oi_change_pct, 0.0) / 5.0, 1.0)
+    score = (
+        STRESS_WEIGHT_BASIS * basis_stress
+        + STRESS_WEIGHT_FUNDING_Z * funding_stress
+        + STRESS_WEIGHT_OI * oi_stress
+    )
+    return round(min(max(score, 0.0), 1.0), 4)
+
+
 class ExchangeIntelligenceProvider(ABC):
     """
     Abstract base class for per-exchange intelligence data providers.

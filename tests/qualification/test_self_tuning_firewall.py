@@ -32,6 +32,9 @@ class FakeComparison:
     def __init__(self, metric_name: str, significant_regression: bool = False) -> None:
         self.metric_name = metric_name
         self.significant_regression = significant_regression
+        self.p_value = 0.0
+        self.challenger_samples: tuple[float, ...] = ()
+        self.challenger_samples_are_returns = False
 
 
 class FakeEvaluation:
@@ -57,6 +60,11 @@ class FakeEvaluation:
         if metric not in self._known:
             raise KeyError(metric)
         return self._improved
+
+    def comparison(self, metric: str) -> FakeComparison:
+        if metric not in self._known:
+            raise KeyError(metric)
+        return next(c for c in self.comparisons if c.metric_name == metric)
 
 
 class FakeParameter:
@@ -177,7 +185,7 @@ class TestTheLiveOverrideLayerIsTheOnlyDoor:
 
     def test_the_gate_has_no_force_parameter(self):
         params = inspect.signature(PromotionGate.decide).parameters
-        assert set(params) == {"self", "param", "evaluation", "primary_metric"}
+        assert set(params) == {"self", "param", "evaluation", "primary_metric", "n_trials"}
 
     def test_promotion_requires_a_parameter_with_declared_bounds(self):
         # An unbounded tunable is an optimizer with no ceiling. The signature

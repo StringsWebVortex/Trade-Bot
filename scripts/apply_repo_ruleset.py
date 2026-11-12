@@ -164,6 +164,27 @@ def compare(payload: dict, remote: dict) -> list[str]:
     for missing in sorted(want_types - have_types):
         problems.append(f"rule missing on GitHub: {missing!r}")
 
+    # Compare every parameter the file sets, so a weakened approval count or a
+    # dropped thread-resolution requirement is caught. Only file-set keys are
+    # compared: GitHub echoes defaults the file never sets. Required checks are
+    # compared above by context, so they are skipped here.
+    want_rules = {r.get("type"): r.get("parameters") or {} for r in payload.get("rules", [])}
+    have_rules = {r.get("type"): r.get("parameters") or {} for r in remote.get("rules", [])}
+    for rtype, params in sorted(want_rules.items(), key=lambda kv: str(kv[0])):
+        if rtype not in have_rules:
+            continue
+        for key, value in sorted(params.items()):
+            if key == "required_status_checks":
+                continue
+            if have_rules[rtype].get(key) != value:
+                problems.append(
+                    f"rule {rtype!r} parameter {key!r}: file says {value!r}, "
+                    f"GitHub has {have_rules[rtype].get(key)!r}"
+                )
+    for key in ("bypass_actors", "conditions"):
+        if key in payload and payload[key] != remote.get(key):
+            problems.append(f"{key}: file and GitHub differ")
+
     return problems
 
 

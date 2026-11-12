@@ -10,7 +10,7 @@ Read from `qe.config.json`, so the scripts and this document cannot disagree.
 
 | Class | Triggered by | Owes |
 |---|---|---|
-| `production_behaviour` | any edit under `src/` | a registry entry, the test that decides it, traceability regenerated, a stated blast radius and rollback |
+| `production_behaviour` | any edit under `src/` | a registry entry (its own file under `config/quality_registry.d/`), the test that decides it, a stated blast radius and rollback |
 | `test_only` | edits under `tests/` | if the test decides a requirement, it belongs in that requirement's `verification` list |
 | `workflow` | `.github/workflows/*.yml` | the gate job needs every job, actions SHA-pinned, `permissions:` least-privilege |
 | `config_schema` | `config/*.json` | validates against its schema |
@@ -47,7 +47,7 @@ crosses it through an unrealised move is refused as well — that last case is
 the one an implementation written from the description tends to miss.
 
 **Implementation**, then flip the entry to `verified` with the test named.
-Regenerate the traceability document from the registry source. Do not run qe_gate.py locally; push and let GitHub Actions validate.
+Add the entry as its own file under `config/quality_registry.d/` (GOV-071); the traceability document is rendered by CI, not committed. Do not run qe_gate.py locally; push and let GitHub Actions validate.
 
 ## Worked example — a production bug
 

@@ -53,7 +53,7 @@ from __future__ import annotations
 import math
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 import numpy as np
@@ -120,8 +120,23 @@ class FreshnessBudget:
 #: The historical default: a realtime tick feed, five minutes.
 OHLCV_REALTIME_BUDGET = FreshnessBudget(label="ohlcv_realtime", max_age_s=300.0)
 
-#: Macro series print on business days, so a weekend is not staleness.
-MACRO_BUDGET = FreshnessBudget(label="macro_daily", max_age_s=2 * 86_400.0)
+#: Macro series print on business days. Four calendar days leave room for
+#: the Friday-to-Monday gap; the business-day limit below remains authoritative.
+MACRO_BUDGET = FreshnessBudget(label="macro_daily", max_age_s=5 * 86_400.0)
+MACRO_MAX_STALE_BUSINESS_DAYS = 2
+
+
+def macro_business_days_elapsed(market_date: date, as_of: date) -> int:
+    """Count weekdays strictly after the market date through the current date."""
+    if as_of < market_date:
+        return -1
+    cursor = market_date + timedelta(days=1)
+    elapsed = 0
+    while cursor <= as_of:
+        if cursor.weekday() < 5:
+            elapsed += 1
+        cursor += timedelta(days=1)
+    return elapsed
 
 
 @dataclass
@@ -429,12 +444,27 @@ class DataQualityGate:
         if not date_str:
             return self._reject("macro_missing_date")
         try:
-            date = datetime.fromisoformat(str(date_str)).replace(tzinfo=UTC)
-        except ValueError:
+            parsed = datetime.fromisoformat(str(date_str).replace("Z", "+00:00"))
+            if parsed.tzinfo is None:
+                market_dt = parsed.replace(tzinfo=UTC)
+            else:
+                market_dt = parsed.astimezone(UTC)
+        except (TypeError, ValueError):
             return self._reject("macro_bad_date_format")
-        age = datetime.now(UTC) - date
+        now = datetime.now(UTC)
+        age = now - market_dt
+        if age.total_seconds() < 0:
+            return self._reject("macro_future_market_date")
         if age > timedelta(seconds=budget.max_age_s):
             return self._reject(f"macro_stale: {age.days} days old, budget {budget.label}")
+        business_days = macro_business_days_elapsed(market_dt.date(), now.date())
+        if business_days < 0:
+            return self._reject("macro_future_market_date")
+        if business_days > MACRO_MAX_STALE_BUSINESS_DAYS:
+            return self._reject(
+                f"macro_stale: {business_days} business days old, "
+                f"maximum {MACRO_MAX_STALE_BUSINESS_DAYS}"
+            )
         return QualityResult(True)
 
     # ------------------------------------------------------------------

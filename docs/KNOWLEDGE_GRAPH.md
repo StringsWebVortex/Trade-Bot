@@ -42,6 +42,7 @@ new infrastructure or cost.
 
 ## Usage
 
+    # docs/some_report.txt is a placeholder path
     python kg_cli.py ingest docs/some_report.txt
     python kg_cli.py query "Who is connected to the vendor named in the incident report?"
 

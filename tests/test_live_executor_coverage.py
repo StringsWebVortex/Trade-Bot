@@ -618,8 +618,8 @@ class TestInit:
 
 
 # ─────────────────────────────────────────────────────────────
-# _submit_signal_auto / _submit_signal_with_approval / _enqueue_approval /
-# _await_approval — internal routing (not exercised by TestSubmitSignalRouting,
+# _submit_signal_auto / _submit_signal_with_approval / _enqueue_approval
+# — internal routing (not exercised by TestSubmitSignalRouting,
 # which mocks these methods away)
 # ─────────────────────────────────────────────────────────────
 
@@ -712,88 +712,70 @@ class TestPendingApprovalsSafe:
         assert any(p["request_id"] == req_id for p in pending)
 
 
-class TestAwaitApproval:
-    @pytest.mark.asyncio
-    async def test_missing_request_returns_false(self):
-        ex = _make_executor()
-        approved, operator = await ex._await_approval("nonexistent", timeout_s=1.0)
-        assert approved is False
-        assert operator == ""
-
-    @pytest.mark.asyncio
-    async def test_resolved_approval_returns_true(self):
-        ex = _make_executor()
-        req_id = await ex._enqueue_approval(
-            symbol="BTC/USDT",
-            timeframe="1h",
-            direction=1,
-            kelly_result=_kelly(),
-            regime_state=0,
-            meta_label_prob=0.7,
-            raw_signal=1.0,
-        )
-        await ex.resolve_approval(req_id, approved=True, operator="alice")
-        approved, operator = await ex._await_approval(req_id, timeout_s=1.0)
-        assert approved is True
-        assert operator == "alice"
-
-    @pytest.mark.asyncio
-    async def test_timeout_auto_denies(self):
-        ex = _make_executor()
-        req_id = await ex._enqueue_approval(
-            symbol="BTC/USDT",
-            timeframe="1h",
-            direction=1,
-            kelly_result=_kelly(),
-            regime_state=0,
-            meta_label_prob=0.7,
-            raw_signal=1.0,
-        )
-        approved, operator = await ex._await_approval(req_id, timeout_s=0.01)
-        assert approved is False
-        assert operator == "auto_timeout"
-        assert req_id not in ex._approval_queue
-
-
 class TestSubmitSignalWithApproval:
-    @pytest.mark.asyncio
-    async def test_denied_returns_denied_outcome(self):
-        ex = _make_executor()
-        ex._await_approval = AsyncMock(return_value=(False, "auto_timeout"))
-        trade_id, outcome = await ex._submit_signal_with_approval(
+    """EXR-018: queue-and-return, then the next fresh signal executes the
+    approved intent -- re-validated, never at the queued size or price."""
+
+    @staticmethod
+    async def _submit(ex, *, direction=1, notional=5_000.0, price=50_000.0):
+        return await ex._submit_signal_with_approval(
             symbol="BTC/USDT",
             timeframe="1h",
-            direction=1,
-            kelly_result=_kelly(),
+            direction=direction,
+            kelly_result=_kelly(notional=notional, price=price),
             regime_state=0,
             meta_label_prob=0.7,
             raw_signal=1.0,
-            timeout_s=1.0,
-            denied_outcome="skipped",
+            current_price=price,
+            timeout_s=None,
         )
-        assert trade_id is None
-        assert outcome == "skipped"
+
+    @staticmethod
+    def _approvable():
+        ex = _make_executor()
+        ex._risk_cfg.approval_max_price_drift_bps = 50.0
+        ex._submit_signal_auto = AsyncMock(return_value=("trade-2", "opened"))
+        return ex
 
     @pytest.mark.asyncio
-    async def test_approved_delegates_to_auto_path(self):
-        ex = _make_executor()
-        ex._await_approval = AsyncMock(return_value=(True, "alice"))
-        ex._submit_signal_auto = AsyncMock(return_value=("trade-2", "opened"))
-        trade_id, outcome = await ex._submit_signal_with_approval(
-            symbol="BTC/USDT",
-            timeframe="1h",
-            direction=1,
-            kelly_result=_kelly(),
-            regime_state=0,
-            meta_label_prob=0.7,
-            raw_signal=1.0,
-            timeout_s=1.0,
-            denied_outcome="skipped",
-        )
-        assert trade_id == "trade-2"
-        assert outcome == "opened"
+    async def test_queues_without_waiting_and_never_duplicates(self):
+        ex = self._approvable()
+        assert await self._submit(ex) == (None, "queued")
+        assert await self._submit(ex) == (None, "queued")
+        assert len(ex._approval_queue) == 1
+        ex._submit_signal_auto.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_approved_intent_executes_on_the_next_signal(self):
+        ex = self._approvable()
+        await self._submit(ex)
+        (req_id,) = ex._approval_queue
+        await ex.resolve_approval(req_id, approved=True, operator="alice")
+
+        assert await self._submit(ex) == ("trade-2", "opened")
         _, kwargs = ex._submit_signal_auto.call_args
         assert kwargs["approved_by"] == "alice"
+        assert ex._approval_queue == {}
+
+    @pytest.mark.asyncio
+    async def test_denied_request_is_not_executed(self):
+        ex = self._approvable()
+        await self._submit(ex)
+        (req_id,) = ex._approval_queue
+        await ex.resolve_approval(req_id, approved=False, operator="bob")
+
+        assert await self._submit(ex) == (None, "queued")
+        ex._submit_signal_auto.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_price_drift_beyond_the_limit_rejects(self):
+        ex = self._approvable()
+        await self._submit(ex, price=50_000.0)
+        (req_id,) = ex._approval_queue
+        await ex.resolve_approval(req_id, approved=True, operator="alice")
+
+        assert await self._submit(ex, price=50_500.0) == (None, "rejected")  # 100 bps
+        ex._submit_signal_auto.assert_not_awaited()
 
 
 # ─────────────────────────────────────────────────────────────
@@ -966,7 +948,10 @@ class TestAwaitThrottleToken:
         ex._throttle_cfg = OrderThrottleSettings(rate=100.0, burst=1, max_wait_s=1.0)
         ex._throttler = OrderThrottler(rate=100.0, burst=1)
         await ex._await_throttle_token("binance")  # drains the single token
+        start = time.monotonic()
         await ex._await_throttle_token("binance")  # must wait, not raise
+        # Held rather than refused: it returned within the max_wait_s budget.
+        assert time.monotonic() - start < ex._throttle_cfg.max_wait_s
 
     @pytest.mark.asyncio
     async def test_long_backlog_refuses_order(self):

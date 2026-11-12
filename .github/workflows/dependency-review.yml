@@ -1,0 +1,44 @@
+# Dependency Review Action
+#
+# The dependency-review action needs a pull_request payload to compare the PR's
+# base and head. The merge queue has no pull_request object, so that one job is
+# explicitly allowed to skip there; its PR run remains covered by this gate.
+name: Dependency review
+
+on:
+  merge_group:
+  pull_request:
+    branches: ["main"]
+
+permissions:
+  contents: read
+
+jobs:
+  dependency-review:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Dependency Review
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          comment-summary-in-pr: always
+
+  gate:
+    name: Dependency review gate
+    if: always()
+    needs: [dependency-review]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Assert dependency review succeeded
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+          # The action needs github.event.pull_request, which merge_group does
+          # not provide. The dependency review has already run on the PR head.
+          ALLOW_SKIPPED: dependency-review
+        run: python3 scripts/assert_jobs_green.py

@@ -178,7 +178,7 @@
     },
     {
       "rule": "Never edit a generated document by hand",
-      "why": "docs/quality/REQUIREMENTS_TRACEABILITY.md comes from the registry. Edit the registry and regenerate; CI checks with --check."
+      "why": "docs/quality/REQUIREMENTS_TRACEABILITY.md comes from the registry and is rendered on demand, never committed (GOV-071). Edit the registry; CI renders it with --check."
     },
     {
       "rule": "Never widen a gate to make a change pass",
