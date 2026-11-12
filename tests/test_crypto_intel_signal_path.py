@@ -737,3 +737,17 @@ def test_on_bar_skips_granger_update_without_close_history(intel):
         intel.on_bar("BTC/USDT", _ohlcv(), alt_prices={"ETH/USDT": [10.0 + i for i in range(12)]}),
     )
     assert calls == []
+
+
+def test_on_bar_skips_granger_update_with_fewer_than_eleven_btc_closes(intel):
+    """Short BTC history must not be padded or treated as observed market data."""
+    _deliver_results(intel, [_result(i) for i in range(3)])
+    calls: list[object] = []
+    intel._granger.update = lambda btc_ret, alts: calls.append(btc_ret)
+    ohlcv = {**_ohlcv(), "close_history": [50_000.0 + i for i in range(10)]}
+
+    asyncio.run(
+        intel.on_bar("BTC/USDT", ohlcv, alt_prices={"ETH/USDT": [10.0 + i for i in range(12)]}),
+    )
+
+    assert calls == []
