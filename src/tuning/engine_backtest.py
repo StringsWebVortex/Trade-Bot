@@ -261,9 +261,9 @@ def _e09_oos_accuracy(X: np.ndarray, y: np.ndarray) -> float | None:
         n_estimators=100, max_depth=4, learning_rate=0.05, eval_metric="logloss", random_state=42
     )
     model.fit(X_fit, y_fit)
-    # arch-ignore LAW9: offline holdout accuracy metric for retraining, not a
-    # trading decision; no signal or order consumes this prediction.
-    return float((model.predict(X_hold) == y_hold).mean())  # arch-ignore
+    # LAW9 does not apply: an offline holdout accuracy metric for retraining,
+    # not a trading decision; no signal or order consumes this prediction.
+    return float((model.predict(X_hold) == y_hold).mean())  # arch-ignore[LAW9]: offline metric
 
 
 async def retrain_e09_walkforward(df: pd.DataFrame, symbol: str = "BTC/USDT") -> int:

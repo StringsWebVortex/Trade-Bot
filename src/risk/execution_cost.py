@@ -35,7 +35,7 @@ from __future__ import annotations
 import math
 from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Final
+from typing import Final, Protocol
 
 _BPS: Final[float] = 10_000.0
 
@@ -81,6 +81,48 @@ def measure_fee_bps(
     mean = math.fsum(rates) / len(rates)
     var = math.fsum((r - mean) ** 2 for r in rates) / (len(rates) - 1)
     return FeeMeasurement(mean_bps=mean, std_bps=math.sqrt(var), samples=len(rates))
+
+
+class ClosedTradeLegs(Protocol):
+    """The fields of a stored trade that closed_trade_fills reads."""
+
+    @property
+    def entry_price(self) -> float: ...
+
+    @property
+    def exit_price(self) -> float | None: ...
+
+    @property
+    def quantity(self) -> float: ...
+
+    @property
+    def fee_usd(self) -> float: ...
+
+
+def closed_trade_fills(trades: Iterable[ClosedTradeLegs]) -> list[tuple[float, float]]:
+    """
+    ``(notional_usd, fee_usd)`` pairs for measure_fee_bps, one per closed trade.
+
+    The executors record a closed trade's fee_usd as both legs' fees, so the
+    notional it is measured against is both legs' traded value,
+    ``(entry_price + exit_price) * quantity``: the pair's rate is the per-leg
+    fee averaged over the round trip. A trade with no exit yet carries only
+    its entry fee and would read as half the rate, so it is skipped; so is
+    one whose prices, quantity or fee are not finite, or whose prices or
+    quantity are not positive.
+    """
+    fills: list[tuple[float, float]] = []
+    for trade in trades:
+        exit_price = trade.exit_price
+        if exit_price is None:
+            continue
+        values = (trade.entry_price, exit_price, trade.quantity, trade.fee_usd)
+        if not all(math.isfinite(v) for v in values):
+            continue
+        if trade.entry_price <= 0.0 or exit_price <= 0.0 or trade.quantity <= 0.0:
+            continue
+        fills.append(((trade.entry_price + exit_price) * trade.quantity, trade.fee_usd))
+    return fills
 
 
 @dataclass(frozen=True, slots=True)

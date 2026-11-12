@@ -1,0 +1,22 @@
+{
+  "id": "REG-1711",
+  "kind": "regression",
+  "title": "Tuning evaluator compares fold-aligned champion/challenger samples with a one-sided paired t-test",
+  "statement": "ChallengerEvaluator.compare_metric tests equal-length champion and challenger samples with ttest_rel on the per-fold differences, one-sided in the direction of the delta (alternative='greater' for an improvement, 'less' for a regression) at alpha 0.05, and reports the p of the side tested. Welch's unequal-variance test is used only when the lengths differ. Identical arms report p = 1.0 and are never significant.",
+  "criticality": "high",
+  "subsystem": "model",
+  "status": "verified",
+  "source": "OPS-2026-10-28",
+  "failure_mode": "Every harness builds both arms in the same fold loop, but the evaluator ran Welch's independent-samples test on them, so the fold-to-fold spread both arms share swamped consistent per-fold improvements and regressions: a regression on a secondary metric could pass the promotion gate unflagged, and a real improvement could be rejected. Identical arms reported p = NaN into the audit log. The evaluator tests only asserted large mean shifts, which any test detects, so nothing exercised a paired-only effect; the deciding test now builds a fold-aligned shift that Welch cannot see.",
+  "owning_modules": [
+    "src/tuning/evaluator.py"
+  ],
+  "depends_on": [],
+  "verification": [
+    {
+      "test": "tests/test_tuning_evaluator_paired.py",
+      "test_type": "regression"
+    }
+  ],
+  "notes": "Audit STR-05 (rest), paired-test part. The held-out final period is not in this entry. layer: test-suite"
+}

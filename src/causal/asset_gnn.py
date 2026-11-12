@@ -132,6 +132,11 @@ class AssetGNN:
         self._hidden = hidden_dim
         self._d_model = d_model
         self._pyg_model: object | None = None
+        # The GAT has no training path in this repo: until trained weights are
+        # supplied via load_pyg_state(), run() uses the deterministic numpy
+        # aggregation rather than emitting random-weight noise (DAT-014).
+        self._pyg_trained = False
+        self._pyg_proj: object | None = None
         self._try_build_pyg_model(hidden_dim, n_layers, n_heads, edge_dropout, d_model)
 
     def _try_build_pyg_model(
@@ -166,9 +171,18 @@ class AssetGNN:
                     return self.proj(x)
 
             self._pyg_model = _PYGModel()
+            self._pyg_model.eval()  # type: ignore[attr-defined]  # dropout off
             log.info("asset_gnn_pyg_model_ready")
         except ImportError:
             log.warning("torch_geometric_not_installed_gat_model_unavailable")
+
+    def load_pyg_state(self, state_dict: dict) -> None:
+        """Load trained GAT weights and enable the GAT path in run()."""
+        if self._pyg_model is None:
+            raise RuntimeError("torch_geometric is not installed; no GAT model to load into")
+        self._pyg_model.load_state_dict(state_dict)  # type: ignore[attr-defined]
+        self._pyg_model.eval()  # type: ignore[attr-defined]
+        self._pyg_trained = True
 
     def run(
         self,
@@ -188,7 +202,7 @@ class AssetGNN:
         asset_names = list(price_df.columns)
         features = node_features_df.values.astype(np.float32)  # [N, F]
 
-        if self._pyg_model is not None:
+        if self._pyg_model is not None and self._pyg_trained:
             embeddings = self._run_pyg(features, edges)
         else:
             embeddings = self._run_numpy(features, edges, weights)
@@ -208,12 +222,24 @@ class AssetGNN:
 
         x = torch.tensor(features)
         if x.shape[1] != self._hidden:
-            proj = torch.nn.Linear(x.shape[1], self._hidden, bias=False)
-            x = proj(x)
-        if not edges:
-            return x.detach().numpy()
-        edge_index = torch.tensor(edges, dtype=torch.long).T
-        out = self._pyg_model(x, edge_index)  # type: ignore[call-arg, operator, misc]
+            proj = self._pyg_proj
+            if proj is None or proj.in_features != x.shape[1]:  # type: ignore[attr-defined]
+                # Built once with a fixed seed so repeated calls agree.
+                with torch.random.fork_rng():
+                    torch.manual_seed(0)
+                    proj = torch.nn.Linear(x.shape[1], self._hidden, bias=False)
+                self._pyg_proj = proj
+            x = proj(x)  # type: ignore[operator]
+        # Run the trained model even for an edgeless graph. GATConv adds
+        # self-loops by default, and bypassing the model here skipped its
+        # hidden-to-d_model projection and returned the wrong embedding size.
+        edge_index = (
+            torch.tensor(edges, dtype=torch.long).T
+            if edges
+            else torch.empty((2, 0), dtype=torch.long)
+        )
+        with torch.no_grad():
+            out = self._pyg_model(x, edge_index)  # type: ignore[call-arg, operator, misc]
         return out.detach().numpy()
 
     def _run_numpy(

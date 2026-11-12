@@ -45,6 +45,7 @@ from src.tuning.gate import GateDecision, PromotionGate
 from src.tuning.proposer import Proposal, Proposer
 from src.tuning.registry import ParameterRegistry, TunableParameter
 from src.tuning.store import VersionedConfigStore
+from src.tuning.watchdog import DriftDetector, PostPromotionWatchdog
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
@@ -76,7 +77,11 @@ class TuningRunner:
         gate: PromotionGate,
         shadow_mode: bool = True,
         decision_log_path: Path | None = None,
+        watchdog: PostPromotionWatchdog | None = None,
+        probation_detector_factory: Callable[[], DriftDetector] | None = None,
     ) -> None:
+        self._watchdog = watchdog
+        self._probation_detector_factory = probation_detector_factory
         self._registry = registry
         self._store = store
         self._audit_log = audit_log
@@ -89,8 +94,16 @@ class TuningRunner:
         # here would bury the real changes in noise.
         self._decision_log_path = decision_log_path
 
+    def set_probation_detector_factory(self, factory: Callable[[], DriftDetector] | None) -> None:
+        """Supplied by the layer that owns the drift baseline (orchestration);
+        tuning sits below risk and cannot construct a detector itself."""
+        self._probation_detector_factory = factory
+
     def _cooldown_active(
-        self, param_name: str, closed_trade_count: int | None = None
+        self,
+        param_name: str,
+        closed_trade_count: int | None = None,
+        bar_count: int | None = None,
     ) -> tuple[bool, str]:
         """
         Whether this parameter is still inside its post-attempt cooldown.
@@ -103,10 +116,9 @@ class TuningRunner:
         the hours half of the cadence guard was enforced and the trades half
         silently was not.
 
-        closed_trade_count is optional because the runner has no storage
-        access of its own. When a caller cannot supply it the trade guard is
-        skipped rather than guessed at, and the reason string says so, so a
-        cooldown decision is never silently weaker than it appears.
+        Evidence counters are optional because the runner has no storage
+        access of its own. Trade-driven and bar-driven callers supply their
+        respective counters; an unavailable counter is not guessed at.
         """
         entries = [
             e
@@ -122,15 +134,19 @@ class TuningRunner:
         if elapsed_hours < self._settings.min_hours_between_attempts:
             return True, "cooldown_active"
 
-        if closed_trade_count is None:
-            return False, ""
-        previous = last.details.get("closed_trade_count")
-        if not isinstance(previous, int):
-            # The last attempt predates this field. Nothing to measure
-            # against, so the trade guard cannot claim a verdict.
-            return False, ""
-        if closed_trade_count - previous < self._settings.min_trades_between_attempts:
-            return True, "cooldown_active_insufficient_trades"
+        if closed_trade_count is not None:
+            previous_trades = last.details.get("closed_trade_count")
+            if isinstance(previous_trades, int) and (
+                closed_trade_count - previous_trades < self._settings.min_trades_between_attempts
+            ):
+                return True, "cooldown_active_insufficient_trades"
+
+        if bar_count is not None:
+            previous_bars = last.details.get("bar_count")
+            if isinstance(previous_bars, int) and (
+                bar_count - previous_bars < self._settings.min_bars_between_attempts
+            ):
+                return True, "cooldown_active_insufficient_bars"
         return False, ""
 
     def _write_decision_log(
@@ -183,6 +199,7 @@ class TuningRunner:
         evaluate_fn: EvaluateFn,
         primary_metric: str,
         closed_trade_count: int | None = None,
+        bar_count: int | None = None,
     ) -> AttemptResult:
         """
         Run one propose -> evaluate -> gate -> (shadow-log | promote) cycle.
@@ -194,9 +211,10 @@ class TuningRunner:
         the proposer picked. This runner only orchestrates the decision;
         it does not itself run backtests.
 
-        `closed_trade_count` is the number of closed trades observed so far.
-        It feeds the trade half of the cadence guard (see _cooldown_active);
-        omitting it leaves only the wall-clock half in force.
+        `closed_trade_count` and `bar_count` are the current evidence counts
+        for trade-driven and bar-driven parameters respectively. Each is
+        compared only with the matching count recorded by that parameter's
+        previous proposal.
         """
         if not self._settings.enabled:
             self._audit_log.record(
@@ -210,7 +228,19 @@ class TuningRunner:
                 reasons=("self_tuning_disabled",),
             )
 
-        blocked, cooldown_reason = self._cooldown_active(param_name, closed_trade_count)
+        if self._watchdog is not None and self._watchdog.is_locked(param_name):
+            self._audit_log.record(
+                param_name, TuningEventType.SKIPPED, {"reason": "watchdog_locked"}
+            )
+            return AttemptResult(
+                param_name=param_name,
+                attempted=False,
+                accepted=False,
+                promoted=False,
+                reasons=("watchdog_locked",),
+            )
+
+        blocked, cooldown_reason = self._cooldown_active(param_name, closed_trade_count, bar_count)
         if blocked:
             self._audit_log.record(param_name, TuningEventType.SKIPPED, {"reason": cooldown_reason})
             return AttemptResult(
@@ -222,6 +252,14 @@ class TuningRunner:
             )
 
         param = self._registry.get(param_name)
+        n_trials = (
+            sum(
+                1
+                for e in self._audit_log.read_for_param(param_name)
+                if e.event_type == TuningEventType.PROPOSED
+            )
+            + 1
+        )
         proposal = self._proposer.propose(param, primary_metric)
         self._audit_log.record(
             param_name,
@@ -229,9 +267,10 @@ class TuningRunner:
             {
                 "champion_value": proposal.champion_value,
                 "challenger_value": proposal.challenger_value,
-                # Recorded so the NEXT attempt can measure how much new trade
-                # evidence has accumulated since this one.
+                # Recorded so the NEXT attempt can measure how much new
+                # trade or bar evidence has accumulated since this one.
                 "closed_trade_count": closed_trade_count,
+                "bar_count": bar_count,
             },
         )
 
@@ -258,7 +297,7 @@ class TuningRunner:
             },
         )
 
-        decision: GateDecision = self._gate.decide(param, evaluation, primary_metric)
+        decision: GateDecision = self._gate.decide(param, evaluation, primary_metric, n_trials)
 
         if not decision.accepted:
             self._audit_log.record(
@@ -301,6 +340,8 @@ class TuningRunner:
             {"challenger_value": proposal.challenger_value, "reasons": list(decision.reasons)},
         )
         self._write_decision_log(param_name, proposal, decision, primary_metric)
+        if self._watchdog is not None and self._probation_detector_factory is not None:
+            self._watchdog.start_probation(param_name, self._probation_detector_factory())
         return AttemptResult(
             param_name=param_name,
             attempted=True,

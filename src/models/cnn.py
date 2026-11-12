@@ -1,5 +1,5 @@
 """
-CNN model head — 1D dilated convolutional network for L2 order book data.
+CNN model head — 1D convolutional network (dilation=1) for L2 order book data.
 
 Input:  [B, C, T] — batch x channels x time  (C = order book levels x 2)
 Output: [B, 128]  — 128-dim embedding for cross-attention fusion

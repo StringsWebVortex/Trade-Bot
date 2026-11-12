@@ -2,7 +2,10 @@
 mutation needs CHANGE_RUNTIME plus the operator second factor and goes through
 the change manager, and an AI client can request but never approve.
 
-Decides: RES-017, RES-018"""
+The agent-control ledgers (GET /runtime/agent) need CHANGE_RUNTIME, so a
+read-only key gets 403 (SEC-0015).
+
+Decides: RES-017, RES-018, SEC-0015"""
 
 from __future__ import annotations
 
@@ -56,7 +59,7 @@ Api = tuple[TestClient, RuntimePlatform]
 
 
 @pytest.fixture
-def api() -> Iterator[Api]:
+def api(healthy_security_controls) -> Iterator[Api]:
     from src.api.main import AppState, app
 
     state = AppState()
@@ -254,14 +257,17 @@ def _task(task_id: str) -> TaskRun:
     )
 
 
-def test_agent_ledgers_are_served_read_only(
+def test_agent_ledgers_refuse_a_read_only_key(
     api: Api, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     client, _ = api
     TaskStore(tmp_path).save(_task("TB-RUN-20261007-0001"))
     (tmp_path / "tasks" / "TB-RUN-20261007-0002.json").write_text("{bad", encoding="utf-8")
     monkeypatch.setenv(STATE_DIR_ENV, str(tmp_path))
-    body = client.get("/runtime/agent", headers=READ).json()
+    refused = client.get("/runtime/agent", headers=READ)
+    assert refused.status_code == 403
+    assert "TB-RUN-20261007-0001" not in refused.text
+    body = client.get("/runtime/agent", headers=TRADE).json()
     (task,) = body["tasks"]
     assert (task["phase"], task["status"], task["steps_total"]) == ("IMPLEMENTING", "ACTIVE", 0)
     assert body["branch_audit"] == []
@@ -270,3 +276,40 @@ def test_agent_ledgers_are_served_read_only(
     assert agent_ledgers(tmp_path)["unreadable"][-1].startswith("branch-audit")
     monkeypatch.delenv(STATE_DIR_ENV)
     assert runtime_control._agent_state_dir().parts[-2:] == (".git", "agent-control")
+
+
+def test_runtime_decision_maps_unavailable_and_refused_lifecycle_errors(monkeypatch):
+    from src.api import runtime_control as control
+    from src.runtime.changes import RuntimeLifecycleUnavailableError
+    from src.runtime.supervisor import ActionRefusedError
+
+    body = control.RuntimeDecisionBody(operator="alice", operator_secret=SECRET)
+    monkeypatch.setattr(control, "actor_for", lambda _body: object())
+    platform = MagicMock()
+
+    platform.changes.decide_lifecycle.side_effect = RuntimeLifecycleUnavailableError("offline")
+    with pytest.raises(control.RuntimeControlError) as unavailable:
+        control.decide(platform, "change-1", "execute", body)
+    assert unavailable.value.status == 503
+    assert unavailable.value.detail == "offline"
+
+    platform.changes.decide_lifecycle.side_effect = ActionRefusedError("controller refused")
+    with pytest.raises(control.RuntimeControlError) as refused:
+        control.decide(platform, "change-1", "execute", body)
+    assert refused.value.status == 409
+    assert refused.value.detail == "controller refused"
+
+
+def test_note_operator_intent_reports_missing_components_and_contract_failures():
+    from src.api.runtime_control import note_operator_intent
+    from src.runtime.contracts import RuntimeContractError
+
+    platform = MagicMock()
+    platform.registry.find.return_value = None
+    missing = note_operator_intent(platform, "worker:missing", S.DRAINED, "alice", "maintenance")
+    assert missing == "worker:missing is not registered"
+
+    platform.registry.find.return_value = object()
+    platform.changes.request_desired.side_effect = RuntimeContractError("invalid desired state")
+    failed = note_operator_intent(platform, "worker:w", S.DRAINED, "alice", "maintenance")
+    assert failed == "invalid desired state"

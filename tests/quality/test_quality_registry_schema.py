@@ -34,6 +34,8 @@ from required_import import require
 jsonschema = require("jsonschema")
 from jsonschema import Draft7Validator  # noqa: E402
 
+from src.quality.registry import read_registry_document  # noqa: E402
+
 REPO = Path(__file__).resolve().parents[2]
 SCHEMA_PATH = REPO / "config" / "quality_registry.schema.json"
 REGISTRY_PATH = REPO / "config" / "quality_registry.json"
@@ -51,7 +53,8 @@ def validator(schema) -> Draft7Validator:
 
 @pytest.fixture(scope="module")
 def registry() -> dict[str, Any]:
-    return json.loads(REGISTRY_PATH.read_text(encoding="utf-8"))
+    # The whole document: the base file plus its per-entry files (GOV-071).
+    return read_registry_document(REGISTRY_PATH)
 
 
 def with_entry(registry: dict[str, Any], entry: dict[str, Any]) -> dict[str, Any]:

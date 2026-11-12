@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """
-Read `config/quality_registry.json` as it exists on *other* git refs.
+Read the quality registry as it exists in the working tree and on *other*
+git refs: `config/quality_registry.json` plus the one-entry-per-file directory
+`config/quality_registry.d/` (GOV-071).
 
 Id allocation used to scan only the working tree, which sees ids already
 merged to main and nothing else. Two branches open at the same time were
@@ -17,7 +19,8 @@ The scan is two git invocations regardless of how many refs exist: one
 `--batch-check` to resolve every `<ref>:path` to a blob, then one `--batch`
 for the handful of *distinct* blobs behind them. Most branches carry an
 identical registry, so the second call reads two or three objects, not two
-hundred.
+hundred. The per-entry directory adds one `ls-tree` per distinct directory and
+one read per distinct entry file, shared across every ref that carries it.
 """
 
 from __future__ import annotations
@@ -27,8 +30,10 @@ import subprocess
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 REGISTRY_REL_PATH = "config/quality_registry.json"
+OVERLAY_REL_PATH = "config/quality_registry.d"
 
 # One second-ish of work is fine; a wedged git is not worth waiting on.
 GIT_TIMEOUT_S = 30
@@ -83,6 +88,22 @@ def list_refs(repo: Path, *, filters: Sequence[str] = ()) -> list[str]:
     return [r for r in refs if not r.endswith("/HEAD")]
 
 
+def read_document(path: Path) -> dict[str, Any]:
+    """
+    The working-tree registry as one document: the base file with every entry
+    file from its sibling `.d` directory appended, as `src/quality/registry.py`
+    reads it. Stdlib only, because the scripts here do not import the project.
+    """
+    document = json.loads(path.read_text(encoding="utf-8"))
+    overlay = path.with_suffix(".d")
+    if overlay.is_dir() and isinstance(document.get("entries"), list):
+        document["entries"] = [
+            *document["entries"],
+            *(json.loads(f.read_text(encoding="utf-8")) for f in sorted(overlay.glob("*.json"))),
+        ]
+    return document
+
+
 def _blobs_for(repo: Path, refs: list[str]) -> dict[str, list[str]]:
     """{blob sha: refs carrying it}, skipping refs with no registry at all."""
     if not refs:
@@ -112,17 +133,68 @@ def _entries_in_blob(repo: Path, sha: str) -> dict[str, str] | None:
     return out
 
 
+def _overlay_trees_for(repo: Path, refs: list[str]) -> dict[str, list[str]]:
+    """{tree sha: refs carrying it} for the per-entry directory."""
+    if not refs:
+        return {}
+    stdin = "".join(f"{ref}:{OVERLAY_REL_PATH}\n" for ref in refs)
+    out = _git(repo, "cat-file", "--batch-check=%(objectname) %(objecttype)", stdin=stdin)
+    by_tree: dict[str, list[str]] = {}
+    for ref, line in zip(refs, out.splitlines(), strict=False):
+        parts = line.split()
+        if len(parts) < 2 or parts[1] != "tree":
+            continue  # that ref predates the directory
+        by_tree.setdefault(parts[0], []).append(ref)
+    return by_tree
+
+
+def _entries_in_tree(repo: Path, sha: str, bodies: dict[str, str | None]) -> dict[str, str]:
+    """
+    The entries in one per-entry directory. `bodies` caches blob sha -> body
+    across trees: branches share most entry files, so each is read once.
+    """
+    out: dict[str, str] = {}
+    for line in _git(repo, "ls-tree", sha).splitlines():
+        meta, _, name = line.partition("\t")
+        fields = meta.split()
+        if len(fields) < 3 or fields[1] != "blob" or not name.endswith(".json"):
+            continue
+        blob = fields[2]
+        if blob not in bodies:
+            try:
+                entry = json.loads(_git(repo, "cat-file", "blob", blob))
+            except ValueError:
+                entry = None
+            ok = isinstance(entry, dict) and isinstance(entry.get("id"), str)
+            bodies[blob] = json.dumps(entry, sort_keys=True) if ok else None
+        body = bodies[blob]
+        if body is not None:
+            out[json.loads(body)["id"]] = body
+    return out
+
+
+def _overlay_entries(repo: Path, refs: list[str]) -> list[RefEntry]:
+    found: list[RefEntry] = []
+    bodies: dict[str, str | None] = {}
+    for sha, carriers in _overlay_trees_for(repo, refs).items():
+        entries = _entries_in_tree(repo, sha, bodies)
+        for ref in carriers:
+            found.extend(RefEntry(ref, eid, body) for eid, body in entries.items())
+    return found
+
+
 def entries_on_refs(repo: Path, *, filters: Sequence[str] = ()) -> list[RefEntry]:
     """Every registry entry visible on any other ref, tagged with its ref."""
-    by_blob = _blobs_for(repo, list_refs(repo, filters=filters))
+    refs = list_refs(repo, filters=filters)
+    by_blob = _blobs_for(repo, refs)
     found: list[RefEntry] = []
-    for sha, refs in by_blob.items():
+    for sha, carriers in by_blob.items():
         entries = _entries_in_blob(repo, sha)
         if entries is None:
             continue
-        for ref in refs:
+        for ref in carriers:
             found.extend(RefEntry(ref, eid, body) for eid, body in entries.items())
-    return found
+    return found + _overlay_entries(repo, refs)
 
 
 def ids_on_refs(repo: Path, *, filters: Sequence[str] = ()) -> dict[str, str]:
@@ -138,7 +210,9 @@ def ids_at(repo: Path, commitish: str) -> set[str] | None:
     by_blob = _blobs_for(repo, [commitish])
     for sha in by_blob:
         entries = _entries_in_blob(repo, sha)
-        return None if entries is None else set(entries)
+        if entries is None:
+            return None
+        return set(entries) | {item.entry_id for item in _overlay_entries(repo, [commitish])}
     return None
 
 

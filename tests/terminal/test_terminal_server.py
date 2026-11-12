@@ -18,6 +18,10 @@ Decides:
   - TERM-004 -- the terminal is local-only and authenticated
   - TERM-006 -- closing a session or stopping the service leaves no orphan
   - SEC-0010 -- no path hands a shell to anyone but the local user who owns it
+
+Decides:
+  - REG-1495 — Terminal daemon releases its instance lock on construction failure
+  - SEC-1502 — Terminal purge and peer-uid checks fail closed
 """
 
 from __future__ import annotations
@@ -325,6 +329,12 @@ class TestConnectionLimits:
         client = await AsyncClient.connect(daemon.config.socket_path, hello=False)
         assert await client.closed()
 
+    async def test_a_peer_with_unknown_uid_is_refused(self, daemon, monkeypatch):
+        """AGT-030: fail closed when SO_PEERCRED is unavailable."""
+        monkeypatch.setattr(auth, "peer_uid", lambda _sock: None)
+        client = await AsyncClient.connect(daemon.config.socket_path, hello=False)
+        assert await client.closed()
+
 
 class TestLifecycle:
     async def test_stopping_ends_every_session_and_removes_files(self, config, short_tmp):
@@ -512,3 +522,19 @@ class TestClientConnection:
         server = TerminalServer(config)
         await asyncio.wait_for(server._serve(connection, _never()), 5)
         assert connection not in server._clients
+
+
+async def test_instance_lock_released_when_server_construction_fails(config, monkeypatch):
+    """AGT-031: a failing TerminalServer(...) must not leak the flock."""
+    from src.terminal import server as server_mod
+
+    def boom(*a, **k):
+        raise RuntimeError("construction failed")
+
+    monkeypatch.setattr(server_mod, "TerminalServer", boom)
+    monkeypatch.setattr(server_mod.os, "geteuid", lambda: 1000)
+    with pytest.raises(RuntimeError, match="construction failed"):
+        await run_daemon(config, install_signals=False)
+    lock = server_mod.InstanceLock(config.lock_path)
+    lock.acquire()  # raises DaemonError if the previous lock leaked
+    lock.release()

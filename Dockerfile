@@ -126,6 +126,11 @@ RUN python -m pip uninstall --yes pip wheel \
     && rm -rf /usr/local/lib/python3.11/site-packages/pip \
     && rm -rf /root/.cache
 
+# OPS-005: the only writable paths under a read-only root. Created owned by the
+# app user so named volumes mounted here inherit that ownership.
+RUN mkdir -p /app/data /app/logs /app/models \
+    && chown -R 10001:10001 /app/data /app/logs /app/models
+
 # Owned by root, run as tradebot: the running process cannot modify its own
 # code. This is the single most useful property in the file.
 USER 10001:10001
