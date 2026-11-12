@@ -12,7 +12,6 @@ from common.claude_cli import run_claude
 from .config import KG_MAX_SUBGRAPH_TRIPLES, KG_QUERY_MODEL
 from .db import get_edges_collection, get_nodes_collection
 
-
 _STOPWORDS = frozenset(
     {
         "the", "and", "what", "who", "which", "where", "when", "how", "why",

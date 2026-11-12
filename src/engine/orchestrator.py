@@ -91,12 +91,12 @@ from src.risk.performance_drift import PerformanceBaseline, PerformanceDriftDete
 from src.risk.portfolio_agreement import portfolio_agreement_scalar
 from src.risk.portfolio_correlation import get_portfolio_correlation
 from src.risk.slippage import SlippageModel
+from src.risk.state_persistence import state_file
 from src.risk.strategy_correlation import (
     combined_correlation_scalar,
     get_strategy_correlation,
 )
 from src.risk.strategy_kill_switch import get_strategy_kill_switch_manager
-from src.risk.state_persistence import state_file
 from src.strategies.capital_allocator import performance_weighted_allocate
 from src.strategies.mean_reversion import check_cointegration
 from src.strategies.registry import get_default_registry
