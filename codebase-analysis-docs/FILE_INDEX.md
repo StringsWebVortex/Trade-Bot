@@ -4,7 +4,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 
 ## Totals
 
-- Tracked paths: 1288
+- Tracked paths: 1285
 - Python files: 1061
 - P0 anchors: 58
 - P1 files: 1092
@@ -1218,7 +1218,6 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 1148 | P1 | tests/trading/invariants/test_inv_004_non_finite.py | Python | 307 | 9906a7ce |  |
 | 1149 | P1 | tests/trading/invariants/test_inv_005_disabled_mode.py | Python | 123 | 6611a4a0 |  |
 | 1150 | P1 | tests/trading/invariants/test_inv_006_risk_engine_failure.py | Python | 171 | 32c8cd83 |  |
-| 1151 | P2 | .agents/skills/trade-bot-code-review-pr/SKILL.md | Markdown | 23 | f7724554 |  |
 | 1152 | P2 | .agents/skills/trade-bot-cookbook-engineering/SKILL.md | Markdown | 22 | 1db44afc |  |
 | 1153 | P2 | .agents/skills/trade-bot-delivery/SKILL.md | Markdown | 18 | 10984afa |  |
 | 1154 | P2 | .agents/skills/trade-bot-evaluation-optimization/SKILL.md | Markdown | 18 | 6a9dcbb5 |  |
@@ -1261,8 +1260,6 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 1191 | P2 | .claude/skills/quality-engineering/scripts/qe_gate.py | Python | 488 | b333999c |  |
 | 1192 | P2 | .claude/skills/quality-engineering/scripts/qe_new_requirement.py | Python | 273 | 390e670a |  |
 | 1193 | P2 | .claude/skills/quality-engineering/scripts/qe_registry_refs.py | Python | 151 | 7bbe41fa |  |
-| 1194 | P2 | .codex/AUTONOMOUS_TASK_PROMPT.md | Markdown | 62 | d5d878b6 |  |
-| 1195 | P2 | .codex/IMPLEMENTATION.md | Markdown | 228 | 34e220df |  |
 | 1196 | P2 | .codex/agents/docs-researcher.toml | TOML | 32 | dd85dc27 |  |
 | 1197 | P2 | .codex/agents/explorer.toml | TOML | 32 | c12ca20e |  |
 | 1198 | P2 | .codex/agents/implementer.toml | TOML | 63 | 0563b998 |  |
