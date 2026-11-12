@@ -18,5 +18,5 @@
       "test_type": "regression"
     }
   ],
-  "notes": "Preserves the source-data boundary for causal analysis."
+  "notes": "Preserves the source-data boundary for causal analysis; layer: test-suite"
 }

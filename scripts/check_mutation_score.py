@@ -139,6 +139,9 @@ def run_subsystem(name: str, spec: dict, timeout_s: int) -> MutationResult:
             check=False,
         )
     except subprocess.TimeoutExpired:
+        # A timed-out child can leave a partial cache; never let it leak into
+        # the next subsystem's score or remain as a misleading artifact.
+        MUTMUT_CACHE.unlink(missing_ok=True)
         # Preserve a failed verdict and let the remaining subsystems run.
         return MutationResult(
             subsystem=name,
