@@ -32,7 +32,6 @@ from pathlib import Path
 import pytest
 
 import src.quality.registry as registry_module
-
 from src.quality.registry import (
     DEFAULT_KIND,
     PREFIX_KINDS,
