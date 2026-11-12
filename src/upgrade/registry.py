@@ -3,7 +3,7 @@ Model Registry — MLflow + DVC integration for crypto-intel-v6 models.
 
 Handles:
   - log_model(): log a PyTorch model artifact to MLflow with metrics
-  - register_model(): promote model to Production stage in MLflow registry
+  - register_model(): register a model version (never promotes; MTH-006)
   - load_model(): load a registered model by name and stage
   - tag_dvc(): create a DVC tag for the model artifact directory
 
@@ -13,7 +13,10 @@ under the same experiment.
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import os
+import re
 from pathlib import Path
 from typing import Any
 
@@ -23,6 +26,8 @@ log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
 _TRACKING_URI = os.environ.get("MLFLOW_TRACKING_URI", "http://127.0.0.1:5000")
 _EXPERIMENT_NAME = os.environ.get("MLFLOW_EXPERIMENT", "crypto-intel-v6")
+_TAG_NAME_RE = re.compile(r"[A-Za-z0-9._/-]+")
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
 _DVC_REMOTE = os.environ.get("DVC_REMOTE", "origin")
 
 
@@ -94,8 +99,11 @@ class ModelRegistry:
 
             try:
                 self._mlflow.pytorch.log_model(model, artifact_path)  # type: ignore[attr-defined]
-            except (ImportError, Exception) as exc:
+            except Exception as exc:
+                # No artifact was stored: returning the run_id would let a caller
+                # register a model that does not exist (MTH-007).
                 log.warning("mlflow_pytorch_log_failed", exc=str(exc))
+                return None
 
             run_id = run.info.run_id
             log.info("mlflow_model_logged", model_name=model_name, run_id=run_id, metrics=metrics)
@@ -106,44 +114,79 @@ class ModelRegistry:
         run_id: str,
         model_name: str,
         artifact_path: str,
-        stage: str = "Production",
+        artifact_sha256: str | None = None,
     ) -> str | None:
         """
         Register a logged model artifact into the MLflow Model Registry.
 
-        Transitions the latest version to `stage`.
+        MTH-006: this never promotes. The previous implementation moved the
+        new version to Production and archived the incumbent with no shadow
+        or Sharpe gate. Promotion is a separate, gated decision made outside
+        this facade. A pinned `artifact_sha256` (the manifest) is required
+        and is stored as a version tag so `load_model` can verify it.
         Returns the model version string.
         """
         if self._client is None:
+            return None
+        if not artifact_sha256:
+            log.warning("model_registration_refused_no_manifest", model_name=model_name)
             return None
 
         try:
             model_uri = f"runs:/{run_id}/{artifact_path}"
             mv = self._mlflow.register_model(model_uri, model_name)
-            self._client.transition_model_version_stage(
+            self._client.set_model_version_tag(
                 name=model_name,
                 version=mv.version,
-                stage=stage,
-                archive_existing_versions=True,
+                key="artifact_sha256",
+                value=artifact_sha256,
             )
-            log.info("model_registered", model_name=model_name, version=mv.version, stage=stage)
+            log.info("model_registered", model_name=model_name, version=mv.version)
             return mv.version
         except Exception as exc:
             log.warning("model_registration_failed", exc=str(exc))
             return None
 
+    @staticmethod
+    def _hash_artifact_dir(root: Path) -> str:
+        """Deterministic SHA-256 over relative names and bytes of all files."""
+        digest = hashlib.sha256()
+        if root.is_file():
+            digest.update(root.read_bytes())
+            return digest.hexdigest()
+        for f in sorted(p for p in root.rglob("*") if p.is_file()):
+            digest.update(f.relative_to(root).as_posix().encode("utf-8"))
+            digest.update(b"\0")
+            digest.update(f.read_bytes())
+        return digest.hexdigest()
+
     def load_model(
         self,
         model_name: str,
         stage: str = "Production",
+        expected_sha256: str | None = None,
     ) -> Any | None:
-        """Load a model from the MLflow registry by name and stage."""
+        """
+        Load a model from the MLflow registry by name and stage.
+
+        MTH-006: mlflow.pytorch.load_model unpickles, so loading is refused
+        unless the caller pins the artifact's SHA-256 manifest. The artifact
+        is downloaded once, hashed, and only then loaded from that local copy.
+        """
         if self._mlflow is None:
+            return None
+        if not expected_sha256:
+            log.warning("model_load_refused_no_manifest", model_name=model_name, stage=stage)
             return None
 
         try:
             model_uri = f"models:/{model_name}/{stage}"
-            model = self._mlflow.pytorch.load_model(model_uri)  # type: ignore[attr-defined]
+            local = Path(self._mlflow.artifacts.download_artifacts(artifact_uri=model_uri))
+            actual = self._hash_artifact_dir(local)
+            if not hmac.compare_digest(actual.encode(), expected_sha256.encode()):
+                log.error("model_load_integrity_failed", model_name=model_name, stage=stage)
+                return None
+            model = self._mlflow.pytorch.load_model(str(local))  # type: ignore[attr-defined]
             log.info("model_loaded_from_registry", model_name=model_name, stage=stage)
             return model
         except Exception as exc:
@@ -157,13 +200,16 @@ class ModelRegistry:
         The tag makes the model checkpoint reproducible from a git commit.
         Returns True if the DVC tag was created successfully.
         """
+        if not _TAG_NAME_RE.fullmatch(tag_name or "") or tag_name.startswith("-"):
+            log.warning("dvc_tag_invalid_name", tag=tag_name)
+            return False
         try:
             import subprocess
 
             cmd = ["dvc", "commit", "--quiet"]
             if artifact_dir:
                 cmd.append(str(artifact_dir))
-            subprocess.run(cmd, check=True, capture_output=True)
+            subprocess.run(cmd, check=True, capture_output=True, cwd=_PROJECT_ROOT)
 
             # Create git tag pointing at this DVC state
             import subprocess as sp
@@ -172,6 +218,7 @@ class ModelRegistry:
                 ["git", "tag", "-a", tag_name, "-m", f"DVC model tag: {tag_name}"],
                 check=True,
                 capture_output=True,
+                cwd=_PROJECT_ROOT,
             )
             log.info("dvc_tag_created", tag=tag_name)
             return True

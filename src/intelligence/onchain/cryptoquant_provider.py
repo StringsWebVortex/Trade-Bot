@@ -13,7 +13,7 @@ Populated fields:
   exchange_stress_score           (additive MVRV contribution)
 
 Auth: Authorization: Bearer {cryptoquant_api_key}
-Rate: 10 req/min (Basic tier) → RateLimiter(10, window_s=60.0)
+Rate: 10 req/min (Basic tier) → RateLimiter(10, window_s=60.0) via _RATE/_RATE_WINDOW_S
 Cache: 300s (daily-resolution data — sub-5min refresh has zero value)
 
 Authority: https://docs.cryptoquant.com/api-reference/
@@ -56,7 +56,8 @@ class CryptoQuantProvider(OnChainProvider):
 
     _BASE_URL = _BASE
     _CACHE_TTL_S = 300
-    _RATE = 10.0 / 60.0  # 10 req/min expressed as req/s for RateLimiter window_s=1.0
+    _RATE = 10.0  # 10 req/min; burst capacity of 10 tokens
+    _RATE_WINDOW_S = 60.0
 
     def __init__(self, api_key: str, cache_ttl_s: int = 300) -> None:
         super().__init__(cache_ttl_s)
@@ -108,7 +109,11 @@ class CryptoQuantProvider(OnChainProvider):
             params={"window": "day", "limit": str(_DAILY_WINDOW)},
         )
         if reserve_data is not None:
-            result["exchange_reserve_ratio"] = _reserve_ratio(reserve_data)
+            ratio = _reserve_ratio(reserve_data)
+            if ratio is not None:
+                result["exchange_reserve_ratio"] = ratio
+            else:
+                confidence -= _CONFIDENCE_PENALTY
         else:
             confidence -= _CONFIDENCE_PENALTY
 
@@ -176,16 +181,19 @@ def _extract_rows(data: dict[str, Any]) -> list[dict[str, Any]]:
     return []
 
 
-def _reserve_ratio(data: dict[str, Any]) -> float:
+def _reserve_ratio(data: dict[str, Any]) -> float | None:
+    """Reserve USD over BTC market cap from the row's own price; None if no live price."""
     rows = _extract_rows(data)
     if not rows:
         return 0.5
     latest = rows[-1]
     reserve_usd = float(latest.get("reserve_usd", 0) or 0)
-    # Approximate BTC total supply x price for normalization
-    btc_supply = 21_000_000.0
-    btc_price_approx = float(latest.get("price", 60_000) or 60_000)
-    total_cap = btc_supply * btc_price_approx
+    price = float(latest.get("price", 0) or 0)
+    if not math.isfinite(price) or price <= 0.0:
+        # No live price: a hardcoded fallback would make the ratio drift with
+        # the market (INT-028), so report unavailable instead.
+        return None
+    total_cap = 21_000_000.0 * price
     return max(0.0, min(1.0, reserve_usd / (total_cap + _EPS)))
 
 

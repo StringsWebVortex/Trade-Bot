@@ -12,8 +12,9 @@ Merge strategy per field:
     network_activity): taken from the dedicated provider (CoinGecko /
     blockchain.info); these are not exchange-specific.
   - Glassnode-gated fields (exchange_netflow, reserve_ratio,
-    miner_netflow, staking_unlock, entity_exchange_imbalance): remain
-    NaN until paid API keys are provisioned (GAP-015).
+    miner_netflow, staking_unlock, entity_exchange_imbalance): are
+    not populated (no Glassnode provider exists) and stay at their neutral
+    defaults (0.0 / 0.5), not NaN.
 
 Extensibility:
   - Add a new provider by implementing ExchangeIntelligenceProvider and

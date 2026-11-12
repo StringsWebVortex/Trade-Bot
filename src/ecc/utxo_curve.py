@@ -43,6 +43,15 @@ class UTXOCurveResult:
     mean_age_days: float
 
 
+def _utxo_age_days(utxo: dict, now: float) -> float | None:
+    """Age in days from ``timestamp``, else ``confirmations`` x 600 s, else None."""
+    if utxo.get("timestamp") is not None:
+        return (now - float(utxo["timestamp"])) / 86400.0
+    if utxo.get("confirmations") is not None:
+        return float(utxo["confirmations"]) * 600.0 / 86400.0
+    return None
+
+
 def compute_hodler_index(utxo_set: list[dict]) -> UTXOCurveResult:
     """
     Compute the hodler index from a UTXO set.
@@ -65,11 +74,25 @@ def compute_hodler_index(utxo_set: list[dict]) -> UTXOCurveResult:
         )
 
     now = datetime.now(UTC).timestamp()
-    ages_days = np.array(
-        [(now - float(u.get("timestamp", now))) / 86400.0 for u in utxo_set],
-        dtype=float,
-    )
-    values = np.array([float(u.get("value_btc", u.get("amount", 0.0))) for u in utxo_set])
+    ages: list[float] = []
+    values_list: list[float] = []
+    for u in utxo_set:
+        age = _utxo_age_days(u, now)
+        if age is None:
+            # Unknown age is missing data, not age 0 (MTH-005).
+            continue
+        ages.append(age)
+        values_list.append(float(u.get("value_btc", u.get("amount", 0.0))))
+    if not ages:
+        return UTXOCurveResult(
+            hodler_index=0.0,
+            supply_shock_risk=False,
+            young_supply_pct=0.0,
+            aged_supply_pct=0.0,
+            mean_age_days=0.0,
+        )
+    ages_days = np.array(ages, dtype=float)
+    values = np.array(values_list, dtype=float)
 
     # Clamp negative ages (clock skew)
     ages_days = np.maximum(ages_days, 0.0)

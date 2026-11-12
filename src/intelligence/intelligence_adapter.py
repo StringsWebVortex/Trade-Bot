@@ -21,17 +21,6 @@ if TYPE_CHECKING:
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
-_TIMEFRAME_MAP: dict[str, int] = {
-    "30s": 30_000,
-    "1m": 60_000,
-    "5m": 300_000,
-    "15m": 900_000,
-    "1h": 3_600_000,
-    "4h": 14_400_000,
-    "1d": 86_400_000,
-    "7d": 604_800_000,
-}
-
 
 class IntelligenceAdapter:
     """
@@ -87,11 +76,22 @@ class IntelligenceAdapter:
             log.warning("intelligence_on_bar_failed", symbol=symbol, exc=str(exc))
             return
 
+        confidence = 0.0
+        features: dict[str, Any] | None = None
         if signal is None:
-            return
+            # No sized signal (ABSTAIN, suppressed risk context, drift): the
+            # fused decision is still the V6 output for this bar, so persist
+            # it with zero direction/size instead of dropping the row (INT-008).
+            decision = getattr(self._intel, "last_decision", None)
+            if not isinstance(decision, dict):
+                return
+            features = self._decision_to_features(decision)
+        else:
+            confidence = signal.confidence
 
         try:
-            features = self._signal_to_features(signal)
+            if features is None:
+                features = self._signal_to_features(signal)
         except ValueError as exc:
             log.warning(
                 "intelligence_feature_contract_unsupported",
@@ -107,11 +107,34 @@ class IntelligenceAdapter:
                 timeframe=timeframe,
                 bar_ts=bar_ts_ms,
                 features=features,
-                confidence=signal.confidence,
+                confidence=confidence,
                 source="crypto_intel_v6",
             )
         except Exception as exc:
             log.warning("intelligence_store_failed", symbol=symbol, exc=str(exc))
+
+    @staticmethod
+    def _decision_to_features(decision: dict[str, Any]) -> dict[str, Any]:
+        """Features for a bar that produced a fused decision but no sized signal."""
+
+        def _js(key: str) -> str:
+            raw = decision.get(key) or {}
+            return json.dumps({str(k): v for k, v in raw.items()}, sort_keys=True)
+
+        regime = decision.get("regime_id")
+        return {
+            "direction_v6": 0.0,
+            "size_pct_v6": 0.0,
+            "confidence_v6": 0.0,
+            "conflict_v6": float(bool(decision.get("conflict"))),
+            "regime_id_v6": float(regime) if regime is not None else None,
+            "expected_return_v6": _optional_float(decision.get("expected_return")),
+            "uncertainty_v6": _optional_float(decision.get("uncertainty")),
+            "algo_v6": str(decision.get("action", "ABSTAIN")),
+            "horizon_contributions_v6": _js("contributions"),
+            "model_versions_v6": _js("model_versions"),
+            "freshness_seconds_v6": _js("freshness_seconds"),
+        }
 
     def _signal_to_features(self, signal: Any) -> dict[str, Any]:
         """Map each unified V6 decision field to a durable storage column."""

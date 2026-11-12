@@ -1159,29 +1159,6 @@ def test_cached_models_rejected_when_the_current_live_gate_fails():
         assert trainer.load_compatible_cached_models(fm, "/tmp/cache") is None
 
 
-def test_cached_models_rejected_when_current_live_gate_fails():
-    trainer = _fast_trainer()
-    fm = _feature_matrix(n=400)
-    direction_provenance = _cache_provenance(trainer, "direction", list(FEATURES), oos_sharpe=-10.0)
-    meta_provenance = _cache_provenance(trainer, "meta_label", [*FEATURES, "p_long", "confidence"])
-    direction_model = MagicMock()
-    direction_model.predict_proba.return_value = np.tile([0.25, 0.75], (len(fm.features), 1))
-    with (
-        patch(
-            "src.models.trainer.read_provenance",
-            side_effect=[direction_provenance, meta_provenance],
-        ),
-        patch("src.models.trainer.read_manifest", return_value={"sha256": "a" * 64}),
-        patch("src.models.trainer.code_commit", return_value="test-commit"),
-        patch("src.models.trainer.library_versions", return_value={"xgboost": "test-version"}),
-        patch("src.models.trainer.hash_training_data", return_value="matching-data"),
-        patch("src.models.trainer.hash_feature_schema", return_value="matching-schema"),
-        patch.object(ModelTrainer, "load_direction", return_value=direction_model),
-        patch.object(ModelTrainer, "load_meta", return_value=MagicMock()),
-    ):
-        assert trainer.load_compatible_cached_models(fm, "/tmp/cache") is None
-
-
 def test_cached_models_rejected_when_artifact_digest_disagrees():
     trainer = _fast_trainer()
     fm = _feature_matrix(n=400)

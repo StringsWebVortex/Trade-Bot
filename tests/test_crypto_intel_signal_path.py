@@ -1,7 +1,9 @@
 """Covers horizon dispatch, honest abstention, and the risk-gated signal path.
 
 Decides:
+  - REG-0030 — Horizon decisions cannot bypass the single risk-gated order path
   - REG-0031 — Horizon drift detection suppresses the signal and is persisted as measured
+  - REG-1430 — Data and intelligence low-severity defects: bus drop total, naive now, funding units, NaN guards
 """
 
 from __future__ import annotations
@@ -722,3 +724,15 @@ def test_close_survives_a_duckdb_that_fails_to_close(intel):
 
     assert intel._started is False
     assert intel._orchestrator.shutdown_called is True
+
+
+def test_on_bar_skips_granger_update_without_close_history(intel):
+    """INT-035: no close_history must not feed a fabricated flat series to Granger."""
+    _deliver_results(intel, [_result(i) for i in range(3)])
+    calls: list[object] = []
+    intel._granger.update = lambda btc_ret, alts: calls.append(btc_ret)
+
+    asyncio.run(
+        intel.on_bar("BTC/USDT", _ohlcv(), alt_prices={"ETH/USDT": [10.0 + i for i in range(12)]}),
+    )
+    assert calls == []

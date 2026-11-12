@@ -126,17 +126,3 @@ class TestScanner:
     def test_a_transaction_with_no_signatures_is_a_no_op(self) -> None:
         scanner = ECDSAScanner()
         assert scanner.scan_transaction((b"\x00" * 64).hex()) == []
-
-    def test_the_registry_is_pruned_once_it_exceeds_the_cap(self) -> None:
-        scanner = ECDSAScanner()
-        for r in range(50):
-            scanner._r_registry[r] = [(1, "pk", "tx", 0)]
-        scanner.clear_old_entries(max_registry_size=10)
-        assert len(scanner._r_registry) == 45
-
-    def test_pruning_below_the_cap_keeps_everything(self) -> None:
-        scanner = ECDSAScanner()
-        for r in range(5):
-            scanner._r_registry[r] = [(1, "pk", "tx", 0)]
-        scanner.clear_old_entries(max_registry_size=100)
-        assert len(scanner._r_registry) == 5

@@ -3,6 +3,8 @@
 CI has no torch_geometric installed, so AssetGNN falls back to numpy and the
 GAT branch never executes. These tests install a stub package (see
 ``pyg_stub``) so the real production branch runs against real torch tensors.
+
+Decides: REG-1327
 """
 
 from __future__ import annotations
@@ -39,6 +41,7 @@ def test_model_is_built_when_torch_geometric_is_importable():
 def test_run_uses_the_gat_model_and_returns_d_model_embeddings():
     with installed():
         gnn = asset_gnn.AssetGNN(n_layers=2, hidden_dim=8, n_heads=2, d_model=16)
+        gnn._pyg_trained = True  # GAT path is only used once weights are trained
         features = pd.DataFrame(np.random.default_rng(1).normal(size=(2, 5)))
         result = gnn.run(_price_df(), features)
 
@@ -57,14 +60,13 @@ def test_run_pyg_skips_the_projection_when_features_already_match_hidden_dim():
     assert out.shape == (2, 16)
 
 
-def test_run_pyg_returns_unconvolved_nodes_when_the_graph_has_no_edges():
+def test_run_pyg_runs_self_loops_for_an_edgeless_graph_and_keeps_d_model_shape():
     with installed():
         gnn = asset_gnn.AssetGNN(n_layers=2, hidden_dim=5, n_heads=2, d_model=16)
         features = np.random.default_rng(3).normal(size=(3, 5)).astype(np.float32)
         out = gnn._run_pyg(features, [])
-    # No edges -> the projected node features come straight back, still
-    # hidden_dim wide because the GAT stack was skipped entirely.
-    assert out.shape == (3, 5)
+    # GATConv adds self-loops; the trained projection head returns d_model.
+    assert out.shape == (3, 16)
 
 
 @pytest.mark.parametrize("empty", ["prices", "features"])
@@ -76,3 +78,27 @@ def test_run_returns_empty_result_for_empty_inputs(empty):
         result = gnn.run(prices, features)
     assert result.edge_count == 0
     assert result.asset_embeddings == {}
+
+
+def test_untrained_gat_is_not_used_and_output_is_deterministic():
+    """DAT-014: an untrained GAT emits random noise, so run() must use the
+    deterministic numpy path until trained weights are loaded, and repeated
+    calls must agree."""
+    with installed():
+        gnn = asset_gnn.AssetGNN(n_layers=2, hidden_dim=8, n_heads=2, d_model=16)
+        features = pd.DataFrame(np.random.default_rng(1).normal(size=(2, 5)))
+        first = gnn.run(_price_df(), features)
+        second = gnn.run(_price_df(), features)
+    assert len(first.asset_embeddings["BTC"]) == 8  # numpy path, not d_model
+    assert first.asset_embeddings == second.asset_embeddings
+
+
+def test_trained_gat_path_is_eval_mode_and_repeatable():
+    """DAT-014: dropout must be off and the projection built once."""
+    with installed():
+        gnn = asset_gnn.AssetGNN(n_layers=2, hidden_dim=8, n_heads=2, d_model=16)
+        assert gnn._pyg_model.training is False
+        features = np.random.default_rng(2).normal(size=(2, 5)).astype(np.float32)
+        a = gnn._run_pyg(features, [(0, 1), (1, 0)])
+        b = gnn._run_pyg(features, [(0, 1), (1, 0)])
+    np.testing.assert_allclose(a, b)

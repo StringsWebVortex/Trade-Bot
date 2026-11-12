@@ -242,7 +242,7 @@ class OKXIntelligenceProvider(ExchangeIntelligenceProvider):
 
         rates = [r["fundingRate"] for r in history if r.get("fundingRate") is not None]
         if len(rates) < 2:
-            return {"rate_pct": rates[-1] if rates else 0.0, "zscore": 0.0}
+            return {"rate_pct": rates[-1] * 100.0 if rates else 0.0, "zscore": 0.0}
 
         current = rates[-1]
         mu = statistics.mean(rates)
