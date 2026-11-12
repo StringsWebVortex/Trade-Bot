@@ -126,9 +126,12 @@ def read_cache_counts(cache: Path) -> dict[str, int]:
 def run_subsystem(name: str, spec: dict, timeout_s: int) -> MutationResult:
     """Mutate one subsystem's paths and collect its score."""
     paths = ",".join(spec["paths"])
+    # Resolve the cache from the active project root so tests and isolated
+    # worktrees clean the cache belonging to the directory they are running in.
+    cache = PROJECT_ROOT / ".mutmut-cache"
     # The cache is shared across runs: without clearing it, `results` reports
     # the cumulative counts of every earlier subsystem.
-    MUTMUT_CACHE.unlink(missing_ok=True)
+    cache.unlink(missing_ok=True)
     try:
         run = subprocess.run(  # noqa: S603 - fixed argv, no shell
             ["mutmut", "run", "--paths-to-mutate", paths, "--no-progress"],
@@ -141,7 +144,7 @@ def run_subsystem(name: str, spec: dict, timeout_s: int) -> MutationResult:
     except subprocess.TimeoutExpired:
         # A timed-out child can leave a partial cache; never let it leak into
         # the next subsystem's score or remain as a misleading artifact.
-        MUTMUT_CACHE.unlink(missing_ok=True)
+        cache.unlink(missing_ok=True)
         # Preserve a failed verdict and let the remaining subsystems run.
         return MutationResult(
             subsystem=name,
@@ -156,7 +159,7 @@ def run_subsystem(name: str, spec: dict, timeout_s: int) -> MutationResult:
     # report survivors/timeouts/suspicious mutants, which the score handles.
     if run.returncode & 1:
         raise RuntimeError(f"mutmut run for {name!r} failed: {run.stderr[-500:]}")
-    counts = read_cache_counts(MUTMUT_CACHE)
+    counts = read_cache_counts(cache)
     return MutationResult(
         subsystem=name,
         killed=counts["killed"],
