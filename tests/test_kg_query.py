@@ -39,8 +39,8 @@ def test_subgraph_no_names_returns_nothing():
     edges_col.find.return_value.limit.return_value = [{"subject": "A"}]
     with patch("kg.query.get_edges_collection", return_value=edges_col):
         result = subgraph([], limit=10)
-    assert result == [{"subject": "A"}]
-    edges_col.find.assert_called_once_with({}, {"_id": 0})
+    assert result == []
+    edges_col.find.assert_not_called()
 
 
 def test_subgraph_with_names_filters():

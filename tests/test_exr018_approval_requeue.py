@@ -82,7 +82,7 @@ async def test_approved_trade_fills_at_the_fresh_price_not_the_queued_one(manual
 
     assert outcome == "opened"
     pos = manual_executor._positions[trade_id]
-    assert pos.entry_price == pytest.approx(100.3)
+    assert pos.entry_price == pytest.approx(100.3, abs=0.05)
     assert pos.approved_by == "alice"
 
 

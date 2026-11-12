@@ -4,13 +4,13 @@ Every backtest harness builds both arms in the same fold loop, so the samples
 are fold-aligned. Welch's two-sample test treats them as independent and lets
 the fold-to-fold spread both arms share hide a consistent per-fold effect. The
 evaluator now tests the per-fold differences (``ttest_rel``) one-sided in the
-direction of the delta, and falls back to Welch only when the lengths differ.
+direction of the delta, and rejects unequal fold counts rather than treating the arms as independent.
 """
 
 import pytest
 from scipy.stats import ttest_ind, ttest_rel
 
-from src.tuning.evaluator import ChallengerEvaluator
+from src.tuning.evaluator import ChallengerEvaluator, InsufficientSampleError
 
 _ALPHA = 0.05
 
@@ -40,15 +40,12 @@ def test_fold_aligned_shift_is_significant_where_welch_is_not(sign: float) -> No
     assert comparison.p_value < _ALPHA
 
 
-def test_unequal_lengths_fall_back_to_one_sided_welch() -> None:
+def test_unequal_fold_counts_are_rejected() -> None:
     champion = [0.1 * i for i in range(10)]
     challenger = [0.1 * i + 0.5 for i in range(12)]
 
-    comparison = ChallengerEvaluator().compare_metric("oos_sharpe", champion, challenger)
-
-    assert comparison.p_value == pytest.approx(
-        float(ttest_ind(challenger, champion, equal_var=False, alternative="greater").pvalue)
-    )
+    with pytest.raises(InsufficientSampleError, match="paired comparison requires equal sample counts"):
+        ChallengerEvaluator().compare_metric("oos_sharpe", champion, challenger)
 
 
 def test_identical_arms_report_no_evidence() -> None:

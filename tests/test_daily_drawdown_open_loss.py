@@ -12,10 +12,9 @@ import math
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from conftest import settings_double
 from test_orchestrator_extra_coverage import _make_executor, _make_orch, _make_skip_result
 
-from src.config import Timeframe
+from src.config import RiskSettings, Timeframe
 from src.risk.gates import GateStatus, check_daily_drawdown, stricter_daily_pnl
 
 
@@ -33,13 +32,13 @@ def test_the_worse_of_realised_and_marked_is_used(
 def test_a_non_finite_input_halts(realised: float, marked: float) -> None:
     pnl = stricter_daily_pnl(realised, marked)
     assert math.isnan(pnl)
-    assert check_daily_drawdown(pnl, 100_000.0, settings_double().risk).status == (
+    assert check_daily_drawdown(pnl, 100_000.0, RiskSettings()).status == (
         GateStatus.HALT_DRAWDOWN
     )
 
 
 def test_an_open_three_percent_loss_halts_with_nothing_realised() -> None:
-    cfg = settings_double().risk
+    cfg = RiskSettings()
     pnl = stricter_daily_pnl(0.0, -3_000.0)
     assert check_daily_drawdown(pnl, 100_000.0, cfg).status == GateStatus.HALT_DRAWDOWN
     # Realised-only, the old input, let it through.

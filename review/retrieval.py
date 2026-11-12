@@ -7,8 +7,8 @@ minus the hosted-agent wrapper."""
 
 from __future__ import annotations
 
+from kg import query as kg_query
 from kg.config import KG_MAX_SUBGRAPH_TRIPLES
-from kg.query import subgraph
 from rag_mongo.config import TOP_K
 from rag_mongo.db import get_collection
 from rag_mongo.retrieve import vector_search
@@ -50,4 +50,4 @@ def hybrid(query: str, top_k: int = TOP_K) -> list[dict]:
 
 
 def graph(entity_names: list[str], limit: int = KG_MAX_SUBGRAPH_TRIPLES) -> list[dict]:
-    return subgraph(entity_names, limit)
+    return kg_query.subgraph(entity_names, limit)

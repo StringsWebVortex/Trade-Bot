@@ -500,10 +500,9 @@ class TestEnsemblePredictor:
             ep.fit(X, y)
         result = ep.predict(X.iloc[:1], recent_returns=y.to_numpy())
         assert isinstance(result, EnsemblePrediction)
-        # The LSTM trains on target sequences, not the feature-vector shape
-        # supplied by the ensemble, so it is safely excluded at prediction.
-        assert len(result.individual_predictions) == 4
-        assert "lstm" not in result.individual_predictions
+        # The LSTM forecasts from the supplied realised-return window.
+        assert len(result.individual_predictions) == 5
+        assert "lstm" in result.individual_predictions
 
     def test_build_lstm_sequences_insufficient(self):
         y = pd.Series([1.0, 2.0, 3.0])
@@ -719,4 +718,4 @@ def test_lstm_predict_returns_zero_if_lazy_runtime_disappears():
         patch("src.intelligence.ensemble_predictor._torch_installed", return_value=True),
         patch("src.intelligence.ensemble_predictor._load_torch_runtime", return_value=None),
     ):
-        assert p.predict(_make_features(5)) == 0.0
+        assert p.predict(_make_features(5), recent_returns=np.zeros(p.lookback)) == 0.0

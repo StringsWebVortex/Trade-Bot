@@ -154,7 +154,7 @@ def _platform() -> RuntimePlatform:
 
 
 @pytest.fixture
-def api() -> Iterator[tuple[TestClient, RuntimePlatform]]:
+def api(healthy_security_controls: object) -> Iterator[tuple[TestClient, RuntimePlatform]]:
     from src.api.main import AppState, app
 
     state = AppState()

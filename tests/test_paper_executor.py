@@ -696,7 +696,7 @@ class TestApprovalTimeout:
         (req,) = executor._approval_queue.values()
         req.created_at = _time.monotonic() - executor._risk_cfg.approval_timeout_s - 1.0
 
-        assert executor.pending_approvals() == []
+        assert await executor.pending_approvals_safe() == []
         assert await executor.resolve_approval(req.request_id, True, "alice") is False
         assert req.operator == "auto_timeout"
 
