@@ -23,7 +23,6 @@ import statistics
 from dataclasses import dataclass
 from typing import Final
 
-import numpy as np
 from scipy import stats as scipy_stats
 from scipy.stats import norm, ttest_ind, ttest_rel
 

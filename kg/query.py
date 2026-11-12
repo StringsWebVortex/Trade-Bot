@@ -13,6 +13,16 @@ from .config import KG_MAX_SUBGRAPH_TRIPLES, KG_QUERY_MODEL
 from .db import get_edges_collection, get_nodes_collection
 
 
+_STOPWORDS = frozenset(
+    {
+        "the", "and", "what", "who", "which", "where", "when", "how", "why",
+        "are", "was", "were", "does", "did", "for", "with", "about", "from",
+        "that", "this", "there", "their", "you", "your", "have", "has", "had",
+        "can", "tell", "show", "list", "give",
+    }
+)
+
+
 def _candidate_names(question: str) -> list[str]:
     words = {
         w for w in re.findall(r"[A-Za-z][A-Za-z0-9_-]{2,}", question) if w.lower() not in _STOPWORDS

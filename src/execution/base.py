@@ -102,9 +102,12 @@ def open_approval_for(
     and not yet executed. At most one exists, because a key with an open
     request never queues a second one."""
     for req in queue.values():
-        if req.symbol == symbol and req.timeframe == timeframe:
-            if not req.resolved or req.approved:
-                return req
+        if (
+            req.symbol == symbol
+            and req.timeframe == timeframe
+            and (not req.resolved or req.approved)
+        ):
+            return req
     return None
 
 
