@@ -58,6 +58,7 @@ class MutationResult:
     timeout: int
     min_score: float
     requirement: str
+    timed_out: bool = False
 
     @property
     def total(self) -> int:
@@ -73,15 +74,20 @@ class MutationResult:
     def passed(self) -> bool:
         # A run that generated no mutants has proved nothing. Treating it as
         # a pass is how this check goes green after someone points it at a
-        # path that no longer exists.
-        return self.total > 0 and self.score >= self.min_score
+        # path that no longer exists. A wall-clock timeout also has no score
+        # and must never be reported as a passing subsystem.
+        return not self.timed_out and self.total > 0 and self.score >= self.min_score
 
     def line(self) -> str:
         status = "ok" if self.passed else "FAIL"
+        detail = (
+            f"mutation run timed out before a score was available, {self.requirement}"
+            if self.timed_out
+            else f"{self.killed} killed / {self.total} mutants, {self.requirement}"
+        )
         return (
             f"[{status:4}] {self.subsystem:<14} {self.score:6.1%} "
-            f"(floor {self.min_score:.0%}, {self.killed} killed / {self.total} mutants, "
-            f"{self.requirement})"
+            f"(floor {self.min_score:.0%}, {detail})"
         )
 
 
@@ -132,8 +138,17 @@ def run_subsystem(name: str, spec: dict, timeout_s: int) -> MutationResult:
             timeout=timeout_s,
             check=False,
         )
-    except subprocess.TimeoutExpired as exc:
-        raise RuntimeError(f"mutmut run for {name!r} exceeded {timeout_s}s") from exc
+    except subprocess.TimeoutExpired:
+        # Preserve a failed verdict and let the remaining subsystems run.
+        return MutationResult(
+            subsystem=name,
+            killed=0,
+            survived=0,
+            timeout=0,
+            min_score=float(spec["min_score"]),
+            requirement=spec.get("requirement", ""),
+            timed_out=True,
+        )
     # mutmut's exit code is a bitmask: 1 is a fatal error, higher bits only
     # report survivors/timeouts/suspicious mutants, which the score handles.
     if run.returncode & 1:
@@ -213,6 +228,7 @@ def main() -> int:
                         "killed": r.killed,
                         "survived": r.survived,
                         "timeout": r.timeout,
+                        "timed_out": r.timed_out,
                         "min_score": r.min_score,
                         "passed": r.passed,
                         "requirement": r.requirement,
