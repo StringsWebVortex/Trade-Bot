@@ -512,7 +512,6 @@ class TestRemainingSessionEdges:
         await harness.manager.close(job.id)
         assert job.id not in {item.id for item in harness.manager.sessions()}
 
-
     async def test_child_environment_removes_inherited_npm_and_electron_state(self, harness):
         harness.manager._base_env = {
             "PATH": "/usr/bin",
