@@ -294,9 +294,8 @@ def main(argv: list[str] | None = None) -> int:
     if warning:
         print(
             "\nReported, not blocking: no fixed release of the package exists, so "
-            "nothing in this repository can remediate it. This is recorded as an "
-            "accepted gap in config/quality_registry.json and is re-checked every "
-            "run -- when a fix is published this gate fails again.",
+            "nothing in this repository can remediate it. It is "
+            "re-checked every run -- when a fix is published this gate fails again.",
         )
 
     if blocking:

@@ -6,6 +6,9 @@ the current Ed25519 signer. That is the first test. The rest exist so a *clean*
 result means something -- each check is shown to fail on a signer that violates
 exactly the property it guards, because an audit that cannot go red is not an
 audit.
+
+SEC-0013: ``ApiSigner.from_env`` refuses to run without a configured key
+instead of generating an ephemeral one.
 """
 
 from __future__ import annotations
@@ -158,9 +161,7 @@ def test_a_signer_loaded_from_a_seed_audits_clean() -> None:
     assert a.sign_request(*_REQUEST) == b.sign_request(*_REQUEST)
 
 
-def test_from_env_uses_the_seed_when_present_and_an_ephemeral_key_otherwise(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_from_env_uses_the_seed_when_present(monkeypatch: pytest.MonkeyPatch) -> None:
     import base64
 
     seed = base64.b64encode(bytes(range(1, 33))).decode()
@@ -169,6 +170,13 @@ def test_from_env_uses_the_seed_when_present_and_an_ephemeral_key_otherwise(
     direct = ApiSigner(seed)
     assert from_env.public_key_b64() == direct.public_key_b64()
 
-    monkeypatch.delenv("API_SIGNING_KEY_B64", raising=False)
-    ephemeral = ApiSigner.from_env()
-    assert audit_signer(ephemeral).clean
+
+@pytest.mark.parametrize("value", [None, ""])
+def test_from_env_refuses_a_missing_key(monkeypatch: pytest.MonkeyPatch, value: str | None) -> None:
+    # SEC-0013: no silent ephemeral key when the variable is unset or empty.
+    if value is None:
+        monkeypatch.delenv("API_SIGNING_KEY_B64", raising=False)
+    else:
+        monkeypatch.setenv("API_SIGNING_KEY_B64", value)
+    with pytest.raises(ValueError, match="API_SIGNING_KEY_B64"):
+        ApiSigner.from_env()

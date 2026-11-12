@@ -1,4 +1,8 @@
-"""Tests for the v10 self-updating decision log writer."""
+"""Tests for the v10 self-updating decision log writer.
+
+Decides:
+  - REG-1493 — Decision log header creation never truncates
+"""
 
 from __future__ import annotations
 
@@ -65,3 +69,13 @@ def test_append_twice_keeps_both_entries(tmp_path: Path) -> None:
     content = log_path.read_text(encoding="utf-8")
     assert "mean_reversion_pairs_v1 promoted" in content
     assert "funding_carry_v1 retired" in content
+
+
+def test_header_creation_never_truncates_an_existing_log(tmp_path: Path) -> None:
+    """AGT-017: an existing file (e.g. created by a racing writer) keeps its content."""
+    log = tmp_path / "DECISION_LOG.md"
+    log.write_text("# Decision Log\n\nexisting entry\n", encoding="utf-8")
+    append_to_decision_log(_record(), log)
+    text = log.read_text(encoding="utf-8")
+    assert "existing entry" in text
+    assert text.count("# Decision Log") == 1

@@ -14,20 +14,22 @@ Workflow:
 1. Understand the requested task.
 2. Inspect relevant project files.
 3. Identify existing architectural patterns.
-4. Determine the smallest reliable implementation.
+4. Determine the implementation locations.
 5. Implement the requested changes.
-6. Add or update tests.
+6. Add or update tests (all tests should able to submit/deliver their results(blank result if success otherwise reason of failure)).
 7. Run relevant validation commands.
 8. Summarize the results.
+9. keep Readme.md and other relevant documentations upto date according to codebase actual state.
 
 Engineering principles:
 - Follow existing project conventions.
-- Prefer minimal, focused changes.
+- Prefer proper, absolute, focused changes.
 - Avoid unnecessary dependencies.
 - Maintain backward compatibility.
 - Write clean, maintainable code.
 - Handle errors and edge cases.
 - Consider security and performance.
+- Consider Quality Engineering.
 - Do not overwrite unrelated user changes.
 
 Rules:
@@ -35,12 +37,10 @@ Rules:
 - Ask before adding production dependencies.
 - Do not claim tests passed without running them.
 - Do not silently remove existing functionality.
-- Report any assumptions or blockers.
+- Report any assumptions or blockers (after dealing them in 5 different ways/approaches but don't bypass any rule, policy, instructions.
 
-Final report:
-- Implementation summary.
-- Files changed.
-- Tests executed.
-- Validation results.
-- Remaining concerns.
+Response delivery:
+- files changed.
+- implemented user request.
+- never deliver statemental claims. always implement.
 """

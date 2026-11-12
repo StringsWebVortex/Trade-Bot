@@ -96,7 +96,19 @@ def birthday_bound(space_size: int, threshold: float = 0.5) -> int:
     estimate = (
         math.sqrt(2 * space_size * math.log(1 / (1 - threshold))) if threshold < 1 else space_size
     )
-    draws = max(0, int(estimate) - 2)
-    while birthday_collision_probability(draws, space_size) < threshold:
-        draws += 1
-    return draws
+    # Galloping bracket then bisection: exact even when the float estimate's ulp
+    # is larger than 1 (space_size >= 2^64).
+    lo = 0
+    hi = max(1, int(estimate))
+    while birthday_collision_probability(hi, space_size) < threshold:
+        lo = hi
+        hi *= 2
+    while lo + 1 < hi:
+        mid = (lo + hi) // 2
+        if birthday_collision_probability(mid, space_size) < threshold:
+            lo = mid
+        else:
+            hi = mid
+    if birthday_collision_probability(lo, space_size) >= threshold:
+        return lo
+    return hi

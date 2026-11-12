@@ -1,4 +1,6 @@
-"""Tests for orchestrator/run.py (the plan-big/execute-small entry point)."""
+"""Tests for orchestrator/run.py (the plan-big/execute-small entry point).
+
+Decides: REG-1226, SEC-1225"""
 
 from __future__ import annotations
 
@@ -37,3 +39,29 @@ def test_run_with_no_subtasks_still_synthesizes():
         out = run("trivial goal")
     assert out["worker_digests"] == []
     assert out["answer"] == "final"
+
+
+def test_one_failing_worker_does_not_discard_the_other_digests():
+    def flaky(subtask):
+        if subtask == "bad":
+            raise RuntimeError("timeout")
+        return {"subtask": subtask, "digest": "fine", "cost_usd": 0.01}
+
+    with (
+        patch("orchestrator.run.plan", return_value=["good", "bad"]),
+        patch("orchestrator.run.execute", side_effect=flaky),
+        patch("orchestrator.run.synthesize", return_value={"result": "final", "cost_usd": 0.0}),
+    ):
+        out = run("goal")
+
+    by_subtask = {d["subtask"]: d["digest"] for d in out["worker_digests"]}
+    assert by_subtask["good"] == "fine"
+    assert by_subtask["bad"].startswith("ERROR: worker failed")
+    assert out["answer"] == "final"
+
+
+def test_worker_defaults_to_read_only_tools():
+    from orchestrator import config
+
+    tools = set(config.WORKER_ALLOWED_TOOLS.split(","))
+    assert "Bash" not in tools and not any(t.startswith("Bash(") for t in tools)

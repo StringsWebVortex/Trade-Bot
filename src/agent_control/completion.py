@@ -28,6 +28,7 @@ from src.agent_control.model import (
     GitSnapshot,
     TaskRun,
 )
+from src.agent_control.reliability import ci_is_green
 from src.agent_control.reliability import gate as reliability_gate
 
 _ORDER = tuple(DeliverableState)
@@ -115,6 +116,8 @@ def _evidence_checks(checks: _Checks, task: TaskRun, head: str | None) -> None:
             and e.ok
             and e.tree_clean
             and e.head_sha == head
+            # An agent-attested CI notice counts only when prfail's verdict store agrees (AGT-003).
+            and (e.kind is not EvidenceKind.CI_NOTICE or ci_is_green(head))
         ]
         checks.add(
             f"validation:{requirement.name}",

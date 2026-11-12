@@ -180,7 +180,7 @@ export function ControlHubPanel({ operatorAction, refreshToken }) {
     async (name, value) => {
       setPending(name);
       try {
-        const result = await operatorAction(`/controls/${name}`, 'POST', { value });
+        const result = await operatorAction(`/controls/${encodeURIComponent(name)}`, 'POST', { value });
         // Re-read either way: on success to confirm what landed, on failure
         // because the widget is showing a value the backend never accepted.
         await load();
@@ -192,7 +192,8 @@ export function ControlHubPanel({ operatorAction, refreshToken }) {
     [operatorAction, load],
   );
 
-  if (error) {
+  // FE-10: a transient failure must not discard a surface that already loaded.
+  if (error && !surface) {
     return <div style={{ color: 'var(--c-red, #f66)', fontSize: 12, padding: 20 }}>{error}</div>;
   }
   if (!surface) {
@@ -218,6 +219,11 @@ export function ControlHubPanel({ operatorAction, refreshToken }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {error && (
+        <div role="alert" style={{ color: 'var(--c-red, #f66)', fontSize: 12 }}>
+          {error} (showing last known controls)
+        </div>
+      )}
       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
         <input
           type="search"
@@ -233,7 +239,10 @@ export function ControlHubPanel({ operatorAction, refreshToken }) {
 
       {groups.map(([group, controls]) => (
         <section key={group}>
-          <h3
+          <h3 style={{ margin: 0 }}>
+          <button
+            type="button"
+            aria-expanded={!collapsed.has(group)}
             onClick={() =>
               setCollapsed((prev) => {
                 const next = new Set(prev);
@@ -248,10 +257,16 @@ export function ControlHubPanel({ operatorAction, refreshToken }) {
               color: 'var(--c-faint)',
               cursor: 'pointer',
               userSelect: 'none',
+              background: 'none',
+              border: 0,
+              padding: 0,
+              font: 'inherit',
+              textAlign: 'left',
             }}
           >
             {collapsed.has(group) ? '▸' : '▾'} {GROUP_TITLES[group] || group}{' '}
             <span style={{ opacity: 0.6 }}>({controls.length})</span>
+          </button>
           </h3>
           <div
             hidden={collapsed.has(group)}

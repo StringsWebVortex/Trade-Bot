@@ -43,6 +43,11 @@ from dataclasses import dataclass
 from typing import Any, Final
 
 
+def _canonical_payload(method: str, path: str, body: str, timestamp: int) -> bytes:
+    """Newline-delimited so (path="/a", body="b") != (path="/ab", body="")."""
+    return f"{timestamp}\n{method}\n{path}\n{body}".encode()
+
+
 class ApiSigner:
     """
     Signs Trade-Bot API requests with Ed25519.
@@ -61,15 +66,21 @@ class ApiSigner:
 
     @classmethod
     def from_env(cls, env_var: str = "API_SIGNING_KEY_B64") -> ApiSigner:
-        """Load key from environment variable (base64-encoded 32-byte seed)."""
+        """
+        Load key from environment variable (base64-encoded 32-byte seed).
+
+        An unset or empty variable is a configuration error: a key generated
+        here would sign requests no peer can verify. Call ``ApiSigner()`` to
+        get an ephemeral key on purpose.
+        """
         raw = os.environ.get(env_var, "")
-        if raw:
-            return cls(raw)
-        return cls()  # ephemeral key for testing
+        if not raw:
+            raise ValueError(f"{env_var} is not set; refusing to generate an ephemeral signing key")
+        return cls(raw)
 
     def sign_request(self, method: str, path: str, body: str, timestamp: int) -> str:
         """Return hex-encoded Ed25519 signature for the request."""
-        payload = f"{timestamp}{method}{path}{body}".encode()
+        payload = _canonical_payload(method, path, body, timestamp)
         sig = self._key.sign(payload)
         return sig.hex()
 
@@ -86,7 +97,7 @@ class ApiSigner:
         from cryptography.exceptions import InvalidSignature
 
         try:
-            payload = f"{timestamp}{method}{path}{body}".encode()
+            payload = _canonical_payload(method, path, body, timestamp)
             sig = bytes.fromhex(signature_hex)
             pub = self._key.public_key()
             pub.verify(sig, payload)
@@ -235,7 +246,7 @@ def audit_signer(signer: ApiSigner) -> SignerAudit:
     from src.mathcore.curves import ed25519
 
     method, path, body, timestamp = "POST", "/v1/audit", '{"probe":true}', 1_700_000_000
-    payload = f"{timestamp}{method}{path}{body}".encode()
+    payload = _canonical_payload(method, path, body, timestamp)
 
     findings: list[str] = []
 

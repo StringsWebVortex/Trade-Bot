@@ -20,7 +20,7 @@ import torch.nn as nn
 
 
 class ConvModule(nn.Module):
-    """Point-wise conv → gating → depth-wise causal conv → BN → Swish → point-wise conv."""
+    """Point-wise conv → gating → depth-wise conv (symmetric padding, NOT causal) → BN → Swish → point-wise conv."""
 
     def __init__(self, d_model: int, kernel_size: int = 31, dropout: float = 0.1) -> None:
         super().__init__()

@@ -42,4 +42,5 @@ test:
 	pytest -q
 
 lint:
-	ruff check src tests
+	ruff check .
+	ruff format --check .
