@@ -1,6 +1,9 @@
 """GOV-057 / GOV-063 -- deterministic agent reliability controls.
 
-Decides: SEC-1220, REG-1491, REG-1497"""
+Decides: SEC-1220, REG-1491, REG-1497
+
+Decides: SEC-1233
+"""
 
 from __future__ import annotations
 
@@ -9,6 +12,7 @@ import json
 import pytest
 
 from src.agent_control import reliability
+from src.agent_control.reliability import ReliabilityStateError
 
 
 def test_repeated_tool_failure_is_escalated(monkeypatch, tmp_path):
@@ -51,14 +55,20 @@ def test_notice_parser_keeps_failed_check_identity(monkeypatch, tmp_path):
     assert record["failed_checks"] == ["CI / python-coverage", "CI / python-lint"]
 
 
-def test_state_load_recovers_missing_and_corrupt_files(monkeypatch, tmp_path):
+def test_state_load_quarantines_corrupt_files(monkeypatch, tmp_path):
     monkeypatch.setattr(reliability, "_git_common_dir", lambda: tmp_path)
     assert reliability.snapshot()["events"] == []
     path = reliability.state_path()
     path.write_text("{not-json", encoding="utf-8")
+    with pytest.raises(ReliabilityStateError, match="unreadable"):
+        reliability.snapshot()
+    assert not path.exists()
+    assert path.with_suffix(".corrupt").exists()
     assert reliability.snapshot() == {"version": 1, "events": [], "ci": {}}
     path.write_text("[]", encoding="utf-8")
-    assert reliability.snapshot() == {"version": 1, "events": [], "ci": {}}
+    with pytest.raises(ReliabilityStateError, match="not an object"):
+        reliability.snapshot()
+    assert not path.exists()
 
 
 def test_state_load_adds_missing_top_level_keys(monkeypatch, tmp_path):

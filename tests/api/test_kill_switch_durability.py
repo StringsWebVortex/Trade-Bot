@@ -162,3 +162,18 @@ class TestTheApiPersistsAndRestores:
         source = inspect.getsource(main.lifespan)
         assert "load_execution_mode(" in source
         assert source.index("load_execution_mode(") < source.index("_state.ready = True")
+
+
+def test_risk_state_replace_failure_removes_the_temporary_file(monkeypatch, tmp_path):
+    from src.risk import state_persistence
+
+    path = tmp_path / "risk.json"
+
+    def fail_replace(_source, _destination):
+        raise OSError("simulated atomic replace failure")
+
+    monkeypatch.setattr(state_persistence.os, "replace", fail_replace)
+    with pytest.raises(OSError, match="atomic replace"):
+        state_persistence.save_state(path, {"disabled": {}})
+
+    assert list(tmp_path.iterdir()) == []

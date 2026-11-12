@@ -75,7 +75,13 @@ from src.models.online_trainer import OnlineTrainer
 from src.models.trainer import ModelTrainer
 from src.regime.detector import RegimeDetector
 from src.risk.drift_integration import DriftIntegrationAdapter
-from src.risk.gates import check_position_exit
+from src.risk.execution_cost import (
+    ExecutionCost,
+    FeeMeasurement,
+    closed_trade_fills,
+    measure_fee_bps,
+)
+from src.risk.gates import check_position_exit, stricter_daily_pnl
 from src.risk.kelly import apply_size_scalar, compute_win_loss_stats
 from src.risk.macro_exposure_budget import (
     MacroExposureBudget,
@@ -84,6 +90,7 @@ from src.risk.macro_exposure_budget import (
 from src.risk.performance_drift import PerformanceBaseline, PerformanceDriftDetector
 from src.risk.portfolio_agreement import portfolio_agreement_scalar
 from src.risk.portfolio_correlation import get_portfolio_correlation
+from src.risk.slippage import SlippageModel
 from src.risk.state_persistence import state_file
 from src.risk.strategy_correlation import (
     combined_correlation_scalar,
@@ -192,6 +199,26 @@ _PORTFOLIO_FUNDING_MAX_ROWS: int = 5_000
 # duplicate calls inside one tick's assembly — never survive long enough to
 # feed a later tick a stale price, which the skew guard would reject anyway.
 _QUOTE_CACHE_TTL_S: float = 1.0
+# Closed trades the measured fee is read from, newest first. The same window
+# the Kelly win/loss stats read, so both describe the same recent history.
+_COST_FEE_TRADE_WINDOW: int = 200
+# How long one fee measurement is reused. A fee moves with a tier change, not
+# with the tick; re-reading the trade window on every tick of every
+# timeframe would put a database read on the tick path for the same number.
+_COST_FEE_TTL_S: float = 300.0
+# Completed bars the daily-volume estimate averages: the window the
+# slippage-coefficient calibration measures participation against
+# (AutoTuningScheduler._build_slippage_samples), so the impact uses the
+# coefficient in the unit it was calibrated in.
+_COST_ADV_BARS: int = 20
+# Capital fractions of the families that size their entry hurdle from the
+# measured cost. The representative order is the largest of them: one cost
+# serves all three, and the larger order is the dearer one to fill.
+_COST_FAMILY_FRACTIONS: tuple[str, ...] = (
+    "basis_trade_fraction",
+    "funding_carry_fraction",
+    "cross_exchange_arb_fraction",
+)
 # Oldest universe snapshot the pairs family may compute a spread from. One
 # 4h bar — the timeframe those closes are sampled at — so the bound only
 # bites during a genuine outage: the cache's own TTL is an hour and its
@@ -396,6 +423,10 @@ class Orchestrator:
         # quotes that assembling one tick's portfolio inputs would otherwise
         # request twice; see _quote.
         self._quote_cache: dict[tuple[str, str], tuple[float, float]] = {}
+        # trading_mode -> (monotonic time measured, fee or None). Lets one
+        # fee measurement serve the ticks of _COST_FEE_TTL_S; see
+        # _measured_fee.
+        self._fee_cache: dict[str, tuple[float, FeeMeasurement | None]] = {}
 
         # GAP-003: Performance drift detector (initialized in startup after models trained)
         self._drift_detector: PerformanceDriftDetector | None = None
@@ -1295,15 +1326,20 @@ class Orchestrator:
         executor = self._executor_for(tf)
         if executor is None:
             return
+        # EXR-018: an approved intent is offered to one tick only. This tick
+        # is its chance; one that already had its tick lapses here.
+        executor.close_approval_window(self._symbol, tf.value)
 
         self._tick_counts[tf.value] += 1
         self._last_tick_ts[tf.value] = time.monotonic()
 
         # Gather risk context from executor + storage
-        daily_pnl = await executor.get_daily_pnl(self._symbol)
+        realised_pnl = await executor.get_daily_pnl(self._symbol)
         consecutive_losses = await executor.get_consecutive_losses(self._symbol)
         capital_usd = executor.equity_usd
         starting_equity = executor.starting_equity_usd  # NEW-009: via AbstractExecutor property
+        # EXR-029: an open loss counts against the daily halt too.
+        daily_pnl = stricter_daily_pnl(realised_pnl, capital_usd - starting_equity)
 
         # Live gate status from storage
         direction_gate = False
@@ -1781,10 +1817,12 @@ class Orchestrator:
                     )
 
             # UI-001: a tradeable signal that didn't open a position (gate
-            # rejection, approval denial/timeout) is a "missed trade" —
+            # rejection, failed approval re-validation) is a "missed trade" —
             # log it best-effort so the dashboard can surface it. Never
-            # let a logging failure affect the trade path.
-            if outcome != "opened":
+            # let a logging failure affect the trade path. "queued" is not
+            # missed: it awaits the operator, and the tick no longer waits
+            # with it (EXR-018).
+            if outcome not in ("opened", "queued"):
                 try:
                     await self._storage.insert_missed_trade(
                         MissedTradeRecord(
@@ -2557,10 +2595,14 @@ class Orchestrator:
             )
 
         timeout = 1.0
+        freshness_budget = timeout
         adapter = self._intelligence_adapter
         intelligence = getattr(adapter, "_intel", None) if adapter is not None else None
         if intelligence is not None:
             timeout = max(0.05, float(intelligence._cfg.get("inference_timeout_seconds", 1.0)))
+            freshness_budget = max(
+                0.05, float(intelligence._cfg.get("max_prediction_age_seconds", 20.0))
+            )
         task = self._intelligence_task
         if task is not None and not task.done():
             try:
@@ -2575,18 +2617,78 @@ class Orchestrator:
 
         decision = getattr(intelligence, "last_decision", None)
         observed_at = getattr(intelligence, "last_horizon_ts", None)
+        observed_symbol = getattr(intelligence, "last_horizon_symbol", None)
+        expected_symbol = getattr(self, "_symbol", None)
+        reason: str | None = None
         if not isinstance(decision, dict) or observed_at is None:
             reason = "horizon_intelligence_unavailable"
-        elif time.time() - float(observed_at) > timeout:
-            reason = "horizon_decision_stale"
-        elif decision.get("action") not in {"BUY", "SELL"}:
-            reason = str(decision.get("abstain_reason") or "horizon_decision_abstained")
+        elif expected_symbol is not None and observed_symbol != expected_symbol:
+            reason = "horizon_symbol_mismatch"
         else:
-            horizon_direction = 1 if decision["action"] == "BUY" else -1
-            signal_direction = 1 if result.direction == 1 else -1
-            if horizon_direction == signal_direction:
-                return result
-            reason = "horizon_direction_disagrees_with_signal_engine"
+            try:
+                age = time.time() - float(observed_at)
+            except (TypeError, ValueError, OverflowError):
+                age = math.inf
+            if not math.isfinite(age) or age < 0 or age > timeout:
+                reason = "horizon_decision_stale"
+            elif decision.get("action") not in {"BUY", "SELL"}:
+                reason = str(decision.get("abstain_reason") or "horizon_decision_abstained")
+            elif decision.get("calibrated") is not True:
+                reason = "horizon_decision_uncalibrated"
+            else:
+                horizon_direction = 1 if decision["action"] == "BUY" else -1
+                signal_direction = 1 if result.direction == 1 else -1
+                try:
+                    decision_direction = int(decision.get("direction"))
+                    expected_return = float(decision.get("expected_return"))
+                    uncertainty = float(decision.get("uncertainty"))
+                    contributions = decision.get("contributions")
+                    model_versions = decision.get("model_versions")
+                    freshness = decision.get("freshness_seconds")
+                    expert_ids = set(contributions) if isinstance(contributions, dict) else set()
+                    valid_experts = (
+                        bool(expert_ids)
+                        and expert_ids == set(model_versions or {})
+                        and expert_ids == set(freshness or {})
+                        and all(
+                            isinstance(model_versions[key], str) and model_versions[key]
+                            for key in expert_ids
+                        )
+                        and all(
+                            math.isfinite(float(contributions[key]))
+                            and float(contributions[key]) > 0.0
+                            for key in expert_ids
+                        )
+                        and all(
+                            math.isfinite(float(freshness[key]))
+                            and 0.0 <= float(freshness[key]) <= freshness_budget
+                            for key in expert_ids
+                        )
+                        and math.isclose(
+                            sum(float(contributions[key]) for key in expert_ids),
+                            1.0,
+                            rel_tol=1e-6,
+                            abs_tol=1e-6,
+                        )
+                    )
+                    valid_decision = (
+                        decision_direction == horizon_direction
+                        and decision.get("conflict") is False
+                        and math.isfinite(expected_return)
+                        and math.isfinite(uncertainty)
+                        and uncertainty > 0.0
+                        and abs(expected_return) > uncertainty
+                        and (1 if expected_return > 0 else -1) == horizon_direction
+                        and valid_experts
+                    )
+                except (TypeError, ValueError, OverflowError):
+                    valid_decision = False
+                if not valid_decision:
+                    reason = "horizon_decision_invalid"
+                elif horizon_direction == signal_direction:
+                    return result
+                else:
+                    reason = "horizon_direction_disagrees_with_signal_engine"
 
         self._log.info(
             "orchestrator.horizon_order_suppressed",
@@ -2599,6 +2701,85 @@ class Orchestrator:
             kelly_result=None,
             skip_reason=f"horizon_{reason}",
         )
+
+    async def _intelligence_risk_context(self, source_tf: Timeframe) -> dict[str, float] | None:
+        """
+        INT-008: measured portfolio risk context for the intelligence layer.
+
+        Every field is a measurement; if any cannot be measured the whole
+        context is None (fail closed) and CryptoIntelligence suppresses its
+        sized signal rather than sizing from a default.
+
+        atr         : mean true range of the last 14 source bars / last close
+        cvar        : mean of the worst 5% (at least one) one-bar losses, as a fraction
+        drawdown    : fractional drawdown from the executor's equity peak
+        daily_loss  : fractional loss vs the daily starting equity (0 if up)
+        odds        : avg win / avg loss from recent closed trades
+        as_of_ts    : wall-clock time of this measurement
+        """
+        try:
+            executor = self._executor_for(self._primary_tf)
+            tracker = getattr(executor, "drawdown_tracker", None)
+            if executor is None or tracker is None:
+                return None
+            latest_ts = await self._storage.latest_bar_ts(self._symbol, source_tf.value)
+            if latest_ts is None:
+                return None
+            bars = await self._storage.fetch_bars(
+                self._symbol, source_tf.value, since_ts=int(latest_ts) - 40 * 60_000, limit=64
+            )
+            if len(bars) < 15:
+                return None
+            true_ranges = []
+            for prev, cur in zip(bars[-15:-1], bars[-14:], strict=True):
+                true_ranges.append(
+                    max(
+                        cur.high - cur.low,
+                        abs(cur.high - prev.close),
+                        abs(cur.low - prev.close),
+                    )
+                )
+            last_close = float(bars[-1].close)
+            if last_close <= 0:
+                return None
+            atr = float(sum(true_ranges) / len(true_ranges)) / last_close
+            closes = [float(b.close) for b in bars]
+            losses = sorted(
+                (-math.log(c1 / c0) for c0, c1 in zip(closes[:-1], closes[1:], strict=True)),
+                reverse=True,
+            )
+            tail = losses[: max(1, math.ceil(0.05 * len(losses)))]
+            cvar = float(sum(tail) / len(tail))
+            _equity, starting, daily_pnl = await executor.get_risk_snapshot()
+            if starting <= 0:
+                return None
+            drawdown = max(0.0, -float(tracker.drawdown_from_peak_pct) / 100.0)
+            daily_loss = max(0.0, -float(daily_pnl) / float(starting))
+            trades = await self._storage.fetch_trades(
+                symbol=self._symbol,
+                trading_mode=self._cfg.trading_mode.value,
+                limit=200,
+            )
+            pnl = [t.pnl_usd for t in reversed(trades) if t.pnl_usd is not None]
+            if len(pnl) < 50:  # below this compute_win_loss_stats returns defaults, not data
+                return None
+            _, avg_win, avg_loss, _ = compute_win_loss_stats(pnl)
+            if not (avg_win > 0 and avg_loss > 0):
+                return None
+            context = {
+                "atr": atr,
+                "cvar": cvar,
+                "drawdown": drawdown,
+                "daily_loss": daily_loss,
+                "odds": float(avg_win) / float(avg_loss),
+                "as_of_ts": time.time(),
+            }
+            if not all(math.isfinite(v) for v in context.values()):
+                return None
+            return context
+        except Exception as exc:
+            self._log.warning("orchestrator.intelligence_risk_context_failed", error=str(exc))
+            return None
 
     async def _process_intelligence_bar(self, tf: Timeframe, regime_id: int | None = None) -> None:
         adapter = self._intelligence_adapter
@@ -2625,6 +2806,7 @@ class Orchestrator:
                 bars = await self._storage.fetch_bars(
                     self._symbol, source_tf.value, since_ts=since_ts, limit=256
                 )
+                risk_context = await self._intelligence_risk_context(source_tf)
                 for bar in bars:
                     await adapter.on_bar(
                         symbol=self._symbol,
@@ -2639,6 +2821,7 @@ class Orchestrator:
                             "volume": bar.volume,
                         },
                         regime_id=regime_id if int(bar.ts) == int(latest_ts) else None,
+                        risk_context=risk_context,
                     )
                     self._last_intelligence_bar_ts = int(bar.ts)
                 if len(bars) == 256:
@@ -3047,7 +3230,10 @@ class Orchestrator:
         lows: list[float] | None = None
         closes: list[float] | None = None
         volumes: list[float] | None = None
-        if InputNeed.BARS in wanted:
+        # COST reads the bar volumes for the daily volume its impact term
+        # is measured against, so it fetches the same window rather than a
+        # second one.
+        if wanted & {InputNeed.BARS, InputNeed.COST}:
             # fetch_bars is `ts >= since_ts ORDER BY ts ASC LIMIT n`, so
             # since_ts is what selects the window — a limit alone would return
             # the oldest n bars in the table and the portfolio would evaluate
@@ -3141,6 +3327,14 @@ class Orchestrator:
         if InputNeed.PAIR in wanted:
             pair_a, pair_b, hedge_ratio = self._pair_series()
 
+        execution_cost: ExecutionCost | None = None
+        if InputNeed.COST in wanted:
+            try:
+                execution_cost = await self._measure_execution_cost(tf, volumes)
+            except Exception as exc:
+                # None abstains the cost-hurdle families; nothing else reads it.
+                self._log.warning("orchestrator.execution_cost_failed", error=str(exc))
+
         return PortfolioInputs(
             symbol=self._symbol,
             timeframe=tf.value,
@@ -3162,7 +3356,106 @@ class Orchestrator:
             volumes=volumes,
             funding_rate_pct=funding_rate,
             funding_history_pct=funding_history,
+            execution_cost=execution_cost,
         )
+
+    async def _measure_execution_cost(
+        self, tf: Timeframe, volumes: list[float] | None
+    ) -> ExecutionCost | None:
+        """
+        This tick's per-leg execution cost, built only from measurements.
+
+        fee          : the account's own recent closed trades in the trading
+                       mode this timeframe executes in (_measured_fee)
+        half-spread  : half the quoted width of the live order book, from the
+                       same fetch_orderbook source the signal engine halves
+        impact       : SlippageModel's calibrated square-root impact for one
+                       representative order: the largest capital fraction of
+                       the cost-hurdle families times this executor's equity,
+                       against the daily volume of the last _COST_ADV_BARS
+                       completed bars
+        uncertainty  : the measured fee's spread only. No calibration of the
+                       slippage model's error spread exists (the coefficient
+                       backtest compares mean errors and keeps none), so
+                       slippage_error_std_bps is 0 until one does.
+
+        Any component that cannot be measured returns None, and the families
+        that need it abstain. No component falls back to a configured or
+        published number: an unmeasured cost is not a known cost (STR-21).
+        """
+        executor = self._executor_for(tf)
+        if executor is None:
+            return None
+        if volumes is None or len(volumes) < _COST_ADV_BARS + 1:
+            self._log.debug("orchestrator.execution_cost_unmeasured", missing="volume")
+            return None
+        # The newest bar may still be forming; the calibration excludes it too.
+        completed = volumes[-(_COST_ADV_BARS + 1) : -1]
+        adv_daily = math.fsum(completed) / len(completed) * (86400.0 / TIMEFRAME_SECONDS[tf])
+        equity = float(executor.equity_usd)
+        portfolio_cfg = self._cfg.strategy_portfolio
+        fraction = max(float(getattr(portfolio_cfg, name)) for name in _COST_FAMILY_FRACTIONS)
+        if not (math.isfinite(adv_daily) and adv_daily > 0.0):
+            self._log.debug("orchestrator.execution_cost_unmeasured", missing="volume")
+            return None
+        if not (math.isfinite(equity) and equity > 0.0):
+            self._log.debug("orchestrator.execution_cost_unmeasured", missing="equity")
+            return None
+
+        mode = (
+            TradingMode.PAPER.value
+            if executor is self._non_primary_executor
+            else self._cfg.trading_mode.value
+        )
+        fee = await self._measured_fee(mode)
+        if fee is None:
+            self._log.debug("orchestrator.execution_cost_unmeasured", missing="fee", mode=mode)
+            return None
+
+        book = await self._fetcher.fetch_orderbook(self._symbol)
+        bid, ask = book.bid_price, book.ask_price
+        # A one-sided or crossed book has no spread to measure; its "mid"
+        # would be half the surviving touch.
+        if not (math.isfinite(bid) and math.isfinite(ask) and 0.0 < bid <= ask):
+            self._log.debug("orchestrator.execution_cost_unmeasured", missing="order_book")
+            return None
+        mid = (bid + ask) / 2.0
+        half_spread_bps = (ask - bid) / mid * 10_000.0 / 2.0
+
+        estimate = SlippageModel().estimate(
+            symbol=self._symbol,
+            qty=equity * fraction / mid,
+            price=mid,
+            adv_20d=adv_daily,
+            spread_bps=half_spread_bps,
+        )
+        return ExecutionCost.from_measurements(
+            fee,
+            half_spread_bps=half_spread_bps,
+            impact_bps=estimate.impact_bps,
+            slippage_error_std_bps=0.0,
+        )
+
+    async def _measured_fee(self, trading_mode: str) -> FeeMeasurement | None:
+        """
+        Per-leg fee from this symbol's recent closed trades in ``trading_mode``.
+
+        Reused for _COST_FEE_TTL_S, including an answer of "too few trades",
+        so the read happens once per window rather than once per tick. A
+        failed read raises and is not cached: the next tick tries again.
+        """
+        now = time.monotonic()
+        cached = self._fee_cache.get(trading_mode)
+        if cached is not None and now - cached[0] <= _COST_FEE_TTL_S:
+            return cached[1]
+        trades = await self._storage.fetch_trades(
+            symbol=self._symbol,
+            trading_mode=trading_mode,
+            limit=_COST_FEE_TRADE_WINDOW,
+        )
+        fee = measure_fee_bps(closed_trade_fills(trades))
+        self._fee_cache[trading_mode] = (now, fee)
+        return fee
 
     async def _load_symbol_precision(self) -> None:
         """

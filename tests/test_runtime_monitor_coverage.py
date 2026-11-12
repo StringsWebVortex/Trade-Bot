@@ -8,6 +8,8 @@ Decides:
 
 Decides:
   - REG-1492 — Tick-stall failures accumulate toward escalation
+
+Decides: REG-1229
 """
 
 from __future__ import annotations
@@ -436,7 +438,8 @@ def test_get_monitor_returns_singleton():
     assert isinstance(m1, RuntimeMonitor)
 
 
-def test_engine_background_task_helper_registers_task_with_runtime_monitor(monkeypatch):
+@pytest.mark.asyncio
+async def test_engine_background_task_helper_registers_task_with_runtime_monitor(monkeypatch):
     from src.engine import orchestrator as engine_orchestrator
 
     watched = []
@@ -455,6 +458,8 @@ def test_engine_background_task_helper_registers_task_with_runtime_monitor(monke
         assert watched == [task]
     finally:
         task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
 
 
 @pytest.mark.asyncio

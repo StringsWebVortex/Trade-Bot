@@ -537,7 +537,7 @@ Never weaken a gate merely to pass. If a rule is wrong, change it deliberately a
 `config/architecture_layers.json` defines:
 
 **foundation**
-→ config, logging_setup, mathcore, quality
+→ agent_control, config, eventbus, logging_setup, mathcore, quality, resource_limits
 
 **crypto**
 → ecc, security
@@ -552,7 +552,7 @@ Never weaken a gate merely to pass. If a rule is wrong, change it deliberately a
 → execution, risk, strategies
 
 **orchestration**
-→ engine, intel, upgrade, workers
+→ engine, intel, runtime, terminal, upgrade, workers
 
 **edge**
 → api
@@ -561,7 +561,7 @@ Packages may import their own layer or lower layers, never higher layers.
 
 `scripts/check_static_invariants.py` enforces layering. `check_import_cycles` separately detects module-level cycles; package-level cycles are also prohibited because they can hide behind deferred/submodule imports.
 
-`accepted_upward_edges` is a ratchet containing the six currently documented inversions:
+`accepted_upward_edges` is a ratchet. It is currently empty: there are no documented inversions.
 
 * remove the entry when the inversion is fixed;
 * never add an entry merely to suppress a violation;
@@ -596,7 +596,18 @@ For engines:
 
 # 17. Quality and Security Registry
 
-`config/quality_registry.json` is the sole source of truth for requirements, trading invariants, regressions, security regressions, and their deciding tests. Load via `src/quality/registry.py`.
+`config/quality_registry.json` together with `config/quality_registry.d/` is the sole source of truth for requirements, trading invariants, regressions, security regressions, and their deciding tests. Load via `src/quality/registry.py`.
+
+GOV-071 — open PRs merge in any order:
+
+* A **new** entry is its own file, `config/quality_registry.d/<ID>.json`
+  (one entry, file named after its id). Never append to the base file's
+  `entries`; edit an existing entry where it lives.
+  `.claude/skills/quality-engineering/scripts/qe_new_requirement.py` writes it.
+* No test pins the list or the count of registry ids.
+* Do not edit `codebase-analysis-docs/` indexes in a PR unless
+  `scripts/codebase_knowledge_index.py --check` requires it (a deleted path,
+  an anchor range past the end of a file you shortened, a removed route).
 
 Rules:
 
@@ -610,9 +621,9 @@ Rules:
   * `SEC-` = security regression
   * other = requirement
 * `depends_on` must resolve and remain acyclic.
-* `docs/quality/REQUIREMENTS_TRACEABILITY.md` is generated:
-  update registry, then run `python3 scripts/generate_quality_docs.py`;
-  CI runs `--check`.
+* `docs/quality/REQUIREMENTS_TRACEABILITY.md` is generated on demand by
+  `python3 scripts/generate_quality_docs.py` and is not committed (it is in
+  `.gitignore`); CI runs `--check`, which renders it from the registry.
 * Every production defect gets a permanent `REG-####` entry and test.
 * Every CI failure whose cause is not the PR's own intended change, and every
   failure seen twice, gets a permanent `REG-####` entry and a test that fails

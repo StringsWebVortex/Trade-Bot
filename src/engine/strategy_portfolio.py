@@ -462,6 +462,10 @@ class InputNeed(StrEnum):
     BASIS = "basis"
     UNIVERSE = "universe"
     PAIR = "pair"
+    # The measured per-leg execution cost (PortfolioInputs.execution_cost).
+    # Declared by every family whose entry hurdle is built from it, so it is
+    # measured exactly when one of them is enabled.
+    COST = "cost"
 
 
 # What each family actually reads. Declared next to the builders so the two
@@ -471,9 +475,9 @@ class InputNeed(StrEnum):
 BUILDER_NEEDS: dict[str, frozenset[InputNeed]] = {
     STRATEGY_ID_SIGNAL_ENGINE: frozenset(),
     "breakout_volume_v1": frozenset({InputNeed.BARS}),
-    "funding_carry_v1": frozenset({InputNeed.FUNDING}),
-    "basis_trade_v1": frozenset({InputNeed.BASIS}),
-    "cross_exchange_arb_v1": frozenset({InputNeed.VENUES}),
+    "funding_carry_v1": frozenset({InputNeed.FUNDING, InputNeed.COST}),
+    "basis_trade_v1": frozenset({InputNeed.BASIS, InputNeed.COST}),
+    "cross_exchange_arb_v1": frozenset({InputNeed.VENUES, InputNeed.COST}),
     "xsec_momentum_v1": frozenset({InputNeed.UNIVERSE}),
     "mean_reversion_pairs_v1": frozenset({InputNeed.PAIR}),
 }

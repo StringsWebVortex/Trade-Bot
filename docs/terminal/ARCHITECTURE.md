@@ -56,8 +56,10 @@ the shell with `$?=130`, `exit 3` is reaped as 3.
   cwd = `/proc/<pgid>/cwd`, start time = `/proc/<pgid>/stat`.
 * Exact exit status for interactive commands: bash shell integration (an
   rcfile that sources `~/.bashrc`, then adds `PS0`/`PROMPT_COMMAND` hooks)
-  emits `OSC 133;E;<command>`, `OSC 133;C` (started) and
-  `OSC 133;D;<status>` (finished). Verified on bash 5.3. The working
+  emits `OSC 133;<nonce>;E;<command>`, `OSC 133;<nonce>;C` (started) and
+  `OSC 133;<nonce>;D;<status>` (finished). The nonce is minted per session
+  and the scanner ignores 133 sequences without it, so printed output cannot
+  fake a command or an exit code (SEC-0014). Verified on bash 5.3. The working
   directory is read from `/proc/<pid>/cwd`, not from the shell.
 * Without integration (zsh, fish, `exec`'d shells) commands are still detected
   from the foreground group; their status is reported as **unknown**, never

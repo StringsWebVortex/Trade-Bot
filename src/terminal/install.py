@@ -220,7 +220,8 @@ def uninstall(
             allowed = {STATE_DIR_MARKER, "token", "token.tmp", "termd.log"}
             entries = list(state_dir.iterdir())
             unmanaged = [
-                entry for entry in entries
+                entry
+                for entry in entries
                 if (
                     entry.name not in allowed
                     or entry.is_symlink()
@@ -229,9 +230,7 @@ def uninstall(
                 )
             ]
             if unmanaged:
-                report.conflicts.append(
-                    f"{state_dir} contains unmanaged entries; not purged"
-                )
+                report.conflicts.append(f"{state_dir} contains unmanaged entries; not purged")
             else:
                 for entry in entries:
                     entry.unlink()

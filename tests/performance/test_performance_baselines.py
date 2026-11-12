@@ -215,3 +215,28 @@ class TestTheBatchForm:
         # Not an implementation detail: dropping p99 from the loop would make
         # the tail invisible again, which is the entire failure mode.
         assert PERCENTILES == (50, 95, 99)
+
+
+def test_measurement_empty_and_single_sample_edges():
+    empty = Measurement(operation="risk_check", durations_ms=[])
+    assert empty.samples == 0
+    assert empty.mean_ms == 0.0
+    with pytest.raises(BaselineError, match="no samples"):
+        empty.percentile(99)
+
+    single = Measurement(operation="risk_check", durations_ms=[12.5])
+    assert single.percentile(50) == 12.5
+    assert single.percentile(99) == 12.5
+    assert single.mean_ms == 12.5
+
+
+def test_a_missing_baseline_file_is_reported_as_unreadable(tmp_path):
+    with pytest.raises(BaselineError, match="unreadable"):
+        load_baselines(tmp_path / "missing.json")
+
+
+def test_tolerance_rejects_values_outside_the_fraction_range(tmp_path):
+    path = tmp_path / "baseline.json"
+    path.write_text(json.dumps({"regression_tolerance": 1.0}))
+    with pytest.raises(BaselineError, match="not a sensible fraction"):
+        tolerance(path)

@@ -179,12 +179,16 @@ _PUBLISHED = {
     # hash normally gets chosen at runtime. The next two keys are the opposite:
     # they name which published constant table the derivation must reproduce.
     # Nothing in this module hashes anything.
-    "sha1": (  # arch-ignore
+    "sha1": (  # arch-ignore[LAW12]: names the constant table, nothing is hashed
         sha1_round_constants,
         (),
         [0x5A827999, 0x6ED9EBA1, 0x8F1BBCDC, 0xCA62C1D6],
     ),
-    "md5": (md5_sine_table, (), [0xD76AA478, 0xE8C7B756, 0x242070DB]),  # arch-ignore
+    "md5": (  # arch-ignore[LAW12]: names the constant table, nothing is hashed
+        md5_sine_table,
+        (),
+        [0xD76AA478, 0xE8C7B756, 0x242070DB],
+    ),
     "blowfish": (
         blowfish_pi_words,
         (),

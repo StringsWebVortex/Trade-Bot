@@ -1,0 +1,46 @@
+# Pyre type checking and GitHub code scanning.
+name: Pyre
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+  merge_group:
+
+permissions:
+  contents: read
+
+jobs:
+  pyre:
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: true
+
+      # The upstream action was updated to replace its deprecated
+      # upload-artifact@v2 dependency with v7.
+      - name: Run Pyre
+        uses: meta/pyre-action@f74f3a073756aa0a2435f955565fd2a89c2126e3 # main @ 2026-07-27; artifact action v7
+        with:
+          repo-directory: "./"
+          requirements-path: "requirements.txt"
+
+  gate:
+    name: Pyre gate
+    if: always()
+    needs: [pyre]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Assert Pyre succeeded
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: python3 scripts/assert_jobs_green.py
