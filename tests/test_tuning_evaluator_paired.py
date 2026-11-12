@@ -44,7 +44,9 @@ def test_unequal_fold_counts_are_rejected() -> None:
     champion = [0.1 * i for i in range(10)]
     challenger = [0.1 * i + 0.5 for i in range(12)]
 
-    with pytest.raises(InsufficientSampleError, match="paired comparison requires equal sample counts"):
+    with pytest.raises(
+        InsufficientSampleError, match="paired comparison requires equal sample counts"
+    ):
         ChallengerEvaluator().compare_metric("oos_sharpe", champion, challenger)
 
 

@@ -68,11 +68,12 @@ def _candidate_names(question: str) -> list[str]:
 def subgraph(names: list[str], limit: int) -> list[dict]:
     """Return at most ``limit`` edges touching ``names``. The single copy of this
     query: review.retrieval.graph delegates here (REG-1717)."""
-    edges_col = get_edges_collection()
     if not names:
         # No matching entity means no grounding. Returning arbitrary edges
-        # would present unrelated facts to the model as evidence.
+        # would present unrelated facts to the model as evidence. Avoid even
+        # opening the database connection for an ungrounded query.
         return []
+    edges_col = get_edges_collection()
     cursor = edges_col.find(
         {"$or": [{"subject": {"$in": names}}, {"object": {"$in": names}}]},
         {"_id": 0},

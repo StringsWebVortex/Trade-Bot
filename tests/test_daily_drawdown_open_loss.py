@@ -32,9 +32,7 @@ def test_the_worse_of_realised_and_marked_is_used(
 def test_a_non_finite_input_halts(realised: float, marked: float) -> None:
     pnl = stricter_daily_pnl(realised, marked)
     assert math.isnan(pnl)
-    assert check_daily_drawdown(pnl, 100_000.0, RiskSettings()).status == (
-        GateStatus.HALT_DRAWDOWN
-    )
+    assert check_daily_drawdown(pnl, 100_000.0, RiskSettings()).status == (GateStatus.HALT_DRAWDOWN)
 
 
 def test_an_open_three_percent_loss_halts_with_nothing_realised() -> None:

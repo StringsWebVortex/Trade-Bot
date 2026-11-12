@@ -37,10 +37,10 @@ def test_candidate_names_falls_back_to_regex_when_no_exact_hits():
 def test_subgraph_no_names_returns_nothing():
     edges_col = MagicMock()
     edges_col.find.return_value.limit.return_value = [{"subject": "A"}]
-    with patch("kg.query.get_edges_collection", return_value=edges_col):
+    with patch("kg.query.get_edges_collection", return_value=edges_col) as get_edges:
         result = subgraph([], limit=10)
     assert result == []
-    edges_col.find.assert_not_called()
+    get_edges.assert_not_called()
 
 
 def test_subgraph_with_names_filters():
