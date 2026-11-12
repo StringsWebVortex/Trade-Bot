@@ -52,7 +52,9 @@ def test_int025_final_model_refit_on_all_rows_with_purge(monkeypatch) -> None:
     monkeypatch.setattr(trainer, "_build_xgb", lambda cfg, scale_pos_weight=1.0: FakeModel())
     n = 200
     x = np.zeros((n, 3))
-    y = np.zeros(n)
+    # Both the fit and early-stopping slices need both classes for the probe
+    # path to be exercised; production intentionally skips probing otherwise.
+    y = np.tile(np.array([0.0, 1.0]), n // 2)
     w = np.ones(n)
     cfg = SimpleNamespace(n_estimators=500)
     final = trainer._fit_final_xgb(cfg, x, y, w, 1.0, purge_gap=10)
