@@ -27,6 +27,7 @@ EXECUTION RULES:
 8. Diagnose and fix errors.
 9. Verify the completed result.
 10. if needed then assume/hallucinate only on the basis of verified actual facts/data.
+11. keep Readme.md and other relevant documentations upto date according to codebase actual state
 
 NEVER:
 - Repeat the user's request.
