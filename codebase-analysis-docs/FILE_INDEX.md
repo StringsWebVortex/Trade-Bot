@@ -4,7 +4,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 
 ## Totals
 
-- Tracked paths: 1288
+- Tracked paths: 1285
 - Python files: 1061
 - P0 anchors: 58
 - P1 files: 1092
@@ -152,40 +152,40 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 82 | P1 | config/observation_boundary.json | JSON | 103 | ee3b28e7 |  |
 | 83 | P1 | config/performance_baselines.json | JSON | 69 | ece98302 |  |
 | 84 | P1 | config/quality_registry.d/REG-1708.json | JSON | 23 | ae70eab8 |  |
-| 85 | P1 | config/quality_registry.schema.json | JSON | 265 | 0cb44223 |  |
-| 86 | P1 | deploy/alerts.yml | YAML | 70 | 03b321d7 |  |
-| 87 | P1 | deploy/prometheus.yml | YAML | 31 | 1bfcc7dc |  |
-| 88 | P1 | deploy/systemd/tradebot-api.service | Other text/source | 39 | e87631ec |  |
-| 89 | P1 | deploy/systemd/tradebot-worker.service | Other text/source | 36 | 792418f8 |  |
-| 90 | P1 | docs/ARCHITECTURE_GOVERNANCE.md | Markdown | 85 | 7d53b5b1 |  |
-| 91 | P1 | docs/CI_FAILURE_AUDIT.md | Markdown | 198 | 59d5cd73 |  |
-| 92 | P1 | docs/CLOUD_REVIEW.md | Markdown | 80 | a6658509 |  |
-| 93 | P1 | docs/KNOWLEDGE_GRAPH.md | Markdown | 54 | 913f979f |  |
-| 94 | P1 | docs/MATH_ARCHITECTURE.md | Markdown | 579 | 3cb282f8 |  |
-| 95 | P1 | docs/MATH_FOUNDATIONS.md | Markdown | 792 | 2e71b41f |  |
-| 96 | P1 | docs/MATH_ROADMAP.md | Markdown | 239 | 3780b490 |  |
-| 97 | P1 | docs/ORCHESTRATOR.md | Markdown | 11 | e73c0c57 |  |
-| 98 | P1 | docs/PTC_PATTERN.md | Markdown | 9 | 15fad706 |  |
-| 99 | P1 | docs/Quality-Engineering | Other text/source | 3154 | bcb840bb |  |
-| 100 | P1 | docs/REQUIRED_CHECKS.md | Markdown | 197 | 52ecdf75 |  |
-| 101 | P1 | docs/SCHEMA.md | Markdown | 172 | 38bde920 |  |
-| 102 | P1 | docs/adaptive_horizon_gap_list.md | Markdown | 150 | 0e6ad4f9 |  |
-| 103 | P1 | docs/agent/AGENT_EXECUTION_PROTOCOL.md | Markdown | 202 | 8941b4d5 |  |
-| 104 | P1 | docs/agent/AGENT_RELIABILITY.md | Markdown | 18 | 6534cb22 |  |
-| 105 | P1 | docs/agents/CODEX_SETUP.md | Markdown | 41 | e3485b59 |  |
-| 106 | P1 | docs/operations/DISASTER_RECOVERY.md | Markdown | 136 | 42fa88fb |  |
-| 107 | P1 | docs/ops/COMPLIANCE_CHECKLIST.md | Markdown | 65 | 73c203ea |  |
-| 108 | P1 | docs/ops/KEY_ROTATION.md | Markdown | 52 | 79a54c49 |  |
-| 109 | P1 | docs/ops/LIVE_PROMOTION_CHECKLIST.md | Markdown | 77 | 57d72ca9 |  |
-| 110 | P1 | docs/ops/REALTIME_GUI_PLAN.md | Markdown | 73 | f042d814 |  |
-| 111 | P1 | docs/ops/RUNBOOK.md | Markdown | 95 | 77bcd7d9 |  |
-| 112 | P1 | docs/quality/IMPLEMENTATION_PLAN.md | Markdown | 214 | cfd7fbbd |  |
-| 113 | P1 | docs/quality/MONEY_AND_TIME.md | Markdown | 147 | 688cc8a3 |  |
-| 114 | P1 | docs/quality/PRODUCTION_READINESS.md | Markdown | 112 | da760303 |  |
-| 115 | P1 | docs/quality/QUALITY_BASELINE.md | Markdown | 125 | bbc75e22 |  |
-| 116 | P1 | docs/quality/QUALITY_METRICS.md | Markdown | 122 | 386b71a5 |  |
-| 117 | P1 | docs/quality/QUALITY_POLICY.md | Markdown | 232 | 8c4629b8 |  |
-| 118 | P1 | docs/quality/REQUIREMENTS_TRACEABILITY.md | Markdown | 5792 | 349538eb |  |
+| 85 | P1 | config/quality_registry.d/REG-1719.json | JSON | 22 | 930e5aa0 |  |
+| 86 | P1 | config/quality_registry.schema.json | JSON | 265 | 0cb44223 |  |
+| 87 | P1 | deploy/alerts.yml | YAML | 70 | 03b321d7 |  |
+| 88 | P1 | deploy/prometheus.yml | YAML | 31 | 1bfcc7dc |  |
+| 89 | P1 | deploy/systemd/tradebot-api.service | Other text/source | 39 | e87631ec |  |
+| 90 | P1 | deploy/systemd/tradebot-worker.service | Other text/source | 36 | 792418f8 |  |
+| 91 | P1 | docs/ARCHITECTURE_GOVERNANCE.md | Markdown | 85 | 7d53b5b1 |  |
+| 92 | P1 | docs/CI_FAILURE_AUDIT.md | Markdown | 198 | 59d5cd73 |  |
+| 93 | P1 | docs/CLOUD_REVIEW.md | Markdown | 80 | a6658509 |  |
+| 94 | P1 | docs/KNOWLEDGE_GRAPH.md | Markdown | 54 | 913f979f |  |
+| 95 | P1 | docs/MATH_ARCHITECTURE.md | Markdown | 579 | 3cb282f8 |  |
+| 96 | P1 | docs/MATH_FOUNDATIONS.md | Markdown | 792 | 2e71b41f |  |
+| 97 | P1 | docs/MATH_ROADMAP.md | Markdown | 239 | 3780b490 |  |
+| 98 | P1 | docs/ORCHESTRATOR.md | Markdown | 11 | e73c0c57 |  |
+| 99 | P1 | docs/PTC_PATTERN.md | Markdown | 9 | 15fad706 |  |
+| 100 | P1 | docs/Quality-Engineering | Other text/source | 3154 | bcb840bb |  |
+| 101 | P1 | docs/REQUIRED_CHECKS.md | Markdown | 197 | 52ecdf75 |  |
+| 102 | P1 | docs/SCHEMA.md | Markdown | 172 | 38bde920 |  |
+| 103 | P1 | docs/adaptive_horizon_gap_list.md | Markdown | 150 | 0e6ad4f9 |  |
+| 104 | P1 | docs/agent/AGENT_EXECUTION_PROTOCOL.md | Markdown | 202 | 8941b4d5 |  |
+| 105 | P1 | docs/agent/AGENT_RELIABILITY.md | Markdown | 18 | 6534cb22 |  |
+| 106 | P1 | docs/agents/CODEX_SETUP.md | Markdown | 41 | e3485b59 |  |
+| 107 | P1 | docs/operations/DISASTER_RECOVERY.md | Markdown | 136 | 42fa88fb |  |
+| 108 | P1 | docs/ops/COMPLIANCE_CHECKLIST.md | Markdown | 65 | 73c203ea |  |
+| 109 | P1 | docs/ops/KEY_ROTATION.md | Markdown | 52 | 79a54c49 |  |
+| 110 | P1 | docs/ops/LIVE_PROMOTION_CHECKLIST.md | Markdown | 77 | 57d72ca9 |  |
+| 111 | P1 | docs/ops/REALTIME_GUI_PLAN.md | Markdown | 73 | f042d814 |  |
+| 112 | P1 | docs/ops/RUNBOOK.md | Markdown | 95 | 77bcd7d9 |  |
+| 113 | P1 | docs/quality/IMPLEMENTATION_PLAN.md | Markdown | 214 | cfd7fbbd |  |
+| 114 | P1 | docs/quality/MONEY_AND_TIME.md | Markdown | 147 | 688cc8a3 |  |
+| 115 | P1 | docs/quality/PRODUCTION_READINESS.md | Markdown | 112 | da760303 |  |
+| 116 | P1 | docs/quality/QUALITY_BASELINE.md | Markdown | 125 | bbc75e22 |  |
+| 117 | P1 | docs/quality/QUALITY_METRICS.md | Markdown | 122 | 386b71a5 |  |
+| 118 | P1 | docs/quality/QUALITY_POLICY.md | Markdown | 232 | 8c4629b8 |  |
 | 119 | P1 | docs/quality/ROOT_CAUSE_TEMPLATE.md | Markdown | 84 | a55b20e9 |  |
 | 120 | P1 | docs/quality/TEST_STRATEGY.md | Markdown | 254 | c6116534 |  |
 | 121 | P1 | docs/runtime/IMPLEMENTATION_MATRIX.md | Markdown | 79 | 7e5cd563 |  |
@@ -243,7 +243,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 173 | P1 | scripts/backfill.py | Python | 130 | 664b08bf |  |
 | 174 | P1 | scripts/check_coverage_floors.py | Python | 123 | 809921a0 |  |
 | 175 | P1 | scripts/check_model_artifacts.py | Python | 77 | 5e6268f1 |  |
-| 176 | P1 | scripts/check_mutation_score.py | Python | 237 | 78265c22 |  |
+| 176 | P1 | scripts/check_mutation_score.py | Python | 253 | 01bcdd38 |  |
 | 177 | P1 | scripts/check_production_readiness.py | Python | 178 | 6c642773 |  |
 | 178 | P1 | scripts/check_static_invariants.py | Python | 1875 | 3324fc76 |  |
 | 179 | P1 | scripts/check_supply_chain.py | Python | 455 | 0e92c528 |  |
@@ -388,7 +388,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 318 | P1 | src/fusion/cross_attention.py | Python | 73 | c6b4c784 |  |
 | 319 | P1 | src/fusion/horizon_decision.py | Python | 156 | 9b8ff647 |  |
 | 320 | P1 | src/fusion/meta_network.py | Python | 171 | 4cbe2231 |  |
-| 321 | P1 | src/intel.py | Python | 975 | c8b83ee1 |  |
+| 321 | P1 | src/intel.py | Python | 981 | 0fd4ca30 |  |
 | 322 | P1 | src/intelligence/__init__.py | Python | 17 | ef4aa7e7 |  |
 | 323 | P1 | src/intelligence/calibration.py | Python | 135 | 001de498 |  |
 | 324 | P1 | src/intelligence/causal_inference.py | Python | 455 | 3e488b43 |  |
@@ -985,7 +985,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 915 | P1 | tests/test_lll.py | Python | 396 | fc3c3cad |  |
 | 916 | P1 | tests/test_local_checks.py | Python | 64 | fb3a418a |  |
 | 917 | P1 | tests/test_logging_setup.py | Python | 101 | f0decaf8 |  |
-| 918 | P1 | tests/test_low_findings_regressions.py | Python | 247 | 7ef9d652 |  |
+| 918 | P1 | tests/test_low_findings_regressions.py | Python | 249 | 43bc08f4 |  |
 | 919 | P1 | tests/test_lowest_covered_modules.py | Python | 231 | cde4a13f |  |
 | 920 | P1 | tests/test_macro_exposure_budget.py | Python | 56 | 6cea4259 |  |
 | 921 | P1 | tests/test_macro_exposure_budget_check.py | Python | 96 | eaf0edf4 |  |
@@ -1218,7 +1218,6 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 1148 | P1 | tests/trading/invariants/test_inv_004_non_finite.py | Python | 307 | 9906a7ce |  |
 | 1149 | P1 | tests/trading/invariants/test_inv_005_disabled_mode.py | Python | 123 | 6611a4a0 |  |
 | 1150 | P1 | tests/trading/invariants/test_inv_006_risk_engine_failure.py | Python | 171 | 32c8cd83 |  |
-| 1151 | P2 | .agents/skills/trade-bot-code-review-pr/SKILL.md | Markdown | 23 | f7724554 |  |
 | 1152 | P2 | .agents/skills/trade-bot-cookbook-engineering/SKILL.md | Markdown | 22 | 1db44afc |  |
 | 1153 | P2 | .agents/skills/trade-bot-delivery/SKILL.md | Markdown | 18 | 10984afa |  |
 | 1154 | P2 | .agents/skills/trade-bot-evaluation-optimization/SKILL.md | Markdown | 18 | 6a9dcbb5 |  |
@@ -1261,8 +1260,6 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 1191 | P2 | .claude/skills/quality-engineering/scripts/qe_gate.py | Python | 488 | b333999c |  |
 | 1192 | P2 | .claude/skills/quality-engineering/scripts/qe_new_requirement.py | Python | 273 | 390e670a |  |
 | 1193 | P2 | .claude/skills/quality-engineering/scripts/qe_registry_refs.py | Python | 151 | 7bbe41fa |  |
-| 1194 | P2 | .codex/AUTONOMOUS_TASK_PROMPT.md | Markdown | 62 | d5d878b6 |  |
-| 1195 | P2 | .codex/IMPLEMENTATION.md | Markdown | 228 | 34e220df |  |
 | 1196 | P2 | .codex/agents/docs-researcher.toml | TOML | 32 | dd85dc27 |  |
 | 1197 | P2 | .codex/agents/explorer.toml | TOML | 32 | c12ca20e |  |
 | 1198 | P2 | .codex/agents/implementer.toml | TOML | 63 | 0563b998 |  |

@@ -48,4 +48,7 @@ frontend/release/
 
 # Claude runtime state (never source)
 .claude/.hook-state/
+# Rendered on demand from the quality registry, never committed (GOV-071): a
+# committed copy made every two registry-touching pull requests conflict.
+/docs/quality/REQUIREMENTS_TRACEABILITY.md
 .mutmut-cache

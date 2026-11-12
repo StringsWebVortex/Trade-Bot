@@ -164,12 +164,12 @@ jobs:
   # conflicted path is a **generated** file, so a script produces the correct
   # answer and no judgement is being exercised. Anything else is left alone.
   #
-  # That shape is not a corner case here. `docs/quality/REQUIREMENTS_TRACEABILITY.md`
-  # is generated from `config/quality_registry.json`, and every pull request
-  # that adds a registry entry regenerates the whole file -- so any two of them
-  # conflict, always, no matter how unrelated the entries are. Before this job
-  # existed that made a registry entry cost a manual rebase per pull request
-  # ahead of it in the queue.
+  # That shape used to be the common one: `docs/quality/REQUIREMENTS_TRACEABILITY.md`
+  # was generated from `config/quality_registry.json` and committed, and every
+  # pull request that added a registry entry regenerated the whole file -- so
+  # any two of them conflicted, always. GOV-071 removed the cause: new entries
+  # are one file each under `config/quality_registry.d/` and the document is
+  # no longer committed. What remains here handles branches from before that.
   #
   # The dangerous file is the one that does *not* conflict. Git merges the
   # registry JSON cleanly and can still produce a document that the loader
@@ -262,10 +262,10 @@ jobs:
                 exit 0
               fi
               git add -- config/quality_registry.json
-              # The traceability document is generated from the registry, so it
-              # is regenerated whether or not git managed to merge its text.
-              python3 scripts/generate_quality_docs.py
-              git add -- docs/quality/REQUIREMENTS_TRACEABILITY.md
+              # Render the traceability document from the merged registry: the
+              # strict loader behind it is what refuses a bad merge. The
+              # document itself is no longer committed (GOV-071).
+              python3 scripts/generate_quality_docs.py --check
             fi
 
             # Regenerate from the merged registries, which is the point: the
@@ -275,7 +275,10 @@ jobs:
               [ -n "${path}" ] || continue
               case "${path}" in
                 docs/quality/REQUIREMENTS_TRACEABILITY.md)
-                  python3 scripts/generate_quality_docs.py ;;
+                  # A branch from before GOV-071 still carries it; main does
+                  # not, so the merge drops it rather than regenerating it.
+                  git rm -f -q --cached --ignore-unmatch -- "${path}"
+                  continue ;;
                 docs/MATH_FOUNDATIONS.md)
                   python3 scripts/generate_math_docs.py ;;
                 config/quality_registry.json) ;;

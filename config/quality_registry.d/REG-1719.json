@@ -1,0 +1,26 @@
+{
+  "id": "REG-1719",
+  "kind": "regression",
+  "title": "Granger updates require observed BTC close history",
+  "statement": "CryptoIntel.on_bar updates Granger causality only when alt-price history is sufficient and BTC close_history contains at least 11 observed close prices; missing or short BTC history is never replaced with a fabricated flat series.",
+  "criticality": "medium",
+  "subsystem": "signal",
+  "status": "verified",
+  "source": "OPS-2026-11-12",
+  "failure_mode": "When alt-price history is present but BTC close_history is missing, the engine repeats the current price to fabricate eleven closes and feeds a flat return series into Granger causality, producing an observation that was never supplied by the market-data source.",
+  "owning_modules": [
+    "src/intel.py"
+  ],
+  "depends_on": [],
+  "verification": [
+    {
+      "test": "tests/test_crypto_intel_signal_path.py::test_on_bar_skips_granger_update_without_close_history",
+      "test_type": "regression"
+    },
+    {
+      "test": "tests/test_crypto_intel_signal_path.py::test_on_bar_skips_granger_update_with_fewer_than_eleven_btc_closes",
+      "test_type": "regression"
+    }
+  ],
+  "notes": "Preserves the source-data boundary for causal analysis; layer: test-suite"
+}
