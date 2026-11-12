@@ -364,8 +364,11 @@ async def test_netflow_history_with_key_parses_response(aggregator_with_key):
     # Sorted ascending by ts
     assert result[0]["ts"] == 1_700_000_000
     assert result[1]["ts"] == 1_700_086_400
-    # tscore: value -500 is below mean (233.33), should be negative
-    assert result[1]["tscore"] < 0
+    # INT-018: trailing z-score uses only prior points; fewer than 2 -> None.
+    assert result[0]["tscore"] is None
+    assert result[1]["tscore"] is None
+    # value 200 is below the trailing mean (250) of [1000, -500]
+    assert result[2]["tscore"] < 0
     for r in result:
         assert "ts" in r and "netflow" in r and "tscore" in r
 

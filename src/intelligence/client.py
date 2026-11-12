@@ -55,7 +55,7 @@ class IntelligenceAggregator:
       - Binance perpetual futures funding rate via ccxt (no key required)
       - Local cache (with configurable TTL per metric)
       - Rate limiting per provider
-      - Fallback logic (stale data > safe defaults, never silent zeros)
+      - Fallback logic (stale data, else None -- never silent zeros; INT-019)
 
     GAP-015: Constructor now reads from IntelligenceSettings (config.py)
     by default, so callers that use get_intelligence_aggregator() get a
@@ -92,6 +92,9 @@ class IntelligenceAggregator:
         self._funding_rate_perp_symbol = cfg.funding_rate_perp_symbol
         self._cache: dict[str, CacheEntry] = {}
         self._cache_lock: asyncio.Lock = asyncio.Lock()
+        # INT-019: serialises the Glassnode throttle so concurrent callers
+        # cannot all observe "no recent call" and fire together.
+        self._glassnode_rate_lock: asyncio.Lock = asyncio.Lock()
         # Monotonic, and None for "never called" rather than a zero sentinel.
         # This measures an ELAPSED INTERVAL, not a point in time: on the wall
         # clock an NTP step forward makes elapsed enormous, wait negative, and
@@ -120,9 +123,11 @@ class IntelligenceAggregator:
         symbol: str = "BTC",
         exchange: str | None = None,  # None = aggregate all
         days_back: int = 7,
-    ) -> dict[str, float]:
+    ) -> dict[str, float] | None:
         """
         Fetch exchange netflow (inflow - outflow).
+
+        Returns None when the fetch failed and no cached value exists.
 
         Returns:
             {
@@ -158,15 +163,16 @@ class IntelligenceAggregator:
             async with self._cache_lock:
                 if cache_key in self._cache:
                     return self._cache[cache_key].value
-            return {"netflow": 0.0, "inflow": 0.0, "outflow": 0.0, "tscore": 0.0}
+            # INT-019: no stale cache and no fresh data -> missing, not zeros.
+            return None
 
     async def get_whale_activity(
         self,
         symbol: str = "BTC",
         min_transaction_usd: float = 1_000_000,
-    ) -> dict[str, float | str | int]:
+    ) -> dict[str, float | str | int] | None:
         """
-        Fetch whale transaction activity.
+        Fetch whale transaction activity.  None when unavailable (INT-019).
 
         Returns:
             {
@@ -199,14 +205,14 @@ class IntelligenceAggregator:
             async with self._cache_lock:
                 if cache_key in self._cache:
                     return self._cache[cache_key].value
-            return {"buy_volume": 0.0, "sell_volume": 0.0, "ratio": 1.0, "sentiment": "neutral"}
+            return None  # INT-019: missing, not a fabricated neutral
 
     async def get_funding_rate(
         self,
         symbol: str | None = None,
-    ) -> dict[str, float]:
+    ) -> dict[str, float] | None:
         """
-        Fetch current funding rate (leverage indicator).
+        Fetch current funding rate (leverage indicator).  None when unavailable (INT-019).
 
         Returns:
             {
@@ -237,7 +243,7 @@ class IntelligenceAggregator:
             async with self._cache_lock:
                 if cache_key in self._cache:
                     return self._cache[cache_key].value
-            return {"rate_pct": 0.0, "rate_8h_avg": 0.0, "excessive": False}
+            return None  # INT-019: missing, not a fabricated zero rate
 
     # -----------------------------------------------------------------------
     # Private provider implementations
@@ -468,12 +474,14 @@ class IntelligenceAggregator:
 
     async def _rate_limit_glassnode(self) -> None:
         """Enforce minimum inter-call spacing for Glassnode (default 1s)."""
-        if self._last_glassnode_call is None:
-            return
-        elapsed = time.monotonic() - self._last_glassnode_call
-        wait = self._glassnode_min_interval - elapsed
-        if wait > 0:
-            await asyncio.sleep(wait)
+        async with self._glassnode_rate_lock:
+            if self._last_glassnode_call is not None:
+                elapsed = time.monotonic() - self._last_glassnode_call
+                wait = self._glassnode_min_interval - elapsed
+                if wait > 0:
+                    await asyncio.sleep(wait)
+            # INT-019: stamp BEFORE the request so failures still throttle.
+            self._last_glassnode_call = time.monotonic()
 
     @property
     def _base_url(self) -> str:
@@ -564,18 +572,20 @@ class IntelligenceAggregator:
         if not values:
             return []
 
-        all_v = [v for _, v in values]
-        mean_v = sum(all_v) / len(all_v)
-        std_v = (sum((v - mean_v) ** 2 for v in all_v) / max(len(all_v) - 1, 1)) ** 0.5
-
-        return [
-            {
-                "ts": ts,
-                "netflow": v,
-                "tscore": round((v - mean_v) / std_v, 4) if std_v > 1e-9 else 0.0,
-            }
-            for ts, v in sorted(values, key=lambda x: x[0])
-        ]
+        # INT-018: trailing z-score -- each point is normalised only by the
+        # up-to-30 observations BEFORE it (no future data), matching what a
+        # live reader could have known.  None when there is not enough history.
+        ordered = sorted(values, key=lambda x: x[0])
+        out: list[dict] = []
+        for i, (ts, v) in enumerate(ordered):
+            window = [x for _, x in ordered[max(0, i - 30) : i]]
+            tscore: float | None = None
+            if len(window) >= 2:
+                mean_v = sum(window) / len(window)
+                std_v = (sum((x - mean_v) ** 2 for x in window) / (len(window) - 1)) ** 0.5
+                tscore = round((v - mean_v) / std_v, 4) if std_v > 1e-9 else 0.0
+            out.append({"ts": ts, "netflow": v, "tscore": tscore})
+        return out
 
     async def get_whale_activity_history(
         self,
@@ -633,13 +643,18 @@ class IntelligenceAggregator:
         if not values:
             return []
 
-        # Compute rolling ratio: compare each bar against a 7-bar trailing window
+        # INT-018: same definition as the live path -- over a 7-bar window
+        # ending at this bar, the last 2 bars against the earlier 5; indexed on
+        # the SORTED series (the unsorted list was indexed before).
+        ordered = sorted(values, key=lambda x: x[0])
         result = []
-        for i, (ts, vol) in enumerate(sorted(values, key=lambda x: x[0])):
-            window_start = max(0, i - 6)
-            prior = [v for _, v in values[window_start:i]] or [vol]
-            prior_avg = sum(prior) / len(prior)
-            ratio = vol / max(prior_avg, 1e-9)
+        for i, (ts, _vol) in enumerate(ordered):
+            window = [v for _, v in ordered[max(0, i - 6) : i + 1]]
+            recent = window[-2:]
+            prior = window[:-2] if len(window) > 2 else window
+            recent_avg = sum(recent) / len(recent)
+            prior_avg = sum(prior) / max(len(prior), 1)
+            ratio = recent_avg / max(prior_avg, 1e-9)
             ratio = max(0.1, min(ratio, 10.0))
             sentiment = "bullish" if ratio > 1.5 else "bearish" if ratio < 0.67 else "neutral"
             result.append({"ts": ts, "ratio": round(ratio, 4), "sentiment": sentiment})

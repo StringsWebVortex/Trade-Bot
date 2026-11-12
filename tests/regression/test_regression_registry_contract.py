@@ -231,6 +231,21 @@ class TestTheRegistryHasAPlaceForDefects:
             "REG-1227",
             "REG-1229",
             "REG-1230",
+            "REG-1340",
+            "REG-1341",
+            "REG-1342",
+            "REG-1343",
+            "REG-1344",
+            "REG-1345",
+            "REG-1346",
+            "REG-1347",
+            "REG-1348",
+            "REG-1349",
+            "REG-1350",
+            "REG-1351",
+            "REG-1352",
+            "REG-1353",
+            "REG-1354",
             # REG-1600..1603: audit OPS-011, OPS-012, API-021 and OPS-009 --
             # each a defect no test exercised, filed with its deciding test.
             "REG-1600",
@@ -757,16 +772,10 @@ class TestTheMetricsCollector:
         # test-suite, 43.
         # REG-1704 adds the fixed-threshold carry/arbitrage regression (STR-21):
         # no test asked what the thresholds cost to clear -- test-suite, 44.
-        # REG-1400, REG-1401 and SEC-1400 add three phase 6 Low-finding
-        # regressions no test exercised -- test-suite, bringing the count to 203.
-        # REG-1320..1330 add eleven Phase 5 data-layer regressions -- test-suite, 214.
-        # Only REG-0008 is a filed defect attributed to review; GOV requirement
-        # entries carrying review notes are not escaped-defect metrics.
-        # Main carries the phase 6 registry regressions; this PR adds ten
-        # phase 4 API/runtime audit findings (REG-1203/1204/1206/1209 and
-        # SEC-1200/1201/1202/1205/1207/1208).
+        # Main carries 214 test-suite defects; REG-1340..1354 add fifteen
+        # intelligence-layer regressions from this PR.
         assert metric["value"] == {
-            "test-suite": 214,
+            "test-suite": 229,
             "review": 1,
             "supply-chain": 4,
             "ci-gate-design": 2,

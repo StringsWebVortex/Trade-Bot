@@ -2664,6 +2664,85 @@ class Orchestrator:
             skip_reason=f"horizon_{reason}",
         )
 
+    async def _intelligence_risk_context(self, source_tf: Timeframe) -> dict[str, float] | None:
+        """
+        INT-008: measured portfolio risk context for the intelligence layer.
+
+        Every field is a measurement; if any cannot be measured the whole
+        context is None (fail closed) and CryptoIntelligence suppresses its
+        sized signal rather than sizing from a default.
+
+        atr         : mean true range of the last 14 source bars / last close
+        cvar        : mean of the worst 5% (at least one) one-bar losses, as a fraction
+        drawdown    : fractional drawdown from the executor's equity peak
+        daily_loss  : fractional loss vs the daily starting equity (0 if up)
+        odds        : avg win / avg loss from recent closed trades
+        as_of_ts    : wall-clock time of this measurement
+        """
+        try:
+            executor = self._executor_for(self._primary_tf)
+            tracker = getattr(executor, "drawdown_tracker", None)
+            if executor is None or tracker is None:
+                return None
+            latest_ts = await self._storage.latest_bar_ts(self._symbol, source_tf.value)
+            if latest_ts is None:
+                return None
+            bars = await self._storage.fetch_bars(
+                self._symbol, source_tf.value, since_ts=int(latest_ts) - 40 * 60_000, limit=64
+            )
+            if len(bars) < 15:
+                return None
+            true_ranges = []
+            for prev, cur in zip(bars[-15:-1], bars[-14:], strict=True):
+                true_ranges.append(
+                    max(
+                        cur.high - cur.low,
+                        abs(cur.high - prev.close),
+                        abs(cur.low - prev.close),
+                    )
+                )
+            last_close = float(bars[-1].close)
+            if last_close <= 0:
+                return None
+            atr = float(sum(true_ranges) / len(true_ranges)) / last_close
+            closes = [float(b.close) for b in bars]
+            losses = sorted(
+                (-math.log(c1 / c0) for c0, c1 in zip(closes[:-1], closes[1:], strict=True)),
+                reverse=True,
+            )
+            tail = losses[: max(1, math.ceil(0.05 * len(losses)))]
+            cvar = float(sum(tail) / len(tail))
+            _equity, starting, daily_pnl = await executor.get_risk_snapshot()
+            if starting <= 0:
+                return None
+            drawdown = max(0.0, -float(tracker.drawdown_from_peak_pct) / 100.0)
+            daily_loss = max(0.0, -float(daily_pnl) / float(starting))
+            trades = await self._storage.fetch_trades(
+                symbol=self._symbol,
+                trading_mode=self._cfg.trading_mode.value,
+                limit=200,
+            )
+            pnl = [t.pnl_usd for t in reversed(trades) if t.pnl_usd is not None]
+            if len(pnl) < 50:  # below this compute_win_loss_stats returns defaults, not data
+                return None
+            _, avg_win, avg_loss, _ = compute_win_loss_stats(pnl)
+            if not (avg_win > 0 and avg_loss > 0):
+                return None
+            context = {
+                "atr": atr,
+                "cvar": cvar,
+                "drawdown": drawdown,
+                "daily_loss": daily_loss,
+                "odds": float(avg_win) / float(avg_loss),
+                "as_of_ts": time.time(),
+            }
+            if not all(math.isfinite(v) for v in context.values()):
+                return None
+            return context
+        except Exception as exc:
+            self._log.warning("orchestrator.intelligence_risk_context_failed", error=str(exc))
+            return None
+
     async def _process_intelligence_bar(self, tf: Timeframe, regime_id: int | None = None) -> None:
         adapter = self._intelligence_adapter
         if adapter is None:
@@ -2689,6 +2768,7 @@ class Orchestrator:
                 bars = await self._storage.fetch_bars(
                     self._symbol, source_tf.value, since_ts=since_ts, limit=256
                 )
+                risk_context = await self._intelligence_risk_context(source_tf)
                 for bar in bars:
                     await adapter.on_bar(
                         symbol=self._symbol,
@@ -2703,6 +2783,7 @@ class Orchestrator:
                             "volume": bar.volume,
                         },
                         regime_id=regime_id if int(bar.ts) == int(latest_ts) else None,
+                        risk_context=risk_context,
                     )
                     self._last_intelligence_bar_ts = int(bar.ts)
                 if len(bars) == 256:

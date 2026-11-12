@@ -710,7 +710,8 @@ class WorkerOrchestrator:
         self._btc_rpc_user = btc_rpc_user
         self._btc_rpc_pass = btc_rpc_pass
         self._ecc_interval = ecc_interval
-        self._ecc_enabled = bool(ecc_enabled)
+        # INT-017: no default RPC credentials; ECC needs the node, so it is off without them.
+        self._ecc_enabled = bool(ecc_enabled) and bool(btc_rpc_user and btc_rpc_pass)
 
         self._queue_in: mp.Queue = mp.Queue(maxsize=1000)
         self._queue_out: mp.Queue = mp.Queue(maxsize=1000)

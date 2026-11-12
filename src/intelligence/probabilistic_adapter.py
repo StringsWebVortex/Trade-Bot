@@ -2,8 +2,10 @@
 ProbabilisticMetricsAdapter
 ===========================
 Wraps BinanceIntelligenceProvider (or any provider returning a raw flat dict)
-and replaces the deterministic scalar outputs with Bayesian-posterior estimates
-from the probabilistic models built in this session.
+and replaces the deterministic scalar outputs with scores from the
+probabilistic models in probabilistic.py.  NOTE (INT-015): those models use
+hand-set, UNCALIBRATED coefficients (BayesianExchangeStressModel.CALIBRATED is
+False); their outputs are heuristic risk scores, not fitted posteriors.
 
 Preserves the EXACT same interface that GateContext expects:
     exchange_stress_score   : float in [0, 1]   (Gate 9 input)
@@ -157,6 +159,7 @@ class ProbabilisticMetricsAdapter:
                     "probabilistic_adapter.exchange_stress",
                     raw_score=round(float(raw_stress), 4),
                     bayesian_prob=round(exchange_stress_score, 4),
+                    calibrated=self._stress_model.CALIBRATED,
                     confidence=round(exchange_stress_confidence, 3),
                     ci_lower=round(prediction.lower_credible_interval, 4),
                     ci_upper=round(prediction.upper_credible_interval, 4),
