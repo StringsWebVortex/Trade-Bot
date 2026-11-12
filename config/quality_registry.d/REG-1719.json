@@ -16,6 +16,10 @@
     {
       "test": "tests/test_crypto_intel_signal_path.py::test_on_bar_skips_granger_update_without_close_history",
       "test_type": "regression"
+    },
+    {
+      "test": "tests/test_crypto_intel_signal_path.py::test_on_bar_skips_granger_update_with_fewer_than_eleven_btc_closes",
+      "test_type": "regression"
     }
   ],
   "notes": "Preserves the source-data boundary for causal analysis; layer: test-suite"
