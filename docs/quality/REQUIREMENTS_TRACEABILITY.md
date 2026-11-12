@@ -47,8 +47,8 @@ deletion of the thing it points at.
 
 | Status | Entries |
 |---|---|
-| VERIFIED | 409 |
-| PARTIAL | 3 |
+| VERIFIED | 410 |
+| PARTIAL | 2 |
 | PLANNED | 0 |
 | ACCEPTED GAP | 0 |
 | **Total** | **412** |
@@ -58,7 +58,7 @@ deletion of the thing it points at.
 | Subsystem | Entries | Verified |
 |---|---|---|
 | Risk | 25 | 25 |
-| Execution | 25 | 24 |
+| Execution | 25 | 25 |
 | Portfolio | 2 | 2 |
 | Signal and features | 22 | 22 |
 | Models and leakage | 39 | 39 |
@@ -87,7 +87,7 @@ deletion of the thing it points at.
 | PR-010 | Recovery/Chaos/Performance | — |
 | PR-011 | Paper-Trading Qualification | — |
 | PR-012 | Production/Canary Security Gate | — |
-| PR-013 | Adaptive Horizon Intelligence | `DATA-006`, `GOV-066`, `REG-0030` |
+| PR-013 | Adaptive Horizon Intelligence | `DATA-006`, `GOV-066` |
 
 ---
 
@@ -574,10 +574,10 @@ When intelligence is enabled, an order from the existing primary timeframe proce
 - **If violated:** An untrained or stale horizon output could authorize duplicate orders or bypass the existing deterministic risk and authorization path.
 - **Owned by:** `src/engine/orchestrator.py`, `src/fusion/horizon_decision.py`, `src/models/horizon_mlp.py`, `src/models/horizon_learning.py`
 - **Verification:**
-  - `tests/test_horizon_decision.py` (unit) — only a successful fusion of calibrated, promoted, OOS-qualified, fresh experts serializes `calibrated=true`.
-  - `tests/test_horizon_order_gate.py` (regression) — abstention, stale/future timestamps, uncalibrated output, symbol mismatch, invalid fused metadata, direction disagreement, and secondary timeframes fail closed.
-  - `tests/test_horizon_order_gate.py` (orchestrator integration) — an aligned horizon decision continues through the existing executor; an abstention suppresses submission; an existing SignalEngine risk rejection remains non-tradeable even when the horizon says BUY.
-  - `tests/test_crypto_intel_signal_path.py` (integration) — intelligence risk gate and final regime guard remain enforced before a horizon signal can be emitted.
+  - `tests/test_horizon_decision.py` (unit) — Only a successful fusion of calibrated, promoted, OOS-qualified, fresh experts serializes calibrated=true.
+  - `tests/test_horizon_order_gate.py` (regression) — Abstention, stale/future timestamps, uncalibrated output, symbol mismatch, invalid fused metadata, direction disagreement, and secondary timeframes fail closed.
+  - `tests/test_horizon_order_gate.py` (integration) — An aligned horizon decision continues through the existing executor; an abstention suppresses submission; an existing SignalEngine risk rejection remains non-tradeable even when the horizon says BUY.
+  - `tests/test_crypto_intel_signal_path.py` (integration) — The intelligence risk gate and final regime guard remain enforced before a horizon signal can be emitted.
 
 > layer: test-suite
 
