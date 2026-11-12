@@ -556,33 +556,21 @@ class TestRemainingSessionEdges:
 
         assert job.eof is True
 
-    async def test_foreground_refresh_clears_a_reaped_shell_group(
-        self, harness, monkeypatch
-    ):
+    async def test_foreground_refresh_clears_a_reaped_shell_group(self, harness, monkeypatch):
         session = await harness.shell()
         session.foreground = 12345
-        monkeypatch.setattr(
-            sessions_module.os, "tcgetpgrp", lambda _fd: session.pid
-        )
+        monkeypatch.setattr(sessions_module.os, "tcgetpgrp", lambda _fd: session.pid)
 
         harness.manager._refresh_foreground(session)
 
         assert session.foreground is None
 
-    async def test_integration_waits_for_the_command_start_marker(
-        self, harness, monkeypatch
-    ):
+    async def test_integration_waits_for_the_command_start_marker(self, harness, monkeypatch):
         session = await harness.shell()
         session.integration = True
-        monkeypatch.setattr(
-            sessions_module.os, "tcgetpgrp", lambda _fd: session.pid + 100
-        )
-        monkeypatch.setattr(
-            sessions_module.procfs, "read_cmdline", lambda *_args: ["bash"]
-        )
-        monkeypatch.setattr(
-            sessions_module.procfs, "read_cwd", lambda *_args: "/tmp"
-        )
+        monkeypatch.setattr(sessions_module.os, "tcgetpgrp", lambda _fd: session.pid + 100)
+        monkeypatch.setattr(sessions_module.procfs, "read_cmdline", lambda *_args: ["bash"])
+        monkeypatch.setattr(sessions_module.procfs, "read_cwd", lambda *_args: "/tmp")
 
         harness.manager._refresh_foreground(session)
 
@@ -611,12 +599,8 @@ class TestRemainingSessionEdges:
         session.process = process
         harness.manager._limits = SimpleNamespace(close_grace_s=0.0)
         monkeypatch.setattr(sessions_module.procfs, "scan", lambda *_args: [])
-        monkeypatch.setattr(
-            sessions_module.procfs, "session_members", lambda *_args: []
-        )
-        monkeypatch.setattr(
-            sessions_module.os, "tcgetpgrp", lambda _fd: session.pid
-        )
+        monkeypatch.setattr(sessions_module.procfs, "session_members", lambda *_args: [])
+        monkeypatch.setattr(sessions_module.os, "tcgetpgrp", lambda _fd: session.pid)
         monkeypatch.setattr(sessions_module.os, "killpg", lambda *_args: None)
         try:
             await harness.manager._terminate(session)

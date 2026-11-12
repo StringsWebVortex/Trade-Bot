@@ -797,9 +797,7 @@ def test_attach_exits_when_the_daemon_removes_the_session(monkeypatch, tmp_path)
         peer.close()
 
 
-def test_attach_detach_key_without_preceding_input_sends_no_empty_frame(
-    monkeypatch, tmp_path
-):
+def test_attach_detach_key_without_preceding_input_sends_no_empty_frame(monkeypatch, tmp_path):
     import os
     import socket
 

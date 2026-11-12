@@ -284,7 +284,6 @@ class TestShellIntegration:
         assert shell_argv("/usr/bin/zsh", rc) == ["/usr/bin/zsh", "-i"]
 
 
-
 def _legacy_terminal_state_dir(monkeypatch, tmp_path):
     from src.terminal import config as terminal_config
 

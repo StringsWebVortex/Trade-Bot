@@ -74,9 +74,7 @@ class TestDepthHandling:
         stream._snapshots = [_snapshot() for _ in range(999)]
         stream._last_publish = time.monotonic() - stream.publish_interval_s - 1.0
 
-        with patch.object(
-            stream, "_flush_orderbook", side_effect=AssertionError("blocking flush")
-        ):
+        with patch.object(stream, "_flush_orderbook", side_effect=AssertionError("blocking flush")):
             stream._handle_depth(_depth())
             pending = tuple(stream._pending_io)
             assert pending
