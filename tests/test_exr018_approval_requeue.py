@@ -21,7 +21,11 @@ import pytest
 from src.config import ExecutionMode, runtime_config
 from src.data.storage import StorageBackend
 from src.engine.orchestrator import Orchestrator
-from src.execution.base import ApprovalRequest, revalidate_approved_intent
+from src.execution.base import (
+    ApprovalRequest,
+    lapse_approved_intents,
+    revalidate_approved_intent,
+)
 from src.execution.paper import PaperExecutor
 from src.risk.kelly import KellyResult
 
@@ -38,6 +42,34 @@ def _kelly(notional: float = 500.0, price: float = 100.0) -> KellyResult:
         quantity=notional / price,
         notional_usd=notional,
         is_capped=False,
+    )
+
+
+def _approval_request(
+    request_id: str,
+    *,
+    symbol: str = SYMBOL,
+    timeframe: str = TF,
+    notional: float = 500.0,
+    entry_price: float = 100.0,
+    resolved: bool = False,
+    approved: bool = False,
+) -> ApprovalRequest:
+    return ApprovalRequest(
+        request_id=request_id,
+        symbol=symbol,
+        timeframe=timeframe,
+        direction=1,
+        notional_usd=notional,
+        entry_price=entry_price,
+        quantity=notional / entry_price if entry_price > 0 else 0.0,
+        kelly_fraction=0.1,
+        regime_state=1,
+        meta_label_prob=0.6,
+        raw_signal=0.5,
+        created_at=0.0,
+        resolved=resolved,
+        approved=approved,
     )
 
 
@@ -162,6 +194,52 @@ def test_unknown_prices_fail_closed(approved_price, fresh_price):
     )
     assert fill is None
     assert reason in {"approval_price_unknown", "approval_price_drift"}
+
+
+def test_approved_intents_lapse_after_one_matching_tick():
+    approved = _approval_request("approved", resolved=True, approved=True)
+    queue = {
+        "other-symbol": _approval_request(
+            "other-symbol", symbol="ETH/USDT", resolved=True, approved=True
+        ),
+        "other-timeframe": _approval_request(
+            "other-timeframe", timeframe="1h", resolved=True, approved=True
+        ),
+        "pending": _approval_request("pending", resolved=False, approved=True),
+        "rejected": _approval_request("rejected", resolved=True, approved=False),
+        "approved": approved,
+    }
+
+    assert lapse_approved_intents(queue, SYMBOL, TF) == []
+    assert approved.window_seen is True
+    assert "approved" in queue
+    assert lapse_approved_intents(queue, SYMBOL, TF) == [approved]
+    assert "approved" not in queue
+    assert set(queue) == {"other-symbol", "other-timeframe", "pending", "rejected"}
+
+
+def test_revalidate_rejects_invalid_or_unfillable_approved_sizes():
+    request = _approval_request("size-check", resolved=True, approved=True)
+    fill, reason = revalidate_approved_intent(
+        request,
+        direction=1,
+        kelly_result=_kelly(notional=0.0),
+        current_price=100.0,
+        max_price_drift_bps=50.0,
+    )
+    assert fill is None
+    assert reason == "approval_size_invalid"
+
+    request.notional_usd = 1e-12
+    fill, reason = revalidate_approved_intent(
+        request,
+        direction=1,
+        kelly_result=_kelly(notional=500.0),
+        current_price=100.0,
+        max_price_drift_bps=50.0,
+    )
+    assert fill is None
+    assert reason == "approval_size_below_minimum"
 
 
 def test_the_tick_opens_the_approval_window_and_does_not_log_queued_as_missed():

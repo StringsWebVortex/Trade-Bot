@@ -24,7 +24,7 @@ from dataclasses import dataclass
 from typing import Final
 
 from scipy import stats as scipy_stats
-from scipy.stats import norm, ttest_ind, ttest_rel
+from scipy.stats import norm, ttest_rel
 
 _SIGNIFICANCE_ALPHA: Final[float] = 0.05
 
@@ -165,8 +165,8 @@ class ChallengerEvaluator:
     champion and sample i of the challenger come from the same fold. Equal
     lengths are therefore tested with the paired t-test on the per-fold
     differences, which removes the fold-to-fold variance both arms share.
-    Welch's unequal-variance test is the fallback only when the lengths
-    differ and no pairing exists (REG-1711).
+    Unequal sample counts are rejected: only fold-aligned observations
+    can be compared (REG-1711).
 
     The test is one-sided in the direction of the observed delta:
     ``alternative="greater"`` decides an improvement and ``alternative="less"``
@@ -198,12 +198,7 @@ class ChallengerEvaluator:
         delta = challenger_mean - champion_mean
 
         alternative = "greater" if delta > 0 else "less"
-        if len(champion_samples) == len(challenger_samples):
-            result = ttest_rel(challenger_samples, champion_samples, alternative=alternative)
-        else:
-            result = ttest_ind(
-                challenger_samples, champion_samples, equal_var=False, alternative=alternative
-            )
+        result = ttest_rel(challenger_samples, champion_samples, alternative=alternative)
         p_value = float(result.pvalue)
         if math.isnan(p_value):
             # 0/0 from identical arms, or NaN samples: no evidence either way.

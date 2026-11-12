@@ -117,6 +117,8 @@ def test_evaluation_result_improved_unknown_metric_raises() -> None:
     result = evaluator.evaluate("p", 0.6, [])
     with pytest.raises(KeyError):
         result.improved("does_not_exist")
+    with pytest.raises(KeyError):
+        result.comparison("does_not_exist")
 
 
 # ---------------------------------------------------------------------------
