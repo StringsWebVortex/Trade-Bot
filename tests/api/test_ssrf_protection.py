@@ -258,7 +258,8 @@ class TestTheGuardIsWired:
         source = (
             Path(__file__).resolve().parents[2] / "src" / "intelligence" / "client.py"
         ).read_text(encoding="utf-8")
-        assert "assert_outbound_url_allowed" in source
+        assert "resolve_allowed" in source
+        assert "PinnedTransport" in source
 
     def test_a_poisoned_base_url_is_refused_at_use(self, monkeypatch):
         # The realistic attack on a configuration-driven URL: a compromised

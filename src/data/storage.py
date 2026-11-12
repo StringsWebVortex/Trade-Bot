@@ -859,13 +859,19 @@ class StorageBackend:
                 version=version,
                 description=description,
             )
-            if sql.strip():
-                await conn.executescript(sql)
-            # Bump user_version inside the same transaction context.
-            # user_version PRAGMA cannot be set inside executescript (it's DDL-level),
-            # so we use a raw execute. aiosqlite auto-commits between executescript calls.
-            await conn.execute(f"PRAGMA user_version = {version}")
-            await conn.commit()
+            # One transaction per migration, version bump included (DAT-021).
+            # executescript runs its script in autocommit mode, so without the
+            # explicit BEGIN a statement failing midway left the earlier ones
+            # applied and user_version unbumped: every retry then failed on
+            # "duplicate column". user_version is an ordinary transactional
+            # header write, so it commits or rolls back with the schema change.
+            try:
+                await conn.executescript(
+                    f"BEGIN IMMEDIATE;\n{sql}\nPRAGMA user_version = {version};\nCOMMIT;"
+                )
+            except BaseException:
+                await conn.rollback()
+                raise
 
         self._log.info(
             "storage.migration.complete",
@@ -1522,7 +1528,7 @@ class StorageBackend:
         exist (never blocks the trade path over an audit-trail write).
         """
         conn = self._require_conn()
-        async with self._get_lock():
+        async with self._write_ctx():
             await conn.execute(
                 "UPDATE trades SET ensemble_point_estimate=?, ensemble_blend_weight=? WHERE id=?",
                 (ensemble_point_estimate, ensemble_blend_weight, trade_id),

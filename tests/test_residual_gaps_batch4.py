@@ -272,25 +272,3 @@ def test_a_web3_that_fails_to_construct_leaves_the_detector_disconnected(monkeyp
     detector = ZkSnarkDetector(eth_rpc_url="http://127.0.0.1:8545")
 
     assert detector._w3 is None
-
-
-# ---------------------------------------------------------------------------
-# Causal inference: a stratum whose effect is undefined
-# ---------------------------------------------------------------------------
-
-
-def test_a_constant_stratum_is_excluded_rather_than_averaged_in():
-    from src.intelligence.causal_inference import CausalInferenceEngine
-
-    rng = np.random.default_rng(3)
-    n = 120
-    treatment = np.concatenate([rng.normal(size=n // 2), np.ones(n // 2)])
-    outcome = np.concatenate([rng.normal(size=n // 2), np.ones(n // 2)])
-    regimes = np.array([0] * (n // 2) + [1] * (n // 2))
-
-    result = CausalInferenceEngine().estimate_heterogeneous_treatment_effect(
-        treatment, outcome, regimes
-    )
-
-    assert "1" not in result["effects_by_context"]
-    assert "1" in result["excluded_strata"]

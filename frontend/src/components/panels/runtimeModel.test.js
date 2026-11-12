@@ -1,12 +1,15 @@
 /**
  * RES-018 — the runtime panel offers only what the change manager accepts and
  * shows desired/actual gaps, transitions and trace outcomes as served.
+ * SEC-0015 — a read-only key's 403 on the agent ledgers reads as a missing
+ * operator key, not a rejected one.
  */
 import { describe, expect, it } from 'vitest';
 
 import {
   HEALTH_COLOR,
   STATE_COLOR,
+  agentLedgersProblemText,
   changeRequestBody,
   countPairs,
   decisionsFor,
@@ -154,5 +157,13 @@ describe('palette and counts', () => {
     expect(runtimeProblemText(rejected)).toContain('(Invalid API key)');
     const unreachable = { ...apiProblem(0), detail: null };
     expect(runtimeProblemText(unreachable)).toBe(apiProblem(0).message);
+  });
+
+  it('says a read-only key cannot read the agent ledgers', () => {
+    const forbidden = { ...apiProblem(403), detail: 'role read_only lacks change_runtime' };
+    expect(agentLedgersProblemText(forbidden)).toContain('operator key');
+    expect(agentLedgersProblemText(forbidden)).not.toContain('VITE_API_KEY');
+    const notStarted = { ...apiProblem(503), detail: null };
+    expect(agentLedgersProblemText(notStarted)).toBe(runtimeProblemText(notStarted));
   });
 });

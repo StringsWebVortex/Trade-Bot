@@ -688,12 +688,14 @@ def test_the_incumbent_alone_needs_no_feeds() -> None:
 
 def test_needs_are_the_union_across_families() -> None:
     needs = required_inputs(["breakout_volume_v1", "funding_carry_v1"])
-    assert needs == {InputNeed.BARS, InputNeed.FUNDING}
+    assert needs == {InputNeed.BARS, InputNeed.FUNDING, InputNeed.COST}
 
 
 def test_each_family_declares_the_feed_its_builder_reads() -> None:
-    assert required_inputs(["cross_exchange_arb_v1"]) == {InputNeed.VENUES}
-    assert required_inputs(["basis_trade_v1"]) == {InputNeed.BASIS}
+    # The cost-hurdle families also read the measured execution cost (STR-21).
+    assert required_inputs(["cross_exchange_arb_v1"]) == {InputNeed.VENUES, InputNeed.COST}
+    assert required_inputs(["basis_trade_v1"]) == {InputNeed.BASIS, InputNeed.COST}
+    assert required_inputs(["funding_carry_v1"]) == {InputNeed.FUNDING, InputNeed.COST}
     assert required_inputs(["xsec_momentum_v1"]) == {InputNeed.UNIVERSE}
     assert required_inputs(["mean_reversion_pairs_v1"]) == {InputNeed.PAIR}
 

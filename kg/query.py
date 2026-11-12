@@ -12,22 +12,6 @@ from common.claude_cli import run_claude
 from .config import KG_MAX_SUBGRAPH_TRIPLES, KG_QUERY_MODEL
 from .db import get_edges_collection, get_nodes_collection
 
-
-def _candidate_names(question: str) -> list[str]:
-    words = {
-        w for w in re.findall(r"[A-Za-z][A-Za-z0-9_-]{2,}", question) if w.lower() not in _STOPWORDS
-    }
-    if not words:
-        return []
-    nodes_col = get_nodes_collection()
-    hits = [d["name"] for d in nodes_col.find({"name": {"$in": list(words)}}, {"name": 1})]
-    if hits:
-        return hits
-    pattern = "|".join(re.escape(w) for w in words)
-    cursor = nodes_col.find({"name": {"$regex": pattern, "$options": "i"}}, {"name": 1}).limit(10)
-    return [d["name"] for d in cursor]
-
-
 _STOPWORDS = frozenset(
     {
         "the",
@@ -66,12 +50,30 @@ _STOPWORDS = frozenset(
 )
 
 
-def _subgraph(names: list[str], limit: int) -> list[dict]:
-    edges_col = get_edges_collection()
+def _candidate_names(question: str) -> list[str]:
+    words = {
+        w for w in re.findall(r"[A-Za-z][A-Za-z0-9_-]{2,}", question) if w.lower() not in _STOPWORDS
+    }
+    if not words:
+        return []
+    nodes_col = get_nodes_collection()
+    hits = [d["name"] for d in nodes_col.find({"name": {"$in": list(words)}}, {"name": 1})]
+    if hits:
+        return hits
+    pattern = "|".join(re.escape(w) for w in words)
+    cursor = nodes_col.find({"name": {"$regex": pattern, "$options": "i"}}, {"name": 1}).limit(10)
+    return [d["name"] for d in cursor]
+
+
+def subgraph(names: list[str], limit: int) -> list[dict]:
+    """Return at most ``limit`` edges touching ``names``. The single copy of this
+    query: review.retrieval.graph delegates here (REG-1717)."""
     if not names:
         # No matching entity means no grounding. Returning arbitrary edges
-        # would present unrelated facts to the model as evidence.
+        # would present unrelated facts to the model as evidence. Avoid even
+        # opening the database connection for an ungrounded query.
         return []
+    edges_col = get_edges_collection()
     cursor = edges_col.find(
         {"$or": [{"subject": {"$in": names}}, {"object": {"$in": names}}]},
         {"_id": 0},
@@ -81,7 +83,7 @@ def _subgraph(names: list[str], limit: int) -> list[dict]:
 
 def query(question: str) -> dict:
     names = _candidate_names(question)
-    triples = _subgraph(names, KG_MAX_SUBGRAPH_TRIPLES)
+    triples = subgraph(names, KG_MAX_SUBGRAPH_TRIPLES)
 
     serialized = "\n".join(
         f"({t['subject']}) -[{t['predicate']}]-> ({t['object']}) "

@@ -13,19 +13,31 @@ The path is always
     policy, approval) -> SupervisorSet -> controller -> component
 
 and nothing here touches a supervisor, a controller or a subsystem
-directly. ``actor_kind`` says who is asking: an AI client (an agent behind
-an MCP tool, say) may request changes and execute approved ones, but the
-change manager refuses it approval, stage results and promotion. Whoever
-holds OPERATOR_SECRET is treated as the human operator, so that secret must
-never be given to an automated client.
+directly. An AI client (an agent behind an MCP tool, say) may request
+changes and execute approved ones, but the change manager refuses it
+approval, stage results and promotion.
+
+Who is asking (SEC-0016). With OPERATOR_CREDENTIALS set, the operator's own
+secret decides the name and kind (``human`` or ``ai``) the change manager
+sees; the request body's ``operator`` and ``actor_kind`` must agree with the
+credential or the call is refused, so an AI credential can never pass for a
+human. Without it, the single OPERATOR_SECRET holder is the human operator
+(``actor_kind="ai"`` can only lower that), so that secret must never be given
+to an automated client.
 """
 
 from __future__ import annotations
 
+import hashlib
+import hmac
+import json
 import os
+import re
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 
+import structlog
 from pydantic import BaseModel, Field
 
 from src.agent_control.model import ManifestError, to_dict
@@ -54,6 +66,8 @@ from src.runtime.platform import RuntimePlatform
 from src.runtime.registry import UnknownComponentError
 from src.runtime.supervisor import ActionRefusedError
 
+log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
+
 # What /runtime/components/{id}/{action} accepts: the operator's direct
 # levers. Version changes and activations go through /runtime/changes, where
 # the target version and the classification are explicit.
@@ -74,7 +88,11 @@ class OperatorFactor(BaseModel):
     # arbitrary characters never reach logs and the audit trail.
     operator: str = Field(min_length=1, max_length=64, pattern=r"^[a-zA-Z0-9_\-]+$")
     operator_secret: str
-    actor_kind: Literal["human", "ai"] = "human"
+    # None: take the kind from the credential (OPERATOR_CREDENTIALS) or, with
+    # the single OPERATOR_SECRET, the human operator. A claim is never trusted
+    # on its own: with credentials it must match, without them it can only
+    # lower human to ai.
+    actor_kind: Literal["human", "ai"] | None = None
 
 
 class RuntimeChangeBody(OperatorFactor):
@@ -111,11 +129,110 @@ def check_operator_secret(secret: str) -> None:
         raise RuntimeControlError(exc.status, exc.detail) from exc
 
 
+OPERATOR_CREDENTIALS_ENV = "OPERATOR_CREDENTIALS"
+_OPERATOR_NAME = re.compile(r"^[A-Za-z0-9_\-]{1,64}$")
+_SHA256_HEX = re.compile(r"^[0-9a-f]{64}$")
+_CREDENTIAL_FIELDS = frozenset({"kind", "secret_sha256"})
+_ROLES: dict[ActorKind, frozenset[str]] = {
+    ActorKind.HUMAN: frozenset({ROLE_REQUESTER, ROLE_APPROVER}),
+    ActorKind.AI: frozenset({ROLE_REQUESTER}),
+}
+
+
+@dataclass(frozen=True, slots=True)
+class OperatorCredential:
+    """One operator: the name and kind a matching secret authenticates as."""
+
+    name: str
+    kind: ActorKind
+    secret_sha256: bytes
+
+
+def _sha256(secret: str) -> bytes:
+    return hashlib.sha256(secret.encode("utf-8")).digest()
+
+
+def parse_operator_credentials(raw: str, operator_secret: str) -> tuple[OperatorCredential, ...]:
+    """
+    OPERATOR_CREDENTIALS: a JSON object mapping each operator name to
+    ``{"kind": "human" | "ai", "secret_sha256": "<64 lowercase hex>"}``.
+
+    Raises ValueError on anything that would make an identity ambiguous: a
+    malformed entry, two operators sharing one secret, or an AI credential
+    whose secret is OPERATOR_SECRET (which also unlocks the human-only
+    /controls family).
+    """
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"not valid JSON ({exc.msg})") from None
+    if not isinstance(data, dict) or not data:
+        raise ValueError("must be a non-empty JSON object of operator name -> credential")
+    legacy = _sha256(operator_secret) if operator_secret else None
+    credentials: list[OperatorCredential] = []
+    for name, entry in data.items():
+        if not _OPERATOR_NAME.fullmatch(name):
+            raise ValueError(f"operator name {name!r} must match {_OPERATOR_NAME.pattern}")
+        if not isinstance(entry, dict) or set(entry) != _CREDENTIAL_FIELDS:
+            raise ValueError(f"{name}: needs exactly the fields kind and secret_sha256")
+        kind, hashed = entry["kind"], entry["secret_sha256"]
+        if kind not in ("human", "ai"):
+            raise ValueError(f"{name}: kind must be 'human' or 'ai'")
+        if not isinstance(hashed, str) or not _SHA256_HEX.fullmatch(hashed):
+            raise ValueError(f"{name}: secret_sha256 must be 64 lowercase hex characters")
+        hashed_bytes = bytes.fromhex(hashed)
+        if any(hmac.compare_digest(hashed_bytes, c.secret_sha256) for c in credentials):
+            raise ValueError(f"{name}: shares its secret with another operator")
+        if kind == "ai" and legacy is not None and hmac.compare_digest(hashed_bytes, legacy):
+            raise ValueError(f"{name}: an ai credential must not use OPERATOR_SECRET")
+        credentials.append(OperatorCredential(name, ActorKind(kind), hashed_bytes))
+    return tuple(credentials)
+
+
+def _credential_actor(body: OperatorFactor, raw: str) -> Actor:
+    operator_secret = os.environ.get("OPERATOR_SECRET", "").strip()
+    try:
+        credentials = parse_operator_credentials(raw, operator_secret)
+    except ValueError as exc:
+        log.error("runtime_control.operator_credentials_invalid", error=str(exc))
+        raise RuntimeControlError(503, f"{OPERATOR_CREDENTIALS_ENV} is not usable.") from None
+    supplied = _sha256(body.operator_secret)
+    # Every entry is compared, so the time taken does not say which matched.
+    matched: OperatorCredential | None = None
+    for credential in credentials:
+        if hmac.compare_digest(supplied, credential.secret_sha256) and matched is None:
+            matched = credential
+    if matched is None:
+        raise RuntimeControlError(401, "Invalid operator secret.")
+    if body.operator != matched.name:
+        log.warning(
+            "runtime_control.operator_name_mismatch", claimed=body.operator, actual=matched.name
+        )
+        raise RuntimeControlError(403, "operator does not match the operator credential.")
+    if body.actor_kind is not None and body.actor_kind != matched.kind.value:
+        log.warning(
+            "runtime_control.actor_kind_mismatch",
+            operator=matched.name,
+            claimed=body.actor_kind,
+            actual=matched.kind.value,
+        )
+        raise RuntimeControlError(
+            403, f"{matched.name} is a {matched.kind.value} operator, not {body.actor_kind}."
+        )
+    return Actor(matched.name, matched.kind, _ROLES[matched.kind])
+
+
 def actor_for(body: OperatorFactor) -> Actor:
+    """
+    SEC-0016: the change manager's actor comes from the operator credential,
+    never from what the request body claims about itself.
+    """
+    raw = os.environ.get(OPERATOR_CREDENTIALS_ENV, "").strip()
+    if raw:
+        return _credential_actor(body, raw)
     check_operator_secret(body.operator_secret)
-    if body.actor_kind == "ai":
-        return Actor(body.operator, ActorKind.AI, frozenset({ROLE_REQUESTER}))
-    return Actor(body.operator, ActorKind.HUMAN, frozenset({ROLE_REQUESTER, ROLE_APPROVER}))
+    kind = ActorKind.AI if body.actor_kind == "ai" else ActorKind.HUMAN
+    return Actor(body.operator, kind, _ROLES[kind])
 
 
 def _action(name: str) -> LifecycleAction:

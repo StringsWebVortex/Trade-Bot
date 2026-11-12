@@ -1,0 +1,22 @@
+{
+  "id": "REG-1712",
+  "kind": "regression",
+  "title": "arch-ignore silences only the architecture rule it names, with a reason",
+  "statement": "The crypto-architect validator suppresses a FORBIDDEN pattern hit only through a scoped comment arch-ignore[LAWn,...]: <reason>, and only for the listed laws; every other rule still fires on that line. A bare arch-ignore, or one without a reason, suppresses nothing and is reported as a MEDIUM finding. LAW6 secret rules cannot be suppressed inline. Suppressed hits are recorded as passed findings with their reason, counted in the report stats and SARIF run properties, and never written to a baseline.",
+  "criticality": "high",
+  "subsystem": "security",
+  "status": "verified",
+  "source": "OPS-2026-10-28",
+  "failure_mode": "check_patterns skipped every FORBIDDEN pattern on any line containing '# arch-ignore', so a comment written for a LAW12 false positive also hid a CRITICAL LAW6 secret or LAW5 TLS bypass on the same line, with no rule id, no reason and no count in the report. No test exercised a suppressed line against a second rule; the deciding test now does, and a ratchet requires every marker in src/ to be scoped and to silence a real hit.",
+  "owning_modules": [
+    ".claude/skills/crypto-architect/scripts/validate_arch.py"
+  ],
+  "verification": [
+    {
+      "test": "tests/test_arch_ignore_scoping.py",
+      "test_type": "regression"
+    }
+  ],
+  "depends_on": [],
+  "notes": "Audit DOC-023. layer: test-suite"
+}

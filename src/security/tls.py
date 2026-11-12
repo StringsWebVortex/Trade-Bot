@@ -50,7 +50,7 @@ LOCAL_HOSTS: Final[frozenset[str]] = frozenset({"localhost", "127.0.0.1", "::1"}
 
 # Every way this codebase's dependency set can be told to skip verification.
 # Spelled as patterns rather than substrings so the spaced form and the
-# keyword-argument form both match.  # arch-ignore
+# keyword-argument form both match.
 DISABLE_PATTERNS: Final[tuple[tuple[str, re.Pattern[str]], ...]] = (
     ("requests/httpx verify", re.compile(r"\bverify\s*=\s*False\b")),
     ("aiohttp ssl", re.compile(r"\bssl\s*=\s*False\b")),

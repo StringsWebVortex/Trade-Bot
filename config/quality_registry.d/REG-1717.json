@@ -1,0 +1,23 @@
+{
+  "id": "REG-1717",
+  "kind": "regression",
+  "title": "review.retrieval.graph delegates to kg.query.subgraph instead of copying it",
+  "statement": "The bounded subgraph edge query (edges whose subject or object is one of the given names, capped at limit) exists once, as kg.query.subgraph. review.retrieval.graph calls it with the same arguments, so both callers return the same edges for the same input.",
+  "criticality": "low",
+  "subsystem": "data",
+  "status": "verified",
+  "source": "OPS-2026-10-28",
+  "failure_mode": "kg/query._subgraph and review/retrieval.graph were line-for-line copies, so a change to the edge query or to the empty-match behaviour had to be made twice and the two could drift apart (the open DOC-017 fix already had to patch both). No test compared them; tests/test_kg_subgraph_shared.py now asserts the delegation and identical queries and results.",
+  "owning_modules": [
+    "kg/query.py",
+    "review/retrieval.py"
+  ],
+  "verification": [
+    {
+      "test": "tests/test_kg_subgraph_shared.py",
+      "test_type": "regression"
+    }
+  ],
+  "depends_on": [],
+  "notes": "Audit DOC-015 (subgraph part). layer: test-suite"
+}

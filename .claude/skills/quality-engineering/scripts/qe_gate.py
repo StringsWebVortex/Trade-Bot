@@ -126,7 +126,7 @@ def gate_registry_schema(config: dict[str, Any]) -> Result:
         return Result("registry-schema", False, True, f"{registry_path} is missing")
 
     validator = _validator(schema_path)
-    document = json.loads(registry_path.read_text(encoding="utf-8"))
+    document = refs.read_document(registry_path)  # base + per-entry files (GOV-071)
     findings = _errors(validator, document)
     return Result(
         "registry-schema",
@@ -168,7 +168,7 @@ def gate_registry_loader(config: dict[str, Any]) -> Result:
 
 
 def gate_traceability(config: dict[str, Any]) -> Result:
-    """The generated document matches the registry it is generated from."""
+    """The generated document renders from the registry it is generated from."""
     problems: list[str] = []
     checked = 0
     for spec in config["registry"]["generated_docs"]:
@@ -184,7 +184,7 @@ def gate_traceability(config: dict[str, Any]) -> Result:
             check=False,
         )
         if proc.returncode != 0:
-            problems.append(f"{spec['doc']} is stale; run: python3 {spec['generator']}")
+            problems.append(f"{spec['doc']} does not render; run: python3 {spec['generator']}")
     if not checked:
         return Result("traceability", True, True, "no generators present", skipped=True)
     return Result("traceability", not problems, True, f"{checked} document(s)", findings=problems)
@@ -336,7 +336,7 @@ def gate_external(gate_spec: dict[str, Any]) -> Result:
 
 def _read_registry_entries(path: Path) -> list[dict[str, Any]]:
     """The registry's entries, as a seam the collision gate's tests can fake."""
-    return json.loads(path.read_text(encoding="utf-8"))["entries"]
+    return refs.read_document(path)["entries"]
 
 
 def gate_registry_id_collision(config: dict[str, Any]) -> Result:
