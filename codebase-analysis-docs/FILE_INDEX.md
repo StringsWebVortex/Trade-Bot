@@ -152,7 +152,7 @@ Index version 1.0.1. Architecture/chunk baseline HEAD 9128e3da8b9542efef5c89706b
 | 82 | P1 | config/observation_boundary.json | JSON | 103 | ee3b28e7 |  |
 | 83 | P1 | config/performance_baselines.json | JSON | 69 | ece98302 |  |
 | 84 | P1 | config/quality_registry.d/REG-1708.json | JSON | 23 | ae70eab8 |  |
-| 85 | P1 | config/quality_registry.d/REG-1709.json | JSON | 22 | 930e5aa0 |  |
+| 85 | P1 | config/quality_registry.d/REG-1719.json | JSON | 22 | 930e5aa0 |  |
 | 86 | P1 | config/quality_registry.schema.json | JSON | 265 | 0cb44223 |  |
 | 87 | P1 | deploy/alerts.yml | YAML | 70 | 03b321d7 |  |
 | 88 | P1 | deploy/prometheus.yml | YAML | 31 | 1bfcc7dc |  |

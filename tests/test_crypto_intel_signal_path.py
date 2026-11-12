@@ -4,7 +4,7 @@ Decides:
   - REG-0030 — Horizon decisions cannot bypass the single risk-gated order path
   - REG-0031 — Horizon drift detection suppresses the signal and is persisted as measured
   - REG-1430 — Data and intelligence low-severity defects: bus drop total, naive now, funding units, NaN guards
-  - REG-1709 — Granger updates require observed BTC close history
+  - REG-1719 — Granger updates require observed BTC close history
 """
 
 from __future__ import annotations

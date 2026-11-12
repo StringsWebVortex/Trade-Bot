@@ -1,5 +1,5 @@
 {
-  "id": "REG-1709",
+  "id": "REG-1719",
   "kind": "regression",
   "title": "Granger updates require observed BTC close history",
   "statement": "CryptoIntel.on_bar updates Granger causality only when alt-price history is sufficient and BTC close_history contains at least 11 observed close prices; missing or short BTC history is never replaced with a fabricated flat series.",
