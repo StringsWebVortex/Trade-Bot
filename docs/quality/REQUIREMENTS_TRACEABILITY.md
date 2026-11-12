@@ -1,13 +1,12 @@
 <!--
 GENERATED FILE — DO NOT EDIT BY HAND.
 
-Source of truth: config/quality_registry.json
+Source of truth: config/quality_registry.json and config/quality_registry.d/
 Regenerate with: python3 scripts/generate_quality_docs.py
 CI check:        python3 scripts/generate_quality_docs.py --check
 
-Editing this file directly will be reverted by the next regeneration and will
-fail CI. Change the registry instead; the registry is reviewed as a diff and
-validated by src/quality/registry.py at load time.
+This file is not committed; it is rendered on demand from the registry, which
+is reviewed as a diff and validated by src/quality/registry.py at load time.
 -->
 
 # Requirements traceability
@@ -47,29 +46,29 @@ deletion of the thing it points at.
 
 | Status | Entries |
 |---|---|
-| VERIFIED | 437 |
+| VERIFIED | 455 |
 | PARTIAL | 2 |
 | PLANNED | 0 |
 | ACCEPTED GAP | 5 |
-| **Total** | **444** |
+| **Total** | **462** |
 
 ## Summary by subsystem
 
 | Subsystem | Entries | Verified |
 |---|---|---|
-| Risk | 28 | 26 |
-| Execution | 27 | 26 |
+| Risk | 29 | 27 |
+| Execution | 28 | 27 |
 | Portfolio | 2 | 2 |
-| Signal and features | 25 | 25 |
-| Models and leakage | 43 | 42 |
-| Data, money and time | 40 | 39 |
+| Signal and features | 30 | 30 |
+| Models and leakage | 44 | 43 |
+| Data, money and time | 43 | 42 |
 | API and WebSocket | 42 | 42 |
-| Cryptography and secrets | 60 | 60 |
+| Cryptography and secrets | 65 | 65 |
 | Supply chain and artifacts | 8 | 8 |
 | Resilience and recovery | 36 | 36 |
 | Release and production | 18 | 18 |
-| Governance | 96 | 94 |
-| Terminal and process center | 19 | 19 |
+| Governance | 97 | 95 |
+| Terminal and process center | 20 | 20 |
 
 ## Outstanding work by phase
 
@@ -438,6 +437,19 @@ E04 detrends before the FFT, skips the halving overlay when block_height <= 0 an
 
 > audit finding STR-17; layer: test-suite
 
+#### `REG-1716` — An open loss counts against the daily-drawdown halt
+
+**VERIFIED** · high · regression · source: OPS-2026-10-28
+
+The orchestrator tick passes stricter_daily_pnl(realised, equity - daily_start) to the signal engine, so check_daily_drawdown halts new entries when either today's realised PnL or today's marked equity change breaches the threshold. A non-finite input yields NaN, which the gate treats as a halt.
+
+- **If violated:** The 2% daily halt was fed one symbol's realised PnL only, so an unrealised intraday loss of any size never tripped it until the position closed, while the denominator was the whole book's daily-start equity. The gate tests passed realised figures directly and no test drove the tick with an open loss; the deciding test now ticks with equity 3% under the daily start and nothing realised.
+- **Owned by:** `src/risk/gates.py`, `src/engine/orchestrator.py`
+- **Verification:**
+  - `tests/test_daily_drawdown_open_loss.py` (regression)
+
+> Audit EXR-029, option 2 (stricter of realised and marked; never looser than before). layer: test-suite
+
 #### `SEC-1306` — Live-qualification record is signed, fresh and strategy-bound
 
 **VERIFIED** · high · security_regression · source: OPS-2026-10-25
@@ -803,6 +815,19 @@ A router order with null filled/average yields a zero-fill result; push_return r
 
 > layer: test-suite
 
+#### `REG-1718` — An approval never blocks the tick, and an approved trade is re-validated before it fills
+
+**VERIFIED** · high · regression · source: OPS-2026-10-28
+
+In RESTRICTED (above notional_limit_usd) and MANUAL mode submit_signal queues the trade and returns 'queued' without waiting, and never queues a second request for a symbol/timeframe that has one open. An approved request is an intent executed only by the next tick of that symbol/timeframe whose own signal is still tradeable, so the gate stack, meta-label gate and Kelly have just run on fresh data; it fills at that tick's price, only in the approved direction, only while the price is within risk.approval_max_price_drift_bps of the price the request showed, and at no more than the approved notional. Any failed check rejects it, an intent its next tick does not execute lapses, and a RESTRICTED request past approval_timeout_s can no longer be approved.
+
+- **If violated:** submit_signal awaited the operator inside the tick, stalling that timeframe for up to approval_timeout_s (RESTRICTED) or indefinitely (MANUAL), and on approval filled the pre-wait Kelly size at the price captured before the wait with no gate re-run, so a trade could fill on a stale price after a halt, a drawdown breach or a regime change. The executor tests drove the approval round trip with a concurrent approve task and asserted only that the trade opened, so nothing checked the price, the gates or the tick; the deciding test now approves, moves the price and the direction, and asserts the fill price, the size cap, the lapse and the non-blocking return.
+- **Owned by:** `src/execution/base.py`, `src/execution/paper.py`, `src/execution/live.py`, `src/engine/orchestrator.py`, `src/config.py`
+- **Verification:**
+  - `tests/test_exr018_approval_requeue.py` (regression)
+
+> Audit EXR-018 (rest). layer: test-suite
+
 ## Portfolio
 
 #### `PORT-001` — Portfolio-level exposure, correlation and agreement limits are enforced
@@ -1154,6 +1179,74 @@ The basis-trade, funding-carry and cross-exchange families enter only when their
   - `tests/test_strategy_portfolio.py` (regression)
 
 > Audit STR-21. Part 1: the cost model and the strategies. The orchestrator does not yet fill PortfolioInputs.execution_cost, so the three families (all disabled by default) stay flat until part 2 wires the account's fills, the live half-spread and the calibrated impact in, adds the measured fee to check_slippage_veto, and replaces the fixed fee constants in paper.py, live.py, rl_agent.py and e15_rl.py. Those files are in open PRs. layer: test-suite
+
+#### `REG-1708` — E-17 reads depth from the orderbook snapshot and scores liquidity without a unit constant
+
+**VERIFIED** · high · regression · source: OPS-2026-10-28
+
+E-17 decodes the latest provider-cache orderbook snapshot (bids_json, [price, qty] pairs) for its depth score, stress flag and cascade level, and declares that field in ENGINE_CACHE_INPUTS. Its liquidity score is 1 minus the percentile rank of the current Amihud ratio within the symbol's own history, neutral 1.0 until 20 readings exist, so it is unchanged when volume is quoted in different units. A missing or malformed snapshot gives zero depth, not a failed engine.
+
+- **If violated:** E-17 read data['bids'], a key the engine snapshot never has, so depth was always 0, the liquidity stress flag could never fire and the cascade level was always spot * 0.98; and its score 1 - amihud * 1e6 flipped between near 0 and near 1 with the volume unit, which the risk quantifier divides tail risk by. The engine tests fed a hand-made 'bids' list that production never produces, so nothing caught it; the deciding test now builds the snapshot field the cache actually serves.
+- **Owned by:** `src/engines/e17_liquidity.py`, `src/engines/orchestrator.py`
+- **Verification:**
+  - `tests/engines/test_e17_orderbook_and_scale.py` (regression)
+
+> Audit STR-22. layer: test-suite
+
+#### `REG-1713` — No wrong probability-of-ruin estimate, no orphan causal-inference module, one shared exchange stress formula
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-28
+
+RiskQuantifier has no estimate_probability_of_ruin method and src/intelligence/causal_inference.py does not exist, because neither had a caller and the ruin estimate was wrong. The Binance, OKX and Bybit providers compute exchange_stress_score through the single base.exchange_stress_score function, whose weights sum to 1 and whose basis, funding and OI-drop components saturate at 100 bps, 3 sigma and -5%.
+
+- **If violated:** estimate_probability_of_ruin set u to the 90th percentile of daily returns and counted every day below it as an excess, so about 90% of days fed the 'GPD' term, which was not a GPD fit; its empirical term looked for a single day below -50% and never measured a drawdown. It was uncalled, so the only control was its own tests, which asserted only that the output lay in [0, 1]. causal_inference.py had no importer and a hardcoded _predict_sharpe demo, yet kept tests and a model-safety entry alive. The stress formula was copied into three providers, so a change to one venue would silently diverge from the others. The deciding test now fails if either removed item returns or a provider stops using the shared formula.
+- **Owned by:** `src/intelligence/risk_quantification.py`, `src/intelligence/providers/base.py`, `src/intelligence/providers/binance_provider.py`, `src/intelligence/providers/okx_provider.py`, `src/intelligence/providers/bybit_provider.py`
+- **Verification:**
+  - `tests/test_intelligence_dead_code_and_stress_dedup.py` (regression)
+
+> Audit INT-031. layer: test-suite
+
+#### `REG-1714` — Ensemble sequence members consume the realised return window at inference
+
+**VERIFIED** · high · regression · source: OPS-2026-10-28
+
+At inference the ensemble's ARIMA and LSTM members forecast from the realised closed-bar log-return window that SignalEngine computes from its bars (log of close over previous close, ending at the last closed bar) and passes through EnsemblePredictor.predict_row/predict. The LSTM is fed the last lookback returns as a (1, lookback, 1) tensor for any feature count; ARIMA keeps its fitted parameters and filters its state over the window (apply(window, refit=False)) before a one-step forecast, so the forecast moves with each new bar. With no window, too few returns or a non-finite value in the values used, the member raises and the ensemble excludes it; a forward-pass or forecast error also raises instead of returning 0.0.
+
+- **If violated:** LSTMPredictor.predict reshaped the tabular feature row with reshape(-1, lookback, 1): it raised (and was swallowed into a 0.0 forecast) unless the feature count was a multiple of 20, and otherwise fed features where the net was trained on returns. ARIMAPredictor.predict ignored its input and returned forecast(steps=1) from the end of the training sample, the same number on every call until the next retrain; non-primary timeframes are never retrained in-session. Both outputs were blended into p_long. The member tests fed hand-built inputs matching the broken reshape and mocked forecast(), so no test checked what the members were actually fed; the deciding tests now pin the tensor the LSTM receives, that the ARIMA forecast moves with new observations, and that SignalEngine passes the bar return window.
+- **Owned by:** `src/intelligence/ensemble_predictor.py`, `src/engine/signal_engine.py`
+- **Verification:**
+  - `tests/test_ensemble_sequence_inputs.py` (regression)
+  - `tests/test_signal_engine.py` (regression)
+
+> Audit INT-006. layer: test-suite
+
+#### `REG-1715` — The orchestrator fills the measured execution cost for the carry and arbitrage families
+
+**VERIFIED** · high · regression · source: OPS-2026-10-28
+
+When an enabled family declares InputNeed.COST (basis trade, funding carry, cross-exchange), Orchestrator._build_portfolio_inputs sets PortfolioInputs.execution_cost from measurements only: the per-leg fee from this symbol's recent closed trades in the timeframe's trading mode (both legs' fee over both legs' notional, at least MIN_FEE_SAMPLES trades, cached for _COST_FEE_TTL_S), half the quoted width of the live order book, and SlippageModel's calibrated square-root impact for the largest cost-family capital fraction of the executor's equity against the daily volume of the last 20 completed bars. If any of these cannot be measured (too few closed trades, a one-sided, crossed or unavailable book, too few bars, no equity, no executor, a failed read) the cost stays None and the families abstain; no configured or published number replaces it.
+
+- **If violated:** REG-1704 made the three families abstain without a measured cost, but nothing in production ever filled PortfolioInputs.execution_cost, so they could never trade and no test noticed: the strategy tests built the cost by hand and the orchestrator tests never asserted it. The deciding test drives _build_portfolio_inputs with stub storage, book and executor and checks each component and each fail-closed case.
+- **Owned by:** `src/engine/orchestrator.py`, `src/engine/strategy_portfolio.py`, `src/risk/execution_cost.py`
+- **Depends on:** `REG-1704`
+- **Verification:**
+  - `tests/test_orchestrator_execution_cost.py` (regression)
+
+> Audit STR-21 part 2. layer: test-suite
+
+#### `REG-1719` — Granger updates require observed BTC close history
+
+**VERIFIED** · medium · regression · source: OPS-2026-11-12
+
+CryptoIntel.on_bar updates Granger causality only when alt-price history is sufficient and BTC close_history contains at least 11 observed close prices; missing or short BTC history is never replaced with a fabricated flat series.
+
+- **If violated:** When alt-price history is present but BTC close_history is missing, the engine repeats the current price to fabricate eleven closes and feeds a flat return series into Granger causality, producing an observation that was never supplied by the market-data source.
+- **Owned by:** `src/intel.py`
+- **Verification:**
+  - `tests/test_crypto_intel_signal_path.py::test_on_bar_skips_granger_update_without_close_history` (regression)
+  - `tests/test_crypto_intel_signal_path.py::test_on_bar_skips_granger_update_with_fewer_than_eleven_btc_closes` (regression)
+
+> Preserves the source-data boundary for causal analysis; layer: test-suite
 
 ## Models and leakage
 
@@ -1660,6 +1753,19 @@ lll_reduce_with_transform updates the Gram-Schmidt coefficients in place after a
   - `tests/test_mth020_lattice_and_pairing_cost.py` (regression)
 
 > Audit MTH-020. The tests pin the results to the old algorithm and the direct exponent, so a faster wrong answer fails. layer: test-suite
+
+#### `REG-1711` — Tuning evaluator compares fold-aligned champion/challenger samples with a one-sided paired t-test
+
+**VERIFIED** · high · regression · source: OPS-2026-10-28
+
+ChallengerEvaluator.compare_metric tests equal-length champion and challenger samples with ttest_rel on the per-fold differences, one-sided in the direction of the delta (alternative='greater' for an improvement, 'less' for a regression) at alpha 0.05, and reports the p of the side tested. Welch's unequal-variance test is used only when the lengths differ. Identical arms report p = 1.0 and are never significant.
+
+- **If violated:** Every harness builds both arms in the same fold loop, but the evaluator ran Welch's independent-samples test on them, so the fold-to-fold spread both arms share swamped consistent per-fold improvements and regressions: a regression on a secondary metric could pass the promotion gate unflagged, and a real improvement could be rejected. Identical arms reported p = NaN into the audit log. The evaluator tests only asserted large mean shifts, which any test detects, so nothing exercised a paired-only effect; the deciding test now builds a fold-aligned shift that Welch cannot see.
+- **Owned by:** `src/tuning/evaluator.py`
+- **Verification:**
+  - `tests/test_tuning_evaluator_paired.py` (regression)
+
+> Audit STR-05 (rest), paired-test part. The held-out final period is not in this entry. layer: test-suite
 
 #### `SEC-1120` — MLflow registry never promotes and never unpickles without a pinned manifest
 
@@ -2235,6 +2341,45 @@ kg.db builds its MongoClient through rag_mongo.db._client_for and checks MONGODB
   - `tests/test_mongo_client_reuse.py` (regression)
 
 > Audit DOC-015. Skill/MCP duplicates were removed by #511. The kg/query._subgraph vs review/retrieval.graph duplication waits for open PR #502. layer: test-suite
+
+#### `REG-1709` — A schema migration and its version bump commit or roll back together
+
+**VERIFIED** · high · regression · source: OPS-2026-10-28
+
+StorageBackend._run_migrations runs each pending migration's SQL and its PRAGMA user_version bump in one BEGIN IMMEDIATE ... COMMIT script and rolls back on any failure, so a migration that fails partway leaves neither its earlier statements nor a version bump behind and the next start retries it cleanly.
+
+- **If violated:** executescript runs in autocommit mode, so when a multi-statement migration (v7, v8 and v10 add several columns each) failed on a later statement the earlier ALTERs stayed applied while user_version was not bumped; every following start re-ran the migration and failed on duplicate column, so the database could not be opened again without manual repair. The storage tests only migrated successfully, so a partial failure was never exercised; the deciding test now fails a migration midway and retries it.
+- **Owned by:** `src/data/storage.py`
+- **Verification:**
+  - `tests/test_storage_migration_atomicity.py` (regression)
+
+> Audit DAT-021. layer: test-suite
+
+#### `REG-1710` — A failed ensemble-field update never strands an open transaction
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-28
+
+StorageBackend.update_trade_ensemble_fields writes under _write_ctx, so an UPDATE that raises is rolled back before the write lock is released and the shared connection keeps accepting writes.
+
+- **If violated:** update_trade_ensemble_fields took the bare lock instead of _write_ctx, so an UPDATE aborted after its implicit BEGIN left the shared connection inside a transaction: the BUGFIX-001 deadlock that blocks every later write and the WAL checkpoint on close. _write_ctx was introduced for exactly this and this write site was missed; the deciding test aborts the UPDATE and checks the connection is out of the transaction.
+- **Owned by:** `src/data/storage.py`
+- **Verification:**
+  - `tests/test_storage_migration_atomicity.py` (regression)
+
+> Audit DAT-021. layer: test-suite
+
+#### `REG-1717` — review.retrieval.graph delegates to kg.query.subgraph instead of copying it
+
+**VERIFIED** · low · regression · source: OPS-2026-10-28
+
+The bounded subgraph edge query (edges whose subject or object is one of the given names, capped at limit) exists once, as kg.query.subgraph. review.retrieval.graph calls it with the same arguments, so both callers return the same edges for the same input.
+
+- **If violated:** kg/query._subgraph and review/retrieval.graph were line-for-line copies, so a change to the edge query or to the empty-match behaviour had to be made twice and the two could drift apart (the open DOC-017 fix already had to patch both). No test compared them; tests/test_kg_subgraph_shared.py now asserts the delegation and identical queries and results.
+- **Owned by:** `kg/query.py`, `review/retrieval.py`
+- **Verification:**
+  - `tests/test_kg_subgraph_shared.py` (regression)
+
+> Audit DOC-015 (subgraph part). layer: test-suite
 
 ## API and WebSocket
 
@@ -3178,6 +3323,19 @@ deploy/prometheus.yml sends X-API-Key on the API scrape through http_headers, re
 
 > Audit OPS-013. Needs Prometheus 2.55 or later for http_headers. layer: test-suite
 
+#### `REG-1712` — arch-ignore silences only the architecture rule it names, with a reason
+
+**VERIFIED** · high · regression · source: OPS-2026-10-28
+
+The crypto-architect validator suppresses a FORBIDDEN pattern hit only through a scoped comment arch-ignore[LAWn,...]: <reason>, and only for the listed laws; every other rule still fires on that line. A bare arch-ignore, or one without a reason, suppresses nothing and is reported as a MEDIUM finding. LAW6 secret rules cannot be suppressed inline. Suppressed hits are recorded as passed findings with their reason, counted in the report stats and SARIF run properties, and never written to a baseline.
+
+- **If violated:** check_patterns skipped every FORBIDDEN pattern on any line containing '# arch-ignore', so a comment written for a LAW12 false positive also hid a CRITICAL LAW6 secret or LAW5 TLS bypass on the same line, with no rule id, no reason and no count in the report. No test exercised a suppressed line against a second rule; the deciding test now does, and a ratchet requires every marker in src/ to be scoped and to silence a real hit.
+- **Owned by:** `.claude/skills/crypto-architect/scripts/validate_arch.py`
+- **Verification:**
+  - `tests/test_arch_ignore_scoping.py` (regression)
+
+> Audit DOC-023. layer: test-suite
+
 #### `SEC-0005` — A file holding real credentials is never committable
 
 **VERIFIED** · high · security_regression · source: QE-51
@@ -3284,6 +3442,59 @@ requirements.txt declares filelock>=4.2.1, and every Dockerfile install into the
   - `tests/security/test_filelock_cve_floor.py` (security)
 
 > The advisory was published against a release nobody here chose, so no commit or review could have seen it arrive. layer: supply-chain
+
+#### `SEC-0013` — ApiSigner.from_env refuses to run without a configured signing key
+
+**VERIFIED** · medium · security_regression · source: OPS-2026-10-28
+
+ApiSigner.from_env raises ValueError when API_SIGNING_KEY_B64 (or the named variable) is unset or empty, instead of generating an ephemeral Ed25519 key. An ephemeral key is only made by calling ApiSigner() explicitly.
+
+- **If violated:** With the signing key unset, from_env silently generated a fresh key, so a misconfigured signer produced signatures no peer could verify instead of failing at startup. Two tests asserted the fallback as intended behaviour, so the suite protected the defect; they now assert the refusal.
+- **Owned by:** `src/security/api_signer.py`
+- **Verification:**
+  - `tests/test_api_signer_audit.py` (regression)
+
+> Audit API-017. layer: test-suite
+
+#### `SEC-0015` — /runtime/agent agent-control ledgers require the runtime-change permission
+
+**VERIFIED** · medium · security_regression · source: OPS-2026-10-28
+
+GET /runtime/agent serves the .git/agent-control task manifests (objective, branch, baseline and current SHA, next action) and the branch-audit ledger only to a key holding Permission.CHANGE_RUNTIME; a read-only key gets 403 without any ledger content, and the Runtime panel shows that 403 as a missing operator key rather than as a rejected key or an empty ledger.
+
+- **If violated:** The route used the runtime read dependencies (VIEW_STATUS), which Role.READ_ONLY holds, so any read-only dashboard key could read in-flight engineering work: task objectives, branches, SHAs and the branch-audit ledger. The deciding test asserted the defect itself by fetching the ledgers with the read-only key; it now asserts 403 for that key and 200 for the operator key, so a route that drops back to VIEW_STATUS fails it.
+- **Owned by:** `src/api/main.py`, `frontend/src/components/panels/RuntimePanel.jsx`, `frontend/src/components/panels/runtimeModel.js`
+- **Verification:**
+  - `tests/runtime/test_runtime_endpoints.py` (regression)
+  - `frontend/src/components/panels/runtimeModel.test.js` (regression)
+
+> Audit API-023. layer: test-suite
+
+#### `SEC-0016` — A runtime operator's name and kind come from their credential, not the request body
+
+**VERIFIED** · high · security_regression · source: OPS-2026-10-28
+
+With OPERATOR_CREDENTIALS set, every /runtime write resolves its change-manager Actor from the operator secret alone: the matching credential supplies the name and the kind (human or ai), and a body whose operator or actor_kind disagrees is refused with 403, an unknown secret with 401, and a malformed or ambiguous credential map (shared secret, ai credential on OPERATOR_SECRET) with 503. Without it, the OPERATOR_SECRET holder is the human operator and actor_kind can only lower that to ai. Approval still needs no second person, so a solo human operator is not blocked.
+
+- **If violated:** actor_for built the Actor from the caller-chosen operator name and actor_kind, checked only against one shared OPERATOR_SECRET, so an AI client holding the secret sent actor_kind=human and became an approver of LIVE_GATED, SHADOW and CANARY changes, and the audit recorded whatever name it typed. ChangeManager.approve trusts the Actor's kind, and no test sent a kind that disagreed with the caller's identity; the deciding test now does, through actor_for and through the approve route.
+- **Owned by:** `src/api/runtime_control.py`
+- **Verification:**
+  - `tests/security/test_operator_credential_identity.py` (security)
+
+> Audit API-012 (option 2: credential-bound identity, no four-eyes rule). Requester != approver is deliberately not enforced so a single human operator can still approve. layer: test-suite
+
+#### `SEC-0017` — Outbound provider requests connect to the address the SSRF guard vetted
+
+**VERIFIED** · high · security_regression · source: OPS-2026-10-28
+
+resolve_allowed resolves an outbound URL once on the event loop's resolver (never a blocking socket.getaddrinfo), applies the API-004 address policy to every answer, and returns the vetted addresses. The intelligence client sends every Glassnode request through PinnedTransport, which connects to a vetted address while keeping the Host header and TLS SNI on the original hostname, and refuses any request for an origin it did not vet.
+
+- **If violated:** The guard resolved the host, then httpx resolved it again, so a DNS-rebinding answer (public then private) passed the check and the request reached an internal address; the synchronous getaddrinfo also blocked the event loop on every request. The API-004 tests injected a resolver into the guard alone and never followed the request to the connection, so nothing compared the vetted address with the connected one; the deciding test now does.
+- **Owned by:** `src/security/ssrf.py`, `src/intelligence/client.py`
+- **Verification:**
+  - `tests/security/test_ssrf_pinning.py` (regression)
+
+> Audit API-020. layer: test-suite
 
 #### `SEC-1020` — The auto-resolve job never exposes its PAT to pull-request branch code
 
@@ -5021,6 +5232,18 @@ The repository must not advertise duplicate-delivery enforcement as enabled unti
 - **Verification:**
   - `tests/test_diagnostic_route_boundary.py` (contract) — Pins the policy disabled and verifies the registry-backed requirement until actual enforcement can be decided in CI.
 
+#### `GOV-071` — Pull requests that each add registry entries merge in any order
+
+**VERIFIED** · medium · requirement · source: OPS-2026-10-28
+
+A new quality registry entry is its own file, config/quality_registry.d/<ID>.json, loaded together with config/quality_registry.json; the traceability document is rendered on demand and not committed; and no test pins the list or count of registry ids. Two pull requests that each add entries therefore change disjoint paths and merge cleanly in either order.
+
+- **If violated:** Every pull request appended to the same registry array, regenerated the same committed traceability document and edited the same hard-coded id list, so each merge put every other open pull request back into conflict: on 2026-10-28 all 26 open pull requests conflicted with main, 22 of them only in those shared files.
+- **Owned by:** `src/quality/registry.py`, `scripts/generate_quality_docs.py`, `.claude/skills/quality-engineering/scripts/qe_new_requirement.py`, `.claude/skills/quality-engineering/scripts/qe_registry_refs.py`
+- **Verification:**
+  - `tests/quality/test_registry_entry_files.py` (unit)
+  - `tests/quality/test_quality_docs_in_sync.py` (contract)
+
 #### `REG-0005` — A test's result never depends on which tests ran before it
 
 **VERIFIED** · high · regression · source: QE-91
@@ -5721,6 +5944,20 @@ The dashboard keeps the terminal daemon token in memory only and removes any cop
 
 > Audit FE-15. layer: test-suite
 
+#### `SEC-0014` — Terminal output cannot forge shell-integration command entries or exit codes
+
+**VERIFIED** · low · security_regression · source: OPS-2026-10-28
+
+Each terminal session mints a random nonce, passes it only to its bash integration (which moves it into a readonly shell variable and unsets the environment variable before ~/.bashrc runs), and the session's marker scanner accepts only OSC 133 E, C and D sequences that carry that nonce. Any other 133 sequence in the output, including the nonce-less form, is ignored. Jobs get no nonce, so their output never announces an integration.
+
+- **If violated:** The scanner accepted any ESC ] 133;E/C/D sequence in PTY output, so cat of a crafted file or a printf created process-center entries such as 'rm -rf /' with invented exit codes, and could close a real command early as unknown. The marker tests only checked that well-formed markers parse; nothing fed the scanner markers the shell did not print. The deciding test now prints forged markers from a real integrated shell and asserts no entry and the real exit status.
+- **Owned by:** `src/terminal/markers.py`, `src/terminal/shell_integration.py`, `src/terminal/sessions.py`
+- **Depends on:** `TERM-002`
+- **Verification:**
+  - `tests/terminal/test_terminal_marker_nonce.py` (regression)
+
+> Audit AGT-024. Residual: a stream that replays this session's own raw output (e.g. cat of a saved transcript of the same session) can replay a valid nonce; a fresh nonce per session bounds it to that session. layer: test-suite
+
 #### `SEC-1224` — Terminal daemon and PTYs get an allowlisted environment
 
 **VERIFIED** · high · security_regression · source: OPS-2026-10-25
@@ -5766,7 +6003,8 @@ uninstall --purge refuses a directory without the terminal token, and a peer wit
 
 ## Governance
 
-This document is generated from `config/quality_registry.json`, which is
+This document is generated from `config/quality_registry.json` and the
+per-entry files in `config/quality_registry.d/`, which are
 validated on load by `src/quality/registry.py` and in CI by
 `tests/quality/test_quality_registry.py`. The validation is not decorative:
 
@@ -5784,9 +6022,10 @@ validated on load by `src/quality/registry.py` and in CI by
   requirement. A mistyped kind cannot hide an invariant among the requirements.
 - Every `depends_on` must resolve, and the dependency graph must be acyclic.
 
-To add or change an entry, edit the registry and regenerate this file. See
+To add an entry, add one `config/quality_registry.d/<ID>.json` file; to
+change an existing entry, edit it where it lives. See
 `docs/quality/QUALITY_POLICY.md` for the policy these requirements serve,
 `docs/quality/TEST_STRATEGY.md` for the taxonomy the `test_type` column draws
 on, and `docs/quality/IMPLEMENTATION_PLAN.md` for what each phase delivers.
 
-Registry version: 1.0.0 — 444 entries.
+Registry version: 1.0.0 — 462 entries.
