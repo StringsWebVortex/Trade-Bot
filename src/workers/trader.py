@@ -58,7 +58,13 @@ async def _run() -> None:
     storage = create_storage_backend()
     await storage.initialize()
 
-    async with open_fetcher(storage) as fetcher:
+    async with contextlib.AsyncExitStack() as stack:
+        try:
+            fetcher = await stack.enter_async_context(open_fetcher(storage))
+        except Exception:
+            # AGT-022: storage is already open; do not leak it.
+            await storage.close()
+            raise
         orchestrator = Orchestrator(storage, fetcher)
 
         stop_event = asyncio.Event()

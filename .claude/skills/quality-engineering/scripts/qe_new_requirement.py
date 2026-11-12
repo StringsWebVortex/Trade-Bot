@@ -48,7 +48,7 @@ KIND_BY_PREFIX = {
     "SEC-": "security_regression",
 }
 
-ID_RE = re.compile(r"^(INV-[0-9]{3}|REG-[0-9]{4}|SEC-[0-9]{4}|[A-Z]{3,5}-[0-9]{3})$")
+ID_RE = re.compile(r"^(INV-[0-9]{3,}|REG-[0-9]{4,}|SEC-[0-9]{4,}|[A-Z]{3,5}-[0-9]{3,})$")
 
 
 def kind_for(entry_id: str) -> str:

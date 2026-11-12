@@ -10,7 +10,7 @@ Populated fields:
   liquidation_pressure_24h_zscore (supplement — blended with Binance/OKX)
   liquidation_cascade_risk_usd    (additive — heatmap max cluster)
   binance_funding_rate_pct        (fallback — averaged across exchanges)
-  whale_buy_sell_ratio            (supplement — global L/S ratio proxy)
+  whale_buy_sell_ratio            (not populated: L/S account ratio is positioning, INT-020)
 
 Auth: CG-API-KEY header
 Rate: 30 req/min (free tier) → RateLimiter(30, window_s=60.0)
@@ -55,10 +55,11 @@ class CoinglassProvider(OnChainProvider):
 
     _BASE_URL = _BASE
     _CACHE_TTL_S = 60
-    _RATE = 30.0 / 60.0  # 30 req/min expressed as req/s for window_s=1.0
+    _RATE = 30.0  # 30 req/min; burst capacity of 30 tokens
+    _RATE_WINDOW_S = 60.0
 
     def __init__(self, api_key: str, cache_ttl_s: int = 60) -> None:
-        super().__init__()
+        super().__init__(cache_ttl_s)
         self._api_key = api_key
         self._CACHE_TTL_S = cache_ttl_s
         self._disabled = not bool(api_key)
@@ -146,16 +147,10 @@ class CoinglassProvider(OnChainProvider):
         else:
             confidence -= _CONFIDENCE_PENALTY
 
-        # 5. whale_buy_sell_ratio — global long/short ratio proxy
-        ls_data = await self._get(
-            f"{_BASE}/futures/longShortAccount/chart",
-            headers=h,
-            params={"symbol": "BTC", "interval": "1h", "limit": "1"},
-        )
-        if ls_data is not None:
-            result["whale_buy_sell_ratio"] = _ls_ratio(ls_data)
-        else:
-            confidence -= _CONFIDENCE_PENALTY
+        # 5. whale_buy_sell_ratio is intentionally NOT populated (INT-020):
+        # the global long/short ACCOUNT ratio is positioning, not taker flow,
+        # and the aggregator averages this field with Binance/Bybit taker-volume
+        # ratios.  The field stays neutral (skipped by the merge).
 
         result["confidence"] = max(0.0, confidence)
         return result

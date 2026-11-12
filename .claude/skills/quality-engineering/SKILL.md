@@ -32,7 +32,7 @@ Before writing code, answer these. They take a minute and they change what
 gets built:
 
 1. **Which requirement does this serve?** A registry id. If none fits, this
-   change is introducing a requirement — add it (`scripts/qe_new_requirement.py`)
+   change is introducing a requirement — add it (`.claude/skills/quality-engineering/scripts/qe_new_requirement.py`)
    rather than proceeding without one. A behaviour nobody agreed to is a
    behaviour nothing decides.
 
@@ -45,7 +45,8 @@ gets built:
    not the same risk and should not get the same review.
 
 For anything beyond a one-liner, write the answers as a change plan and check
-it: `qe_gate.py --plan plan.json` (schema: `schemas/change_plan.schema.json`).
+it. CI validates the plan with `qe_gate.py --plan plan.json`; do not run it locally
+(schema: `schemas/change_plan.schema.json`).
 The value is not the file — it is that the questions have to be answerable
 before the code exists rather than after.
 

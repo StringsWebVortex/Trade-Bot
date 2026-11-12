@@ -56,7 +56,7 @@ Api = tuple[TestClient, RuntimePlatform]
 
 
 @pytest.fixture
-def api() -> Iterator[Api]:
+def api(healthy_security_controls) -> Iterator[Api]:
     from src.api.main import AppState, app
 
     state = AppState()
@@ -270,3 +270,40 @@ def test_agent_ledgers_are_served_read_only(
     assert agent_ledgers(tmp_path)["unreadable"][-1].startswith("branch-audit")
     monkeypatch.delenv(STATE_DIR_ENV)
     assert runtime_control._agent_state_dir().parts[-2:] == (".git", "agent-control")
+
+
+def test_runtime_decision_maps_unavailable_and_refused_lifecycle_errors(monkeypatch):
+    from src.api import runtime_control as control
+    from src.runtime.changes import RuntimeLifecycleUnavailableError
+    from src.runtime.supervisor import ActionRefusedError
+
+    body = control.RuntimeDecisionBody(operator="alice", operator_secret=SECRET)
+    monkeypatch.setattr(control, "actor_for", lambda _body: object())
+    platform = MagicMock()
+
+    platform.changes.decide_lifecycle.side_effect = RuntimeLifecycleUnavailableError("offline")
+    with pytest.raises(control.RuntimeControlError) as unavailable:
+        control.decide(platform, "change-1", "execute", body)
+    assert unavailable.value.status == 503
+    assert unavailable.value.detail == "offline"
+
+    platform.changes.decide_lifecycle.side_effect = ActionRefusedError("controller refused")
+    with pytest.raises(control.RuntimeControlError) as refused:
+        control.decide(platform, "change-1", "execute", body)
+    assert refused.value.status == 409
+    assert refused.value.detail == "controller refused"
+
+
+def test_note_operator_intent_reports_missing_components_and_contract_failures():
+    from src.api.runtime_control import note_operator_intent
+    from src.runtime.contracts import RuntimeContractError
+
+    platform = MagicMock()
+    platform.registry.find.return_value = None
+    missing = note_operator_intent(platform, "worker:missing", S.DRAINED, "alice", "maintenance")
+    assert missing == "worker:missing is not registered"
+
+    platform.registry.find.return_value = object()
+    platform.changes.request_desired.side_effect = RuntimeContractError("invalid desired state")
+    failed = note_operator_intent(platform, "worker:w", S.DRAINED, "alice", "maintenance")
+    assert failed == "invalid desired state"

@@ -66,9 +66,9 @@ class Capability(Enum):
 # The capabilities a key may hold. Anything outside this set fails the check.
 PERMITTED: Final[frozenset[Capability]] = frozenset({Capability.READ, Capability.TRADE})
 
-# Named separately from "everything not permitted" so the refusal message can
-# say which forbidden capability was found, and so adding a new capability to
-# the enum does not silently become permitted.
+# The capabilities that are withdrawal-equivalent. The check itself rejects
+# everything outside PERMITTED, so adding a new capability to the enum does
+# not silently become permitted; this set documents the worst offenders.
 FORBIDDEN: Final[frozenset[Capability]] = frozenset({Capability.WITHDRAW, Capability.TRANSFER})
 
 
@@ -89,7 +89,9 @@ class KeyPosture:
     declared_on: str  # ISO date
 
     def forbidden_capabilities(self) -> frozenset[Capability]:
-        return frozenset(self.capabilities & FORBIDDEN)
+        # Everything outside PERMITTED (fail closed): margin and futures keys
+        # are refused too, not only withdraw/transfer (API-016).
+        return frozenset(self.capabilities - PERMITTED)
 
 
 def posture_from_mapping(exchange: str, raw: Any) -> KeyPosture:

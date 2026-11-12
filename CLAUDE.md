@@ -277,7 +277,7 @@ This is an enforcement rule, not a prompt instruction:
 - Native shells, integrated terminals, filesystem tools, browser tools, agents,
   unlisted MCP tools, newly introduced tool names, and unscoped GitHub requests
   are refused before execution. Unknown routes do not inherit permission.
-- CI diagnostics have one authorized observation route: ./scripts/prfail --pr <PR_NUMBER>. The CLI reads the centralized Check Run manifest and its digest-verified pages only; it never downloads workflow logs or queries job, annotation, artifact, or raw check endpoints. It returns only normalized non-success records, with empty stdout for a finalized report with no diagnostics. An absent, stale, incomplete, or inaccessible report is an operational error, never a success response or a fallback. scripts/ci_verdict.py and scripts/local_checks.py prepare are legacy routes and are denied by the command policy. Pre-tool enforcement applies only when the session actually loads the repository hook/settings; connector permissions and tool endpoints independently exposed by the host require external configuration.
+- CI diagnostics have one authorized observation route: ./scripts/prfail --pr <PR_NUMBER>. The CLI reads the centralized Check Run manifest and its digest-verified pages only; it never downloads workflow logs or queries job, annotation, artifact, or raw check endpoints. It prints only the exact failure lines (lines naming error, failed, failure, skipped, cancelled or canceled) of every non-green job of every non-green PR run, then one `path:line: first line of the opening comment` line per unresolved review conversation (outdated ones included), which it reads fresh through the GraphQL `reviewThreads` query because resolving a conversation fires no Actions event; stdout is empty when nothing failed and nothing is unresolved. Until every PR run has finished and the report is published it prints `wait` (exit 3), and a call made while another prfail for the same PR is running prints `wait` too. A broken, stale, or inaccessible report is an operational error, never a success response or a fallback. scripts/ci_verdict.py and scripts/local_checks.py prepare are legacy routes and are denied by the command policy. Pre-tool enforcement applies only when the session actually loads the repository hook/settings; connector permissions and tool endpoints independently exposed by the host require external configuration.
 - A read names its target and receives that block. `get_file_contents` must
   carry `tb_lines` (`"120-160"`) or `tb_anchor` (a unique line of the block);
   neither exists on the server schema, so the hook records the target and strips
@@ -338,18 +338,20 @@ The canonical diagnostic command is ./scripts/prfail --pr <PR_NUMBER>. Treat eve
 To fix a reported source location without remote writes, inspect the file at
 the exact report head SHA and produce a unified diff based on its current
 contents. Apply it locally only through
-`python3 scripts/apply_ci_patch.py --pr <PR_NUMBER> --head-sha <REPORT_HEAD_SHA> --patch-stdin`.
+`python3 scripts/apply_ci_patch.py --pr <PR_NUMBER> --head-sha <PR_HEAD_SHA> --patch-stdin`.
 The applier checks the local HEAD against that SHA, restricts paths to existing
 regular files in the repository, validates the diff with `git apply --check`,
 and changes the working tree only. It does not stage, commit, push, switch
 branches, or run tests. A line number is only a locator; source context and
 the current SHA must be verified before editing.
 
-The .github/workflows/ci-diagnostics.yml collector waits for the explicitly
-inventoried PR workflows and their jobs to become terminal, correlates them to
-the same PR head SHA, and publishes a report manifest plus deterministic
-Check Run pages containing only non-success outcomes and extracted diagnostic
-lines. Retrieval verifies PR, head SHA, page generation, record count, message
+The .github/workflows/ci-diagnostics.yml collector starts when any workflow
+completes (`workflows: ["*"]`), lists every pull_request run GitHub created for
+the PR head SHA (no fixed list, so new workflows are covered), waits for all of
+them and their jobs to become terminal, and publishes a report manifest plus
+deterministic Check Run pages holding the failure lines of the non-green jobs
+(GOV-068). Unresolved review conversations are not in the report; prfail reads
+them when it runs. Retrieval verifies PR, head SHA, page generation, record count, message
 fragments, and the overall digest. It never falls back to the older mutable
 PR-comment notice or to direct log/check APIs.
 
@@ -399,6 +401,28 @@ Its first job (GOV-017) still updates the oldest PR whose `mergeable_state` is
 It requires `secrets.PR_AUTOUPDATE_TOKEN` (PAT with `repo` scope; also as a
 Dependabot secret). A `GITHUB_TOKEN` event starts no workflow run. Missing token
 must fail without modifying anything.
+
+---
+
+# 10. Pull Request Handoff to ChatGPT Codex — GOV-067
+
+Claude and the owner lead development. Claude implements, pushes, opens the PR,
+and posts its link. **After that Claude does not touch the PR** (no pushes,
+comments, reviews, CI diagnostics, or branch updates) until the owner says so in
+the session.
+
+From PR creation to merge, the PR belongs to ChatGPT Codex:
+
+* Codex code review (configured in ChatGPT Codex settings) reviews each push
+  against `AGENTS.md` ("Code Review Rules") and `SECURITY.md`.
+* `.github/workflows/codex-pr-handoff.yml` comments `@codex fix ...` when a
+  watched workflow fails on the current head or a Codex review leaves inline
+  findings: once per head, at most five per PR, then it stops. It posts with
+  `secrets.CODEX_HANDOFF_TOKEN` (the owner's token); missing token fails
+  without posting.
+* The owner arms auto-merge; the merge queue lands the PR.
+
+No part of this handoff runs Claude (GOV-036).
 
 ---
 
@@ -480,8 +504,8 @@ The registry entry and deciding test belong in the same commit as the behavior.
 checks, so an instruction to run it before pushing would order a command the
 pre-tool boundary refuses. No local test, build, lint, security scan, or quality-gate run is permitted,
 even for a previously failing check. The only local CI-observation exception is the read-only command
-`./scripts/prfail --pr <PR_NUMBER>`, which returns only the finalized filtered
-report for the current PR head SHA. The separate local patch-applier exception
+`./scripts/prfail --pr <PR_NUMBER>`, which returns only the failure lines of the
+finished report for the current PR head SHA, or `wait`. The separate local patch-applier exception
 accepts only a quoted, report-bound unified diff; it refuses protected control-plane
 files and never runs checks. Push the correction through the approved GitHub
 branch-write route and use GitHub Actions for every test, build, lint, security
@@ -513,7 +537,7 @@ Never weaken a gate merely to pass. If a rule is wrong, change it deliberately a
 `config/architecture_layers.json` defines:
 
 **foundation**
-→ config, logging_setup, mathcore, quality
+→ agent_control, config, eventbus, logging_setup, mathcore, quality, resource_limits
 
 **crypto**
 → ecc, security
@@ -528,7 +552,7 @@ Never weaken a gate merely to pass. If a rule is wrong, change it deliberately a
 → execution, risk, strategies
 
 **orchestration**
-→ engine, intel, upgrade, workers
+→ engine, intel, runtime, terminal, upgrade, workers
 
 **edge**
 → api
@@ -537,7 +561,7 @@ Packages may import their own layer or lower layers, never higher layers.
 
 `scripts/check_static_invariants.py` enforces layering. `check_import_cycles` separately detects module-level cycles; package-level cycles are also prohibited because they can hide behind deferred/submodule imports.
 
-`accepted_upward_edges` is a ratchet containing the six currently documented inversions:
+`accepted_upward_edges` is a ratchet. It is currently empty: there are no documented inversions.
 
 * remove the entry when the inversion is fixed;
 * never add an entry merely to suppress a violation;
@@ -590,6 +614,9 @@ Rules:
   update registry, then run `python3 scripts/generate_quality_docs.py`;
   CI runs `--check`.
 * Every production defect gets a permanent `REG-####` entry and test.
+* Every CI failure whose cause is not the PR's own intended change, and every
+  failure seen twice, gets a permanent `REG-####` entry and a test that fails
+  without the fix, in the PR that fixes it (section 21).
 * Every security finding gets a permanent `SEC-####` entry and test.
 * Such tests are never removed merely because the defect/finding was fixed.
 
@@ -656,3 +683,51 @@ Every response and every artifact must carry the fewest possible errors.
 * Correct a wrong statement as soon as it is found, explicitly.
 * Report only what changed, what was verified, and what remains unverified --
   no padding, no unverifiable promises.
+
+---
+
+# 21. Engineering Standard
+
+Every change, decision, workflow and operation in this repository is held to
+this standard. Each line names the control that enforces it; a line with no
+control is a gap to close, not a slogan.
+
+**Defensive correctness.** Trading, risk and execution paths fail closed and
+never degrade silently (GOV-004). Every behaviour change is tested on its edge
+cases: empty, NaN, stale, boundary, duplicate, out-of-order, and the failure of
+each dependency.
+
+**Readability and consistency.** `ruff check` and `ruff format` decide style;
+new code matches the surrounding code. Intent is visible from names and
+structure, not from comments explaining a workaround.
+
+**Containment.** Layering (GOV-018) and seam contracts (SIG-004) are never
+loosened to make a change fit; the change is reshaped instead.
+
+**Zero-tolerance gates.** `main` is reachable only through the merge queue and
+its required gates (section 9). `.pre-commit-config.yaml` is installed in every
+working copy, and `--no-verify` is never used. A gate is never weakened, skipped
+or quarantined to get green (section 14).
+
+**Gate design.** A gate fails only for a cause inside the change under test. A
+gate that an unrelated merge can break is a defect in the gate (REG-1705), and
+one that hides failures behind others is too (REG-1706).
+
+**Peer audit.** Every PR is reviewed against `AGENTS.md` "Code Review Rules"
+and `SECURITY.md` by ChatGPT Codex (section 10) and by the owner. A P0/P1
+finding blocks the merge until it is fixed or answered with evidence.
+
+**Destructive tests.** CI runs the whole suite on every commit; one failing test
+fails the build, every shard runs to the end (REG-1706), and an exception no
+test can catch fails the test that leaked it (REG-1707). A flaky test is a bug
+in that test.
+
+**Regression locks.** A failure is closed only when its root cause is fixed
+and a test that fails without the fix is in place. Lock the cause, not the
+symptom: REG-0023 locked the reporter of "Event loop is closed" and the leak
+kept recurring until REG-1707. For each failure, answer "which control should
+have caught this, and does it now?" in the `REG-` entry's `failure_mode`.
+
+**Continuous refactoring.** A PR that touches a module removes the dead code,
+duplication and slow paths it finds in that module, under the same tests.
+Debt found outside the touched scope is filed, not fixed in passing (section 1).

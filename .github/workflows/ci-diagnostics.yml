@@ -1,18 +1,17 @@
 name: CI non-success diagnostics
 
-# This is an autonomous GitHub Actions service, triggered by source workflow
-# completion. It runs on GitHub-hosted runners, independently of any agent
-# session, agent tool call, or local diagnostic command. Agents only retrieve
-# the already-finalized filtered report through ./scripts/prfail --pr <PR>.
+# This is an autonomous GitHub Actions service, triggered whenever any workflow
+# completes. "*" is a glob over workflow names, so a workflow added later is
+# covered without editing this file; the collector itself keeps only the runs
+# GitHub started for a pull request and ignores its own. It runs on
+# GitHub-hosted runners, independently of any agent session, agent tool call,
+# or local diagnostic command. Agents only retrieve the finished report through
+# ./scripts/prfail --pr <PR>, which prints the failure lines or `wait`.
 # workflow_run-triggered workflows must exist on the default branch.
 # This informational collector never cancels source CI and is not required CI.
 on:
   workflow_run:
-    workflows:
-      - "CI"
-      - "CodeQL"
-      - "Security"
-      - "Workflow lint"
+    workflows: ["*"]
     types: [completed]
 
 permissions:

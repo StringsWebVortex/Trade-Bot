@@ -1,0 +1,23 @@
+{
+  "id": "REG-1708",
+  "kind": "regression",
+  "title": "E-17 reads depth from the orderbook snapshot and scores liquidity without a unit constant",
+  "statement": "E-17 decodes the latest provider-cache orderbook snapshot (bids_json, [price, qty] pairs) for its depth score, stress flag and cascade level, and declares that field in ENGINE_CACHE_INPUTS. Its liquidity score is 1 minus the percentile rank of the current Amihud ratio within the symbol's own history, neutral 1.0 until 20 readings exist, so it is unchanged when volume is quoted in different units. A missing or malformed snapshot gives zero depth, not a failed engine.",
+  "criticality": "high",
+  "subsystem": "signal",
+  "status": "verified",
+  "source": "OPS-2026-10-28",
+  "failure_mode": "E-17 read data['bids'], a key the engine snapshot never has, so depth was always 0, the liquidity stress flag could never fire and the cascade level was always spot * 0.98; and its score 1 - amihud * 1e6 flipped between near 0 and near 1 with the volume unit, which the risk quantifier divides tail risk by. The engine tests fed a hand-made 'bids' list that production never produces, so nothing caught it; the deciding test now builds the snapshot field the cache actually serves.",
+  "owning_modules": [
+    "src/engines/e17_liquidity.py",
+    "src/engines/orchestrator.py"
+  ],
+  "depends_on": [],
+  "verification": [
+    {
+      "test": "tests/engines/test_e17_orderbook_and_scale.py",
+      "test_type": "regression"
+    }
+  ],
+  "notes": "Audit STR-22. layer: test-suite"
+}

@@ -206,3 +206,71 @@ def test_strategies_are_independent() -> None:
 
     assert not mgr.is_enabled("strat_a")
     assert mgr.is_enabled("strat_b")
+
+
+def test_unreadable_persisted_shape_fails_closed_for_existing_strategies(tmp_path):
+    from src.risk.state_persistence import save_state
+
+    path = tmp_path / "kill-switch.json"
+    save_state(path, {"disabled": []})
+    manager = StrategyKillSwitchManager()
+    manager.register_strategy("strat_a", _baseline())
+
+    manager.enable_persistence(path)
+
+    assert not manager.is_enabled("strat_a")
+    assert "unreadable" in manager.disabled_reason("strat_a")
+
+
+def test_persisted_disabled_entry_is_applied_to_an_already_registered_strategy(tmp_path):
+    from src.risk.state_persistence import save_state
+
+    path = tmp_path / "kill-switch.json"
+    save_state(path, {"disabled": {"strat_a": {"reason": "prior halt", "at_ms": 123}}})
+    manager = StrategyKillSwitchManager()
+    manager.register_strategy("strat_a", _baseline())
+
+    manager.enable_persistence(path)
+
+    assert not manager.is_enabled("strat_a")
+    assert manager.disabled_reason("strat_a") == "prior halt"
+
+
+def test_persist_keeps_disabled_entries_for_not_yet_registered_strategies(tmp_path):
+    from src.risk.state_persistence import load_state, save_state
+
+    path = tmp_path / "kill-switch.json"
+    prior = {"reason": "halted before this process", "at_ms": 7}
+    save_state(path, {"disabled": {"future_strategy": prior}})
+    manager = StrategyKillSwitchManager()
+    manager.enable_persistence(path)
+    manager.register_strategy("known_strategy", _baseline())
+    manager._states["known_strategy"].enabled = False
+
+    manager._persist()
+
+    stored = load_state(path)
+    assert stored is not None
+    assert stored["disabled"]["future_strategy"] == prior
+    assert stored["disabled"]["known_strategy"]["at_ms"] == 0
+
+
+def test_healthy_rolling_sharpe_does_not_flag_structural_decay():
+    manager = StrategyKillSwitchManager()
+    manager.register_strategy("strat_a", _baseline(oos_sharpe=0.1))
+
+    for _ in range(30):
+        manager.record_trade_outcome(
+            "strat_a",
+            pnl_usd=1.0,
+            predicted_prob=0.8,
+            actual_direction=1,
+            current_equity=10_001.0,
+            starting_equity=10_000.0,
+        )
+
+    drift = manager.evaluate("strat_a")
+
+    assert not drift.drifted
+    assert manager.is_enabled("strat_a")
+    assert not manager.is_structurally_decayed("strat_a")

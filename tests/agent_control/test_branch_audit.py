@@ -216,7 +216,7 @@ class TestInventoryFromGit:
                     "refs/heads",
                     "refs/remotes/origin",
                 ): refs,
-                ("ls-remote", "--heads", "origin"): (
+                ("ls-remote", "--heads", "--", "origin"): (
                     f"{SHA_B}\trefs/heads/main\n\n{SHA_A}\trefs/heads/new\n"
                 ),
                 ("cat-file", "--batch-check"): f"{SHA_B} missing\n{SHA_A} commit 200\n",
@@ -234,7 +234,7 @@ class TestInventoryFromGit:
         git = fake_git(
             {
                 (*listing, "refs/heads", "refs/remotes/origin"): "",
-                ("ls-remote", "--heads", "origin"): "",
+                ("ls-remote", "--heads", "--", "origin"): "",
             },
             tmp_path,
         )

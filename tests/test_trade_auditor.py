@@ -60,7 +60,7 @@ class TestAuditRecord:
 
         r = _rec()
         d = r.to_dict()
-        json.dumps(d)
+        assert json.loads(json.dumps(d)) == d
 
     def test_to_dict_contains_key_fields(self):
         r = _rec(gate_status="HALT_DRAWDOWN", outcome="skipped")
@@ -265,3 +265,19 @@ class TestDetectAnomalies:
             )
         alerts = a.anomaly_scan()
         assert any("kelly_ceiling_always_binding" in a for a in alerts), alerts
+
+
+def test_anomaly_scan_logs_statistics_errors_and_continues():
+    import statistics
+    from unittest.mock import patch
+
+    auditor = TradeAuditor()
+    for _ in range(60):
+        auditor.record(_rec())
+
+    with patch("statistics.stdev", side_effect=statistics.StatisticsError("degenerate sample")):
+        alerts = auditor.anomaly_scan()
+
+    # The variance checks are diagnostic only; a statistics failure must not
+    # prevent the independent gate and Kelly checks from completing.
+    assert isinstance(alerts, list)
