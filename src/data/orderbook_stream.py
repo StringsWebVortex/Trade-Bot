@@ -227,6 +227,7 @@ class OrderbookStream:
         )
 
         if len(self._snapshots) >= 1000:
+            # Parquet I/O must not block the WebSocket event loop.
             self._schedule_orderbook_flush()
 
     def _snapshots_as_df(self) -> pd.DataFrame:
