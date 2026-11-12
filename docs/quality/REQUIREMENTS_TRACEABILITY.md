@@ -1409,7 +1409,7 @@ frontend/ runs vitest under jsdom, and `npm test` is a step of the gated `fronte
 
 **VERIFIED** · critical · requirement · source: OPS-2026-10-07
 
-Runtime state (components, dependencies, changes, decision traces, mismatches) is readable with VIEW_STATUS on the existing API; every runtime mutation route needs the CHANGE_RUNTIME permission (trade-authorizing keys only), the operator second factor and the endpoint rate limit, and is a change-manager call -- LIVE_SAFE changes execute at once, everything else waits for a human approver, and an AI actor is refused approval; the runtime topic is operator-only on the websocket; a failed platform build leaves the routes at 503 rather than stopping trading.
+Runtime state (components, dependencies, changes, decision traces, mismatches) is readable with VIEW_STATUS on the existing API (the Claude session task and branch-audit ledgers at /runtime/agent need CHANGE_RUNTIME, SEC-0015); every runtime mutation route needs the CHANGE_RUNTIME permission (trade-authorizing keys only), the operator second factor and the endpoint rate limit, and is a change-manager call -- LIVE_SAFE changes execute at once, everything else waits for a human approver, and an AI actor is refused approval; the runtime topic is operator-only on the websocket; a failed platform build leaves the routes at 503 rather than stopping trading.
 
 - **If violated:** A read-only key, a caller without the operator secret, or an AI agent changes live runtime state, or a runtime change bypasses the change manager.
 - **Owned by:** `src/api/runtime_control.py`, `src/api/main.py`, `src/api/access_control.py`, `src/runtime/platform.py`
@@ -1421,7 +1421,7 @@ Runtime state (components, dependencies, changes, decision traces, mismatches) i
 
 **VERIFIED** · medium · requirement · source: OPS-2026-10-07
 
-The Runtime Platform panel renders /runtime*: component state, desired state and health, desired-versus-actual gaps, last transition, dependency order and issues, change history, decision traces with their first blocking condition, and the Claude session task and branch-audit ledgers (GET /runtime/agent, read-only, unreadable manifests reported); the decision buttons a change offers follow its status and classification exactly as the change manager accepts them (no execute button for a staged class awaiting its shadow/canary result), and every write goes through the operator second factor to /runtime/changes.
+The Runtime Platform panel renders /runtime*: component state, desired state and health, desired-versus-actual gaps, last transition, dependency order and issues, change history, decision traces with their first blocking condition, and the Claude session task and branch-audit ledgers (GET /runtime/agent, operator key only (SEC-0015), unreadable manifests reported); the decision buttons a change offers follow its status and classification exactly as the change manager accepts them (no execute button for a staged class awaiting its shadow/canary result), and every write goes through the operator second factor to /runtime/changes.
 
 - **If violated:** An operator acts on a runtime view that hides a desired/actual gap or a failed component, or is offered a control the backend will refuse.
 - **Owned by:** `frontend/src/components/panels/runtimeModel.js`, `frontend/src/components/panels/RuntimePanel.jsx`, `src/api/runtime_control.py`
