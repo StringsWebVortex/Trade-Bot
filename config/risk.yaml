@@ -18,7 +18,7 @@ circuit_breaker:
   enabled: true
   daily_loss_pct: 0.02
   drawdown_pct: 0.10
-  consecutive_losses: 5      # halt after N consecutive losses
+  consecutive_losses: 3      # halt after N consecutive losses (stricter of 5 and RISK_CONSECUTIVE_LOSS_HALT=3)
 
 whale_alert:
   cluster_flow_threshold: 0.85   # ECC cluster flow score → whale alert

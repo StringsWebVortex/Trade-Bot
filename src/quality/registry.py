@@ -23,13 +23,17 @@ The two failure modes this is built to prevent:
      entry to name the PR that will verify it, and that PR must be one of the
      declared phases. An entry cannot sit in limbo without an owner.
 
-The file is read-only at runtime. Nothing here writes to it.
+The registry is the base file plus one file per entry in
+``config/quality_registry.d/`` (GOV-071); ``read_registry_document`` joins them
+into the single document everything else validates and reads. Both are
+read-only at runtime. Nothing here writes to them.
 
-Registry: GOV-001, GOV-002, GOV-005 (config/quality_registry.json).
+Registry: GOV-001, GOV-002, GOV-005, GOV-071 (config/quality_registry.json).
 """
 
 from __future__ import annotations
 
+import ast
 import json
 import re
 from collections.abc import Iterable, Iterator
@@ -41,6 +45,12 @@ from typing import Any
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 REGISTRY_PATH = PROJECT_ROOT / "config" / "quality_registry.json"
+#: Entries added since GOV-071 live here, one ``<id>.json`` file each. Two
+#: branches that each register something then add two different files instead
+#: of appending to the same array tail, so neither one conflicts with the other
+#: whatever order they merge in. The base file keeps the vocabularies and every
+#: entry that predates the directory.
+OVERLAY_DIR = REGISTRY_PATH.with_suffix(".d")
 SCHEMA_PATH = PROJECT_ROOT / "config" / "quality_registry.schema.json"
 
 #: id prefix -> the kind the entry must declare. Binding the two means a
@@ -402,6 +412,26 @@ def _check_status_contract(raw: dict[str, Any], entries: list[RegistryEntry]) ->
             )
 
 
+def _check_node_selector(entry_id: str, ver: Any, root: Path) -> None:
+    """A ``::name`` selector must name a def/class in the file (DAT-025)."""
+    try:
+        tree = ast.parse((root / ver.path).read_text(encoding="utf-8"))
+    except (OSError, SyntaxError, UnicodeDecodeError):
+        return  # unreadable/unparseable files are other checks' concern
+    names = {
+        n.name
+        for n in ast.walk(tree)
+        if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+    }
+    for part in ver.node.lstrip(":").split("::"):
+        name = re.sub(r"\[.*\]$", "", part)
+        if name and name not in names:
+            raise RegistryError(
+                f"entry {entry_id!r} selects {part!r} in {ver.path!r}, which defines no such "
+                f"test or class. The registry must describe the tree as it is."
+            )
+
+
 def _check_filesystem(entries: list[RegistryEntry], root: Path) -> None:
     """Named tests and owning modules must exist. This is the anti-fiction check."""
     for entry in entries:
@@ -411,6 +441,8 @@ def _check_filesystem(entries: list[RegistryEntry], root: Path) -> None:
                     f"entry {entry.id!r} claims verification by {ver.path!r}, which is not "
                     f"on disk. The registry must describe the tree as it is."
                 )
+            if ver.node and ver.path.endswith(".py"):
+                _check_node_selector(entry.id, ver, root)
         for module in entry.owning_modules:
             if not (root / module).exists():
                 raise RegistryError(
@@ -473,11 +505,50 @@ def _check_semantics(raw: dict[str, Any], entries: Iterable[RegistryEntry], root
     # Vocabularies first: an undeclared `kind` should be reported as an
     # undeclared kind, not as a prefix mismatch against a word that means
     # nothing here.
-    _check_vocabularies(raw, ordered)
-    _check_identity(ordered)
-    _check_status_contract(raw, ordered)
-    _check_filesystem(ordered, root)
-    _check_graph(ordered)
+    try:
+        _check_vocabularies(raw, ordered)
+        _check_identity(ordered)
+        _check_status_contract(raw, ordered)
+        _check_filesystem(ordered, root)
+        _check_graph(ordered)
+    except KeyError as exc:
+        # A missing top-level vocabulary key is a registry defect, not a crash.
+        raise RegistryError(f"registry is missing required key {exc}") from exc
+
+
+def read_registry_document(path: Path | None = None) -> dict[str, Any]:
+    """
+    The registry as one document: the base file with every entry file from
+    its sibling ``.d`` directory appended, in file-name order.
+
+    An entry file holds exactly one entry and is named after its id, so a
+    duplicate id is a file-name clash git reports, and a file whose content
+    disagrees with its name is refused here rather than read as some other id.
+    """
+    target = path or REGISTRY_PATH
+    try:
+        with target.open(encoding="utf-8") as fh:
+            raw = json.load(fh)
+    except FileNotFoundError as exc:
+        raise RegistryError(f"quality registry not found at {target}") from exc
+    except json.JSONDecodeError as exc:
+        raise RegistryError(f"{target.name} is not valid JSON: {exc}") from exc
+
+    overlay = target.with_suffix(".d")
+    entries = raw.get("entries") if isinstance(raw, dict) else None
+    if not isinstance(entries, list) or not overlay.is_dir():
+        return raw  # nothing to join; a malformed base is the schema's to report
+    added: list[Any] = []
+    for entry_file in sorted(overlay.glob("*.json")):
+        label = f"{overlay.name}/{entry_file.name}"
+        try:
+            entry = json.loads(entry_file.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            raise RegistryError(f"{label} is not valid JSON: {exc}") from exc
+        if not isinstance(entry, dict) or entry.get("id") != entry_file.stem:
+            raise RegistryError(f"{label} must hold a single entry whose id is {entry_file.stem!r}")
+        added.append(entry)
+    return {**raw, "entries": [*entries, *added]}
 
 
 def load_registry(path: Path | None = None, root: Path | None = None) -> QualityRegistry:
@@ -492,15 +563,8 @@ def load_registry(path: Path | None = None, root: Path | None = None) -> Quality
     ``root`` overrides the directory that test and module paths are resolved
     against; it exists so the loader's own tests can point at a fixture tree.
     """
-    target = path or REGISTRY_PATH
     base = root or PROJECT_ROOT
-    try:
-        with target.open(encoding="utf-8") as fh:
-            raw = json.load(fh)
-    except FileNotFoundError as exc:
-        raise RegistryError(f"quality registry not found at {target}") from exc
-    except json.JSONDecodeError as exc:
-        raise RegistryError(f"{target.name} is not valid JSON: {exc}") from exc
+    raw = read_registry_document(path)
 
     # Semantics before schema, which looks backwards and is deliberate.
     #

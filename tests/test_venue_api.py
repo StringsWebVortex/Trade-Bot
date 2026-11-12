@@ -70,6 +70,11 @@ def api_client(monkeypatch):
     from fastapi.testclient import TestClient
 
     from src.api import main as api_main
+    from src.api.fail_closed import CONTROL_HEALTH, SecurityControl, mark_all_healthy
+
+    previous_health = {control: CONTROL_HEALTH.status(control) for control in SecurityControl}
+    CONTROL_HEALTH.reset()
+    mark_all_healthy(CONTROL_HEALTH)
 
     fetcher = _FakeFetcher()
     api_main._state.ready = True
@@ -81,7 +86,15 @@ def api_client(monkeypatch):
     client = TestClient(api_main.app)
     client.headers.update({"x-api-key": api_key})
     client.fetcher = fetcher  # type: ignore[attr-defined]
-    return client
+    try:
+        yield client
+    finally:
+        CONTROL_HEALTH.reset()
+        for control, status in previous_health.items():
+            if status.healthy:
+                CONTROL_HEALTH.mark_healthy(control)
+            else:
+                CONTROL_HEALTH.mark_degraded(control, status.reason)
 
 
 class TestVenueStatusIsReadable:

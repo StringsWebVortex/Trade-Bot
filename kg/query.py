@@ -12,9 +12,48 @@ from common.claude_cli import run_claude
 from .config import KG_MAX_SUBGRAPH_TRIPLES, KG_QUERY_MODEL
 from .db import get_edges_collection, get_nodes_collection
 
+_STOPWORDS = frozenset(
+    {
+        "the",
+        "and",
+        "what",
+        "who",
+        "which",
+        "where",
+        "when",
+        "how",
+        "why",
+        "are",
+        "was",
+        "were",
+        "does",
+        "did",
+        "for",
+        "with",
+        "about",
+        "from",
+        "that",
+        "this",
+        "there",
+        "their",
+        "you",
+        "your",
+        "have",
+        "has",
+        "had",
+        "can",
+        "tell",
+        "show",
+        "list",
+        "give",
+    }
+)
+
 
 def _candidate_names(question: str) -> list[str]:
-    words = set(re.findall(r"[A-Za-z][A-Za-z0-9_-]{2,}", question))
+    words = {
+        w for w in re.findall(r"[A-Za-z][A-Za-z0-9_-]{2,}", question) if w.lower() not in _STOPWORDS
+    }
     if not words:
         return []
     nodes_col = get_nodes_collection()
@@ -26,10 +65,15 @@ def _candidate_names(question: str) -> list[str]:
     return [d["name"] for d in cursor]
 
 
-def _subgraph(names: list[str], limit: int) -> list[dict]:
-    edges_col = get_edges_collection()
+def subgraph(names: list[str], limit: int) -> list[dict]:
+    """Return at most ``limit`` edges touching ``names``. The single copy of this
+    query: review.retrieval.graph delegates here (REG-1717)."""
     if not names:
-        return list(edges_col.find({}, {"_id": 0}).limit(limit))
+        # No matching entity means no grounding. Returning arbitrary edges
+        # would present unrelated facts to the model as evidence. Avoid even
+        # opening the database connection for an ungrounded query.
+        return []
+    edges_col = get_edges_collection()
     cursor = edges_col.find(
         {"$or": [{"subject": {"$in": names}}, {"object": {"$in": names}}]},
         {"_id": 0},
@@ -39,7 +83,7 @@ def _subgraph(names: list[str], limit: int) -> list[dict]:
 
 def query(question: str) -> dict:
     names = _candidate_names(question)
-    triples = _subgraph(names, KG_MAX_SUBGRAPH_TRIPLES)
+    triples = subgraph(names, KG_MAX_SUBGRAPH_TRIPLES)
 
     serialized = "\n".join(
         f"({t['subject']}) -[{t['predicate']}]-> ({t['object']}) "

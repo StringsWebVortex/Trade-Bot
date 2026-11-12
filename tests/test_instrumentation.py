@@ -9,6 +9,9 @@ suite into every test that starts a thread.
 The multiprocessing wrapper is asserted by installation, not by spawning:
 starting a real process to cover ten lines of logging is a poor trade against
 the flakiness it invites in a sandboxed runner.
+
+Decides:
+  - REG-1498 — Task instrumentation is opt-in, kwargs-safe and arg-free
 """
 
 from __future__ import annotations
@@ -193,3 +196,35 @@ def test_log_manual_event_swallows_a_hostile_value():
             raise RuntimeError("no repr")
 
     inst.log_manual_event("probe", obj=_Hostile())
+
+
+@pytest.mark.asyncio
+async def test_task_factory_forwards_name_and_context_kwargs():
+    """AGT-014: newer Pythons pass name=/context= to the task factory."""
+    loop = asyncio.get_running_loop()
+    original = loop.get_task_factory()
+    try:
+        inst._install_asyncio_task_factory(loop)
+
+        async def _c():
+            return 1
+
+        t = loop.create_task(_c(), name="named")
+        assert t.get_name() == "named"
+        assert await t == 1
+    finally:
+        loop.set_task_factory(original)
+
+
+def test_instrumentation_is_disabled_by_default():
+    import importlib
+    import os
+
+    old = os.environ.pop("TRACE_STARTERS", None)
+    try:
+        importlib.reload(inst)
+        assert inst._ENABLED is False
+    finally:
+        if old is not None:
+            os.environ["TRACE_STARTERS"] = old
+        importlib.reload(inst)

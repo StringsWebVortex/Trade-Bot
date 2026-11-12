@@ -20,6 +20,7 @@ Authority:
 
 from __future__ import annotations
 
+import contextlib
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -56,7 +57,9 @@ def append_to_decision_log(
     audit trail's immutability discipline (v8).
     """
     entry = format_decision_log_entry(record, at)
-    if not log_path.exists():
-        log_path.write_text("# Decision Log\n\n", encoding="utf-8")
+    # O_EXCL: exactly one writer creates the header; a racing writer gets
+    # FileExistsError and appends, so the file is never truncated.
+    with contextlib.suppress(FileExistsError), log_path.open("x", encoding="utf-8") as f:
+        f.write("# Decision Log\n\n")
     with log_path.open("a", encoding="utf-8") as f:
         f.write("\n" + entry)

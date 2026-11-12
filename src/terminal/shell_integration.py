@@ -10,14 +10,20 @@ afterwards, so a .bashrc that rewrites PROMPT_COMMAND or PS0 cannot remove
 them:
 
 * ``PS0`` -- expanded after a command line is read and before it runs --
-  prints ``OSC 133;E;<command>`` and ``OSC 133;C``.
+  prints ``OSC 133;<nonce>;E;<command>`` and ``OSC 133;<nonce>;C``.
 * ``PROMPT_COMMAND`` runs first at every prompt, while ``$?`` still holds the
-  finished command's status, and prints ``OSC 133;D;<status>``.
+  finished command's status, and prints ``OSC 133;<nonce>;D;<status>``.
 
 The command text is taken from history and has control characters replaced,
 so it can never terminate the escape sequence early or inject a new one.
 
-Registry: TERM-002 (config/quality_registry.json).
+Every marker carries the session's nonce (``133;<nonce>;E;...``), which the
+session passes in ``TB_TERMINAL_MARKER_NONCE``. The rcfile moves it into a
+readonly shell variable and unsets the environment variable before anything
+else runs, so no child process inherits it and ``env`` cannot print it into the
+stream the scanner reads.
+
+Registry: TERM-002, SEC-0014 (config/quality_registry.json).
 """
 
 from __future__ import annotations
@@ -26,6 +32,9 @@ import os
 from pathlib import Path
 
 RCFILE = r"""# managed-by: tradebot-terminal -- regenerated on every daemon start.
+__tb_term_nonce="${TB_TERMINAL_MARKER_NONCE-}"
+unset TB_TERMINAL_MARKER_NONCE
+readonly __tb_term_nonce
 if [ -f "$HOME/.bashrc" ]; then
   . "$HOME/.bashrc"
 fi
@@ -37,12 +46,13 @@ __tb_term_preexec() {
   h="${h#*[[:space:]]}"
   h="${h#"${h%%[![:space:]]*}"}"
   h="${h//[$'\001'-$'\037'$'\177']/ }"
-  builtin printf '\033]133;E;%s\007\033]133;C\007' "${h:0:1024}"
+  builtin printf '\033]133;%s;E;%s\007\033]133;%s;C\007' \
+    "$__tb_term_nonce" "${h:0:1024}" "$__tb_term_nonce"
 }
 
 __tb_term_precmd() {
   local status=$?
-  builtin printf '\033]133;D;%s\007' "$status"
+  builtin printf '\033]133;%s;D;%s\007' "$__tb_term_nonce" "$status"
   return $status
 }
 

@@ -81,6 +81,9 @@ class Finding:
     file: str | None = None
     line: int | None = None
     suppressed: bool = False
+    # Set when a scoped `arch-ignore[LAWn]: reason` comment silenced this hit.
+    # Such a finding is recorded as passed, so it never reaches a baseline.
+    arch_ignore_reason: str | None = None
 
     @property
     def fingerprint(self) -> str:
@@ -101,6 +104,7 @@ class Finding:
             "file": self.file,
             "line": self.line,
             "suppressed": self.suppressed,
+            "arch_ignore_reason": self.arch_ignore_reason,
         }
 
 
@@ -109,17 +113,31 @@ class ValidationReport:
     component: str
     findings: list[Finding] = field(default_factory=list)
 
-    def apply_baseline(self, fingerprints: set[str]) -> int:
+    def apply_baseline(self, fingerprints: set[str], counts: dict[str, int] | None = None) -> int:
         """Mark known-accepted findings as suppressed; return how many matched.
 
         The gate then fails only on findings introduced after the baseline was
         written, which is what makes it usable on an existing codebase.
+
+        A fingerprint carries no line or evidence, so on its own it would also
+        hide every NEW instance of the same check in the same file. ``counts``
+        bounds that: at most ``counts[fp]`` failures per fingerprint are
+        suppressed (a fingerprint missing from ``counts`` allows one), so a
+        second ``verify=False`` in an already-baselined file fails the gate.
+        ``counts=None`` is the legacy unbounded form, kept for old baselines.
         """
         count = 0
-        for f in self.findings:
-            if not f.passed and f.fingerprint in fingerprints:
-                f.suppressed = True
-                count += 1
+        used: dict[str, int] = {}
+        ordered = sorted(
+            (f for f in self.findings if not f.passed and f.fingerprint in fingerprints),
+            key=lambda f: (f.line is None, f.line or 0),
+        )
+        for f in ordered:
+            if counts is not None and used.get(f.fingerprint, 0) >= counts.get(f.fingerprint, 1):
+                continue
+            used[f.fingerprint] = used.get(f.fingerprint, 0) + 1
+            f.suppressed = True
+            count += 1
         return count
 
     def open_failures(self) -> list[Finding]:
@@ -127,6 +145,13 @@ class ValidationReport:
 
     def fingerprints(self) -> list[str]:
         return sorted({f.fingerprint for f in self.findings if not f.passed})
+
+    def fingerprint_counts(self) -> dict[str, int]:
+        counts: dict[str, int] = {}
+        for f in self.findings:
+            if not f.passed:
+                counts[f.fingerprint] = counts.get(f.fingerprint, 0) + 1
+        return dict(sorted(counts.items()))
 
     def passed(self, fail_threshold: Severity = Severity.HIGH) -> bool:
         return not any(f.severity >= fail_threshold for f in self.open_failures())
@@ -140,6 +165,9 @@ class ValidationReport:
             "total_checks": len(self.findings),
             "failures": len(fails),
             "suppressed": sum(1 for f in self.findings if f.suppressed),
+            "suppressed_by_arch_ignore": sum(
+                1 for f in self.findings if f.arch_ignore_reason is not None
+            ),
             "by_severity": by_severity,
         }
 
@@ -166,7 +194,9 @@ class ValidationReport:
         print(f"{'=' * w}")
         print(
             f"RESULT: {result_str} | Checks: {s['total_checks']} | "
-            f"Failures: {s['failures']} | By severity: {s['by_severity']}"
+            f"Failures: {s['failures']} | "
+            f"Suppressed by arch-ignore: {s['suppressed_by_arch_ignore']} | "
+            f"By severity: {s['by_severity']}"
         )
         print(f"{'=' * w}\n")
 
@@ -258,6 +288,7 @@ class ValidationReport:
                     "properties": {
                         "component": self.component,
                         "passed": self.passed(fail_threshold),
+                        "suppressedByArchIgnore": self.stats()["suppressed_by_arch_ignore"],
                     },
                 }
             ],
@@ -267,7 +298,9 @@ class ValidationReport:
 # ── Pattern-based checks (all languages) ─────────────────────────────────────
 
 # Each entry: (law, regex, description, severity)
-# Use # arch-ignore on a source line to suppress pattern hits.
+# A genuine false positive is silenced on its own line with a scoped comment,
+# arch-ignore[LAW12]: <reason>, which names the rule(s) and says why; see
+# _arch_ignore_scope below.
 FORBIDDEN: list[tuple[str, str, str, Severity]] = [
     # LAW6 — secrets
     (
@@ -360,7 +393,7 @@ FORBIDDEN: list[tuple[str, str, str, Severity]] = [
         r"sign_and_send|signAndSend)\s*\((?!.*decode|.*display|.*human_readable|.*show)",
         "Potential blind signing — ensure transaction decoded before signing",
         Severity.HIGH,
-    ),  # arch-ignore
+    ),
     # LAW12 — weak key exchange / deprecated crypto
     (
         "LAW12",
@@ -410,7 +443,7 @@ FORBIDDEN: list[tuple[str, str, str, Severity]] = [
         r"|(?i:md5|sha1)[Ww]ith[A-Za-z]+",
         "Deprecated hash function (MD5/SHA1) — use SHA-256 or SHA-3",
         Severity.HIGH,
-    ),  # arch-ignore
+    ),
     (
         "LAW12",
         r"RSA(?:_PKCS1_v15|_OAEP)?\b.*key_size\s*=\s*(?:512|1024|2048)",
@@ -627,6 +660,40 @@ def code_text(source: str, path: Path) -> str:
     return " ".join(parts)
 
 
+# A suppression names the rule(s) it silences and the reason, e.g.
+#   "md5": (...),  # arch-ignore[LAW12]: constant table name, nothing is hashed
+# The bare form used to skip every FORBIDDEN rule on its line -- a LAW12 false
+# positive silenced a LAW6 secret or a LAW5 TLS bypass sharing the line, with
+# no reason and no count. It now suppresses nothing and is itself reported.
+_ARCH_IGNORE_MARKER = re.compile(r"#\s*arch-ignore\b")
+_ARCH_IGNORE_SCOPED = re.compile(
+    r"#\s*arch-ignore\[(?P<laws>LAW\d+(?:\s*,\s*LAW\d+)*)\]:\s*(?P<reason>\S.*)$"
+)
+# Secrets are never waved through inline: an accepted LAW6 finding goes in the
+# reviewed baseline (config/arch_baseline.json), where it stays visible as debt.
+_NOT_ARCH_IGNORABLE = frozenset({"LAW6"})
+ARCH_IGNORE_INVALID = "arch-ignore without a rule id and reason"
+ARCH_IGNORE_REFUSED = "arch-ignore cannot suppress a LAW6 secret rule"
+
+
+def _arch_ignore_scope(line: str) -> tuple[frozenset[str], str, str | None]:
+    """Laws a line's arch-ignore comment suppresses, its reason, and any defect.
+
+    Returns (laws, reason, problem). problem is None for a valid marker or no
+    marker at all, else the check name of the finding the marker earns.
+    """
+    if not _ARCH_IGNORE_MARKER.search(line):
+        return frozenset(), "", None
+    scoped = _ARCH_IGNORE_SCOPED.search(line)
+    if scoped is None:
+        return frozenset(), "", ARCH_IGNORE_INVALID
+    laws = frozenset(law.strip() for law in scoped.group("laws").split(","))
+    reason = scoped.group("reason").strip()
+    if laws & _NOT_ARCH_IGNORABLE:
+        return laws - _NOT_ARCH_IGNORABLE, reason, ARCH_IGNORE_REFUSED
+    return laws, reason, None
+
+
 def _is_pattern_definition_line(line: str) -> bool:
     """Heuristic: skip lines that are defining regex patterns in this file itself."""
     stripped = line.strip()
@@ -654,22 +721,40 @@ def check_patterns(path: Path) -> list[Finding]:
     except Exception as exc:
         return [Finding("IO", f"Read {path}", False, Severity.HIGH, str(exc))]
 
+    scopes = [_arch_ignore_scope(line) for line in lines]
+    for i, (line, (_, _, problem)) in enumerate(zip(lines, scopes, strict=True), 1):
+        if problem is not None:
+            findings.append(
+                Finding(
+                    law="ARCH",
+                    check=problem,
+                    passed=False,
+                    severity=Severity.MEDIUM,
+                    evidence=(
+                        f"Line {i}: {line.strip()[:120]} -- write "
+                        "arch-ignore[LAWn]: <reason> naming the rule it silences"
+                    ),
+                    file=rel,
+                    line=i,
+                )
+            )
+
     for law, pattern, desc, severity in FORBIDDEN:
-        for i, line in enumerate(lines, 1):
-            if "# arch-ignore" in line:
-                continue
+        for i, (line, (ignored, reason, _)) in enumerate(zip(lines, scopes, strict=True), 1):
             if _is_pattern_definition_line(line):
                 continue
             if re.search(pattern, line, re.IGNORECASE):
+                silenced = law in ignored
                 findings.append(
                     Finding(
                         law=law,
                         check=desc,
-                        passed=False,
+                        passed=silenced,
                         severity=severity,
                         evidence=f"Line {i}: {line.strip()[:120]}",
                         file=rel,
                         line=i,
+                        arch_ignore_reason=reason if silenced else None,
                     )
                 )
 
@@ -793,8 +878,13 @@ class ASTChecker(ast.NodeVisitor):
                     node,
                 )
 
-        # hashlib.md5 or hashlib.sha1 — deprecated  # arch-ignore
-        if func_str in ("hashlib.md5", "hashlib.sha1", "md5", "sha1"):  # arch-ignore
+        # hashlib.md5 or hashlib.sha1 — deprecated
+        if func_str in (
+            "hashlib.md5",
+            "hashlib.sha1",
+            "md5",  # arch-ignore[LAW12]: names the call this AST check reports
+            "sha1",  # arch-ignore[LAW12]: names the call this AST check reports
+        ):
             self._f(
                 "LAW12",
                 "Deprecated hash function in use",
@@ -1355,7 +1445,7 @@ DESIGN_CHECKS: dict[str, list[tuple[str, Severity]]] = {
         (
             "Deprecated hashes (MD5, SHA1) absent from all cryptographic paths?",
             Severity.CRITICAL,
-        ),  # arch-ignore
+        ),
         ("RSA keys ≥ 3072 bits wherever classical RSA still required?", Severity.HIGH),
     ],
     "LAW13": [
@@ -1517,6 +1607,7 @@ def main() -> None:
                     "component": args.component,
                     "generated_by": "validate_arch.py v3.0",
                     "fingerprints": report.fingerprints(),
+                    "counts": report.fingerprint_counts(),
                 },
                 indent=2,
             )
@@ -1535,11 +1626,28 @@ def main() -> None:
             sys.exit(2)
         try:
             data = json.loads(args.baseline.read_text(encoding="utf-8"))
+            if not isinstance(data, dict) or not isinstance(data.get("fingerprints"), list):
+                raise ValueError("baseline must contain a fingerprints array")
+            if not all(isinstance(value, str) for value in data["fingerprints"]):
+                raise ValueError("baseline fingerprints must contain only strings")
             known = set(data["fingerprints"])
+            raw_counts = data.get("counts")
+            if raw_counts is None:
+                counts = None  # legacy baseline format
+            else:
+                if not isinstance(raw_counts, dict):
+                    raise ValueError("baseline counts must be an object")
+                counts = {}
+                for key, value in raw_counts.items():
+                    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+                        raise ValueError(
+                            f"baseline count for {key!r} must be a non-negative integer"
+                        )
+                    counts[str(key)] = value
         except (OSError, ValueError, KeyError, TypeError) as exc:
             print(f"ERROR: Malformed baseline {args.baseline}: {exc}", file=sys.stderr)
             sys.exit(2)
-        report.apply_baseline(known)
+        report.apply_baseline(known, counts)
 
     if args.sarif:
         output = json.dumps(report.to_sarif(fail_threshold=fail_sev), indent=2)

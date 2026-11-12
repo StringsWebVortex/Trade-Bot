@@ -1,10 +1,9 @@
 """
 Crypto intelligence layer — on-chain metrics, exchange flows, whale tracking.
 
-Providers:
-  - Glassnode: On-chain flows, whale activity, entity classification
-  - CryptoQuant: Exchange-specific flows, leverage, liquidations
-  - (Optional) Sentiment: LunarCrush social sentiment integration
+Providers (implemented in src/intelligence/providers/ and
+src/intelligence/onchain/): Binance, OKX, Bybit, CoinGecko, CryptoQuant,
+Coinglass, Arkham. Glassnode and LunarCrush are NOT implemented.
 
 Authority:
   - Glassnode API Docs: https://docs.glassnode.com/

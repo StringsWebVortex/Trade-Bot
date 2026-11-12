@@ -1,0 +1,26 @@
+{
+  "id": "REG-1713",
+  "kind": "regression",
+  "title": "No wrong probability-of-ruin estimate, no orphan causal-inference module, one shared exchange stress formula",
+  "statement": "RiskQuantifier has no estimate_probability_of_ruin method and src/intelligence/causal_inference.py does not exist, because neither had a caller and the ruin estimate was wrong. The Binance, OKX and Bybit providers compute exchange_stress_score through the single base.exchange_stress_score function, whose weights sum to 1 and whose basis, funding and OI-drop components saturate at 100 bps, 3 sigma and -5%.",
+  "criticality": "medium",
+  "subsystem": "signal",
+  "status": "verified",
+  "source": "OPS-2026-10-28",
+  "failure_mode": "estimate_probability_of_ruin set u to the 90th percentile of daily returns and counted every day below it as an excess, so about 90% of days fed the 'GPD' term, which was not a GPD fit; its empirical term looked for a single day below -50% and never measured a drawdown. It was uncalled, so the only control was its own tests, which asserted only that the output lay in [0, 1]. causal_inference.py had no importer and a hardcoded _predict_sharpe demo, yet kept tests and a model-safety entry alive. The stress formula was copied into three providers, so a change to one venue would silently diverge from the others. The deciding test now fails if either removed item returns or a provider stops using the shared formula.",
+  "owning_modules": [
+    "src/intelligence/risk_quantification.py",
+    "src/intelligence/providers/base.py",
+    "src/intelligence/providers/binance_provider.py",
+    "src/intelligence/providers/okx_provider.py",
+    "src/intelligence/providers/bybit_provider.py"
+  ],
+  "verification": [
+    {
+      "test": "tests/test_intelligence_dead_code_and_stress_dedup.py",
+      "test_type": "regression"
+    }
+  ],
+  "depends_on": [],
+  "notes": "Audit INT-031. layer: test-suite"
+}

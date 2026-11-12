@@ -456,8 +456,8 @@ class SmartOrderRouter:
         ref_price: float,
         size_usd: float,
     ) -> RouteResult:
-        filled = float(order.get("filled", 0.0))
-        avg_price = float(order.get("average", ref_price))
+        filled = _as_float(order.get("filled"), 0.0)
+        avg_price = _as_float(order.get("average"), ref_price)
         slippage_bps = abs(avg_price - ref_price) / max(ref_price, 1e-9) * 10_000
         return RouteResult(
             venue=venue,

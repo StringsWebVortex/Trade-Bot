@@ -1,6 +1,6 @@
 {
   "component": "trade-bot",
-  "generated_by": "validate_arch.py v3.0",
+  "generated_by": ".claude/skills/crypto-architect/scripts/validate_arch.py v3.0",
   "fingerprints": [
     "LAW10|Wash trade detection|src/execution/order_manager.py",
     "LAW10|Wash trade detection|src/execution/router.py",
@@ -35,5 +35,40 @@
     "LAW9|Model prediction without confidence check|src/regime/detector.py",
     "LAW9|Model prediction without confidence check|src/tuning/backtest_harness.py",
     "LAW9|Model prediction without confidence check|src/upgrade/shadow_deploy.py"
-  ]
+  ],
+  "counts": {
+    "LAW10|Wash trade detection|src/execution/order_manager.py": 1,
+    "LAW10|Wash trade detection|src/execution/router.py": 1,
+    "LAW13|Flash crash / market halt handling|src/risk/gate.py": 1,
+    "LAW13|Flash crash / market halt handling|src/risk/gates.py": 1,
+    "LAW13|Flash crash / market halt handling|src/risk/strategy_kill_switch.py": 1,
+    "LAW13|Flash crash halt or circuit breaker reference \u2014 verify it is wired correctly|src/engine/orchestrator.py": 2,
+    "LAW13|Flash crash halt or circuit breaker reference \u2014 verify it is wired correctly|src/engines/consensus.py": 8,
+    "LAW13|Flash crash halt or circuit breaker reference \u2014 verify it is wired correctly|src/engines/orchestrator.py": 2,
+    "LAW13|Flash crash halt or circuit breaker reference \u2014 verify it is wired correctly|src/engines/signal_gate.py": 1,
+    "LAW13|Flash crash halt or circuit breaker reference \u2014 verify it is wired correctly|src/intel.py": 1,
+    "LAW13|Flash crash halt or circuit breaker reference \u2014 verify it is wired correctly|src/risk/gate.py": 3,
+    "LAW1|Risk function '_compute_risk_score' missing VaR/CVaR computation|src/risk/cognitive_engine.py": 1,
+    "LAW1|VaR/CVaR computation present|src/risk/gates.py": 1,
+    "LAW2|Global variable mutation: _aggregator|src/intelligence/providers/aggregator.py": 1,
+    "LAW2|Global variable mutation: _controller|src/tuning/meta_allocator.py": 2,
+    "LAW2|Global variable mutation: _drift_monitor|src/diagnostics/signal_debugger.py": 1,
+    "LAW2|Global variable mutation: _onchain_aware_aggregator|src/intelligence/providers/aggregator.py": 1,
+    "LAW2|Global variable mutation: _provider|src/intelligence/providers/binance_provider.py": 1,
+    "LAW2|Global variable mutation: _provider|src/intelligence/providers/blockchain_provider.py": 1,
+    "LAW2|Global variable mutation: _provider|src/intelligence/providers/bybit_provider.py": 1,
+    "LAW2|Global variable mutation: _provider|src/intelligence/providers/coingecko_provider.py": 1,
+    "LAW2|Global variable mutation: _provider|src/intelligence/providers/okx_provider.py": 1,
+    "LAW2|Global variable mutation: _runner|src/engine/strategy_portfolio.py": 2,
+    "LAW4|Confidence threshold gating|src/engine/orchestrator.py": 1,
+    "LAW4|Confidence threshold gating|src/engine/signal_engine.py": 1,
+    "LAW4|Conformal prediction coverage for sizing models|src/models/model_registry.py": 1,
+    "LAW4|Conformal prediction coverage for sizing models|src/risk/kelly.py": 1,
+    "LAW7|Correlation/trace ID in log events|src/execution/router.py": 1,
+    "LAW9|Model prediction without confidence check|src/intelligence/ensemble_predictor.py": 6,
+    "LAW9|Model prediction without confidence check|src/models/trainer.py": 1,
+    "LAW9|Model prediction without confidence check|src/regime/detector.py": 1,
+    "LAW9|Model prediction without confidence check|src/tuning/backtest_harness.py": 3,
+    "LAW9|Model prediction without confidence check|src/upgrade/shadow_deploy.py": 1
+  }
 }
