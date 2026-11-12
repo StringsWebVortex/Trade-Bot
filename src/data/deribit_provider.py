@@ -20,6 +20,7 @@ log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 _BASE = "https://www.deribit.com/api/v2/public"
 _SUPPORTED = {"BTC", "ETH"}
 _POLL_INTERVAL = 60  # seconds
+_MAX_CONCURRENCY = 10
 
 
 class DeribitProvider:
@@ -43,7 +44,10 @@ class DeribitProvider:
         df = await self._fetch_chain(coin)
         if df is not None:
             self._cache[coin] = df
-            self._persist(coin, df)
+            try:
+                self._persist(coin, df)
+            except Exception as exc:  # disk error must not end polling (DAT-009)
+                log.warning("deribit_persist_error", coin=coin, exc=str(exc))
             try:
                 from src.data.provider_cache import get_provider_cache
 
@@ -59,7 +63,12 @@ class DeribitProvider:
 
     async def run_loop(self, symbol: str) -> None:
         while True:
-            await self.fetch(symbol)
+            try:
+                await self.fetch(symbol)
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:  # keep polling after any single-cycle failure
+                log.warning("deribit_loop_error", exc=str(exc))
             await asyncio.sleep(_POLL_INTERVAL)
 
     # ------------------------------------------------------------------
@@ -70,15 +79,15 @@ class DeribitProvider:
         try:
             async with aiohttp.ClientSession() as session:
                 instruments = await self._get_instruments(session, coin)
-                rows = []
-                for inst in instruments:
-                    name = inst["instrument_name"]
-                    ob = await self._get_orderbook(session, name)
-                    if ob is None:
-                        continue
-                    row = self._parse_row(inst, ob)
-                    if row is not None:
-                        rows.append(row)
+                sem = asyncio.Semaphore(_MAX_CONCURRENCY)
+
+                async def _one(inst: dict) -> dict | None:
+                    async with sem:
+                        ob = await self._get_orderbook(session, inst["instrument_name"])
+                    return None if ob is None else self._parse_row(inst, ob)
+
+                parsed = await asyncio.gather(*(_one(i) for i in instruments))
+                rows = [r for r in parsed if r is not None]
                 if not rows:
                     return None
                 return pd.DataFrame(rows)
@@ -93,6 +102,7 @@ class DeribitProvider:
             async with session.get(
                 url, params=params, timeout=aiohttp.ClientTimeout(total=15)
             ) as resp:
+                resp.raise_for_status()
                 data = await resp.json()
                 return data.get("result", [])
         except Exception as exc:
@@ -106,6 +116,7 @@ class DeribitProvider:
             async with session.get(
                 url, params=params, timeout=aiohttp.ClientTimeout(total=10)
             ) as resp:
+                resp.raise_for_status()
                 data = await resp.json()
                 return data.get("result")
         except Exception as exc:

@@ -5,6 +5,8 @@ stand-ins, and signal.signal is patched because the worker installs a SIGTERM
 handler that would otherwise leak into the test session.
 
 Decides: REG-1222, REG-1223
+
+Decides: REG-1230
 """
 
 from __future__ import annotations
@@ -524,15 +526,21 @@ def test_ecc_worker_stops_on_event_and_does_not_block_on_full_queue() -> None:
     full = MagicMock()
     full.put.side_effect = queue.Full
     stop = threading.Event()
+    started = threading.Event()
+
+    def _cycle(**_kwargs):
+        started.set()
+        return {}
+
     thread = threading.Thread(
         target=mod._ecc_worker, args=(full, "u", "u", "p", 3600.0, stop), daemon=True
     )
     with (
         patch.dict(sys.modules, stubs),
-        patch.object(mod, "_run_ecc_cycle", return_value={}),
+        patch.object(mod, "_run_ecc_cycle", side_effect=_cycle),
     ):
         thread.start()
-        time.sleep(0.2)
+        assert started.wait(timeout=1.0)
         stop.set()
         thread.join(timeout=5)
     assert not thread.is_alive()

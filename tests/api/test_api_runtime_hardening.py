@@ -114,7 +114,10 @@ def test_control_surface_audit_uses_the_fail_closed_wrapper() -> None:
     # The wrapper itself is the sole raw storage call; every route, including
     # the shared /controls/{name} route, must pass through it.
     assert source.count("insert_audit_event(") == 1
-    assert "await _audit_event(\n        _state.storage,\n        event_type=\"control_change\"" in source
+    assert (
+        'await _audit_event(\n        _state.storage,\n        event_type="control_change"'
+        in source
+    )
 
 
 def test_unusable_key_configuration_degrades_authentication(monkeypatch) -> None:

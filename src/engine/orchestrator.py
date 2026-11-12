@@ -2557,10 +2557,14 @@ class Orchestrator:
             )
 
         timeout = 1.0
+        freshness_budget = timeout
         adapter = self._intelligence_adapter
         intelligence = getattr(adapter, "_intel", None) if adapter is not None else None
         if intelligence is not None:
             timeout = max(0.05, float(intelligence._cfg.get("inference_timeout_seconds", 1.0)))
+            freshness_budget = max(
+                0.05, float(intelligence._cfg.get("max_prediction_age_seconds", 20.0))
+            )
         task = self._intelligence_task
         if task is not None and not task.done():
             try:
@@ -2575,18 +2579,78 @@ class Orchestrator:
 
         decision = getattr(intelligence, "last_decision", None)
         observed_at = getattr(intelligence, "last_horizon_ts", None)
+        observed_symbol = getattr(intelligence, "last_horizon_symbol", None)
+        expected_symbol = getattr(self, "_symbol", None)
+        reason: str | None = None
         if not isinstance(decision, dict) or observed_at is None:
             reason = "horizon_intelligence_unavailable"
-        elif time.time() - float(observed_at) > timeout:
-            reason = "horizon_decision_stale"
-        elif decision.get("action") not in {"BUY", "SELL"}:
-            reason = str(decision.get("abstain_reason") or "horizon_decision_abstained")
+        elif expected_symbol is not None and observed_symbol != expected_symbol:
+            reason = "horizon_symbol_mismatch"
         else:
-            horizon_direction = 1 if decision["action"] == "BUY" else -1
-            signal_direction = 1 if result.direction == 1 else -1
-            if horizon_direction == signal_direction:
-                return result
-            reason = "horizon_direction_disagrees_with_signal_engine"
+            try:
+                age = time.time() - float(observed_at)
+            except (TypeError, ValueError, OverflowError):
+                age = math.inf
+            if not math.isfinite(age) or age < 0 or age > timeout:
+                reason = "horizon_decision_stale"
+            elif decision.get("action") not in {"BUY", "SELL"}:
+                reason = str(decision.get("abstain_reason") or "horizon_decision_abstained")
+            elif decision.get("calibrated") is not True:
+                reason = "horizon_decision_uncalibrated"
+            else:
+                horizon_direction = 1 if decision["action"] == "BUY" else -1
+                signal_direction = 1 if result.direction == 1 else -1
+                try:
+                    decision_direction = int(decision.get("direction"))
+                    expected_return = float(decision.get("expected_return"))
+                    uncertainty = float(decision.get("uncertainty"))
+                    contributions = decision.get("contributions")
+                    model_versions = decision.get("model_versions")
+                    freshness = decision.get("freshness_seconds")
+                    expert_ids = set(contributions) if isinstance(contributions, dict) else set()
+                    valid_experts = (
+                        bool(expert_ids)
+                        and expert_ids == set(model_versions or {})
+                        and expert_ids == set(freshness or {})
+                        and all(
+                            isinstance(model_versions[key], str) and model_versions[key]
+                            for key in expert_ids
+                        )
+                        and all(
+                            math.isfinite(float(contributions[key]))
+                            and float(contributions[key]) > 0.0
+                            for key in expert_ids
+                        )
+                        and all(
+                            math.isfinite(float(freshness[key]))
+                            and 0.0 <= float(freshness[key]) <= freshness_budget
+                            for key in expert_ids
+                        )
+                        and math.isclose(
+                            sum(float(contributions[key]) for key in expert_ids),
+                            1.0,
+                            rel_tol=1e-6,
+                            abs_tol=1e-6,
+                        )
+                    )
+                    valid_decision = (
+                        decision_direction == horizon_direction
+                        and decision.get("conflict") is False
+                        and math.isfinite(expected_return)
+                        and math.isfinite(uncertainty)
+                        and uncertainty > 0.0
+                        and abs(expected_return) > uncertainty
+                        and (1 if expected_return > 0 else -1) == horizon_direction
+                        and valid_experts
+                    )
+                except (TypeError, ValueError, OverflowError):
+                    valid_decision = False
+                if not valid_decision:
+                    reason = "horizon_decision_invalid"
+                elif horizon_direction == signal_direction:
+                    return result
+                else:
+                    reason = "horizon_direction_disagrees_with_signal_engine"
 
         self._log.info(
             "orchestrator.horizon_order_suppressed",

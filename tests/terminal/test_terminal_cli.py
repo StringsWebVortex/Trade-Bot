@@ -17,6 +17,8 @@ Decides:
 
 Decides:
   - REG-1494 — Terminal CLI stop/pid/tail are safe
+
+Decides: SEC-1231
 """
 
 from __future__ import annotations
@@ -419,6 +421,8 @@ class TestLifecycleHelpers:
 
             def kill(pid, signum):
                 signalled.append((pid, signum))
+                # The fake /proc entry models the daemon process exiting.
+                cmdline.unlink()
                 d.loop.call_soon_threadsafe(d.stop.set)
 
             assert cli.stop_daemon(config, run=lambda argv: 3, kill=kill, proc=proc) is True
@@ -430,11 +434,17 @@ class TestLifecycleHelpers:
     def test_stop_goes_through_systemd_when_the_unit_is_active(self, config, short_tmp):
         d = ThreadedDaemon(config, short_tmp).start()
         commands = []
+        unit_active = True
 
         def run(argv):
+            nonlocal unit_active
             commands.append(argv)
             if argv[-1] == install.UNIT_NAME and argv[2] == "stop":
+                unit_active = False
                 d.loop.call_soon_threadsafe(d.stop.set)
+                return 0
+            if argv[-1] == install.UNIT_NAME and argv[2] == "is-active":
+                return 0 if unit_active else 3
             return 0
 
         try:
@@ -649,3 +659,267 @@ class TestPhase6Lows:
             cli.cmd_output(
                 config, argparse.Namespace(target="x", tail=tail, plain=False), io.StringIO()
             )
+
+
+def test_daemon_pid_rejects_a_non_integer_pid_file(config):
+    config.pid_path.parent.mkdir(parents=True, exist_ok=True)
+    config.pid_path.write_text("not-a-pid", encoding="utf-8")
+    assert cli._daemon_pid(config) is None
+
+
+def test_collect_session_output_uses_matching_buffered_frames():
+    import base64
+
+    class Client:
+        timeout = 0.01
+
+        def __init__(self):
+            self.requests = []
+
+        def request(self, name, **_fields):
+            self.requests.append(name)
+            return {"offset": 0, "end": 3} if name == "session.attach" else {}
+
+        def pop_events(self):
+            return [
+                {
+                    "t": "output",
+                    "sid": "sid",
+                    "offset": 0,
+                    "data": base64.b64encode(b"abc").decode(),
+                }
+            ]
+
+        def recv(self, *_args):
+            return None
+
+    client = Client()
+    assert cli._collect_session_output(client, "sid") == b"abc"
+    assert client.requests == ["session.attach", "session.detach"]
+
+
+def test_collect_session_output_stops_when_the_connection_closes():
+    class Client:
+        timeout = 0.01
+
+        def __init__(self):
+            self.requests = []
+
+        def request(self, name, **_fields):
+            self.requests.append(name)
+            return {"offset": 0, "end": 1} if name == "session.attach" else {}
+
+        def pop_events(self):
+            return []
+
+        def recv(self, *_args):
+            return None
+
+    client = Client()
+    assert cli._collect_session_output(client, "sid") == b""
+    assert client.requests == ["session.attach", "session.detach"]
+
+
+def test_terminal_size_clamps_zero_dimensions(monkeypatch):
+    monkeypatch.setattr(cli.os, "get_terminal_size", lambda _fd: cli.os.terminal_size((0, 0)))
+    assert cli._terminal_size(1) == (1, 1)
+
+
+def test_new_omits_optional_name_and_cwd_fields(config, monkeypatch):
+    import argparse
+    import io
+
+    class Client:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return None
+
+        def request(self, name, **fields):
+            self.requested = (name, fields)
+            return {"session": {"id": "sid"}}
+
+    client = Client()
+    monkeypatch.setattr(cli, "_client", lambda _config: client)
+    monkeypatch.setattr(cli, "_terminal_size", lambda _fd: (24, 80))
+
+    result = cli.cmd_new(
+        config,
+        argparse.Namespace(name=None, cwd=None, attach=False),
+        io.StringIO(),
+    )
+
+    assert result == 0
+    assert client.requested == ("session.create", {"rows": 24, "cols": 80})
+
+
+def test_attach_exits_when_the_daemon_removes_the_session(monkeypatch, tmp_path):
+    import os
+    import socket
+
+    sock, peer = socket.socketpair()
+    stdin_fd, stdin_write = os.pipe()
+    os.close(stdin_write)
+    output_fd = os.open(tmp_path / "output", os.O_WRONLY | os.O_CREAT, 0o600)
+
+    class Client:
+        def __init__(self):
+            self.sock = sock
+            self.requests = []
+
+        def request(self, name, **_fields):
+            self.requests.append(name)
+            return {}
+
+        def pop_events(self):
+            return [{"t": "session_removed", "id": "sid"}]
+
+        def has_buffered_frame(self):
+            return False
+
+        def recv(self, *_args):
+            return None
+
+        def send(self, _frame):
+            raise AssertionError("no input should be sent after session removal")
+
+    client = Client()
+    monkeypatch.setattr(cli, "_drain", lambda *_args, **_kwargs: None)
+    monkeypatch.delenv("TB_TERMINAL_SESSION_ID", raising=False)
+    try:
+        assert cli.attach(client, "sid", stdin_fd=stdin_fd, stdout_fd=output_fd) == 0
+        assert client.requests == ["session.attach", "session.detach"]
+    finally:
+        os.close(stdin_fd)
+        os.close(output_fd)
+        sock.close()
+        peer.close()
+
+
+def test_attach_detach_key_without_preceding_input_sends_no_empty_frame(monkeypatch, tmp_path):
+    import os
+    import socket
+
+    stdin_fd, stdin_write = os.pipe()
+    os.write(stdin_write, cli.DETACH_BYTE)
+    os.close(stdin_write)
+    output_fd = os.open(tmp_path / "output", os.O_WRONLY | os.O_CREAT, 0o600)
+    sock, peer = socket.socketpair()
+
+    class Client:
+        def __init__(self):
+            self.sock = sock
+            self.requests = []
+            self.sent = []
+
+        def request(self, name, **_fields):
+            self.requests.append(name)
+            return {}
+
+        def pop_events(self):
+            return []
+
+        def has_buffered_frame(self):
+            return False
+
+        def recv(self, *_args):
+            return None
+
+        def send(self, frame):
+            self.sent.append(frame)
+
+    client = Client()
+    monkeypatch.setattr(cli.select, "select", lambda *_args: ([stdin_fd], [], []))
+    monkeypatch.delenv("TB_TERMINAL_SESSION_ID", raising=False)
+    try:
+        assert cli.attach(client, "sid", stdin_fd=stdin_fd, stdout_fd=output_fd) == 0
+        assert client.sent == []
+        assert client.requests == ["session.attach", "session.detach"]
+    finally:
+        os.close(stdin_fd)
+        os.close(output_fd)
+        sock.close()
+        peer.close()
+
+
+def test_drain_returns_when_the_socket_closes(monkeypatch):
+    sock = object()
+
+    class Client:
+        def __init__(self):
+            self.sock = sock
+
+        def has_buffered_frame(self):
+            return False
+
+        def recv(self, *_args):
+            return None
+
+    monkeypatch.setattr(cli.select, "select", lambda *_args: ([sock], [], []))
+    cli._drain(Client(), "sid", 1, quiet_s=0.0)
+
+
+def test_run_returns_an_exit_status_already_in_the_event_queue(config, monkeypatch):
+    import argparse
+    import io
+
+    class Client:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return None
+
+        def request(self, _name, **_fields):
+            return {"session": {"id": "sid", "job_entry": "job"}}
+
+        def pop_events(self):
+            return [
+                {
+                    "t": "process_done",
+                    "process": {"id": "job", "signal": None, "exit_code": 7},
+                }
+            ]
+
+        def recv(self, *_args):
+            raise AssertionError("the buffered completion should be consumed first")
+
+    monkeypatch.setattr(cli, "_client", lambda _config: Client())
+    monkeypatch.setattr(cli, "_terminal_size", lambda _fd: (24, 80))
+    result = cli.cmd_run(
+        config,
+        argparse.Namespace(command=["true"], cwd=None, name=None, wait=True),
+        io.StringIO(),
+    )
+    assert result == 7
+
+
+def test_run_raises_when_the_service_closes_before_process_completion(config, monkeypatch):
+    import argparse
+    import io
+
+    class Client:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return None
+
+        def request(self, _name, **_fields):
+            return {"session": {"id": "sid", "job_entry": "job"}}
+
+        def pop_events(self):
+            return []
+
+        def recv(self, *_args):
+            return None
+
+    monkeypatch.setattr(cli, "_client", lambda _config: Client())
+    monkeypatch.setattr(cli, "_terminal_size", lambda _fd: (24, 80))
+    with pytest.raises(cli.CliError, match="closed the connection"):
+        cli.cmd_run(
+            config,
+            argparse.Namespace(command=["true"], cwd=None, name=None, wait=True),
+            io.StringIO(),
+        )

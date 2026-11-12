@@ -6,6 +6,8 @@ and asserts the finding a reviewer or CI gate would act on, never the
 presence of a keyword in the validator itself.
 
 Decides: SEC-1228
+
+Decides: SEC-1232
 """
 
 from __future__ import annotations
@@ -324,9 +326,10 @@ def test_malformed_baseline_counts_are_input_errors(
     src.write_text("X = 1\n", encoding="utf-8")
     baseline = in_tmp / "b.json"
     baseline.write_text(baseline_payload, encoding="utf-8")
-    assert _main(
-        va, monkeypatch, "--non-interactive", "--file", str(src), "--baseline", str(baseline)
-    ) == 2
+    assert (
+        _main(va, monkeypatch, "--non-interactive", "--file", str(src), "--baseline", str(baseline))
+        == 2
+    )
 
 
 def test_baseline_count_does_not_hide_a_new_instance_in_a_baselined_file(va) -> None:

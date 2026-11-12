@@ -1,6 +1,7 @@
 """Covers horizon dispatch, honest abstention, and the risk-gated signal path.
 
 Decides:
+  - REG-0030 — Horizon decisions cannot bypass the single risk-gated order path
   - REG-0031 — Horizon drift detection suppresses the signal and is persisted as measured
   - REG-1430 — Data and intelligence low-severity defects: bus drop total, naive now, funding units, NaN guards
 """
