@@ -68,12 +68,20 @@ class TestDepthHandling:
             stream._handle_depth(_depth())
         assert stream.latest_snapshot() is not None
 
-    def test_the_buffer_flushes_at_a_thousand_snapshots(self, tmp_path: Path) -> None:
+    @pytest.mark.asyncio
+    async def test_the_buffer_flushes_at_a_thousand_snapshots(self, tmp_path: Path) -> None:
         stream = _stream(tmp_path)
         stream._snapshots = [_snapshot() for _ in range(999)]
-        # Force the rate-limit branch; reaching 1,000 buffered rows still flushes.
-        stream._last_publish = time.monotonic()
-        stream._handle_depth(_depth())
+        stream._last_publish = time.monotonic() - stream.publish_interval_s - 1.0
+
+        with patch.object(
+            stream, "_flush_orderbook", side_effect=AssertionError("blocking flush")
+        ):
+            stream._handle_depth(_depth())
+            pending = tuple(stream._pending_io)
+            assert pending
+            await asyncio.gather(*pending)
+
         assert stream._snapshots == []
         assert list((tmp_path / "orderbook" / "btcusdt").rglob("*.parquet"))
 

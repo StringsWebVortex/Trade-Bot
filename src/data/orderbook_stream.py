@@ -227,7 +227,7 @@ class OrderbookStream:
         )
 
         if len(self._snapshots) >= 1000:
-            self._flush_orderbook()
+            self._schedule_orderbook_flush()
 
     def _snapshots_as_df(self) -> pd.DataFrame:
         rows = [
