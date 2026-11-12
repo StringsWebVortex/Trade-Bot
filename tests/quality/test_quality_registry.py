@@ -423,7 +423,6 @@ class TestFilesystemHonesty:
         ver = Verification(test="tests/risk/test_limits.py", test_type="risk")
         assert ver.node == ""
 
-
     def test_an_unparseable_node_selector_is_left_to_other_checks(self, tree):
         broken = tree / "tests" / "risk" / "test_broken.py"
         broken.write_text("def test_broken(:\\n", encoding="utf-8")
@@ -442,7 +441,6 @@ class TestFilesystemHonesty:
                 )
             ],
         )
-
 
     def test_dataclass_shape_error_is_rethrown_after_schema_check(self, tmp_path, monkeypatch):
         path = write_registry(tmp_path, [{}])
