@@ -231,6 +231,12 @@ class TestTheRegistryHasAPlaceForDefects:
             "REG-1227",
             "REG-1229",
             "REG-1230",
+            "REG-1260",
+            "REG-1263",
+            "REG-1266",
+            "REG-1268",
+            "REG-1269",
+            "REG-1271",
             "REG-1340",
             "REG-1341",
             "REG-1342",
@@ -457,39 +463,28 @@ class TestTheRegistryHasAPlaceForDefects:
             "SEC-0010",
             "SEC-0011",
             "SEC-0012",
-            # SEC-1400: phase 6 security Low findings.
-            "SEC-1400",
-            "SEC-1200",
-            "SEC-1201",
-            "SEC-1202",
-            "SEC-1205",
-            "SEC-1207",
-            "SEC-1208",
-            "SEC-1306",
-            # SEC-1010..1015: API authorization and secret-handling audit findings.
             "SEC-1010",
             "SEC-1011",
             "SEC-1012",
             "SEC-1013",
             "SEC-1014",
             "SEC-1015",
-            # SEC-1240..1242: frontend secret, Electron and CSP findings.
-            "SEC-1240",
-            "SEC-1241",
-            "SEC-1242",
-            # SEC-1020..1023: CI tooling and workflow security findings.
             "SEC-1020",
             "SEC-1021",
             "SEC-1022",
             "SEC-1023",
-            # SEC-1120..1123: model-loading integrity audit findings.
             "SEC-1120",
             "SEC-1121",
             "SEC-1122",
             "SEC-1123",
-            # SEC-1130, SEC-1131: git guard and PreToolUse fail-closed findings.
             "SEC-1130",
             "SEC-1131",
+            "SEC-1200",
+            "SEC-1201",
+            "SEC-1202",
+            "SEC-1205",
+            "SEC-1207",
+            "SEC-1208",
             "SEC-1220",
             "SEC-1224",
             "SEC-1225",
@@ -497,7 +492,17 @@ class TestTheRegistryHasAPlaceForDefects:
             "SEC-1231",
             "SEC-1232",
             "SEC-1233",
-            # SEC-1490, SEC-1499, SEC-1502: phase 6 agent/frontend low findings.
+            "SEC-1240",
+            "SEC-1241",
+            "SEC-1242",
+            "SEC-1261",
+            "SEC-1262",
+            "SEC-1264",
+            "SEC-1265",
+            "SEC-1267",
+            "SEC-1270",
+            "SEC-1306",
+            "SEC-1400",
             "SEC-1490",
             "SEC-1499",
             "SEC-1502",
@@ -702,7 +707,9 @@ class TestTheMetricsCollector:
     def test_it_reports_the_registry_counts(self, collector, registry):
         metrics = collector.collect()["metrics"]
         assert metrics["requirements_total"]["value"] == len(registry)
-        assert metrics["requirements_waived"]["value"] == 0
+        # Main carries five explicitly accepted architecture-baseline waivers;
+        # they remain visible and time-bounded rather than silently counted as zero.
+        assert metrics["requirements_waived"]["value"] == 5
 
     def test_an_unmeasurable_metric_is_reported_not_omitted(self, collector):
         # A report that quietly drops what it could not measure reads as a
@@ -772,10 +779,9 @@ class TestTheMetricsCollector:
         # test-suite, 43.
         # REG-1704 adds the fixed-threshold carry/arbitrage regression (STR-21):
         # no test asked what the thresholds cost to clear -- test-suite, 44.
-        # Main carries 214 test-suite defects; REG-1340..1354 add fifteen
-        # intelligence-layer regressions from this PR.
+        # Main's registry baseline plus the phase-4 CI/infra regression entries.
         assert metric["value"] == {
-            "test-suite": 229,
+            "test-suite": 241,
             "review": 1,
             "supply-chain": 4,
             "ci-gate-design": 2,

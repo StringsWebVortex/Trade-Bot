@@ -10399,6 +10399,404 @@
           "test_type": "api"
         }
       ]
+    },
+    {
+      "id": "REG-1260",
+      "kind": "regression",
+      "title": "A placeholder deployment cannot report success",
+      "statement": "The deploy canary job fails closed while the canary, promotion, halt-trigger and rollback steps are placeholders, so the Deploy gate cannot go green without a real deployment.",
+      "criticality": "medium",
+      "subsystem": "release",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "The Deploy gate reported green on echo-only steps, including a halt-trigger check that always passed.",
+      "owning_modules": [
+        ".github/workflows/deploy.yml"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_phase4_ci_infra_fixes.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": [],
+      "notes": "audit findings: OPS-003. layer: test-suite"
+    },
+    {
+      "id": "SEC-1261",
+      "kind": "security_regression",
+      "title": "main requires an approving code-owner review",
+      "statement": "The main ruleset requires at least one approving review and code-owner review so CODEOWNERS paths cannot change on a green PR alone.",
+      "criticality": "medium",
+      "subsystem": "governance",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "A green PR could change workflows, hooks or risk config with no human review.",
+      "owning_modules": [
+        ".github/rulesets/main-protection.json"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_phase4_ci_infra_fixes.py",
+          "test_type": "security"
+        }
+      ],
+      "depends_on": [],
+      "notes": "audit findings: OPS-004. layer: test-suite"
+    },
+    {
+      "id": "SEC-1262",
+      "kind": "security_regression",
+      "title": "Compose services are hardened and ship no default DB password",
+      "statement": "The api and worker services run read-only with all capabilities dropped, no-new-privileges and a tmpfs /tmp, and the database password comes from POSTGRES_PASSWORD with no shipped default.",
+      "criticality": "medium",
+      "subsystem": "security",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "Containers ran with default privileges and a fixed, public database password that .env could not change.",
+      "owning_modules": [
+        "docker-compose.yml",
+        "Dockerfile",
+        ".env.example"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_phase4_ci_infra_fixes.py",
+          "test_type": "security"
+        }
+      ],
+      "depends_on": [],
+      "notes": "audit findings: OPS-005, OPS-006. layer: test-suite"
+    },
+    {
+      "id": "REG-1263",
+      "kind": "regression",
+      "title": "Risk limits agree between risk.yaml and .env.example",
+      "statement": "The consecutive-loss halt and drawdown limits in config/risk.yaml and .env.example agree, using the stricter value where they differed.",
+      "criticality": "high",
+      "subsystem": "risk",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "Conflicting layers made it ambiguous which limit applied; a 30% drawdown halt sat beside a 10% floor.",
+      "owning_modules": [
+        "config/risk.yaml",
+        ".env.example"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_phase4_ci_infra_fixes.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": [],
+      "notes": "audit findings: OPS-007. layer: test-suite"
+    },
+    {
+      "id": "SEC-1264",
+      "kind": "security_regression",
+      "title": "The supply-chain gate analyses secrets and permissions per job",
+      "statement": "SUP-001 inspects job-level permissions and real justification comments for the widened sensitive scopes; SUP-003 judges fork guards per job and step and flags stored tokens persisted on untrusted refs in any workflow.",
+      "criticality": "medium",
+      "subsystem": "supply_chain",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "One guard string anywhere exempted every secret in a file, and push or workflow_run workflows were never checked.",
+      "owning_modules": [
+        "scripts/check_supply_chain.py",
+        ".github/workflows/ci-diagnostics.yml"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_phase4_ci_infra_fixes.py",
+          "test_type": "security"
+        }
+      ],
+      "depends_on": [],
+      "notes": "audit findings: OPS-016, SCR-002. layer: test-suite"
+    },
+    {
+      "id": "SEC-1265",
+      "kind": "security_regression",
+      "title": "Diagnostics reports must come from the collector workflow run",
+      "statement": "A check run is accepted as a diagnostics report only if its details_url resolves to a workflow_run run of ci-diagnostics.yml in this repository, and retrieved reports are labelled untrusted data.",
+      "criticality": "medium",
+      "subsystem": "security",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "Any job with checks: write could publish a forged finalized report that fed the agent patch path.",
+      "owning_modules": [
+        "scripts/ci_diagnostics.py"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_phase4_ci_infra_fixes.py",
+          "test_type": "security"
+        }
+      ],
+      "depends_on": [],
+      "notes": "audit findings: OPS-017. layer: test-suite"
+    },
+    {
+      "id": "REG-1266",
+      "kind": "regression",
+      "title": "Horizon-gated ordering defaults to off",
+      "statement": "INTEL_ENABLED defaults to false in the orchestrator, the API and .env.example, and compose does not enable it.",
+      "criticality": "high",
+      "subsystem": "execution",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "REG-0030 is only partially verified, so enabling the horizon order gate by default would run it unverified.",
+      "owning_modules": [
+        "src/engine/orchestrator.py",
+        "src/api/main.py",
+        ".env.example"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_phase4_ci_infra_fixes.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": [],
+      "notes": "audit findings: OPS-019. layer: test-suite"
+    },
+    {
+      "id": "SEC-1267",
+      "kind": "security_regression",
+      "title": "Every credentialed venue needs a key-posture declaration",
+      "statement": "Startup refuses live trading when a venue with configured credentials has no declared key posture, even if another venue's declaration is safe.",
+      "criticality": "high",
+      "subsystem": "security",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "assert_all_safe passed when any declared exchange was safe, so an undeclared OKX or Bybit key could trade live.",
+      "owning_modules": [
+        "src/security/exchange_key_posture.py",
+        "config/exchange_key_posture.json"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_phase4_ci_infra_fixes.py",
+          "test_type": "security"
+        }
+      ],
+      "depends_on": [],
+      "notes": "audit findings: SCR-004. layer: test-suite"
+    },
+    {
+      "id": "REG-1268",
+      "kind": "regression",
+      "title": "Mutation scores are read from the pinned mutmut cache",
+      "statement": "The mutation score script pins mutmut, checks its exit status, clears the cache per subsystem and reads outcomes from the cache rather than parsing results text.",
+      "criticality": "medium",
+      "subsystem": "governance",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "Counts parsed to zero, so the nightly job failed every night while measuring nothing.",
+      "owning_modules": [
+        "scripts/check_mutation_score.py",
+        ".github/workflows/nightly-quality.yml"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_phase4_ci_infra_fixes.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": [],
+      "notes": "audit findings: SCR-003. layer: test-suite"
+    },
+    {
+      "id": "REG-1269",
+      "kind": "regression",
+      "title": "math_registry consumer rows are real imports",
+      "statement": "Every consumer wiring row in config/math_registry.json names a module that references its owner.",
+      "criticality": "low",
+      "subsystem": "governance",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "Generated docs showed wiring that did not exist.",
+      "owning_modules": [
+        "config/math_registry.json"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_phase4_ci_infra_fixes.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": [],
+      "notes": "audit findings: SCR-005. layer: test-suite"
+    },
+    {
+      "id": "SEC-1270",
+      "kind": "security_regression",
+      "title": "command_policy has no dead sections and guards all .env readers",
+      "statement": "config/command_policy.json carries no unenforced limit sections, and secret_echo blocks head, sed, grep, python and similar readers of .env, key and certificate files.",
+      "criticality": "medium",
+      "subsystem": "security",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "The policy advertised limits nothing enforced, and only cat and echo were blocked from printing .env.",
+      "owning_modules": [
+        "config/command_policy.json"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_phase4_ci_infra_fixes.py",
+          "test_type": "security"
+        }
+      ],
+      "depends_on": [],
+      "notes": "audit findings: SCR-006. layer: test-suite"
+    },
+    {
+      "id": "REG-1271",
+      "kind": "regression",
+      "title": "Execution and risk arch-baseline findings are tracked in the registry",
+      "statement": "Every baselined LAW1, LAW2, LAW9, LAW10 and LAW13 finding maps to an ARCH accepted_gap entry with a waiver and review date.",
+      "criticality": "medium",
+      "subsystem": "governance",
+      "status": "verified",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "Core trading-path findings lived only in the baseline, which fails only on new findings, so they could never fail CI.",
+      "owning_modules": [
+        "config/arch_baseline.json"
+      ],
+      "verification": [
+        {
+          "test": "tests/test_phase4_ci_infra_fixes.py",
+          "test_type": "regression"
+        }
+      ],
+      "depends_on": [],
+      "notes": "audit findings: OPS-018. layer: test-suite"
+    },
+    {
+      "id": "ARCH-001",
+      "kind": "requirement",
+      "title": "Wash trade detection is absent from the order path",
+      "statement": "Orders can self-match because order_manager and router do not detect wash trades. Tracked from config/arch_baseline.json until a fix and a deciding test land.",
+      "criticality": "high",
+      "subsystem": "execution",
+      "status": "accepted_gap",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "The finding sat only in the arch baseline, which fails only on new findings.",
+      "owning_modules": [
+        "src/execution/order_manager.py",
+        "src/execution/router.py"
+      ],
+      "waiver": {
+        "reason": "Baselined by the arch gate; tracked here so it has an owner and a review date instead of living only in the baseline.",
+        "accepted_by": "zulqarnain106612-cpu",
+        "review_by": "2027-01-31"
+      },
+      "depends_on": [],
+      "notes": "audit findings: OPS-018"
+    },
+    {
+      "id": "ARCH-002",
+      "kind": "requirement",
+      "title": "Flash crash and market halt handling is not independently verified",
+      "statement": "Flash-crash and halt handling references in the risk and engine paths are baselined without a deciding test. Tracked from config/arch_baseline.json until a fix and a deciding test land.",
+      "criticality": "high",
+      "subsystem": "risk",
+      "status": "accepted_gap",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "The finding sat only in the arch baseline, which fails only on new findings.",
+      "owning_modules": [
+        "src/risk/gate.py",
+        "src/risk/gates.py",
+        "src/risk/strategy_kill_switch.py",
+        "src/engine/orchestrator.py",
+        "src/engines/consensus.py",
+        "src/engines/orchestrator.py",
+        "src/engines/signal_gate.py",
+        "src/intel.py"
+      ],
+      "waiver": {
+        "reason": "Baselined by the arch gate; tracked here so it has an owner and a review date instead of living only in the baseline.",
+        "accepted_by": "zulqarnain106612-cpu",
+        "review_by": "2027-01-31"
+      },
+      "depends_on": [],
+      "notes": "audit findings: OPS-018"
+    },
+    {
+      "id": "ARCH-003",
+      "kind": "requirement",
+      "title": "Risk score computation has no VaR/CVaR term",
+      "statement": "cognitive_engine._compute_risk_score does not compute VaR or CVaR. Tracked from config/arch_baseline.json until a fix and a deciding test land.",
+      "criticality": "high",
+      "subsystem": "risk",
+      "status": "accepted_gap",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "The finding sat only in the arch baseline, which fails only on new findings.",
+      "owning_modules": [
+        "src/risk/cognitive_engine.py",
+        "src/risk/gates.py"
+      ],
+      "waiver": {
+        "reason": "Baselined by the arch gate; tracked here so it has an owner and a review date instead of living only in the baseline.",
+        "accepted_by": "zulqarnain106612-cpu",
+        "review_by": "2027-01-31"
+      },
+      "depends_on": [],
+      "notes": "audit findings: OPS-018"
+    },
+    {
+      "id": "ARCH-004",
+      "kind": "requirement",
+      "title": "Model predictions are used without a confidence check",
+      "statement": "Predictions in the ensemble, trainer, regime detector, backtest harness and shadow deploy are consumed without a confidence check. Tracked from config/arch_baseline.json until a fix and a deciding test land.",
+      "criticality": "medium",
+      "subsystem": "model",
+      "status": "accepted_gap",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "The finding sat only in the arch baseline, which fails only on new findings.",
+      "owning_modules": [
+        "src/intelligence/ensemble_predictor.py",
+        "src/models/trainer.py",
+        "src/regime/detector.py",
+        "src/tuning/backtest_harness.py",
+        "src/upgrade/shadow_deploy.py"
+      ],
+      "waiver": {
+        "reason": "Baselined by the arch gate; tracked here so it has an owner and a review date instead of living only in the baseline.",
+        "accepted_by": "zulqarnain106612-cpu",
+        "review_by": "2027-01-31"
+      },
+      "depends_on": [],
+      "notes": "audit findings: OPS-018"
+    },
+    {
+      "id": "ARCH-005",
+      "kind": "requirement",
+      "title": "Module-global singletons are mutated",
+      "statement": "Nine module-level globals are mutated, which hides state from tests and concurrency review. Tracked from config/arch_baseline.json until a fix and a deciding test land.",
+      "criticality": "medium",
+      "subsystem": "governance",
+      "status": "accepted_gap",
+      "source": "OPS-2026-10-25",
+      "failure_mode": "The finding sat only in the arch baseline, which fails only on new findings.",
+      "owning_modules": [
+        "src/intelligence/providers/aggregator.py",
+        "src/tuning/meta_allocator.py",
+        "src/diagnostics/signal_debugger.py",
+        "src/intelligence/providers/binance_provider.py",
+        "src/intelligence/providers/blockchain_provider.py",
+        "src/intelligence/providers/bybit_provider.py",
+        "src/intelligence/providers/coingecko_provider.py",
+        "src/intelligence/providers/okx_provider.py",
+        "src/engine/strategy_portfolio.py"
+      ],
+      "waiver": {
+        "reason": "Baselined by the arch gate; tracked here so it has an owner and a review date instead of living only in the baseline.",
+        "accepted_by": "zulqarnain106612-cpu",
+        "review_by": "2027-01-31"
+      },
+      "depends_on": [],
+      "notes": "audit findings: OPS-018"
     }
   ]
 }

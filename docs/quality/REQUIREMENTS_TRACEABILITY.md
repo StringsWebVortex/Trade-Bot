@@ -47,28 +47,28 @@ deletion of the thing it points at.
 
 | Status | Entries |
 |---|---|
-| VERIFIED | 410 |
+| VERIFIED | 437 |
 | PARTIAL | 2 |
 | PLANNED | 0 |
-| ACCEPTED GAP | 0 |
-| **Total** | **412** |
+| ACCEPTED GAP | 5 |
+| **Total** | **444** |
 
 ## Summary by subsystem
 
 | Subsystem | Entries | Verified |
 |---|---|---|
-| Risk | 25 | 25 |
-| Execution | 25 | 25 |
+| Risk | 28 | 26 |
+| Execution | 27 | 26 |
 | Portfolio | 2 | 2 |
-| Signal and features | 22 | 22 |
-| Models and leakage | 39 | 39 |
-| Data, money and time | 32 | 31 |
+| Signal and features | 25 | 25 |
+| Models and leakage | 43 | 42 |
+| Data, money and time | 40 | 39 |
 | API and WebSocket | 42 | 42 |
-| Cryptography and secrets | 55 | 55 |
-| Supply chain and artifacts | 7 | 7 |
+| Cryptography and secrets | 60 | 60 |
+| Supply chain and artifacts | 8 | 8 |
 | Resilience and recovery | 36 | 36 |
-| Release and production | 17 | 17 |
-| Governance | 91 | 90 |
+| Release and production | 18 | 18 |
+| Governance | 96 | 94 |
 | Terminal and process center | 19 | 19 |
 
 ## Outstanding work by phase
@@ -143,6 +143,32 @@ If the risk engine raises, times out or is unavailable, the decision is NO TRADE
 - **Verification:**
   - `tests/trading/invariants/test_inv_006_risk_engine_failure.py` (risk) — The drift gate fails closed on any exception; a raising gate propagates rather than becoming a pass; no except block in src/risk swallows into a default-allow.
   - `tests/test_risk_gates.py` (risk) — Covers gate outcomes.
+
+#### `ARCH-002` — Flash crash and market halt handling is not independently verified
+
+**ACCEPTED GAP** · high · requirement · source: OPS-2026-10-25
+
+Flash-crash and halt handling references in the risk and engine paths are baselined without a deciding test. Tracked from config/arch_baseline.json until a fix and a deciding test land.
+
+- **If violated:** The finding sat only in the arch baseline, which fails only on new findings.
+- **Owned by:** `src/risk/gate.py`, `src/risk/gates.py`, `src/risk/strategy_kill_switch.py`, `src/engine/orchestrator.py`, `src/engines/consensus.py`, `src/engines/orchestrator.py`, `src/engines/signal_gate.py`, `src/intel.py`
+- **Verification:** none yet
+- **Waiver:** Baselined by the arch gate; tracked here so it has an owner and a review date instead of living only in the baseline. (accepted by zulqarnain106612-cpu, review by 2027-01-31)
+
+> audit findings: OPS-018
+
+#### `ARCH-003` — Risk score computation has no VaR/CVaR term
+
+**ACCEPTED GAP** · high · requirement · source: OPS-2026-10-25
+
+cognitive_engine._compute_risk_score does not compute VaR or CVaR. Tracked from config/arch_baseline.json until a fix and a deciding test land.
+
+- **If violated:** The finding sat only in the arch baseline, which fails only on new findings.
+- **Owned by:** `src/risk/cognitive_engine.py`, `src/risk/gates.py`
+- **Verification:** none yet
+- **Waiver:** Baselined by the arch gate; tracked here so it has an owner and a review date instead of living only in the baseline. (accepted by zulqarnain106612-cpu, review by 2027-01-31)
+
+> audit findings: OPS-018
 
 #### `RISK-001` — Maximum position exposure must not exceed the configured ceiling
 
@@ -280,6 +306,19 @@ After a live promotion the runner starts post-promotion probation; a watchdog ro
   - `tests/test_tuning_promotion_rollback_wiring.py` (regression)
 
 > audit finding STR-04. layer: test-suite
+
+#### `REG-1263` — Risk limits agree between risk.yaml and .env.example
+
+**VERIFIED** · high · regression · source: OPS-2026-10-25
+
+The consecutive-loss halt and drawdown limits in config/risk.yaml and .env.example agree, using the stricter value where they differed.
+
+- **If violated:** Conflicting layers made it ambiguous which limit applied; a 30% drawdown halt sat beside a 10% floor.
+- **Owned by:** `config/risk.yaml`, `.env.example`
+- **Verification:**
+  - `tests/test_phase4_ci_infra_fixes.py` (regression)
+
+> audit findings: OPS-007. layer: test-suite
 
 #### `REG-1302` — Tick-size amount precision is quantised correctly
 
@@ -478,6 +517,19 @@ Reading a price for the dashboard leaves every running extreme the exit logic co
   - `tests/test_orderbook_stream_publish.py` (api) — The producer half: the stream coalesces its 100ms feed to 250ms, withholds a stale mid rather than publishing a frozen price as a live one, and a broken subscriber cannot reach the feed.
 
 > The display path is deliberately a separate loop from _position_monitor_loop rather than a faster version of it. Sharing the monitor's loop would have been less code and would have moved live thresholds, which is a trading-behaviour change a latency fix is not allowed to smuggle in.
+
+#### `ARCH-001` — Wash trade detection is absent from the order path
+
+**ACCEPTED GAP** · high · requirement · source: OPS-2026-10-25
+
+Orders can self-match because order_manager and router do not detect wash trades. Tracked from config/arch_baseline.json until a fix and a deciding test land.
+
+- **If violated:** The finding sat only in the arch baseline, which fails only on new findings.
+- **Owned by:** `src/execution/order_manager.py`, `src/execution/router.py`
+- **Verification:** none yet
+- **Waiver:** Baselined by the arch gate; tracked here so it has an owner and a review date instead of living only in the baseline. (accepted by zulqarnain106612-cpu, review by 2027-01-31)
+
+> audit findings: OPS-018
 
 #### `EXEC-001` — Execution requests carry an idempotency key end to end
 
@@ -684,6 +736,19 @@ After initialize() the drawdown tracker's daily start is today's first stored eq
   - `tests/test_restart_persistence.py` (regression)
 
 > layer: test-suite
+
+#### `REG-1266` — Horizon-gated ordering defaults to off
+
+**VERIFIED** · high · regression · source: OPS-2026-10-25
+
+INTEL_ENABLED defaults to false in the orchestrator, the API and .env.example, and compose does not enable it.
+
+- **If violated:** REG-0030 is only partially verified, so enabling the horizon order gate by default would run it unverified.
+- **Owned by:** `src/engine/orchestrator.py`, `src/api/main.py`, `.env.example`
+- **Verification:**
+  - `tests/test_phase4_ci_infra_fixes.py` (regression)
+
+> audit findings: OPS-019. layer: test-suite
 
 #### `REG-1300` — Paper fills carry a spread cost when ADV is unknown
 
@@ -904,6 +969,45 @@ extract_ecdsa_signatures finds a signature whose sighash byte is followed by a 0
 
 > audit finding MTH-001. layer: test-suite
 
+#### `REG-1340` — Intelligence adapter receives a measured risk context from the orchestrator
+
+**VERIFIED** · high · regression · source: OPS-2026-10-25
+
+The orchestrator builds a risk context (atr, cvar, drawdown, daily_loss, odds, as_of_ts) from measured data, returns None when any part is unmeasurable, and passes it through IntelligenceAdapter.on_bar to CryptoIntelligence.on_bar.
+
+- **If violated:** on_bar returned None on every bar because no risk_context was ever supplied, so nothing was sized or persisted.
+- **Owned by:** `src/engine/orchestrator.py`, `src/intelligence/intelligence_adapter.py`
+- **Verification:**
+  - `tests/test_intelligence_audit_fixes.py` (regression)
+
+> audit finding INT-008; layer: test-suite
+
+#### `REG-1344` — Exchange stress model is declared uncalibrated
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+BayesianExchangeStressModel states it is an uncalibrated heuristic (CALIBRATED False), carries no unused intercepts and claims no training.
+
+- **If violated:** Docstrings claimed Bayesian training on historical crises for hardcoded literals that gate live trading.
+- **Owned by:** `src/intelligence/probabilistic.py`, `src/intelligence/probabilistic_adapter.py`
+- **Verification:**
+  - `tests/test_intelligence_audit_fixes.py` (regression)
+
+> audit finding INT-015; layer: test-suite
+
+#### `REG-1345` — Worker result collection does not block the event loop
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+CryptoIntelligence.on_bar collects worker results with asyncio.to_thread.
+
+- **If violated:** A synchronous queue read stalled the event loop up to the inference timeout per bar.
+- **Owned by:** `src/intel.py`
+- **Verification:**
+  - `tests/test_intelligence_audit_fixes.py` (regression)
+
+> audit finding INT-016; layer: test-suite
+
 #### `REG-1362` — Cluster flow score is flagged unavailable when no flow data exists
 
 **VERIFIED** · medium · regression · source: OPS-2026-10-25
@@ -1052,6 +1156,19 @@ The basis-trade, funding-carry and cross-exchange families enter only when their
 > Audit STR-21. Part 1: the cost model and the strategies. The orchestrator does not yet fill PortfolioInputs.execution_cost, so the three families (all disabled by default) stay flat until part 2 wires the account's fills, the live half-spread and the calibrated impact in, adds the measured fee to check_slippage_veto, and replaces the fixed fee constants in paper.py, live.py, rl_agent.py and e15_rl.py. Those files are in open PRs. layer: test-suite
 
 ## Models and leakage
+
+#### `ARCH-004` — Model predictions are used without a confidence check
+
+**ACCEPTED GAP** · medium · requirement · source: OPS-2026-10-25
+
+Predictions in the ensemble, trainer, regime detector, backtest harness and shadow deploy are consumed without a confidence check. Tracked from config/arch_baseline.json until a fix and a deciding test land.
+
+- **If violated:** The finding sat only in the arch baseline, which fails only on new findings.
+- **Owned by:** `src/intelligence/ensemble_predictor.py`, `src/models/trainer.py`, `src/regime/detector.py`, `src/tuning/backtest_harness.py`, `src/upgrade/shadow_deploy.py`
+- **Verification:** none yet
+- **Waiver:** Baselined by the arch gate; tracked here so it has an owner and a review date instead of living only in the baseline. (accepted by zulqarnain106612-cpu, review by 2027-01-31)
+
+> audit findings: OPS-018
 
 #### `MODL-001` — Every model artifact carries full provenance
 
@@ -1436,6 +1553,46 @@ calibrate_probabilities uses TimeSeriesSplit so the calibrator never trains on r
   - `tests/test_crypto_predictor_regressions.py` (regression)
 
 > Audit SCR-007, SCR-008 and DOC-014 (standalone crypto-predictor). layer: test-suite
+
+#### `REG-1352` — Rejected horizon samples do not block the training queue
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+Rows rejected or failed in train_pending get a terminal trained=-1 state and are not selected again.
+
+- **If violated:** Rejected rows stayed at the head of the oldest-first batch and starved later samples.
+- **Owned by:** `src/models/horizon_learning.py`
+- **Verification:**
+  - `tests/test_intelligence_audit_fixes.py` (regression)
+
+> audit finding INT-023; layer: test-suite
+
+#### `REG-1353` — Final XGBoost models are refit on all rows
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+The final model uses the best iteration from a purged early-stopping slice and is refit on the full dataset.
+
+- **If violated:** The newest 15 percent of bars never trained the shipped model, contrary to the docstring.
+- **Owned by:** `src/models/trainer.py`
+- **Verification:**
+  - `tests/test_intelligence_audit_fixes.py` (regression)
+
+> audit finding INT-025; layer: test-suite
+
+#### `REG-1354` — Sample weights keep min_child_weight meaningful
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+compute_sample_weights normalises to mean 1, not sum 1.
+
+- **If violated:** Weights summing to 1 left node hessian sums far below min_child_weight and suppressed splits.
+- **Owned by:** `src/models/trainer.py`
+- **Verification:**
+  - `tests/test_intelligence_audit_fixes.py` (regression)
+  - `tests/test_model_trainer_coverage.py` (regression)
+
+> audit finding INT-026; layer: test-suite
 
 #### `REG-1360` — HNP key recovery is correct for a non-zero leaked nonce prefix
 
@@ -1895,6 +2052,110 @@ SentimentProvider has unknown (NaN) Fear and Greed until fetched and does not pu
   - `tests/test_features_mempool.py` (regression)
 
 > audit finding DAT-017; layer: test-suite
+
+#### `REG-1341` — Dune execution polling is never served from cache
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+Status polling bypasses the HTTP cache so a pending response is not replayed until timeout.
+
+- **If violated:** A cached pending status made every poll time out while each attempt spent a daily execution.
+- **Owned by:** `src/intelligence/onchain/base.py`, `src/intelligence/onchain/dune_provider.py`
+- **Verification:**
+  - `tests/test_intelligence_audit_fixes.py` (regression)
+
+> audit finding INT-012; layer: test-suite
+
+#### `REG-1342` — Configured on-chain cache TTL reaches the HTTP cache
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+OnChainProvider builds its cache with the configured cache_ttl_s.
+
+- **If violated:** The cache captured the class default before the subclass assigned the configured TTL.
+- **Owned by:** `src/intelligence/onchain/base.py`
+- **Verification:**
+  - `tests/test_intelligence_audit_fixes.py` (regression)
+
+> audit finding INT-013; layer: test-suite
+
+#### `REG-1343` — MVRV stress contribution survives validation and is bounded
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+validate_provider_result carries the internal MVRV contribution to merge, and a missing or non-positive realized_cap yields zero.
+
+- **If violated:** The contribution was dropped by validation and would pin at its cap if realized_cap was missing.
+- **Owned by:** `src/intelligence/onchain/schema.py`, `src/intelligence/onchain/cryptoquant_provider.py`
+- **Verification:**
+  - `tests/test_intelligence_audit_fixes.py` (regression)
+
+> audit finding INT-014; layer: test-suite
+
+#### `REG-1347` — Glassnode history features are causal and match the live definitions
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+History z-scores use trailing windows only and the whale ratio uses the live recent-vs-prior definition on the sorted series.
+
+- **If violated:** Full-sample statistics leaked the future and the ratio definition and indexing differed from live.
+- **Owned by:** `src/intelligence/client.py`
+- **Verification:**
+  - `tests/test_intelligence_audit_fixes.py` (regression)
+
+> audit finding INT-018; layer: test-suite
+
+#### `REG-1348` — Intelligence fallbacks are missing values, not zeros
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+With no cache, failed netflow, whale and funding fetches return None, and the Glassnode throttle is locked and stamped before the request.
+
+- **If violated:** Failures returned fabricated zero or neutral readings and throttling stopped after errors.
+- **Owned by:** `src/intelligence/client.py`
+- **Verification:**
+  - `tests/test_intelligence_audit_fixes.py` (regression)
+
+> audit finding INT-019; layer: test-suite
+
+#### `REG-1349` — Positioning ratios are not mixed into whale_buy_sell_ratio
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+OKX and Coinglass no longer report long/short account ratios as taker flow, and OKX does not cache a fabricated neutral.
+
+- **If violated:** Positioning and taker-flow ratios were averaged into one gate input.
+- **Owned by:** `src/intelligence/providers/okx_provider.py`, `src/intelligence/onchain/coinglass_provider.py`
+- **Verification:**
+  - `tests/test_intelligence_audit_fixes.py` (regression)
+
+> audit finding INT-020; layer: test-suite
+
+#### `REG-1350` — Provider singletons refuse a different symbol
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+The exchange provider and aggregator singleton factories raise when asked for a symbol other than the one they were built for.
+
+- **If violated:** A second symbol silently received the first symbol's market data.
+- **Owned by:** `src/intelligence/providers/binance_provider.py`, `src/intelligence/providers/okx_provider.py`, `src/intelligence/providers/bybit_provider.py`, `src/intelligence/providers/aggregator.py`
+- **Verification:**
+  - `tests/test_intelligence_audit_fixes.py` (regression)
+
+> audit finding INT-021; layer: test-suite
+
+#### `REG-1351` — Rolling z-score histories grow once per cache window
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+Macro provider histories append once per cache TTL, not per call, and the Arkham z-score is bounded.
+
+- **If violated:** Cache hits were appended repeatedly, collapsing z-scores toward zero.
+- **Owned by:** `src/intelligence/providers/coingecko_provider.py`, `src/intelligence/providers/blockchain_provider.py`, `src/intelligence/onchain/arkham_provider.py`
+- **Verification:**
+  - `tests/test_intelligence_audit_fixes.py` (regression)
+
+> audit finding INT-022; layer: test-suite
 
 #### `REG-1430` — Data and intelligence low-severity defects: bus drop total, naive now, funding units, NaN guards
 
@@ -2800,6 +3061,19 @@ The LAW12 cipher-suite pattern matches static DH/ECDH, RSA key transport and exp
 
 > The rule shipped with no test of its own, so nothing could tell a true positive from a false one until a PR tripped it. The test added with this entry is that missing check. layer: test-suite
 
+#### `REG-1346` — No default Bitcoin RPC credentials
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+Bitcoin RPC credentials come only from config or environment; without them on-chain RPC and ECC are disabled.
+
+- **If violated:** A hardcoded crypto/crypto default was used silently over plain HTTP.
+- **Owned by:** `src/intel.py`, `src/workers/orchestrator.py`
+- **Verification:**
+  - `tests/test_intelligence_audit_fixes.py` (regression)
+
+> audit finding INT-017; layer: test-suite
+
 #### `REG-1361` — ECDSA scanner does not report a re-seen transaction as nonce reuse
 
 **VERIFIED** · medium · regression · source: OPS-2026-10-25
@@ -3167,6 +3441,58 @@ The production index.html includes a CSP meta with script-src 'self', object-src
 
 > audit finding FE-08. layer: test-suite
 
+#### `SEC-1262` — Compose services are hardened and ship no default DB password
+
+**VERIFIED** · medium · security_regression · source: OPS-2026-10-25
+
+The api and worker services run read-only with all capabilities dropped, no-new-privileges and a tmpfs /tmp, and the database password comes from POSTGRES_PASSWORD with no shipped default.
+
+- **If violated:** Containers ran with default privileges and a fixed, public database password that .env could not change.
+- **Owned by:** `docker-compose.yml`, `Dockerfile`, `.env.example`
+- **Verification:**
+  - `tests/test_phase4_ci_infra_fixes.py` (security)
+
+> audit findings: OPS-005, OPS-006. layer: test-suite
+
+#### `SEC-1265` — Diagnostics reports must come from the collector workflow run
+
+**VERIFIED** · medium · security_regression · source: OPS-2026-10-25
+
+A check run is accepted as a diagnostics report only if its details_url resolves to a workflow_run run of ci-diagnostics.yml in this repository, and retrieved reports are labelled untrusted data.
+
+- **If violated:** Any job with checks: write could publish a forged finalized report that fed the agent patch path.
+- **Owned by:** `scripts/ci_diagnostics.py`
+- **Verification:**
+  - `tests/test_phase4_ci_infra_fixes.py` (security)
+
+> audit findings: OPS-017. layer: test-suite
+
+#### `SEC-1267` — Every credentialed venue needs a key-posture declaration
+
+**VERIFIED** · high · security_regression · source: OPS-2026-10-25
+
+Startup refuses live trading when a venue with configured credentials has no declared key posture, even if another venue's declaration is safe.
+
+- **If violated:** assert_all_safe passed when any declared exchange was safe, so an undeclared OKX or Bybit key could trade live.
+- **Owned by:** `src/security/exchange_key_posture.py`, `config/exchange_key_posture.json`
+- **Verification:**
+  - `tests/test_phase4_ci_infra_fixes.py` (security)
+
+> audit findings: SCR-004. layer: test-suite
+
+#### `SEC-1270` — command_policy has no dead sections and guards all .env readers
+
+**VERIFIED** · medium · security_regression · source: OPS-2026-10-25
+
+config/command_policy.json carries no unenforced limit sections, and secret_echo blocks head, sed, grep, python and similar readers of .env, key and certificate files.
+
+- **If violated:** The policy advertised limits nothing enforced, and only cat and echo were blocked from printing .env.
+- **Owned by:** `config/command_policy.json`
+- **Verification:**
+  - `tests/test_phase4_ci_infra_fixes.py` (security)
+
+> audit findings: SCR-006. layer: test-suite
+
 #### `SEC-1400` — Security helpers fail closed on unknown or ambiguous inputs
 
 **VERIFIED** · medium · security_regression · source: OPS-2026-10-25
@@ -3284,6 +3610,19 @@ Automated dependency PRs run the full quality gate and can never trigger the pro
 - **Owned by:** `.github/workflows`, `scripts/check_supply_chain.py`
 - **Verification:**
   - `tests/supply_chain/test_supply_chain_posture.py` (security) — The release workflow triggers only on a version tag and workflow_dispatch; push-on-branch, pull_request and schedule are all detected, including a tag trigger that also accepts branches.
+
+#### `SEC-1264` — The supply-chain gate analyses secrets and permissions per job
+
+**VERIFIED** · medium · security_regression · source: OPS-2026-10-25
+
+SUP-001 inspects job-level permissions and real justification comments for the widened sensitive scopes; SUP-003 judges fork guards per job and step and flags stored tokens persisted on untrusted refs in any workflow.
+
+- **If violated:** One guard string anywhere exempted every secret in a file, and push or workflow_run workflows were never checked.
+- **Owned by:** `scripts/check_supply_chain.py`, `.github/workflows/ci-diagnostics.yml`
+- **Verification:**
+  - `tests/test_phase4_ci_infra_fixes.py` (security)
+
+> audit findings: OPS-016, SCR-002. layer: test-suite
 
 ## Resilience and recovery
 
@@ -3932,6 +4271,19 @@ GitHub Actions is the sole execution path for tests, builds, lint, security scan
 
 > The old prepare/comment-notice subscription is retired. Only the finalized ./scripts/prfail --pr <PR_NUMBER> report route is allowed; the report-bound patch applier revalidates PR/head/report identity and leaves edits uncommitted. The run subcommand remains disabled. Tests, builds, lint, security scans, and quality gates are validated only by GitHub Actions. layer: test-suite
 
+#### `REG-1260` — A placeholder deployment cannot report success
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+The deploy canary job fails closed while the canary, promotion, halt-trigger and rollback steps are placeholders, so the Deploy gate cannot go green without a real deployment.
+
+- **If violated:** The Deploy gate reported green on echo-only steps, including a halt-trigger check that always passed.
+- **Owned by:** `.github/workflows/deploy.yml`
+- **Verification:**
+  - `tests/test_phase4_ci_infra_fixes.py` (regression)
+
+> audit findings: OPS-003. layer: test-suite
+
 #### `REG-1705` — A merge elsewhere never breaks the knowledge-index gate on an open pull request
 
 **VERIFIED** · high · regression · source: OPS-2026-10-26
@@ -3973,6 +4325,19 @@ pytest treats PytestUnraisableExceptionWarning as an error, so an exception rais
 > layer: test-suite
 
 ## Governance
+
+#### `ARCH-005` — Module-global singletons are mutated
+
+**ACCEPTED GAP** · medium · requirement · source: OPS-2026-10-25
+
+Nine module-level globals are mutated, which hides state from tests and concurrency review. Tracked from config/arch_baseline.json until a fix and a deciding test land.
+
+- **If violated:** The finding sat only in the arch baseline, which fails only on new findings.
+- **Owned by:** `src/intelligence/providers/aggregator.py`, `src/tuning/meta_allocator.py`, `src/diagnostics/signal_debugger.py`, `src/intelligence/providers/binance_provider.py`, `src/intelligence/providers/blockchain_provider.py`, `src/intelligence/providers/bybit_provider.py`, `src/intelligence/providers/coingecko_provider.py`, `src/intelligence/providers/okx_provider.py`, `src/engine/strategy_portfolio.py`
+- **Verification:** none yet
+- **Waiver:** Baselined by the arch gate; tracked here so it has an owner and a review date instead of living only in the baseline. (accepted by zulqarnain106612-cpu, review by 2027-01-31)
+
+> audit findings: OPS-018
 
 #### `GOV-001` — Every production defect yields a permanent regression test
 
@@ -4766,6 +5131,45 @@ The observation gate applies the larger diagnostic budget to the exact ./scripts
 
 > layer: test-suite
 
+#### `REG-1268` — Mutation scores are read from the pinned mutmut cache
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+The mutation score script pins mutmut, checks its exit status, clears the cache per subsystem and reads outcomes from the cache rather than parsing results text.
+
+- **If violated:** Counts parsed to zero, so the nightly job failed every night while measuring nothing.
+- **Owned by:** `scripts/check_mutation_score.py`, `.github/workflows/nightly-quality.yml`
+- **Verification:**
+  - `tests/test_phase4_ci_infra_fixes.py` (regression)
+
+> audit findings: SCR-003. layer: test-suite
+
+#### `REG-1269` — math_registry consumer rows are real imports
+
+**VERIFIED** · low · regression · source: OPS-2026-10-25
+
+Every consumer wiring row in config/math_registry.json names a module that references its owner.
+
+- **If violated:** Generated docs showed wiring that did not exist.
+- **Owned by:** `config/math_registry.json`
+- **Verification:**
+  - `tests/test_phase4_ci_infra_fixes.py` (regression)
+
+> audit findings: SCR-005. layer: test-suite
+
+#### `REG-1271` — Execution and risk arch-baseline findings are tracked in the registry
+
+**VERIFIED** · medium · regression · source: OPS-2026-10-25
+
+Every baselined LAW1, LAW2, LAW9, LAW10 and LAW13 finding maps to an ARCH accepted_gap entry with a waiver and review date.
+
+- **If violated:** Core trading-path findings lived only in the baseline, which fails only on new findings, so they could never fail CI.
+- **Owned by:** `config/arch_baseline.json`
+- **Verification:**
+  - `tests/test_phase4_ci_infra_fixes.py` (regression)
+
+> audit findings: OPS-018. layer: test-suite
+
 #### `REG-1374` — Strategy selector exposes no dead funding-carry parameter
 
 **VERIFIED** · low · regression · source: OPS-2026-10-25
@@ -5101,6 +5505,19 @@ ci_is_green returns false for absent or malformed CI verdict sections and accept
 
 > PR #498 review follow-up. layer: test-suite
 
+#### `SEC-1261` — main requires an approving code-owner review
+
+**VERIFIED** · medium · security_regression · source: OPS-2026-10-25
+
+The main ruleset requires at least one approving review and code-owner review so CODEOWNERS paths cannot change on a green PR alone.
+
+- **If violated:** A green PR could change workflows, hooks or risk config with no human review.
+- **Owned by:** `.github/rulesets/main-protection.json`
+- **Verification:**
+  - `tests/test_phase4_ci_infra_fixes.py` (security)
+
+> audit findings: OPS-004. layer: test-suite
+
 ## Terminal and process center
 
 #### `TERM-001` — Terminal sessions are real PTYs that every client shares
@@ -5372,200 +5789,4 @@ To add or change an entry, edit the registry and regenerate this file. See
 `docs/quality/TEST_STRATEGY.md` for the taxonomy the `test_type` column draws
 on, and `docs/quality/IMPLEMENTATION_PLAN.md` for what each phase delivers.
 
-#### `REG-1340` — Intelligence adapter receives a measured risk context from the orchestrator
-
-**VERIFIED** · high · regression · source: OPS-2026-10-25
-
-The orchestrator builds a risk context (atr, cvar, drawdown, daily_loss, odds, as_of_ts) from measured data, returns None when any part is unmeasurable, and passes it through IntelligenceAdapter.on_bar to CryptoIntelligence.on_bar.
-
-- **If violated:** on_bar returned None on every bar because no risk_context was ever supplied, so nothing was sized or persisted.
-- **Owned by:** `src/engine/orchestrator.py`, `src/intelligence/intelligence_adapter.py`
-- **Verification:**
-  - `tests/test_intelligence_audit_fixes.py` (regression)
-
-> audit finding INT-008; layer: test-suite
-
-#### `REG-1344` — Exchange stress model is declared uncalibrated
-
-**VERIFIED** · medium · regression · source: OPS-2026-10-25
-
-BayesianExchangeStressModel states it is an uncalibrated heuristic (CALIBRATED False), carries no unused intercepts and claims no training.
-
-- **If violated:** Docstrings claimed Bayesian training on historical crises for hardcoded literals that gate live trading.
-- **Owned by:** `src/intelligence/probabilistic.py`, `src/intelligence/probabilistic_adapter.py`
-- **Verification:**
-  - `tests/test_intelligence_audit_fixes.py` (regression)
-
-> audit finding INT-015; layer: test-suite
-
-#### `REG-1345` — Worker result collection does not block the event loop
-
-**VERIFIED** · medium · regression · source: OPS-2026-10-25
-
-CryptoIntelligence.on_bar collects worker results with asyncio.to_thread.
-
-- **If violated:** A synchronous queue read stalled the event loop up to the inference timeout per bar.
-- **Owned by:** `src/intel.py`
-- **Verification:**
-  - `tests/test_intelligence_audit_fixes.py` (regression)
-
-> audit finding INT-016; layer: test-suite
-
-#### `REG-1352` — Rejected horizon samples do not block the training queue
-
-**VERIFIED** · medium · regression · source: OPS-2026-10-25
-
-Rows rejected or failed in train_pending get a terminal trained=-1 state and are not selected again.
-
-- **If violated:** Rejected rows stayed at the head of the oldest-first batch and starved later samples.
-- **Owned by:** `src/models/horizon_learning.py`
-- **Verification:**
-  - `tests/test_intelligence_audit_fixes.py` (regression)
-
-> audit finding INT-023; layer: test-suite
-
-#### `REG-1353` — Final XGBoost models are refit on all rows
-
-**VERIFIED** · medium · regression · source: OPS-2026-10-25
-
-The final model uses the best iteration from a purged early-stopping slice and is refit on the full dataset.
-
-- **If violated:** The newest 15 percent of bars never trained the shipped model, contrary to the docstring.
-- **Owned by:** `src/models/trainer.py`
-- **Verification:**
-  - `tests/test_intelligence_audit_fixes.py` (regression)
-
-> audit finding INT-025; layer: test-suite
-
-#### `REG-1354` — Sample weights keep min_child_weight meaningful
-
-**VERIFIED** · medium · regression · source: OPS-2026-10-25
-
-compute_sample_weights normalises to mean 1, not sum 1.
-
-- **If violated:** Weights summing to 1 left node hessian sums far below min_child_weight and suppressed splits.
-- **Owned by:** `src/models/trainer.py`
-- **Verification:**
-  - `tests/test_intelligence_audit_fixes.py` (regression)
-  - `tests/test_model_trainer_coverage.py` (regression)
-
-> audit finding INT-026; layer: test-suite
-
-#### `REG-1341` — Dune execution polling is never served from cache
-
-**VERIFIED** · medium · regression · source: OPS-2026-10-25
-
-Status polling bypasses the HTTP cache so a pending response is not replayed until timeout.
-
-- **If violated:** A cached pending status made every poll time out while each attempt spent a daily execution.
-- **Owned by:** `src/intelligence/onchain/base.py`, `src/intelligence/onchain/dune_provider.py`
-- **Verification:**
-  - `tests/test_intelligence_audit_fixes.py` (regression)
-
-> audit finding INT-012; layer: test-suite
-
-#### `REG-1342` — Configured on-chain cache TTL reaches the HTTP cache
-
-**VERIFIED** · medium · regression · source: OPS-2026-10-25
-
-OnChainProvider builds its cache with the configured cache_ttl_s.
-
-- **If violated:** The cache captured the class default before the subclass assigned the configured TTL.
-- **Owned by:** `src/intelligence/onchain/base.py`
-- **Verification:**
-  - `tests/test_intelligence_audit_fixes.py` (regression)
-
-> audit finding INT-013; layer: test-suite
-
-#### `REG-1343` — MVRV stress contribution survives validation and is bounded
-
-**VERIFIED** · medium · regression · source: OPS-2026-10-25
-
-validate_provider_result carries the internal MVRV contribution to merge, and a missing or non-positive realized_cap yields zero.
-
-- **If violated:** The contribution was dropped by validation and would pin at its cap if realized_cap was missing.
-- **Owned by:** `src/intelligence/onchain/schema.py`, `src/intelligence/onchain/cryptoquant_provider.py`
-- **Verification:**
-  - `tests/test_intelligence_audit_fixes.py` (regression)
-
-> audit finding INT-014; layer: test-suite
-
-#### `REG-1347` — Glassnode history features are causal and match the live definitions
-
-**VERIFIED** · medium · regression · source: OPS-2026-10-25
-
-History z-scores use trailing windows only and the whale ratio uses the live recent-vs-prior definition on the sorted series.
-
-- **If violated:** Full-sample statistics leaked the future and the ratio definition and indexing differed from live.
-- **Owned by:** `src/intelligence/client.py`
-- **Verification:**
-  - `tests/test_intelligence_audit_fixes.py` (regression)
-
-> audit finding INT-018; layer: test-suite
-
-#### `REG-1348` — Intelligence fallbacks are missing values, not zeros
-
-**VERIFIED** · medium · regression · source: OPS-2026-10-25
-
-With no cache, failed netflow, whale and funding fetches return None, and the Glassnode throttle is locked and stamped before the request.
-
-- **If violated:** Failures returned fabricated zero or neutral readings and throttling stopped after errors.
-- **Owned by:** `src/intelligence/client.py`
-- **Verification:**
-  - `tests/test_intelligence_audit_fixes.py` (regression)
-
-> audit finding INT-019; layer: test-suite
-
-#### `REG-1349` — Positioning ratios are not mixed into whale_buy_sell_ratio
-
-**VERIFIED** · medium · regression · source: OPS-2026-10-25
-
-OKX and Coinglass no longer report long/short account ratios as taker flow, and OKX does not cache a fabricated neutral.
-
-- **If violated:** Positioning and taker-flow ratios were averaged into one gate input.
-- **Owned by:** `src/intelligence/providers/okx_provider.py`, `src/intelligence/onchain/coinglass_provider.py`
-- **Verification:**
-  - `tests/test_intelligence_audit_fixes.py` (regression)
-
-> audit finding INT-020; layer: test-suite
-
-#### `REG-1350` — Provider singletons refuse a different symbol
-
-**VERIFIED** · medium · regression · source: OPS-2026-10-25
-
-The exchange provider and aggregator singleton factories raise when asked for a symbol other than the one they were built for.
-
-- **If violated:** A second symbol silently received the first symbol's market data.
-- **Owned by:** `src/intelligence/providers/binance_provider.py`, `src/intelligence/providers/okx_provider.py`, `src/intelligence/providers/bybit_provider.py`, `src/intelligence/providers/aggregator.py`
-- **Verification:**
-  - `tests/test_intelligence_audit_fixes.py` (regression)
-
-> audit finding INT-021; layer: test-suite
-
-#### `REG-1351` — Rolling z-score histories grow once per cache window
-
-**VERIFIED** · medium · regression · source: OPS-2026-10-25
-
-Macro provider histories append once per cache TTL, not per call, and the Arkham z-score is bounded.
-
-- **If violated:** Cache hits were appended repeatedly, collapsing z-scores toward zero.
-- **Owned by:** `src/intelligence/providers/coingecko_provider.py`, `src/intelligence/providers/blockchain_provider.py`, `src/intelligence/onchain/arkham_provider.py`
-- **Verification:**
-  - `tests/test_intelligence_audit_fixes.py` (regression)
-
-> audit finding INT-022; layer: test-suite
-
-#### `REG-1346` — No default Bitcoin RPC credentials
-
-**VERIFIED** · medium · regression · source: OPS-2026-10-25
-
-Bitcoin RPC credentials come only from config or environment; without them on-chain RPC and ECC are disabled.
-
-- **If violated:** A hardcoded crypto/crypto default was used silently over plain HTTP.
-- **Owned by:** `src/intel.py`, `src/workers/orchestrator.py`
-- **Verification:**
-  - `tests/test_intelligence_audit_fixes.py` (regression)
-
-> audit finding INT-017; layer: test-suite
-
-Registry version: 1.0.0 — 412 entries.
+Registry version: 1.0.0 — 444 entries.

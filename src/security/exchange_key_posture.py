@@ -38,6 +38,8 @@ post_quantum posture (LAW12):
 from __future__ import annotations
 
 import json
+import os
+from collections.abc import Iterable
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
@@ -149,16 +151,22 @@ def assert_safe(posture: KeyPosture) -> None:
         raise PostureViolation(f"{posture.exchange}: posture has no attribution")
 
 
-def assert_all_safe(declarations: Any) -> None:
+def assert_all_safe(declarations: Any, required: Iterable[str] = ()) -> None:
     """
     Check every declared exchange, refusing an empty declaration set.
 
     Empty is refused on purpose: a deployment with keys and no declarations
     would otherwise pass this check trivially, which is the one outcome that
     must not be available.
+
+    ``required`` names venues that MUST be declared (SCR-004): one safe
+    declaration must not vouch for a venue whose key posture was never stated.
     """
     if not isinstance(declarations, dict) or not declarations:
         raise PostureViolation("no exchange key postures are declared")
+    for venue in required:
+        if venue not in declarations:
+            raise PostureViolation(f"no key posture declared for {venue}")
     checked = 0
     for exchange, raw in declarations.items():
         if str(exchange).startswith("_"):
@@ -183,6 +191,23 @@ def load_declarations(path: Path | None = None) -> dict[str, Any]:
     return raw
 
 
-def assert_declared_posture_is_safe(path: Path | None = None) -> None:
+def venues_with_credentials() -> tuple[str, ...]:
+    """Venues this process holds keys for: binance always, others when configured."""
+    from src.config import get_settings  # lazy: foundation layer, avoid import cost
+
+    venues = ["binance"]
+    if get_settings().okx.api_key:
+        venues.append("okx")
+    if os.environ.get("BYBIT_API_KEY", "").strip():
+        venues.append("bybit")
+    return tuple(venues)
+
+
+def assert_declared_posture_is_safe(
+    path: Path | None = None, required: Iterable[str] | None = None
+) -> None:
     """Startup check: load the declaration file and refuse an unsafe posture."""
-    assert_all_safe(load_declarations(path))
+    assert_all_safe(
+        load_declarations(path),
+        venues_with_credentials() if required is None else required,
+    )
