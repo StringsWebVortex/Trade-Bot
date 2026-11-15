@@ -530,12 +530,22 @@ class _StartupGuard:
         self.orch_task: asyncio.Task[Any] | None = None
         self.fetcher_task: asyncio.Task[Any] | None = None
         self.tuning_scheduler: Any | None = None
+        # Set immediately before the lifespan yields. From then on the normal
+        # shutdown path owns every resource; re-running _cleanup on an error
+        # raised during that shutdown would shut the orchestrator down, flush
+        # the runtime and close storage a second time, and bury the original
+        # error under secondary ones.
+        self.started = False
+
+    def mark_started(self) -> None:
+        """Hand resource ownership to the lifespan's normal shutdown path."""
+        self.started = True
 
     async def __aenter__(self) -> _StartupGuard:
         return self
 
     async def __aexit__(self, exc_type: Any, exc: Any, tb: Any) -> bool:
-        if exc_type is not None:
+        if exc_type is not None and not self.started:
             await self._cleanup()
         return False
 
@@ -782,6 +792,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         # running. The models still warm up behind it (GET /readyz).
         _state.ready = True
         log.info("api.startup_complete", trading_mode=cfg.trading_mode.value)
+        guard.mark_started()
         try:
             yield
         finally:
@@ -829,9 +840,17 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         if not fetcher_init_task.done():
             fetcher_init_task.cancel()
         await asyncio.gather(fetcher_init_task, return_exceptions=True)
-        await _state.orchestrator.shutdown()
-        await _job_reporter.aclose()
-        await _state.storage.close()
+        # The startup guard no longer releases anything once started, so a
+        # failing orchestrator shutdown must not leak the job reporter or the
+        # storage connection: release them regardless, then let the original
+        # error propagate.
+        try:
+            await _state.orchestrator.shutdown()
+        finally:
+            try:
+                await _job_reporter.aclose()
+            finally:
+                await _state.storage.close()
         log.info("api.shutdown_complete")
 
 

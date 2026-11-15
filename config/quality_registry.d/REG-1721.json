@@ -1,0 +1,17 @@
+{
+  "id": "REG-1721",
+  "kind": "regression",
+  "title": "Orchestrator shutdown waits for training work off the event loop, bounded",
+  "statement": "Orchestrator.shutdown() cancels queued training futures, waits for the in-flight job in a helper thread so the event loop keeps serving /livez and /readyz, and gives up after EXECUTOR_SHUTDOWN_TIMEOUT_S with a warning instead of hanging.",
+  "criticality": "high",
+  "subsystem": "resilience",
+  "status": "verified",
+  "source": "OPS-2026-11-15",
+  "failure_mode": "A blocking ThreadPoolExecutor.shutdown(wait=True) froze the event loop for the length of a model fit, stalling health probes and every remaining cleanup step.",
+  "verification": [
+    {
+      "test": "tests/test_audit_orchestrator_shutdown.py",
+      "test_type": "regression"
+    }
+  ]
+}

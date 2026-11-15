@@ -59,7 +59,7 @@ from src.execution.idempotency import (
     IdempotencyRegistry,
     derive_idempotency_key,
 )
-from src.execution.order_manager import OrderManager
+from src.execution.order_manager import OrderManager, UnverifiableFillError
 from src.execution.order_throttler import OrderThrottler
 from src.risk.gates import DrawdownTracker
 from src.risk.kelly import KellyResult
@@ -77,6 +77,18 @@ _ORDER_FSM_REGISTRY_MAX_SIZE: Final[int] = 200
 
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
+
+
+class UnreconciledFillError(ccxt.ExchangeError):
+    """An order the venue reports as filled whose fill details are unusable.
+
+    Raised by ``_place_market_order`` after it has already recorded a recovery
+    discrepancy (which blocks new entries). It subclasses ``ccxt.ExchangeError``
+    so every existing order call site handles it as a failed order instead of
+    letting it escape into the engine; the entry path catches it first because
+    it must NOT release the cash reserved for the order (see _place_and_record).
+    """
+
 
 _LIVE_FEE_FALLBACK: Final[float] = 0.001  # fallback if exchange fee missing
 
@@ -419,17 +431,7 @@ class LiveExecutor(AbstractExecutor):
         _submit_signal_with_approval (EXR-018).
         """
         self._require_initialized()
-        # v8: refuse new exposure while startup reconciliation is unresolved.
-        # Sizing assumes self._positions is the whole book; if the exchange
-        # disagrees, every gate downstream is reasoning about the wrong book.
-        # Exits are unaffected -- this blocks submit_signal only, so an
-        # operator can still flatten while the discrepancy is being resolved.
-        if self._recovery_discrepancies:
-            self._log.error(
-                "live.blocked_unreconciled_state",
-                symbol=symbol,
-                discrepancies=len(self._recovery_discrepancies),
-            )
+        if not self._entry_preconditions_ok(symbol, stage="submit"):
             return None, "rejected"
 
         # H-15: read runtime_config (live async-settable) not self._cfg.execution_mode
@@ -494,6 +496,37 @@ class LiveExecutor(AbstractExecutor):
             )
 
         raise RuntimeError(f"Unknown execution mode: {mode!r}")  # pragma: no cover
+
+    def _entry_preconditions_ok(self, symbol: str, *, stage: str) -> bool:
+        """Pre-trade conditions the executor itself owns, for a new entry.
+
+        Shared by submit_signal (before routing) and by the approval path
+        (after the operator wait), because state can change while an approval
+        is pending -- most importantly, an unverifiable fill on another order
+        can record a recovery discrepancy in the meantime.
+
+        The strategy kill switch, capital-preservation floor and drawdown
+        halts are enforced by the engine before submit_signal is called; the
+        executor holds no reference to them, so it re-checks only the state it
+        owns: initialization and unresolved recovery discrepancies.
+        """
+        if not self._initialized:
+            self._log.error("live.blocked_not_initialized", symbol=symbol, stage=stage)
+            return False
+        # v8: refuse new exposure while reconciliation is unresolved. Sizing
+        # assumes self._positions is the whole book; if the exchange disagrees,
+        # every gate downstream is reasoning about the wrong book. Exits are
+        # unaffected -- this blocks entries only, so an operator can still
+        # flatten while the discrepancy is being resolved.
+        if self._recovery_discrepancies:
+            self._log.error(
+                "live.blocked_unreconciled_state",
+                symbol=symbol,
+                stage=stage,
+                discrepancies=len(self._recovery_discrepancies),
+            )
+            return False
+        return True
 
     async def _submit_signal_auto(
         self,
@@ -1072,6 +1105,24 @@ class LiveExecutor(AbstractExecutor):
                     purpose="entry",
                     strategy_id=strategy_id,
                 )
+            except UnreconciledFillError as exc:
+                # Deliberately KEEP the cash reservation. The venue reported
+                # this order filled, so the reserved notional most likely was
+                # spent; releasing it would let the next signal size against
+                # cash that may not exist and understate exposure. Holding it
+                # can only make the executor more conservative, and the
+                # recovery discrepancy already recorded blocks new entries
+                # until an operator reconciles the book (balances are re-read
+                # on the next initialize()).
+                self._log.error(
+                    "live.entry_fill_unreconciled",
+                    symbol=symbol,
+                    side=side,
+                    reserved_cash_held=round(notional_estimate + fee_estimate, 2),
+                    error=str(exc),
+                    action="MANUAL_RECONCILIATION_REQUIRED",
+                )
+                return None
             except (ccxt.NetworkError, ccxt.ExchangeError) as exc:
                 if isinstance(exc, ccxt.NetworkError):
                     # A placement request may have reached the venue despite
@@ -1430,6 +1481,42 @@ class LiveExecutor(AbstractExecutor):
             raise ccxt.ExchangeError(
                 f"Order for {symbol} did not confirm as filled within timeout — "
                 f"check exchange manually. See logs for order_id."
+            ) from exc
+        except UnverifiableFillError as exc:
+            # The venue says the order filled but the fill cannot be
+            # substantiated: real exposure may exist that the local book does
+            # not know about. Fail closed -- record a recovery discrepancy so
+            # submit_signal refuses new entries until an operator reconciles
+            # and calls acknowledge_recovery(). The requested quantity is the
+            # upper bound of what may have filled, signed by side.
+            signed_qty = quantity if side == "buy" else -quantity
+            self._recovery_discrepancies.append(
+                Discrepancy(
+                    symbol=symbol,
+                    discrepancy_type=(
+                        DiscrepancyType.QUANTITY_MISMATCH
+                        if is_exit
+                        else DiscrepancyType.MISSING_LOCALLY
+                    ),
+                    local_quantity=0.0,
+                    reference_quantity=signed_qty,
+                )
+            )
+            self._log.error(
+                "live.unverifiable_fill",
+                symbol=symbol,
+                side=side,
+                quantity=quantity,
+                purpose=purpose,
+                order_id=exc.order_id,
+                problems=exc.problems,
+                idempotency_key=idempotency_key,
+                action="MANUAL_RECONCILIATION_REQUIRED",
+                entries_blocked=True,
+            )
+            raise UnreconciledFillError(
+                f"Order {exc.order_id} for {symbol} reported filled without usable fill "
+                "details -- MANUAL_RECONCILIATION_REQUIRED; new entries are blocked."
             ) from exc
         except ccxt.ExchangeError:
             # Already logged by OrderManager

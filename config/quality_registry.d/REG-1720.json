@@ -1,0 +1,17 @@
+{
+  "id": "REG-1720",
+  "kind": "regression",
+  "title": "Unverifiable fill fails closed and blocks new entries",
+  "statement": "When the venue reports an order filled but the fill details cannot be substantiated, the live executor records a recovery discrepancy, keeps the cash reservation, returns a rejected outcome, and refuses every later entry until an operator reconciles; an unrelated ValueError still propagates.",
+  "criticality": "critical",
+  "subsystem": "execution",
+  "status": "verified",
+  "source": "OPS-2026-11-15",
+  "failure_mode": "A bare ValueError escaped submit_signal and real exposure went untracked while the next signal sized against cash that may already have been spent.",
+  "verification": [
+    {
+      "test": "tests/execution/test_audit_live_safety.py",
+      "test_type": "regression"
+    }
+  ]
+}
