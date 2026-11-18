@@ -1,8 +1,17 @@
-#!/usr/bin/env python3
-"""Canonical, report-only PR CI diagnostic retrieval command."""
-from __future__ import annotations
-import sys
-from ci_diagnostics import main_prfail
-if __name__ == "__main__":
-    raise SystemExit(main_prfail(sys.argv[1:]))
+#!/usr/bin/env bash
+# usage: prfail [PR#]   (no PR# = current branch's PR)
+# Uses only `gh pr checks` + `gh run view`, no `gh api`.
 
+gh pr checks ${1:+"$1"} --json name,bucket,link \
+  --jq '.[] | select(.bucket=="fail") | [.name,.link] | @tsv' |
+while IFS=$'\t' read -r name link; do
+  echo "== $name"
+  if [[ $link =~ /runs/([0-9]+)/job/([0-9]+) ]]; then
+    gh run view "${BASH_REMATCH[1]}" --job "${BASH_REMATCH[2]}" --log-failed 2>/dev/null |
+      sed -E 's/\x1b\[[0-9;]*m//g; s/^[^\t]*\t[^\t]*\t//; s/^[0-9T:.Z-]+ //' |
+      grep -iE "error|failed|Traceback|^E " |
+      awk '!seen[$0]++' | head -30
+  else
+    echo "  non-Actions check: $link"
+  fi
+done
