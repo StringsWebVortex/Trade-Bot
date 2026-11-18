@@ -172,6 +172,13 @@ def _metrics_payload(result: Any, executor: Any) -> dict[str, float | int]:
 #: cold box still completes; see docs/quality/REQUIREMENTS_TRACEABILITY.md.
 ENSEMBLE_TRAIN_TIMEOUT_S: float = 600.0
 
+#: Upper bound on how long shutdown() waits (off the event loop) for an
+#: in-flight training job to finish. src/config.py has no shutdown timeout
+#: setting. Within systemd's default 90s stop timeout so the remaining
+#: cleanup still runs; on timeout the worker thread is abandoned with a
+#: warning. Deployments with a shorter grace period should lower it.
+EXECUTOR_SHUTDOWN_TIMEOUT_S: float = 30.0
+
 # Worker counts of the orchestrator's two thread pools; reported to the
 # runtime platform as they are configured here.
 TRAIN_WORKERS = 1
@@ -1208,17 +1215,45 @@ class Orchestrator:
             await executor.shutdown()
         await get_monitor().stop()  # Patch B: clean monitor shutdown
         self._persist_online_trainers()
-        # Shut down training thread pool cleanly — wait for the in-flight training
-        # job, and drop the queued ones: a warm-up stopped part-way has queued
-        # fits nobody is waiting for any more.
-        self._train_executor.shutdown(wait=True, cancel_futures=True)
+        # Shut down training thread pool cleanly — drop the queued jobs (a
+        # warm-up stopped part-way has queued fits nobody is waiting for any
+        # more) and wait, bounded and OFF the event loop, for the in-flight one.
+        # A blocking wait=True here froze /livez, /readyz and every remaining
+        # cleanup step for as long as a model fit ran (minutes).
+        await self._shutdown_pool_off_loop(self._train_executor, "train", wait=True)
         # REG-0015: never wait on a poisoned ensemble pool. Its worker is by
         # definition a thread that did not return inside the timeout, so
-        # wait=True would trade a hung startup for a hung shutdown.
-        self._ensemble_executor.shutdown(
-            wait=not self._ensemble_executor_poisoned, cancel_futures=True
+        # waiting would trade a hung startup for a hung shutdown. A healthy
+        # pool is waited on with the same bounded, off-loop wait.
+        await self._shutdown_pool_off_loop(
+            self._ensemble_executor, "ensemble", wait=not self._ensemble_executor_poisoned
         )
         self._log.info("orchestrator.shutdown_complete")
+
+    async def _shutdown_pool_off_loop(
+        self, pool: ThreadPoolExecutor, name: str, *, wait: bool
+    ) -> None:
+        """Cancel queued work, then wait for running work without blocking the loop.
+
+        Queued futures are cancelled synchronously (``wait=False`` returns at
+        once). The wait for in-flight jobs runs in a helper thread and is
+        bounded by EXECUTOR_SHUTDOWN_TIMEOUT_S; on timeout we log and carry on
+        -- the worker thread is left to finish on its own.
+        """
+        pool.shutdown(wait=False, cancel_futures=True)
+        if not wait:
+            return
+        try:
+            await asyncio.wait_for(
+                asyncio.to_thread(pool.shutdown, wait=True),
+                timeout=EXECUTOR_SHUTDOWN_TIMEOUT_S,
+            )
+        except TimeoutError:
+            self._log.warning(
+                "orchestrator.executor_shutdown_timeout",
+                executor=name,
+                timeout_s=EXECUTOR_SHUTDOWN_TIMEOUT_S,
+            )
 
     def _persist_online_trainers(self) -> None:
         """

@@ -37,6 +37,25 @@ from src.execution.order_fsm import OrderFSM, OrderFSMError, OrderFSMState, Orde
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
+
+class UnverifiableFillError(ValueError):
+    """The venue reported an order as filled but its fill details are unusable.
+
+    The order may have created real exposure, yet neither the fill price nor
+    the quantity can be trusted, so the fill must not be booked. Callers must
+    treat this as a manual-reconciliation state, never as "nothing happened".
+    Subclasses ValueError so existing callers that already expect ValueError
+    keep working, while live code can catch this case precisely without
+    swallowing unrelated ValueErrors.
+    """
+
+    def __init__(self, message: str, *, order_id: str, symbol: str, problems: list[str]) -> None:
+        super().__init__(message)
+        self.order_id = order_id
+        self.symbol = symbol
+        self.problems = problems
+
+
 _ORDER_CONFIRM_POLLS: Final[int] = 10
 _ORDER_CONFIRM_INTERVAL: Final[float] = 0.5
 # EXR-015: venues often answer OrderNotFound for an order placed moments ago.
@@ -450,10 +469,13 @@ class OrderManager:
                                 "exchange_response": confirmed,
                             },
                         )
-                        raise ValueError(
+                        raise UnverifiableFillError(
                             f"Order {order_id} reported {update.raw_status!r} but the "
                             f"exchange response {update.reason} -- cannot safely "
-                            "record the fill."
+                            "record the fill.",
+                            order_id=str(order_id),
+                            symbol=symbol,
+                            problems=list(update.problems),
                         )
 
                     # INV-003: an unrecognised status keeps polling. It never

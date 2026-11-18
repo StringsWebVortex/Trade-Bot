@@ -116,6 +116,7 @@ class TestGatedEndpointsDeclareTheDependency:
 
     _MUTATING = {
         "/approvals/{request_id}/resolve",
+        "/controls/{name}",
         "/execution-mode",
         "/risk-controls",
         "/self-tuning/pause",
