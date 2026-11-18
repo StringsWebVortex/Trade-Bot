@@ -38,23 +38,18 @@ SKIP_DIRS = {
 GENERATED_SUFFIXES = (".min.js", ".bundle.js", "_pb2.py", "_pb2_grpc.py", ".d.ts")
 PY = {".py"}
 JS = {".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs"}
+# ESLint 10 supports flat config only.
 ESLINT_CONFIGS = (
     "eslint.config.js",
     "eslint.config.mjs",
     "eslint.config.cjs",
     "eslint.config.ts",
-    ".eslintrc",
-    ".eslintrc.js",
-    ".eslintrc.cjs",
-    ".eslintrc.json",
-    ".eslintrc.yml",
-    ".eslintrc.yaml",
 )
 MYPY_MARKERS = ("mypy.ini", ".mypy.ini")
 PYRIGHT_MARKERS = ("pyrightconfig.json",)
 
 
-def run(cmd: list[str], cwd: Path) -> tuple[int, str]:
+def run(cmd: list[str], cwd: Path, merge: bool = True) -> tuple[int, str]:
     env = {**os.environ, "NO_COLOR": "1"}
     proc = subprocess.run(
         cmd,
@@ -66,7 +61,17 @@ def run(cmd: list[str], cwd: Path) -> tuple[int, str]:
         stdin=subprocess.DEVNULL,
         check=False,
     )
-    return proc.returncode, (proc.stdout + proc.stderr).strip()
+    out = proc.stdout + proc.stderr if merge else proc.stdout
+    return proc.returncode, out.strip()
+
+
+def log(root: Path, msg: str) -> None:
+    """Best-effort note for unexpected tool exit codes (file is gitignored)."""
+    try:
+        with open(root / ".claude" / "hook.log", "a", encoding="utf-8") as fh:
+            fh.write(msg + "\n")
+    except OSError:
+        pass
 
 
 def find_up(start: Path, stop: Path, names: tuple[str, ...]) -> Path | None:
@@ -103,18 +108,24 @@ def check_python(path: Path, root: Path) -> list[str]:
         )
         if rc == 1 and out:
             errors += [ln for ln in out.splitlines() if ":" in ln and not ln.startswith("Found")]
+        elif rc not in (0, 1):
+            log(root, f"ruff rc={rc} for {path}")
     if pyproject_has(root, "mypy") or any((root / m).is_file() for m in MYPY_MARKERS):
         mypy = tool("mypy", root)
         if mypy:
             rc, out = run([mypy, "--follow-imports=silent", "--no-error-summary", str(path)], root)
             if rc == 1:
                 errors += [ln for ln in out.splitlines() if ": error:" in ln]
+            elif rc != 0:
+                log(root, f"mypy rc={rc} for {path}")
     elif pyproject_has(root, "pyright") or any((root / m).is_file() for m in PYRIGHT_MARKERS):
         pyright = tool("pyright", root)
         if pyright:
             rc, out = run([pyright, str(path)], root)
             if rc == 1:
                 errors += [ln.strip() for ln in out.splitlines() if " - error" in ln]
+            elif rc != 0:
+                log(root, f"pyright rc={rc} for {path}")
     return errors
 
 
@@ -124,9 +135,26 @@ def check_js(path: Path, root: Path) -> list[str]:
     if cfg_dir:
         eslint = tool("eslint", root, cfg_dir)
         if eslint:
-            rc, out = run([eslint, "--format", "unix", "--no-warn-ignored", str(path)], cfg_dir)
+            rc, out = run(
+                [eslint, "--format", "json", "--no-warn-ignored", str(path)],
+                cfg_dir,
+                merge=False,
+            )
             if rc == 1:
-                errors += [ln for ln in out.splitlines() if ln.count(":") >= 3]
+                try:
+                    results = json.loads(out)
+                except ValueError:
+                    results = []
+                for f in results:
+                    shown_path = os.path.relpath(f.get("filePath") or str(path), root)
+                    for m in f.get("messages", []):
+                        if m.get("severity") == 2:
+                            errors.append(
+                                f"{shown_path}:{m.get('line')}:{m.get('column')}: "
+                                f"{m.get('message')} ({m.get('ruleId')})"
+                            )
+            elif rc != 0:
+                log(root, f"eslint rc={rc} for {path}")
     elif path.suffix in {".js", ".mjs", ".cjs"}:
         # No ESLint config in the project: a config-free syntax check only.
         node = shutil.which("node")
@@ -134,8 +162,8 @@ def check_js(path: Path, root: Path) -> list[str]:
             rc, out = run([node, "--check", str(path)], path.parent)
             if rc != 0:
                 errors += out.splitlines()[:6]
-    # tsc: only per-file when a tsconfig exists would need the whole project; skipped
-    # deliberately to keep the hook fast. Run `npx tsc --noEmit` once per batch instead.
+    # tsc is skipped on purpose: it needs the whole project and is slow.
+    # Run `npx tsc --noEmit` once per batch instead.
     return errors
 
 
