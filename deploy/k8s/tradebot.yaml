@@ -1,0 +1,76 @@
+# Local dev manifests for the kind cluster. Applied by the Tiltfile.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: tradebot
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tradebot-api
+  namespace: tradebot
+  labels: {app: tradebot-api}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: tradebot-api}
+  template:
+    metadata:
+      labels: {app: tradebot-api}
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+      containers:
+        - name: api
+          image: tradebot-api
+          ports:
+            - containerPort: 8000
+          env:
+            - name: API_SECRET_KEY
+              valueFrom: {secretKeyRef: {name: tradebot-secrets, key: API_SECRET_KEY}}
+            - name: OPERATOR_SECRET
+              valueFrom: {secretKeyRef: {name: tradebot-secrets, key: OPERATOR_SECRET}}
+          readinessProbe:
+            tcpSocket: {port: 8000}
+            periodSeconds: 5
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: ["ALL"]}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tradebot-api
+  namespace: tradebot
+spec:
+  selector: {app: tradebot-api}
+  ports:
+    - port: 8000
+      targetPort: 8000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tradebot-worker
+  namespace: tradebot
+  labels: {app: tradebot-worker}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: tradebot-worker}
+  template:
+    metadata:
+      labels: {app: tradebot-worker}
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+      containers:
+        - name: worker
+          image: tradebot-worker
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: ["ALL"]}
