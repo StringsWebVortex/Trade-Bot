@@ -72,7 +72,7 @@ def taken_ids(registry: dict, local_only: bool = False) -> dict[str, str]:
                 for entry in doc.get("entries", []):
                     eid = entry["id"]
                     if eid not in taken:
-                        taken[eid] = f"refs/{ref}"
+                        taken[eid] = ref
             except Exception:
                 continue
     except refs.GitUnavailable:
