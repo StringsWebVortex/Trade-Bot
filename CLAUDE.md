@@ -41,3 +41,10 @@ Report: `file:line | severity (high/med/low) | issue | one-line fix`. Do not edi
 ## Agents (see .claude/agents/)
 - explorer (read-only map/summary), auditor (read-only review), fixer (applies approved fixes),
   async-security-reviewer (auth, DB, background tasks, API boundary).
+
+## Tests & failures (keep raw output out of context)
+- NEVER run `pytest`, `npm test`, `npm run build` or `eslint` directly. Run `bash scripts/check.sh [backend|frontend|all] [test path]`; it prints a short summary and stores full logs in `audit/*.log`.
+- After a batch of edits, delegate verification to the `test-runner` subagent; it returns a short verdict.
+- On failure, delegate to the `debugger` subagent with the failure summary. Max 3 attempts per failure, then stop and report.
+- Never delete/skip/weaken tests or add lint-disable comments to get green without asking.
+- Read a log file only by line range (offset/limit), never whole.
