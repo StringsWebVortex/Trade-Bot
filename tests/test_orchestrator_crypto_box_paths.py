@@ -11,7 +11,7 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from test_orchestrator_coverage import _make_executor, _make_orch, _make_storage
+from tests.test_orchestrator_coverage import _make_executor, _make_orch, _make_storage
 
 from src.config import Timeframe
 from src.engine.signal_engine import SignalResult

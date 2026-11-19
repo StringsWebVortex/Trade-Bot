@@ -40,7 +40,9 @@ step() {
 if [ "$TARGET" = "backend" ] || [ "$TARGET" = "all" ]; then
   have ruff   && step "ruff"   ruff_check   "$BACKEND" ruff check . --output-format=concise
   if have mypy; then step "mypy" mypy_check "$BACKEND" mypy . --ignore-missing-imports --no-error-summary; fi
-  if have pytest; then
+  if have uv; then
+    step "pytest" pytest_run "$BACKEND" env PYTHONASYNCIODEBUG=1 uv run --frozen pytest -q --tb=short -x -rf -W default::RuntimeWarning "${EXTRA[@]+"${EXTRA[@]}"}"
+  elif have pytest; then
     step "pytest" pytest_run "$BACKEND" env PYTHONASYNCIODEBUG=1 pytest -q --tb=short -x -rf -W default::RuntimeWarning "${EXTRA[@]+"${EXTRA[@]}"}"
   else echo "SKIP  pytest not installed"; fi
 fi

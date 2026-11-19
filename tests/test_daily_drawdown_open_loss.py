@@ -12,7 +12,7 @@ import math
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from test_orchestrator_extra_coverage import _make_executor, _make_orch, _make_skip_result
+from tests.test_orchestrator_extra_coverage import _make_executor, _make_orch, _make_skip_result
 
 from src.config import RiskSettings, Timeframe
 from src.risk.gates import GateStatus, check_daily_drawdown, stricter_daily_pnl

@@ -14,7 +14,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pandas as pd
 import pytest
-from test_orchestrator_coverage import _make_orch, _make_storage, _orch_patches
+from tests.test_orchestrator_coverage import _make_orch, _make_storage, _orch_patches
 
 from src.config import Timeframe
 from src.engine.orchestrator import _blend_audit

@@ -14,7 +14,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import ccxt
 import pytest
-from test_live_executor_coverage import _make_executor, _make_position
+from tests.test_live_executor_coverage import _make_executor, _make_position
 
 from src.execution.idempotency import DuplicateOrderError, IdempotencyRecord
 from src.execution.paper import PaperPosition

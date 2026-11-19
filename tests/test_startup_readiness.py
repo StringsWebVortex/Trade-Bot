@@ -36,7 +36,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
-from test_orchestrator_coverage import _make_orch, _make_storage, _orch_patches
+from tests.test_orchestrator_coverage import _make_orch, _make_storage, _orch_patches
 
 from src.api.readiness import readiness_report
 from src.config import Timeframe

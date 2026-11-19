@@ -15,7 +15,7 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pandas as pd
 import pytest
-from test_signal_engine import (
+from tests.test_signal_engine import (
     _TICK,
     _fm,
     _make_bars,
