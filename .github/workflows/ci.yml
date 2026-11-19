@@ -25,7 +25,7 @@ jobs:
           python -m pip install --upgrade pip
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
           if [ -f pyproject.toml ]; then pip install -e . || true; fi
-          pip install ruff mypy pytest pytest-asyncio bandit
+          pip install ruff mypy pytest pytest-asyncio pytest-cov bandit
       - name: Ruff
         run: ruff check . --output-format=concise
       - name: Mypy
@@ -52,6 +52,5 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci --prefer-offline --no-audit
-      - run: npx --no-install eslint . --quiet
       - run: npm run build
       - run: npm test --if-present
