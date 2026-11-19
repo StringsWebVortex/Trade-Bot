@@ -90,9 +90,7 @@ def next_id(taken: dict[str, str], prefix: str) -> str:
             if tail.isdigit():
                 existing_nums.add(int(tail))
 
-    n = 1
-    while n in existing_nums:
-        n += 1
+    n = (max(existing_nums) + 1) if existing_nums else 1
     width = max(4, len(str(n)))
     return f"{prefix}{n:0{width}d}"
 
