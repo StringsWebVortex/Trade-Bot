@@ -41,6 +41,25 @@ Report: `file:line | severity (high/med/low) | issue | one-line fix`. Do not edi
 ## Agents (see .claude/agents/)
 - explorer (read-only map/summary), auditor (read-only review), fixer (applies approved fixes),
   async-security-reviewer (auth, DB, background tasks, API boundary).
+- test-runner (runs scripts/check.sh, returns ≤15-line verdict, never edits).
+- debugger (fixes failures with max-3-attempt loop, minimal edits).
+
+## Environment & known state (updated 2026-11-19)
+- Python requirement: `>=3.11,<3.12`. Use `uv run` for all backend commands; direct `python` is 3.13 in CI containers and will fail.
+- `pytest-cov` must be installed for pytest to run (pyproject.toml addopts inject `--cov`). CI installs it; local: `pip install pytest-cov`.
+- `audit/` is gitignored; `scripts/audit.sh` writes there, safe to run any time.
+- Frontend `node_modules` not present in cloud containers — frontend check/eslint will SKIP; run `npm ci` in `frontend/` first if needed.
+
+## Pre-existing failures on main (do not fix without a dedicated task)
+- mypy: "Duplicate module named 'agent_control'" — `tests/agent_control/__init__.py` vs `scripts/agent_control.py`. Pre-existing.
+- pytest collection: tests referencing `.claude/hooks/pre_tool_use.py` and `_gh_contract.py` fail to import. Files don't exist on main. Pre-existing.
+- frontend npm test: `Workspace.grid.test.jsx` assertion failures. Pre-existing on main.
+- CI gates: pyre, Pyre gate, Security/SUP gates, CodeQL gate all fail on main. Pre-existing.
+
+## PostToolUse hook
+- Wired in `.claude/settings.json` → `.claude/hooks/post_edit_check.sh`.
+- Lints only the edited file (ruff for .py, eslint for .js/.jsx/.ts/.tsx). Silent when clean, exits 2 on failure so Claude sees lint errors immediately.
+- Gracefully exits 0 when file_path is empty or file doesn't exist.
 
 ## Tests & failures (keep raw output out of context)
 - NEVER run `pytest`, `npm test`, `npm run build` or `eslint` directly. Run `bash scripts/check.sh [backend|frontend|all] [test path]`; it prints a short summary and stores full logs in `audit/*.log`.
