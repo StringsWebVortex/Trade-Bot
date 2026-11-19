@@ -13,10 +13,9 @@ from __future__ import annotations
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from tests.test_tuning_scheduler import _FakeStorage
-
 from src.config import get_settings
 from src.tuning.scheduler import AutoTuningScheduler
+from tests.test_tuning_scheduler import _FakeStorage
 
 # ---------------------------------------------------------------------------
 # Tuning scheduler

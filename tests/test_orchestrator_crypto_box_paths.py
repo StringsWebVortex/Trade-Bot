@@ -11,12 +11,12 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from tests.test_orchestrator_coverage import _make_executor, _make_orch, _make_storage
 
 from src.config import Timeframe
 from src.engine.signal_engine import SignalResult
 from src.engines.signal_gate import TradeSignal
 from src.risk.kelly import KellyResult
+from tests.test_orchestrator_coverage import _make_executor, _make_orch, _make_storage
 
 
 def _kelly(adjusted: float = 0.04) -> KellyResult:
