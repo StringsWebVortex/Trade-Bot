@@ -53,4 +53,5 @@ frontend/release/
 /docs/quality/REQUIREMENTS_TRACEABILITY.md
 .mutmut-cache
 .test_durations
-audit/
+audit/*
+!audit/codebase_index.md
