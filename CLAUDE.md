@@ -1,31 +1,43 @@
-# Trade-Bot
+# Project guide for Claude
 
-Python 3.11 trading backend (`src/`, FastAPI in `src/api/`) + React/Vite dashboard (`frontend/`).
+Stack: async Python (FastAPI) backend + React (Vite) JavaScript frontend. Large codebase.
 
-## Tests
-- Python: `pytest -q` (full suite; addopts enforce `--cov-fail-under=99`). For a subset:
-  `pytest -q --no-cov tests/path/test_x.py`. Lint: `ruff check .` and `ruff format --check .`
-- JS: `npm --prefix frontend test` (vitest; run `npm --prefix frontend ci` first if `node_modules` is missing).
-- New tests: no real sleeps, network, real DB, or files outside `tmp_path`; prefer `parametrize`.
+## Layout
+- Backend: `./`
+- Frontend: `frontend/`
+- API boundary: FastAPI routers/schemas  <->  the React API client. Most cross-language bugs live here; check both sides together.
 
-## Python <-> JS boundary
-- Backend HTTP/WebSocket API: `src/api/main.py` (auth in `auth.py`, `access_control.py`, `ws_guard.py`).
-- Dashboard client: `frontend/src/hooks/useApi.js` (base URL `VITE_API_URL`, keys `VITE_API_KEY*`).
-- Change both sides plus their tests together when an endpoint or payload shape changes.
+## How to run
+- Backend dev:   `uv run uvicorn src.api.main:app --reload`
+- Backend tests: `uv run pytest -q --tb=short -x`
+- Backend lint:  `ruff check .`  |  types: `mypy .` (or `pyright`)
+- Frontend dev:  `npm run dev`   (inside `frontend/`)
+- Frontend lint/build: `npx eslint . --quiet` | `npm run build`
+- Full free audit: `bash scripts/audit.sh`  (writes `audit/*.txt`)
 
-## Conventions
-- Architecture layering in `config/architecture_layers.json`: a package imports only its own or lower
-  layers (foundation < crypto < io < analytics < decision < orchestration < edge/api).
-- `src/engines/` engine order is positional (E-01..E-18); never reorder without updating the seam test.
-- Trading, risk and execution paths fail closed; never degrade silently.
-- `config/math_registry.json` and `config/quality_registry.json` + `config/quality_registry.d/` are the
-  sources of truth; a new quality entry is its own file `config/quality_registry.d/<ID>.json`.
-- Never weaken, skip or quarantine a test or CI gate to get green. Never use `--no-verify`.
-- Do not reset, stash, overwrite or delete the user's uncommitted work.
+## Working rules (token-efficient)
+- Trust a successful Edit/Write result. Do NOT re-read a file after editing it.
+- Find code with Grep/Glob first, then Read only the needed line range, not whole files.
+- Review the diff (`git diff main...HEAD`), not the whole repo. One module per session.
+- Run tests/lint/types ONCE at the end of an edit batch, not after every small change.
+- Keep tool output small: use `-q`, `--tb=short`, `--quiet`, `git diff --stat` first.
+- Do not rewrite or refactor beyond the task. Refactors go in separate commits.
+- One logical change per commit.
 
-## Working rules
-- Trust successful Edit/Write results; do not re-read a file after editing it.
-- Verify with the post-edit hook output, then `git diff --stat`, then run tests once per batch.
-- Read line ranges or use `rg`, not whole files, when only a part is needed.
-- Review tasks: review the diff only; report `file:line`, severity, one-line fix; do not rewrite code
-  unless asked.
+## Async rules (backend)
+- No blocking calls inside `async def` (requests, time.sleep, sync DB drivers, heavy CPU). Use httpx.AsyncClient, asyncio.to_thread, async drivers.
+- Every coroutine must be awaited. Keep a reference to tasks from `asyncio.create_task`.
+- Always close DB sessions/connections on error paths; set timeouts on outbound calls.
+- Background tasks must handle exceptions and cancellation.
+
+## Frontend rules
+- `useEffect` needs cleanup / AbortController for fetches; guard against stale responses.
+- Every request path needs loading + error states.
+- API response shapes must match the FastAPI schemas.
+
+## Review output format
+Report: `file:line | severity (high/med/low) | issue | one-line fix`. Do not edit unless asked.
+
+## Agents (see .claude/agents/)
+- explorer (read-only map/summary), auditor (read-only review), fixer (applies approved fixes),
+  async-security-reviewer (auth, DB, background tasks, API boundary).
