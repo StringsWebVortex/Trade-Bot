@@ -10,6 +10,8 @@ don't Work identically in:
 
 Companion runtime: common/shell_exec.py
 Skill:            .claude/skills/command-execution/SKILL.md
+
+Registry: GOV-019, SECR-001 (config/quality_registry.json).
 """
 
 from __future__ import annotations
@@ -69,6 +71,111 @@ MUTATING_PATTERNS: tuple[str, ...] = (
     r"\bkubectl\s+(apply|create|patch|scale)\b",
 )
 
+# CI observability: the only authorized diagnostic route is the exact
+# ./scripts/prfail --pr <PR_NUMBER> command. It reads a completed, SHA-bound
+# filtered Check Run report. Direct Actions run/job/log/annotation/artifact
+# retrieval and the old PR-comment notice path are not alternate routes.
+# Dispatching/rerunning workflows merely to retrieve their output is blocked.
+CI_LOG_PATTERNS: tuple[str, ...] = (
+    # Only the exact report-only CLI is permitted. These patterns deny its
+    # legacy alternatives plus direct Actions/check-run APIs and log utilities.
+    r"\bgh\s+run\s+(view|list|download|watch|rerun|cancel|delete)\b",
+    r"\bgh\s+workflow\s+(run|view|list)\b",
+    r"\bgh\s+pr\s+checks\b",
+    r"\bgh\s+cache\s+(list|delete)\b",
+    r"\bgh\s+api\b[^|]*/actions/",
+    r"\bgh\s+api\b[^|]*/check-runs?\b",
+    r"\bgh\s+api\b[^|]*/check-suites?\b",
+    r"\bgh\s+api\b[^|]*/commits/[^/\s]+/(status|check-runs)\b",
+    r"\bgh\s+api\b[^|]*/statuses/",
+    r"\bgh\s+(pr|run)\b[^|]*--json\b[^|]*\b(statusCheckRollup|checkRuns|jobs|workflowRuns)\b",
+    r"\b(?:curl|wget)\b[^|]*(?:api\.github\.com|github\.com/)[^|]*(?:actions|check-runs|check-suites|annotations|statuses|workflow_runs)\b",
+    r"\b(?:https?|xh)\b[^|]*(?:api\.github\.com|github\.com/)[^|]*(?:actions|check-runs?|check-suites?|annotations|statuses|workflow_runs|artifacts|jobs)\b",
+    r"\bact\b\s+-",
+    r"\bgh\s+pr\s+view\b[^|]*(?:--comments\b|--json\b[^|]*\bcomments\b)",
+    r"\bgh\s+issue\s+view\b[^|]*(?:--comments\b|--json\b[^|]*\bcomments\b)",
+    r"\bgh\s+api\b[^|]*/(?:issues/(?:comments|\d+/comments)|pulls/\d+/comments)\b",
+    r"\b(?:curl|wget)\b[^|]*/(?:issues/\d+/comments|pulls/\d+/comments)\b",
+    r"\bgh\s+api\b[^|]*\bgraphql\b",
+    r"\b(?:curl|wget)\b[^|]*/graphql\b",
+    r"\bpython(?:3)?(?:\.\d+)?\s+-c\b.*(?:api\.github\.com|github\.com/|graphql)\b",
+    r"\bnode\s+-e\b.*(?:api\.github\.com|github\.com/|graphql)\b",
+    r"\bpython(?:3)?(?:\.\d+)?\s+scripts/(?:local_checks|ci_verdict|ci_diagnostics)\.py\b",
+    r"\b(?:\./)?scripts/prfail\b",
+    r"(?:^|[;&|]\s*)\./scripts/ci_diagnostics\.py\b",
+    r"\bpython(?:3)?(?:\.\d+)?\s+-m\s+scripts\.ci_diagnostics\b",
+    r"\bpython(?:3)?(?:\.\d+)?\s+-c\b[\s\S]*(?:\bscripts[./](?:ci_diagnostics|ci_verdict|local_checks|prfail)\b|\bfrom\s+scripts\s+import\b[\s\S]*\b(?:ci_diagnostics|ci_verdict|local_checks)\b)",
+    r"\bpython(?:3)?(?:\.\d+)?\s+-\s*<<[\s\S]*(?:\bscripts[./](?:ci_diagnostics|ci_verdict|local_checks|prfail)\b|\bfrom\s+scripts\s+import\b[\s\S]*\b(?:ci_diagnostics|ci_verdict|local_checks)\b)",
+    r"\b(?:python(?:3)?(?:\.\d+)?|node|ruby|perl|php|go)\b[^|]*(?:urllib|requests|httpx|fetch\(|axios|Net::HTTP|curl_easy|github\.com|api\.github\.com)[^|]*(?:actions|check-runs?|check-suites?|annotations|statuses|workflow_runs|artifacts|jobs)",
+)
+
+
+# Forms the comment allowlist must NOT be able to excuse. These live on the
+# same subcommands as the sanctioned comment reads -- `gh pr view --json
+# statusCheckRollup` is one flag away from `gh pr view --json comments` -- so a
+# plain allowlist would wave them through. They are check results, which is CI
+# data whatever verb fetched it.
+CI_HARD_DENY_PATTERNS: tuple[str, ...] = (
+    r"\bgh\s+(pr|run|repo)\b[^|]*--json\b[^|]*\b("
+    r"statusCheckRollup|checkRuns|checkSuites|jobs|workflowRuns"
+    r")\b",
+    r"\bgh\s+pr\s+checks\b",
+)
+
+# Compatibility name retained for callers; only the filtered prfail report is allowed.
+# Direct PR-comment reads and local check execution remain blocked.
+CI_COMMENT_ALLOW_PATTERNS: tuple[str, ...] = (r"^\s*\./scripts/prfail\s+--pr\s+[1-9][0-9]*\s*$",)
+
+
+LOCAL_CHECK_PATTERNS: tuple[str, ...] = (
+    r"(?:^|[;&|]\s*)(?:uv\s+run\s+)?(?:[^\s;&|]+/)?pytest(?:\s|$)",
+    "\\bpython(?:3)?(?:\\.\\d+)?\\s+-m\\s+pytest\\b",
+    "\\b(?:python(?:3)?(?:\\.\\d+)?\\s+-m\\s+)?unittest\\b",
+    "\\b(?:tox|nox)\\b",
+    "\\bcoverage(?:\\s+(?:run|combine|report|html|xml|erase))?\\b",
+    "\\bruff\\s+(?:check|format)\\b",
+    "\\b(?:mypy|pyright|flake8|pylint|black|isort)\\b",
+    "\\b(?:bandit|pip-audit|safety|semgrep|trivy)\\b",
+    "\\b(?:npx\\s+)?(?:vitest|jest|playwright|cypress)\\b",
+    "\\b(?:npm|pnpm|yarn)\\s+(?:test|run\\s+(?:test|build|lint|check)|build|lint|check)\\b",
+    "\\b(?:cargo\\s+(?:test|build|clippy)|go\\s+(?:test|build|vet))\\b",
+    "\\b(?:make|gmake)\\s+(?:test|build|lint|check|ci)\\b",
+    "\\b(?:cmake\\s+--build|ninja(?:\\s|$))",
+    "\\bpython(?:3)?(?:\\.\\d+)?\\s+-m\\s+build\\b",
+    "\\bpre-commit\\s+run\\b",
+    "\\b(?:actionlint|shellcheck)\\b",
+    "\\.claude/skills/quality-engineering/scripts/qe_gate\\.py\\b",
+    "\\bscripts/arch_gate\\.sh\\b",
+    "\\bpython(?:3)?(?:\\.\\d+)?\\s+(?:-m\\s+)?tests?/[^ \\t;&|]*\\.py\\b",
+    "\\bpython(?:3)?(?:\\.\\d+)?\\s+-m\\s+tests?(?:\\.|\\s)",
+    "\\bpython(?:3)?(?:\\.\\d+)?\\s+-m\\s+compileall\\b",
+    "\\bpython(?:3)?(?:\\.\\d+)?\\s+scripts/generate_(?:math|quality)_docs\\.py\\s+--check\\b",
+    "\\b(?:bash|sh)\\s+[^;&|]*(?:test|tests|testing|build|lint|check|quality[-_]gate|security[-_]scan)[^;&|]*\\.sh\\b",
+    "\\bnode\\s+[^;&|]*(?:test|tests|testing|build|lint|check)[^;&|]*\\.(?:js|mjs|cjs|ts)\\b",
+    r"\bpython(?:3)?(?:\.\d+)?\s+(?:[^\s;&|]+/)?(?!local_checks\.py\b)[^\s;&|]*(?:test|tests|build|lint|check|quality_gate|security_scan)[^\s;&|]*\.py\b",
+    r"\b(?:docker\s+(?:compose\s+)?build|podman\s+build)\b",
+    r"\b(?:cargo\s+fmt|go\s+fmt)\b",
+    r"\b(?:eslint|prettier|tsc)\b",
+    r"\bgit\s+diff\b[^;&|]*--check\b",
+    r"\b(?:npm|pnpm|yarn)\s+(?:run\s+)?(?:typecheck|type-check|type-checks|lint:check)\b",
+)
+_LOCAL_CHECK_RE = [re.compile(pattern, re.IGNORECASE) for pattern in LOCAL_CHECK_PATTERNS]
+LOCAL_CHECK_REFUSAL = (
+    "Local tests, builds, lint, security scans, and quality gates are disabled. "
+    "GitHub Actions is the sole execution path; legacy local_checks.py commands "
+    "are retired and the only CI report route is ./scripts/prfail --pr <PR_NUMBER>."
+)
+
+
+def is_local_check_execution(command: str) -> bool:
+    """Block local checks, retired routes, and every noncanonical patcher invocation."""
+    if is_exact_patch_apply_command(command):
+        return False
+    if "scripts/apply_ci_patch.py" in command or "scripts/local_checks.py" in command:
+        return True
+    return any(pattern.search(command) for pattern in _LOCAL_CHECK_RE)
+
+
 # Secrets that must never reach an LLM context. Each pattern captures the
 # whole secret-bearing token; _redact() replaces the match with a marker that
 # preserves shape (so a reader can tell "a token was here") without value.
@@ -86,6 +193,12 @@ REDACTION_PATTERNS: tuple[tuple[str, str], ...] = (
     (
         r"(-----BEGIN [A-Z ]*PRIVATE KEY-----)[\s\S]*?(-----END [A-Z ]*PRIVATE KEY-----)",
         "PRIVATE_KEY",
+    ),
+    # DOC-001: a key block whose END line is missing (truncated upstream) is
+    # masked to the end of the text rather than passed through.
+    (
+        r"(-----BEGIN [A-Z ]*PRIVATE KEY-----)(?:(?!-----END [A-Z ]*PRIVATE KEY-----)[\s\S])*\Z",
+        "PRIVATE_KEY_UNTERMINATED",
     ),
     (
         r"((?i:\b[A-Za-z0-9_]*(?:SECRET|TOKEN|PASSWORD|PASSWD|APIKEY|API_KEY|PRIVATE_KEY)[A-Za-z0-9_]*)\s*[=:]\s*)(\S*)(\s|$)",
@@ -397,6 +510,49 @@ def classify(command: str) -> str:
         if rx.search(command):
             return "mutating"
     return "read_only"
+
+
+def is_exact_patch_apply_command(command: str) -> bool:
+    """Recognize the sole safe heredoc form for the report-bound patch applier."""
+    lines = command.strip().splitlines()
+    if len(lines) < 4 or lines[-1] != "TB_CI_PATCH" or lines.count("TB_CI_PATCH") != 1:
+        return False
+    if not re.fullmatch(
+        r"python3 scripts/apply_ci_patch\.py --pr [1-9][0-9]* --head-sha [0-9a-f]{40} --patch-stdin <<'TB_CI_PATCH'",
+        lines[0],
+    ):
+        return False
+    body = lines[1:-1]
+    return any(line.startswith("diff --git a/") for line in body) and any(
+        line.startswith("@@ ") for line in body
+    )
+
+
+_CI_LOG_RE = [re.compile(p, re.IGNORECASE) for p in CI_LOG_PATTERNS]
+_CI_HARD_DENY_RE = [re.compile(p, re.IGNORECASE) for p in CI_HARD_DENY_PATTERNS]
+_CI_COMMENT_RE = [re.compile(p, re.IGNORECASE) for p in CI_COMMENT_ALLOW_PATTERNS]
+
+CI_LOG_REFUSAL = (
+    "THAPPAR — CI DIAGNOSTIC ACCESS BLOCKED. Use only: "
+    "./scripts/prfail --pr <PR_NUMBER>. "
+    "Direct or alternative diagnostic retrieval is prohibited."
+)
+
+
+def is_ci_log_access(command: str) -> bool:
+    """
+    Refuse CI records and all legacy comment/log paths.
+
+    The exact report-only prfail command and strict report-bound patcher are
+    exempt; all other CI-log routes remain blocked.
+    """
+    if is_exact_patch_apply_command(command):
+        return False
+    if any(rx.search(command) for rx in _CI_HARD_DENY_RE):
+        return True
+    if any(rx.fullmatch(command.strip()) for rx in _CI_COMMENT_RE):
+        return False
+    return any(rx.search(command) for rx in _CI_LOG_RE)
 
 
 def rank(classification: str) -> int:
