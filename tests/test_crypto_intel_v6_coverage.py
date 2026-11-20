@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import asyncio
-import time
 
 import numpy as np
 import pandas as pd
+import pytest
 import torch
 import torch.nn as nn
 
@@ -73,18 +73,30 @@ class TestShadowDeployerExtended:
         result = dep.evaluate()
         assert result is None
 
-    def test_evaluate_after_shadow_period(self) -> None:
+    def test_evaluate_after_shadow_period(self, monkeypatch) -> None:
+        from types import SimpleNamespace
+
+        from src.upgrade import shadow_deploy
         from src.upgrade.shadow_deploy import ShadowDeployer
 
-        dep = ShadowDeployer(lambda x: 1.0, lambda x: 1.0, shadow_hours=0.00001)
+        # Drive the monotonic clock rather than sleeping: the window is one
+        # hour and the test moves the clock past it, so the outcome is fixed.
+        clock = SimpleNamespace(now=1000.0)
+        monkeypatch.setattr(shadow_deploy, "time", SimpleNamespace(monotonic=lambda: clock.now))
+
+        dep = ShadowDeployer(lambda x: 1.0, lambda x: 1.0, shadow_hours=1.0)
         dep.start()
-        # Fake returns
-        for _ in range(20):
-            dep.record_return(0.01, incumbent_pred=1.0, challenger_pred=0.5)
-        time.sleep(0.001)  # tiny wait
+        # Incumbent takes no directional bet (flat returns, Sharpe 0). The
+        # challenger earns a steady positive edge with varying returns.
+        for i in range(40):
+            actual = 0.01 if i % 2 == 0 else 0.03
+            dep.record_return(actual, incumbent_pred=0.0, challenger_pred=1.0)
+
+        assert dep.evaluate() is None  # window not yet elapsed
+        clock.now += 3600.0 + 1.0
         result = dep.evaluate()
-        # result may be None if not ready_to_evaluate yet
-        assert result is None or hasattr(result, "promoted")
+        assert result is not None
+        assert result.promoted is True
 
     def test_active_property(self) -> None:
         from src.upgrade.shadow_deploy import ShadowDeployer
@@ -106,12 +118,13 @@ class TestShadowDeployerExtended:
         dep = ShadowDeployer(lambda x: 0, lambda x: 0, shadow_hours=0.001)
         assert not dep.ready_to_evaluate()
 
-    def test_model_without_predict_returns_zero(self) -> None:
+    def test_model_without_predict_fails_closed(self) -> None:
         from src.upgrade.shadow_deploy import ShadowDeployer
 
         dep = ShadowDeployer(42, 42)
         dep.start()
-        assert dep.predict_incumbent(None) == 0.0
+        with pytest.raises(TypeError, match="callable or expose predict"):
+            dep.predict_incumbent(None)
 
 
 # ─── WalkForwardStudy ─────────────────────────────────────────────────────────
