@@ -1,426 +1,361 @@
 """
-Deciding tests for GOV-032 / GOV-033 / GOV-034 — the in-process event bus.
+INV-032 -- the GUI must never be able to apply backpressure to the trading loop.
 
-No test sleeps (GOV-016): ordering is established with ``asyncio.Event``
-handshakes and the bus clock is injected, so timestamps are asserted
-exactly rather than approximately.
+These tests assert the *law*, not the latency. GOV-016 forbids sleeping for
+synchronisation, and a bus test that waits on a wall clock would be both slow
+and flaky; worse, it would assert the wrong thing. "Publishing was fast on
+this run" is not the property. The properties are:
+
+  - publish() returns without awaiting, so no producer can be suspended by a
+    consumer that never drains;
+  - a full subscriber loses its own oldest events and counts them, rather
+    than blocking the publisher or silently lying;
+  - publish() is total -- an unknown topic, a broken subscriber, a closed
+    consumer all leave the caller unaffected.
+
+Every ordering assertion is driven by the queue's own state or an
+asyncio.Event handshake, never by elapsed time.
 """
 
 from __future__ import annotations
 
 import asyncio
-import inspect
 
 import pytest
 
-from src.eventbus import (
-    DEFAULT_MAXSIZE,
-    EVENT_BUS,
-    PORTFOLIO,
-    RISK,
-    Event,
-    EventBus,
-    get_event_bus,
-)
-from src.eventbus import topics as T
+from src.eventbus import TOPICS, Event, EventBus, Subscription, get_event_bus
 
 
 @pytest.fixture
 def bus() -> EventBus:
-    """A bus on a frozen clock; ticks are advanced explicitly where relevant."""
-    return EventBus(maxsize=3, clock=lambda: 100.0)
-
-
-# --------------------------------------------------------------------------
-# GOV-033: publishing can never block the producer
-# --------------------------------------------------------------------------
-
-
-def test_publish_is_not_a_coroutine_function() -> None:
     """
-    Structural, not behavioural, and deliberately so.
+    A fresh bus per test.
 
-    Every behavioural test below would still pass if ``publish`` became
-    ``async def`` and awaited a full queue -- they would just await it. The
-    property that matters is that a caller inside the trading loop has no
-    await point here at all, and only the signature can assert that.
+    Constructed directly rather than via get_event_bus() on purpose: REG-0005
+    is the entry for tests whose result depends on process-global state an
+    earlier test left behind, and the cached accessor is exactly that.
     """
-    assert not inspect.iscoroutinefunction(EventBus.publish)
-    assert not inspect.isasyncgenfunction(EventBus.publish)
+    return EventBus()
 
 
-def test_publish_to_a_full_queue_returns_without_awaiting(bus: EventBus) -> None:
-    """A wedged consumer cannot suspend the producer."""
-    bus.subscribe([T.PORTFOLIO])
-    for i in range(bus._maxsize * 4):
-        assert bus.publish(T.PORTFOLIO, {"i": i}) == 1
+class TestPublishNeverBlocksTheProducer:
+    """The load-bearing law."""
+
+    def test_publish_is_not_a_coroutine(self, bus: EventBus) -> None:
+        """
+        An ``async def publish`` is the defect, not a style choice: it lets a
+        caller await a consumer, and the first caller to do so puts a
+        dashboard in the path of an order.
+        """
+        sub = bus.subscribe(["position"])
+        result = bus.publish("position", {"symbol": "BTCUSDT"})
+
+        assert result is None
+        assert not asyncio.iscoroutine(result)
+        assert len(sub._queue) == 1
+
+    def test_publish_completes_with_no_running_event_loop(self, bus: EventBus) -> None:
+        """
+        Nothing in publish() may touch the loop. Running it outside one at all
+        is the strongest available form of that assertion -- if it ever grows
+        an await, a create_task or a lock, this raises instead of passing.
+        """
+        bus.subscribe(["gate"])
+
+        with pytest.raises(RuntimeError):
+            asyncio.get_running_loop()
+
+        bus.publish("gate", {"blocked": True})
+        assert bus.published == 1
+
+    def test_a_subscriber_that_never_drains_cannot_stall_the_producer(self, bus: EventBus) -> None:
+        """
+        The starvation case, stated directly: a consumer that reads nothing at
+        all still does not stop the producer publishing far past its buffer.
+        """
+        sub = bus.subscribe(["equity"])
+
+        for i in range(sub.maxlen * 3):
+            bus.publish("equity", {"n": i})
+
+        assert bus.published == sub.maxlen * 3
+        assert len(sub._queue) == sub.maxlen
 
 
-# --------------------------------------------------------------------------
-# GOV-034: a full queue drops the OLDEST event
-# --------------------------------------------------------------------------
+class TestDropOldest:
+    """A bounded buffer that blocks is backpressure wearing a hat."""
+
+    def test_the_oldest_event_is_the_one_discarded(self) -> None:
+        """
+        Newest-wins matters for a dashboard: the operator wants the current
+        price, not the price from when the tab was backgrounded.
+        """
+        bus = EventBus(maxlen=3)
+        sub = bus.subscribe(["price"])
+
+        for i in range(5):
+            bus.publish("price", {"n": i})
+
+        assert [event.data["n"] for event in sub._queue] == [2, 3, 4]
+
+    def test_every_discarded_event_is_counted(self) -> None:
+        """
+        A starved client must be visible. Showing a confident dashboard built
+        from a buffer that quietly lost frames is worse than showing nothing,
+        because the operator cannot tell the difference.
+        """
+        bus = EventBus(maxlen=4)
+        sub = bus.subscribe(["book"])
+
+        for i in range(10):
+            bus.publish("book", {"n": i})
+
+        assert sub.dropped == 6
+        assert bus.total_dropped == 6
+
+    def test_one_slow_subscriber_does_not_evict_another(self) -> None:
+        """
+        Buffers are per subscriber. A shared one means the slowest client
+        decides what every other client is allowed to see.
+        """
+        bus = EventBus(maxlen=2)
+        slow = bus.subscribe(["order"])
+        fast = bus.subscribe(["order"])
+
+        for i in range(4):
+            bus.publish("order", {"n": i})
+            # The fast one keeps up; the slow one never reads.
+            while fast._queue:
+                fast._queue.popleft()
+
+        assert slow.dropped == 2
+        assert fast.dropped == 0
 
 
-def test_overflow_evicts_oldest_and_keeps_newest(bus: EventBus) -> None:
-    sub = bus.subscribe([T.PORTFOLIO])
-    for i in range(5):  # maxsize is 3, so 0 and 1 are evicted
-        bus.publish(T.PORTFOLIO, {"i": i})
+class TestPublishIsTotal:
+    """A transport problem must never reach a risk gate."""
 
-    assert sub.dropped == 2
-    assert sub.pending == 3
-    assert [sub._queue.get_nowait().payload["i"] for _ in range(3)] == [2, 3, 4]
+    def test_an_unknown_topic_is_dropped_and_counted_not_raised(self, bus: EventBus) -> None:
+        """
+        Raising here would turn a typo in a risk gate into a failed order.
+        Counted and logged instead, so it is still loud.
+        """
+        bus.publish("postion", {"typo": True})  # codespell:ignore postion
 
+        assert bus.unknown_topic_drops == 1
+        assert bus.published == 0
 
-def test_drops_are_counted_not_silent(bus: EventBus) -> None:
-    """
-    A dropped frame and a quiet market look identical on screen. The count
-    is the only thing that separates them, so it is part of the contract.
-    """
-    sub = bus.subscribe([T.PORTFOLIO])
-    for i in range(4):
-        bus.publish(T.PORTFOLIO, {"i": i})
-    assert sub.dropped == 1
-    assert bus.stats()["dropped"] == 1
+    def test_publishing_with_no_subscribers_is_a_no_op(self, bus: EventBus) -> None:
+        assert bus.subscriber_count == 0
+        bus.publish("health", {"ok": True})
+        assert bus.published == 1
 
+    def test_a_subscriber_only_receives_its_own_topics(self, bus: EventBus) -> None:
+        positions = bus.subscribe(["position"])
+        prices = bus.subscribe(["price"])
 
-def test_a_slow_subscriber_does_not_starve_a_fast_one(bus: EventBus) -> None:
-    slow = bus.subscribe([T.PORTFOLIO])
-    fast = bus.subscribe([T.PORTFOLIO])
-    for i in range(4):
-        bus.publish(T.PORTFOLIO, {"i": i})
-        if i < 3:
-            fast._queue.get_nowait()
+        bus.publish("position", {"symbol": "ETHUSDT"})
 
-    assert slow.dropped == 1
-    assert fast.dropped == 0
+        assert len(positions._queue) == 1
+        assert len(prices._queue) == 0
 
+    def test_subscribe_refuses_an_unknown_topic(self, bus: EventBus) -> None:
+        """
+        The asymmetry with publish() is deliberate. A publish comes from our
+        own code on the trading path and must not be able to break it; a
+        subscribe comes from a client and is input to be validated. PR 3 turns
+        this into the websocket's refusal.
+        """
+        with pytest.raises(ValueError, match="unknown topic"):
+            bus.subscribe(["position", "nonsense"])
 
-# --------------------------------------------------------------------------
-# Routing
-# --------------------------------------------------------------------------
+    def test_closing_a_subscription_unregisters_it(self, bus: EventBus) -> None:
+        sub = bus.subscribe(["intel"])
+        assert bus.subscriber_count == 1
 
+        sub.close()
+        assert bus.subscriber_count == 0
 
-@pytest.mark.parametrize(
-    ("subscribed", "published", "expect_delivery"),
-    [
-        ([T.PORTFOLIO], T.PORTFOLIO, True),
-        ([T.PORTFOLIO], T.RISK, False),
-        ([T.PORTFOLIO, T.RISK], T.RISK, True),
-        (None, T.ORDERS, True),
-        ([T.ALL], T.APPROVALS, True),
-    ],
-)
-def test_topic_routing(
-    bus: EventBus, subscribed: list[str] | None, published: str, expect_delivery: bool
-) -> None:
-    sub = bus.subscribe(subscribed)
-    assert bus.publish(published, {}) == int(expect_delivery)
-    assert sub.pending == int(expect_delivery)
+        # And a publish after the fact still cannot fail.
+        bus.publish("intel", {"provider": "dune", "healthy": False})
+        assert bus.published == 1
 
+    def test_close_is_idempotent(self, bus: EventBus) -> None:
+        sub = bus.subscribe(["drift"])
+        sub.close()
+        sub.close()
+        assert bus.subscriber_count == 0
 
-def test_publishing_an_unknown_topic_raises(bus: EventBus) -> None:
-    """A typo'd literal must fail loudly, not report zero subscribers."""
-    with pytest.raises(ValueError, match="unknown topic"):
-        bus.publish("portfolios", {})
+    def test_a_consumer_whose_loop_died_costs_the_live_ones_nothing(self, bus: EventBus) -> None:
+        """
+        A subscriber left behind by a torn-down lifespan still sits on the
+        process-wide bus, and waking it resolves futures on a loop that no
+        longer exists. Without this, the first such subscriber ends the
+        fan-out for everyone after it in the iteration -- publish() stays
+        total for its caller while the live dashboards silently stop
+        updating, which is the failure this law exists to prevent.
 
+        The dead event is a stand-in rather than a real closed loop: parking
+        a waiter on a loop and closing it leaves a pending task behind, and
+        the warning that produces would be noise in every later test in the
+        module. The raise is what the subscriber sees either way.
+        """
 
-def test_publishing_to_the_wildcard_raises(bus: EventBus) -> None:
-    """``ALL`` is a subscribe-side filter; publishing to it is a mistake."""
-    with pytest.raises(ValueError, match="unknown topic"):
-        bus.publish(T.ALL, {})
+        class _LoopIsGone:
+            def set(self) -> None:
+                raise RuntimeError("Event loop is closed")
 
+            def clear(self) -> None:
+                pass
 
-def test_subscribing_to_an_unknown_topic_raises(bus: EventBus) -> None:
-    with pytest.raises(ValueError, match="unknown topic"):
-        bus.subscribe([T.PORTFOLIO, "positions"])
+        dead = bus.subscribe(["equity"])
+        dead._wake = _LoopIsGone()
+        live = bus.subscribe(["equity"])
+        assert bus.subscriber_count == 2
 
+        bus.publish("equity", {"equity_usd": 1.0})
 
-# --------------------------------------------------------------------------
-# Event immutability and fan-out sharing
-# --------------------------------------------------------------------------
-
-
-def test_payload_is_snapshotted_at_publish(bus: EventBus) -> None:
-    sub = bus.subscribe([T.PORTFOLIO])
-    source = {"equity": 1.0}
-    bus.publish(T.PORTFOLIO, source)
-    source["equity"] = 2.0
-    assert sub._queue.get_nowait().payload["equity"] == 1.0
-
-
-def test_one_consumer_cannot_edit_what_another_receives(bus: EventBus) -> None:
-    a = bus.subscribe([T.PORTFOLIO])
-    b = bus.subscribe([T.PORTFOLIO])
-    bus.publish(T.PORTFOLIO, {"equity": 1.0})
-
-    event_a = a._queue.get_nowait()
-    event_b = b._queue.get_nowait()
-    assert event_a is event_b  # fan-out shares one object
-    with pytest.raises(TypeError):
-        event_a.payload["equity"] = 2.0  # type: ignore[index]
+        assert len(live._queue) == 1
+        assert bus.published == 1
+        # And it is gone, so the next publish does not pay for it again.
+        assert bus.subscriber_count == 1
+        assert dead not in bus._subscribers
 
 
-def test_event_is_frozen(bus: EventBus) -> None:
-    bus.subscribe([T.PORTFOLIO])
-    with pytest.raises(AttributeError):
-        Event(topic=T.PORTFOLIO, payload={}, sequence=1, published_at=0.0).topic = "x"  # type: ignore[misc]
+class TestProducerTimestamp:
+    def test_ts_ms_is_stamped_at_publish(self, bus: EventBus) -> None:
+        """
+        Carrying the producer's clock is the entire reason the field exists:
+        stamping at send time reports zero lag no matter how starved the
+        transport is.
+        """
+        sub = bus.subscribe(["signal"])
+        bus.publish("signal", {"side": "long"}, ts_ms=1_700_000_000_123)
 
+        event = sub._queue[0]
+        assert event.ts_ms == 1_700_000_000_123
+        assert event.topic == "signal"
 
-def test_sequence_is_monotonic_and_clock_is_injected() -> None:
-    ticks = iter([10.0, 11.0])
-    bus = EventBus(clock=lambda: next(ticks))
-    sub = bus.subscribe(None)
-    bus.publish(T.PORTFOLIO, {})
-    bus.publish(T.RISK, {})
+    def test_ts_ms_defaults_to_now(self, bus: EventBus) -> None:
+        sub = bus.subscribe(["regime"])
+        bus.publish("regime", {"state": 1})
 
-    first = sub._queue.get_nowait()
-    second = sub._queue.get_nowait()
-    assert (first.sequence, first.published_at) == (1, 10.0)
-    assert (second.sequence, second.published_at) == (2, 11.0)
-
-
-# --------------------------------------------------------------------------
-# Lifecycle
-# --------------------------------------------------------------------------
-
-
-def test_maxsize_must_be_positive() -> None:
-    with pytest.raises(ValueError, match="maxsize must be >= 1"):
-        EventBus(maxsize=0)
-
-
-def test_per_subscription_maxsize_overrides_the_default(bus: EventBus) -> None:
-    sub = bus.subscribe([T.PORTFOLIO], maxsize=1)
-    bus.publish(T.PORTFOLIO, {"i": 0})
-    bus.publish(T.PORTFOLIO, {"i": 1})
-    assert (sub.pending, sub.dropped) == (1, 1)
-
-
-def test_default_maxsize_is_used_when_unset() -> None:
-    assert EventBus().subscribe(None).maxsize == DEFAULT_MAXSIZE
-
-
-def test_unsubscribe_is_idempotent(bus: EventBus) -> None:
-    sub = bus.subscribe([T.PORTFOLIO])
-    bus.unsubscribe(sub)
-    bus.unsubscribe(sub)
-    assert bus.subscriber_count == 0
-    assert sub.closed
-
-
-def test_a_closed_subscription_is_pruned_on_next_publish(bus: EventBus) -> None:
-    sub = bus.subscribe([T.PORTFOLIO])
-    sub.close()
-    assert bus.publish(T.PORTFOLIO, {}) == 0
-    assert bus.subscriber_count == 0
-
-
-def test_close_is_idempotent_and_stops_delivery(bus: EventBus) -> None:
-    sub = bus.subscribe([T.PORTFOLIO])
-    bus.close()
-    bus.close()
-    assert bus.closed and sub.closed
-    assert bus.publish(T.PORTFOLIO, {}) == 0
-
-
-def test_subscribing_to_a_closed_bus_raises(bus: EventBus) -> None:
-    bus.close()
-    with pytest.raises(RuntimeError, match="closed EventBus"):
-        bus.subscribe(None)
-
-
-def test_stats_reports_the_whole_bus(bus: EventBus) -> None:
-    a = bus.subscribe([T.PORTFOLIO])
-    bus.subscribe([T.RISK])
-    bus.publish(T.PORTFOLIO, {})
-    assert bus.stats() == {
-        "subscribers": 2,
-        "published": 1,
-        "dropped": 0,
-        "pending": 1,
-    }
-    assert (a.delivered, a.pending) == (1, 1)
-
-
-# --------------------------------------------------------------------------
-# Async iteration -- handshakes only, no sleeps (GOV-016)
-# --------------------------------------------------------------------------
+        assert sub._queue[0].ts_ms > 0
 
 
 @pytest.mark.asyncio
-async def test_iteration_delivers_queued_events_in_order(bus: EventBus) -> None:
-    sub = bus.subscribe([T.PORTFOLIO])
-    bus.publish(T.PORTFOLIO, {"i": 0})
-    bus.publish(T.PORTFOLIO, {"i": 1})
-    sub.close()
+class TestAsyncIteration:
+    """Ordering and wakeup, driven by handshakes rather than the clock."""
 
-    assert [e.payload["i"] async for e in sub] == [0, 1]
+    async def test_events_arrive_in_publication_order(self, bus: EventBus) -> None:
+        sub = bus.subscribe(["position"])
+        for i in range(3):
+            bus.publish("position", {"n": i})
+        sub.close()
 
+        seen = [event.data["n"] async for event in sub]
 
-@pytest.mark.asyncio
-async def test_a_parked_consumer_is_woken_by_publish(bus: EventBus) -> None:
-    """The point of the bus: the consumer resumes on the event, not a timer."""
-    sub = bus.subscribe([T.PORTFOLIO])
-    parked = asyncio.Event()
-    received: list[int] = []
+        assert seen == [0, 1, 2]
 
-    async def consume() -> None:
-        parked.set()
-        async for event in sub:
-            received.append(event.payload["i"])
-            return
+    async def test_a_waiting_consumer_is_woken_by_a_publish(self, bus: EventBus) -> None:
+        """
+        The wakeup path, with no sleep anywhere: the consumer signals that it
+        has reached the wait, the producer publishes, and the consumer's own
+        completion is the assertion.
+        """
+        sub = bus.subscribe(["equity"])
+        consuming = asyncio.Event()
+        received: list[int] = []
 
-    task = asyncio.create_task(consume())
-    await parked.wait()
-    await asyncio.sleep(0)  # scheduler yield: let consume() reach the queue
+        async def consume() -> None:
+            consuming.set()
+            async for event in sub:
+                received.append(event.data["n"])
+                break
 
-    bus.publish(T.PORTFOLIO, {"i": 7})
-    await asyncio.wait_for(task, timeout=5)
-    assert received == [7]
+        task = asyncio.create_task(consume())
+        await consuming.wait()
 
+        bus.publish("equity", {"n": 42})
+        await asyncio.wait_for(task, timeout=5)
 
-@pytest.mark.asyncio
-async def test_close_wakes_a_parked_consumer_and_ends_iteration(bus: EventBus) -> None:
-    """Closing must end the loop; a cancelled task would leak the client slot."""
-    sub = bus.subscribe([T.PORTFOLIO])
-    parked = asyncio.Event()
-    ended = asyncio.Event()
+        assert received == [42]
 
-    async def consume() -> None:
-        parked.set()
-        async for _ in sub:
-            pass
-        ended.set()
+    async def test_close_releases_a_blocked_consumer(self, bus: EventBus) -> None:
+        """
+        A consumer parked on an empty queue must be able to shut down. Without
+        the wake in close(), a disconnecting websocket leaks its drain task
+        for as long as the topic stays quiet.
+        """
+        sub = bus.subscribe(["health"])
+        consuming = asyncio.Event()
 
-    task = asyncio.create_task(consume())
-    await parked.wait()
-    await asyncio.sleep(0)
+        async def consume() -> list[Event]:
+            consuming.set()
+            return [event async for event in sub]
 
-    bus.close()
-    await asyncio.wait_for(task, timeout=5)
-    assert ended.is_set()
+        task = asyncio.create_task(consume())
+        await consuming.wait()
 
+        sub.close()
+        assert await asyncio.wait_for(task, timeout=5) == []
 
-@pytest.mark.asyncio
-async def test_queued_events_are_drained_before_close_ends_iteration(
-    bus: EventBus,
-) -> None:
-    sub = bus.subscribe([T.PORTFOLIO])
-    bus.publish(T.PORTFOLIO, {"i": 1})
-    bus.close()
-    assert [e.payload["i"] async for e in sub] == [1]
-    with pytest.raises(StopAsyncIteration):
-        await sub.__anext__()
+    async def test_a_publish_racing_the_clear_is_not_lost(self, bus: EventBus) -> None:
+        """
+        The clear-then-recheck in __aiter__. A publish landing between the
+        drain and the clear would otherwise have its wakeup erased, stalling
+        the consumer until the next event -- on a quiet topic, indistinguishable
+        from a dropped connection.
 
+        Simulated deterministically by clearing the wake flag underneath a
+        subscription that already holds an event, which is the state that
+        interleaving produces.
+        """
+        sub = bus.subscribe(["gate"])
+        bus.publish("gate", {"blocked": True})
+        sub._wake.clear()
+        sub.close()
 
-# --------------------------------------------------------------------------
-# drain(): the coalescing wait /ws parks on
-# --------------------------------------------------------------------------
+        seen = [event async for event in sub]
 
-
-@pytest.mark.asyncio
-async def test_returns_immediately_when_an_event_is_already_queued(
-    bus: EventBus,
-) -> None:
-    events = bus.subscribe([PORTFOLIO, RISK])
-    bus.publish(PORTFOLIO, {"equity_usd": 1.0})
-
-    await asyncio.wait_for(events.drain(60.0), timeout=5)
-    assert events.pending == 0
+        assert len(seen) == 1
 
 
-@pytest.mark.asyncio
-async def test_a_burst_collapses_to_one_wakeup(bus: EventBus) -> None:
-    """
-    The socket carries current state, not a change log. Three closes in one
-    cycle must cost the client one frame, not three it would overwrite.
-    """
-    events = bus.subscribe([PORTFOLIO])
-    for i in range(3):
-        bus.publish(PORTFOLIO, {"equity_usd": float(i)})
+class TestTopicRegistry:
+    def test_every_topic_the_plan_names_exists(self) -> None:
+        """
+        The topic set is a contract between producer and consumer. Losing one
+        silently is a panel that stops updating with nothing in the logs.
+        """
+        assert {
+            "position",
+            "equity",
+            "order",
+            "approval",
+            "signal",
+            "regime",
+            "gate",
+            "killswitch",
+            "capital_floor",
+            "selftuning",
+            "drift",
+            "health",
+            "intel",
+            "price",
+            "book",
+            "runtime",  # RES-015: runtime transitions and change audit
+            "engine",  # RES-024: one per-engine evidence event per ensemble cycle
+        } == set(TOPICS)
 
-    await asyncio.wait_for(events.drain(60.0), timeout=5)
-    assert events.pending == 0
-
-
-@pytest.mark.asyncio
-async def test_a_parked_waiter_is_woken_by_a_later_publish(bus: EventBus) -> None:
-    """The latency claim: the wake comes from the producer, not the clock."""
-    events = bus.subscribe([PORTFOLIO])
-    parked = asyncio.Event()
-
-    async def wait() -> None:
-        parked.set()
-        # A heartbeat long enough that a timeout return would fail the test.
-        await events.drain(3600.0)
-
-    task = asyncio.create_task(wait())
-    await parked.wait()
-    await asyncio.sleep(0)  # scheduler yield, not a delay
-
-    bus.publish(PORTFOLIO, {"equity_usd": 1.0})
-    await asyncio.wait_for(task, timeout=5)
+    def test_the_cached_accessor_returns_one_instance(self) -> None:
+        assert get_event_bus() is get_event_bus()
 
 
-@pytest.mark.asyncio
-async def test_the_heartbeat_still_fires_with_no_events(bus: EventBus) -> None:
-    """Pre-existing behaviour is preserved: an idle socket still ticks."""
-    events = bus.subscribe([PORTFOLIO])
-    await asyncio.wait_for(events.drain(0.0), timeout=5)
+class TestSubscriptionContextManager:
+    @pytest.mark.asyncio
+    async def test_exiting_the_context_unregisters(self, bus: EventBus) -> None:
+        async with bus.subscribe(["approval"]) as sub:
+            assert isinstance(sub, Subscription)
+            assert bus.subscriber_count == 1
 
-
-@pytest.mark.asyncio
-async def test_a_closed_subscription_does_not_spin(bus: EventBus) -> None:
-    """
-    Disconnect races teardown: the bus can close before the loop's next
-    pass. Returning (rather than raising) lets the caller fall through to
-    its own disconnect handling.
-    """
-    events = bus.subscribe([PORTFOLIO])
-    bus.close()
-    await asyncio.wait_for(events.drain(3600.0), timeout=5)
-
-
-@pytest.mark.asyncio
-async def test_risk_events_wake_the_socket_too(bus: EventBus) -> None:
-    """Kill-switch trips and gate blocks were never pushed at all before."""
-    events = bus.subscribe([PORTFOLIO, RISK])
-    bus.publish(RISK, {"blocked": True})
-    await asyncio.wait_for(events.drain(60.0), timeout=5)
-    assert events.pending == 0
-
-
-# --------------------------------------------------------------------------
-# Module-level accessor
-# --------------------------------------------------------------------------
-
-
-def test_get_event_bus_returns_one_shared_instance() -> None:
-    """
-    Bound at import, so there is no window in which two callers each build
-    a bus and then talk past each other -- a producer publishing into one
-    while the consumer is parked on the other.
-    """
-    assert get_event_bus() is get_event_bus() is EVENT_BUS
-
-
-def test_the_application_bus_is_open_and_stays_open() -> None:
-    """
-    Nothing closes the process-wide bus: closing it would end every
-    consumer's iteration with no way to reopen it. Tests that need
-    isolation build their own EventBus, as every test above does.
-    """
-    assert not EVENT_BUS.closed
-
-
-def test_the_module_exposes_no_way_to_rebind_the_bus() -> None:
-    """
-    LAW2: a setter is a `global` rebinding by another name, and a bus
-    swapped mid-flight strands every subscriber already parked on the old
-    one. The accessor is read-only by construction.
-    """
-    import src.eventbus as pkg
-    import src.eventbus.bus as bus_module
-
-    assert not hasattr(bus_module, "set_event_bus")
-    assert not hasattr(pkg, "set_event_bus")
+        assert bus.subscriber_count == 0

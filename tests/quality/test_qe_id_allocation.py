@@ -16,6 +16,9 @@ something the gate rejects moves the failure to CI and makes the entry look
 reviewed on the way past.
 
 Git is faked at `_git`, so these tests spawn nothing and touch no repository.
+
+Decides:
+  - REG-0011 — The scaffolder validates with the loader the gate runs
 """
 
 from __future__ import annotations
@@ -26,11 +29,13 @@ from pathlib import Path
 
 import pytest
 
+from tests.required_import import require
+
 REPO = Path(__file__).resolve().parents[2]
 SCRIPTS = REPO / ".claude" / "skills" / "quality-engineering" / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 
-pytest.importorskip("jsonschema")
+require("jsonschema")
 
 import qe_gate  # noqa: E402
 import qe_new_requirement as scaffold  # noqa: E402

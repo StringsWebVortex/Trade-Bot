@@ -1,7 +1,23 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 
 const _RAW_API = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-const API_KEY = import.meta.env.VITE_API_KEY || '';
+// FE-01: only a READ-ONLY key may be built into the bundle (Vite inlines every
+// VITE_* value into dist/, readable by anyone holding the files). The admin
+// key is never built in: the operator types it into the toolbar, it lives in
+// memory only (setSessionApiKey), and in Electron the main process injects it
+// as a header so the renderer never sees it. vite.config.js refuses to build
+// when VITE_API_KEY is set.
+const BUNDLED_READONLY_KEY = import.meta.env.VITE_API_READONLY_KEY || '';
+let _sessionKey = '';
+
+/** Hold an operator-entered API key in memory for this page load only. */
+export function setSessionApiKey(key) {
+  _sessionKey = typeof key === 'string' ? key.trim() : '';
+}
+
+function currentApiKey() {
+  return _sessionKey || BUNDLED_READONLY_KEY;
+}
 
 const _ALLOWED_API_RE = /^https?:\/\/[a-zA-Z0-9._-]+(:\d+)?$/;
 if (!_ALLOWED_API_RE.test(_RAW_API)) {
@@ -18,67 +34,474 @@ export function apiFetch(path, opts = {}) {
     ...opts,
     headers: {
       ...(opts.headers || {}),
-      'x-api-key': API_KEY,
+      ...(currentApiKey() ? { 'x-api-key': currentApiKey() } : {}),
     },
   });
 }
 
+/**
+ * POST that surfaces failures without requiring the operator secret.
+ *
+ * useOperatorAction refuses to send anything until a secret is entered,
+ * which is correct for the endpoints that verify one — but wrong for
+ * endpoints gated only by API-key role, where it would demand a
+ * credential the server never checks. Returns the parsed body, or null
+ * after alerting.
+ */
+// FE-16: failures are reported through a registered notifier (the app shows a
+// banner); alert() is only the fallback when nothing is listening.
+let _errorNotifier = null;
+export function setErrorNotifier(fn) {
+  _errorNotifier = fn;
+}
+function reportError(message) {
+  if (_errorNotifier) _errorNotifier(message);
+  else alert(message);
+}
+
+export async function postJson(path, body) {
+  try {
+    const res = await apiFetch(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body ?? {}),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      reportError(`Request failed: ${err.detail || res.status}`);
+      return null;
+    }
+    return await res.json();
+  } catch (e) {
+    reportError(`Request failed: ${e.message || 'network error'}`);
+    return null;
+  }
+}
+
+// Topic subscribers, keyed by the server's event topic. One WebSocket feeds
+// every panel, so the fan-out has to live outside any single component.
+//
+// A plain Map rather than a store library: the plan called for Redux Toolkit
+// on the grounds that it was already a dependency, and it is not -- it
+// appears nowhere in package.json or src/. Adding it to hold fifteen keys
+// would be a new runtime dependency for a feature this module already has.
+const _topicListeners = new Map();
+
+function _emit(topic, payload) {
+  const listeners = _topicListeners.get(topic);
+  if (!listeners) return;
+  // Copied before iterating: a listener that unsubscribes itself while the
+  // set is being walked would otherwise skip the listener after it.
+  for (const listener of [...listeners]) {
+    try { listener(payload); } catch (_) {}
+  }
+}
+
+// Exported for the reconnect path: a socket that comes back has missed
+// whatever happened while it was away, so panels re-fetch their cold-start
+// state rather than resuming blind.
+const _resyncListeners = new Set();
+
+// The live socket, so a panel mounting after the connection is already open
+// can widen the subscription without waiting for a reconnect.
+let _liveSocket = null;
+
+function _sendSubscribe(ws) {
+  // The set falls out of which panels are mounted -- a hidden panel has no
+  // useStream, so its topic is not in the map and the server sends nothing
+  // for it. Panel visibility is already persisted in localStorage, so the
+  // subscription follows the operator's own layout for free.
+  const topics = [..._topicListeners.keys()];
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  try {
+    // `type`, `nonce` and `ts` are the server's frame guard (API-005), not
+    // decoration: an inbound frame missing any of them is a policy violation
+    // and the guard *closes the socket*. A subscribe without them would make
+    // every connect a disconnect, and the reconnect that followed would send
+    // the same frame again -- a loop in which the dashboard never receives
+    // anything. ts is seconds, within the guard's clock skew; the nonce is
+    // per-frame because the guard refuses a replay.
+    ws.send(
+      JSON.stringify({
+        type: 'subscribe',
+        nonce: `s-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`,
+        ts: Date.now() / 1000,
+        op: 'subscribe',
+        topics,
+      }),
+    );
+  } catch (_) {}
+}
+
+// Reconnect delay: exponential with full jitter, capped.
+//
+// The flat 3s this replaces made every open dashboard retry in lockstep,
+// so an API that had just come back up met the whole fleet at once, every
+// three seconds, for as long as it stayed unhealthy. Full jitter --
+// a uniform draw from [0, backoff] rather than backoff +/- a wobble -- is
+// what actually spreads a fleet; a small wobble around a common centre
+// still arrives together.
+export const RECONNECT_BASE_MS = 500;
+export const RECONNECT_CAP_MS = 30000;
+
+export function reconnectDelay(attempt, random = Math.random) {
+  const backoff = Math.min(RECONNECT_CAP_MS, RECONNECT_BASE_MS * 2 ** attempt);
+  return Math.floor(random() * backoff);
+}
+
 export function useWebSocket(onTick, onEvent) {
   const [connected, setConnected] = useState(false);
+  const [lagMs, setLagMs] = useState(null);
   const wsRef = useRef(null);
 
+  // Handlers go through refs so the effect does not list them as
+  // dependencies. It did, and a caller passing an inline function would
+  // therefore tear down and rebuild the WebSocket on every single render --
+  // a reconnect storm triggered by unrelated state. The current caller
+  // happens to wrap both in useCallback, so this was latent, but it made the
+  // socket's lifetime depend on a detail of its caller.
+  const onTickRef = useRef(onTick);
+  const onEventRef = useRef(onEvent);
+  onTickRef.current = onTick;
+  onEventRef.current = onEvent;
+
   useEffect(() => {
+    let attempt = 0;
+    let retryTimer = null;
+    let closed = false;
+    // The socket *this* effect run owns. Cleanup used to close wsRef.current,
+    // which is shared across runs -- under StrictMode's deliberate
+    // mount/unmount/remount that is not necessarily the socket being torn
+    // down, so the first run's reconnect loop could outlive its own cleanup
+    // and race a second one. Closing what this run actually opened removes
+    // the ambiguity rather than relying on the order of two effect runs.
+    let socket = null;
+
     function connect() {
-      const wsUrl = API_KEY ? `${WS_URL}?api_key=${encodeURIComponent(API_KEY)}` : WS_URL;
-      const ws = new WebSocket(wsUrl);
+      if (closed) return;
+      // The key rides the Sec-WebSocket-Protocol header (hex-encoded), never the
+      // URL: the server logs every handshake URL (API-005).
+      const key = currentApiKey();
+      const hex = Array.from(new TextEncoder().encode(key), (b) => b.toString(16).padStart(2, '0')).join('');
+      const ws = key ? new WebSocket(WS_URL, ['tradebot.v1', `apikey.${hex}`]) : new WebSocket(WS_URL);
+      socket = ws;
       wsRef.current = ws;
-      ws.onopen = () => setConnected(true);
+      _liveSocket = ws;
+
+      ws.onopen = () => {
+        setConnected(true);
+        // Only a successful open resets the backoff. Resetting on the
+        // attempt instead would turn a server that accepts and immediately
+        // drops into a 250ms hot loop.
+        const wasReconnect = attempt > 0;
+        attempt = 0;
+        _sendSubscribe(ws);
+        if (wasReconnect) {
+          for (const listener of [..._resyncListeners]) {
+            try { listener(); } catch (_) {}
+          }
+        }
+      };
+
       ws.onmessage = (e) => {
         try {
           const msg = JSON.parse(e.data);
+
+          // The producer stamped ts_ms, so this is genuine end-to-end lag
+          // rather than the age of the send call. "Connected" without a lag
+          // number hides exactly the failure this transport work is about.
+          if (typeof msg.ts_ms === 'number') {
+            setLagMs(Math.max(0, Date.now() - msg.ts_ms));
+          }
+
           // Ticks and events are kept apart deliberately. Panels read fields
           // off the tick (equity_usd, positions); handing them an out-of-band
           // frame that has none would blank the dashboard on every control
           // change.
-          if (msg.type === 'tick') onTick(msg);
-          else if (onEvent) onEvent(msg);
+          if (msg.type === 'tick') {
+            onTickRef.current?.(msg);
+          } else if (msg.type === 'event' && msg.topic) {
+            _emit(msg.topic, msg.data);
+          } else {
+            onEventRef.current?.(msg);
+          }
         } catch (_) {}
       };
+
       ws.onerror = () => setConnected(false);
+
       ws.onclose = () => {
         setConnected(false);
-        setTimeout(connect, 3000);
+        if (closed) return;
+        retryTimer = setTimeout(connect, reconnectDelay(attempt));
+        attempt += 1;
       };
     }
-    connect();
-    return () => wsRef.current?.close();
-  }, [onTick, onEvent]);
 
-  return connected;
+    connect();
+    return () => {
+      closed = true;
+      if (retryTimer) clearTimeout(retryTimer);
+      // Drop the handlers before closing: close() fires onclose, and an
+      // onclose that still points at this run's `connect` would schedule a
+      // reconnect for a hook instance that no longer exists.
+      if (socket) {
+        socket.onopen = socket.onmessage = socket.onerror = socket.onclose = null;
+        socket.close();
+      }
+    };
+  }, []);
+
+  return { connected, lagMs };
 }
 
-export function usePolling(path, interval, transform) {
+/**
+ * Cold-start once over HTTP, then stay current from the event stream.
+ *
+ * This is what replaces a polling timer: the fetch happens on mount (and
+ * again after a reconnect, which is the one moment the stream is known to
+ * have a hole in it) instead of every N seconds forever.
+ */
+export function useStream(topic, hydratePath, options = {}) {
+  const { transform, apply, refetch = false } = options;
   const [data, setData] = useState(null);
 
+  const transformRef = useRef(transform);
+  const applyRef = useRef(apply);
+  const refetchRef = useRef(refetch);
+  transformRef.current = transform;
+  applyRef.current = apply;
+  refetchRef.current = refetch;
+
   useEffect(() => {
+    let cancelled = false;
+
+    async function hydrate() {
+      if (!hydratePath) return;
+      try {
+        const res = await apiFetch(hydratePath);
+        if (!res.ok || cancelled) return;
+        const body = await res.json();
+        if (cancelled) return;
+        setData(transformRef.current ? transformRef.current(body) : body);
+      } catch (_) {}
+    }
+
+    function onEventPayload(payload) {
+      // Three shapes, because an event means different things to different
+      // panels:
+      //
+      //   refetch  the event is only a trigger. A position close means a new
+      //            trade row exists, but the event payload is not that row --
+      //            re-reading is what keeps the table exactly as the server
+      //            renders it, and is still event-driven rather than timed.
+      //   apply    fold the event into what is already held; an approval
+      //            describes one request, not the whole queue.
+      //   default  replace, for a topic whose event *is* the whole state.
+      if (refetchRef.current) {
+        hydrate();
+        return;
+      }
+      setData((prev) => (applyRef.current ? applyRef.current(prev, payload) : payload));
+    }
+
+    const isNewTopic = !_topicListeners.has(topic);
+    if (isNewTopic) _topicListeners.set(topic, new Set());
+    _topicListeners.get(topic).add(onEventPayload);
+    _resyncListeners.add(hydrate);
+
+    // A panel unhidden after connect would otherwise receive nothing until
+    // the next reconnect, which on a healthy server is never.
+    if (isNewTopic) _sendSubscribe(_liveSocket);
+
+    hydrate();
+
+    return () => {
+      cancelled = true;
+      _topicListeners.get(topic)?.delete(onEventPayload);
+      _resyncListeners.delete(hydrate);
+    };
+  }, [topic, hydratePath]);
+
+  return data;
+}
+
+/** The API origin this dashboard talks to (VITE_API_URL), for messages. */
+export const API_ORIGIN = API;
+
+/**
+ * Why a request to the API did not produce data, in words an operator can
+ * act on. `status` 0 means the request never got an HTTP answer.
+ */
+export function apiProblem(status) {
+  if (status === 0) {
+    return {
+      kind: 'unreachable',
+      status,
+      message: `Cannot reach the API at ${API}. Start it with \`uv run python -m src.api\`, `
+        + 'or set VITE_API_URL to the host and port it listens on (API_HOST / API_PORT).',
+    };
+  }
+  if (status === 401 || status === 403) {
+    return {
+      kind: 'unauthorized',
+      status,
+      message: `The API at ${API} rejected this dashboard's key (HTTP ${status}). Set `
+        + 'VITE_API_READONLY_KEY to the API_READONLY_KEY the API was started with and '
+        + 'restart the dashboard; enter the admin key in the toolbar to operate. Never '
+        + 'build API_SECRET_KEY into the dashboard.',
+    };
+  }
+  if (status === 404) {
+    return {
+      kind: 'missing',
+      status,
+      message: `The API at ${API} has no such endpoint: the dashboard and the API are `
+        + 'from different versions.',
+    };
+  }
+  if (status === 503) {
+    return { kind: 'unavailable', status, message: 'The API is up, but this part of it is not ready.' };
+  }
+  return { kind: 'error', status, message: `The API at ${API} answered HTTP ${status}.` };
+}
+
+/**
+ * Like usePolling, but says why there is no data: `{ data, problem }`, where
+ * `problem` is null after a good answer and an apiProblem() otherwise --
+ * with the server's own `detail` when it sent one. An empty list and an
+ * unreachable endpoint stop looking alike.
+ */
+export function useApiResource(path, interval, transform) {
+  const [state, setState] = useState({ data: null, problem: null });
+  const transformRef = useRef(transform);
+  transformRef.current = transform;
+
+  useEffect(() => {
+    let live = true;
     let inFlight = false;
     async function poll() {
       if (inFlight) return;
       inFlight = true;
       try {
         const res = await apiFetch(path);
+        const body = await res.json().catch(() => null);
+        if (!live) return;
         if (res.ok) {
-          const body = await res.json();
-          setData(transform ? transform(body) : body);
+          const fn = transformRef.current;
+          setState({ data: fn ? fn(body) : body, problem: null });
+        } else {
+          const problem = { ...apiProblem(res.status), detail: body?.detail ?? null, body };
+          setState({ data: null, problem });
         }
-      } catch (_) {}
-      finally { inFlight = false; }
+      } catch (_) {
+        if (live) setState({ data: null, problem: apiProblem(0) });
+      } finally {
+        inFlight = false;
+      }
     }
     poll();
     const id = setInterval(poll, interval);
-    return () => clearInterval(id);
+    return () => {
+      live = false;
+      clearInterval(id);
+    };
   }, [path, interval]);
 
+  return state;
+}
+
+/**
+ * GET /readyz: `{ report, problem }`. A 503 carrying a report is the API
+ * saying what it is still doing, so it is a report, not a problem; anything
+ * else that is not a report (unreachable, a rejected key, an API too old to
+ * have /readyz) is a problem.
+ */
+export function useReadiness(interval = 5000) {
+  const { data, problem } = useApiResource('/readyz', interval);
+  if (problem?.status === 503 && problem.body?.phase) return { report: problem.body, problem: null };
+  return { report: data, problem };
+}
+
+/**
+ * Like useApiResource, but keeps the last good data and says how stale it is.
+ * `problem` is non-null whenever the latest request failed, so a panel can
+ * show "stale" instead of presenting old numbers as current (FE-06).
+ */
+export function usePollingState(path, interval, transform, refreshKey) {
+  const [state, setState] = useState({ data: null, problem: null, updatedAt: null });
+  // REG-0022: keep the latest transform without restarting the timer when a
+  // caller passes an inline arrow (which has a new identity on every render).
+  const transformRef = useRef(transform);
+  transformRef.current = transform;
+
+  useEffect(() => {
+    let live = true;
+    let inFlight = false;
+    async function poll() {
+      if (inFlight) return;
+      inFlight = true;
+      try {
+        const res = await apiFetch(path);
+        if (!live) return;
+        if (res.ok) {
+          const body = await res.json();
+          if (!live) return;
+          const fn = transformRef.current;
+          setState({ data: fn ? fn(body) : body, problem: null, updatedAt: Date.now() });
+        } else {
+          setState((prev) => ({ ...prev, problem: apiProblem(res.status) }));
+        }
+      } catch (_) {
+        if (live) setState((prev) => ({ ...prev, problem: apiProblem(0) }));
+      } finally {
+        inFlight = false;
+      }
+    }
+    poll();
+    const id = setInterval(poll, interval);
+    return () => {
+      live = false;
+      clearInterval(id);
+    };
+  }, [path, interval, refreshKey]);
+
+  return state;
+}
+
+// FE-06: polls that fail are recorded here so one banner can say the numbers
+// on screen are stale, instead of every panel silently keeping old data.
+const _failing = new Map();
+const _failListeners = new Set();
+function _reportPoll(path, problem) {
+  const had = _failing.has(path);
+  if (problem) _failing.set(path, problem);
+  else _failing.delete(path);
+  if (had !== !!problem || problem) for (const l of [..._failListeners]) l();
+}
+
+/** The polls currently failing: `[{ path, problem }]`, empty when all is well. */
+export function useStalePolls() {
+  const [, bump] = useState(0);
+  useEffect(() => {
+    const l = () => bump((n) => n + 1);
+    _failListeners.add(l);
+    return () => { _failListeners.delete(l); };
+  }, []);
+  return [..._failing].map(([path, problem]) => ({ path, problem }));
+}
+
+/** Test seam: forget every recorded failure. */
+export function _resetStalePolls() {
+  _failing.clear();
+}
+
+export function usePolling(path, interval, transform, refreshKey) {
+  const { data, problem } = usePollingState(path, interval, transform, refreshKey);
+  useEffect(() => {
+    _reportPoll(path, problem);
+    return () => _reportPoll(path, null);
+  }, [path, problem]);
   return data;
 }
 
@@ -88,7 +511,7 @@ export function useOperatorAction() {
 
   const action = useCallback(async (path, method, body) => {
     if (!operatorSecret) {
-      alert('Enter the operator secret first.');
+      reportError('Enter the operator secret first.');
       return null;
     }
     try {
@@ -99,12 +522,12 @@ export function useOperatorAction() {
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        alert(`Action failed: ${err.detail || res.status}`);
+        reportError(`Action failed: ${err.detail || res.status}`);
         return null;
       }
       return await res.json();
     } catch (e) {
-      alert(`Action failed: ${e.message || 'network error'}`);
+      reportError(`Action failed: ${e.message || 'network error'}`);
       return null;
     }
   }, [operatorId, operatorSecret]);

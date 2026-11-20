@@ -194,14 +194,12 @@ class TestShadowEvaluationPrecedesPromotion:
         assert result is not None
         assert not result.promoted
 
-    def test_a_model_with_no_interface_predicts_zero_rather_than_raising(self):
-        # A challenger that is neither callable nor has .predict is a wiring
-        # mistake. Returning 0.0 keeps the shadow run alive to report it
-        # instead of taking down the tick that noticed.
+    def test_a_model_with_no_interface_fails_closed(self):
         from src.upgrade.shadow_deploy import ShadowDeployer
 
         deployer = ShadowDeployer(incumbent=object(), challenger=object(), shadow_hours=0.0)
-        assert deployer.predict_challenger(None) == 0.0
+        with pytest.raises(TypeError, match="callable or expose predict"):
+            deployer.predict_challenger(None)
 
 
 class TestNoResearchModuleReachesAnExecutor:

@@ -22,9 +22,8 @@ no dependency on the parts that touch a network or a key:
     constants/     nothing-up-my-sleeve constant re-derivation
     folklore/      the gate that keeps numerology out of the strategy layer
 
-Only ``registry`` is implemented at this layer today; the rest are specified in
-``docs/MATH_ARCHITECTURE.md`` with their contracts fixed, and are built in the
-phase order given in ``docs/MATH_ROADMAP.md``.
+The subpackages above are implemented; their contracts are specified in
+``docs/MATH_ARCHITECTURE.md`` and the phase order is in ``docs/MATH_ROADMAP.md``.
 """
 
 from __future__ import annotations

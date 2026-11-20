@@ -1,29 +1,32 @@
-"""In-process event bus (foundation layer) — GOV-032."""
+"""
+In-process event bus (INV-032).
 
-from __future__ import annotations
+Lives in the ``foundation`` layer so every producer -- io, analytics,
+decision, orchestration -- and the ``api`` consumer can import it without
+inverting the GOV-018 layer contract. See ``bus.py`` for why publishing is
+synchronous, non-blocking and total.
+"""
 
-from .bus import (
-    DEFAULT_MAXSIZE,
-    EVENT_BUS,
+from src.eventbus.bus import (
+    CORRELATION_KEYS,
+    DEFAULT_MAXLEN,
+    TOPICS,
     Event,
     EventBus,
     Subscription,
     get_event_bus,
 )
-from .topics import ALL, APPROVALS, KNOWN_TOPICS, ORDERS, PORTFOLIO, REGIME, RISK
+from src.eventbus.envelope import EventEnvelope, correlated, envelope_of
 
 __all__ = [
-    "ALL",
-    "APPROVALS",
-    "DEFAULT_MAXSIZE",
-    "KNOWN_TOPICS",
-    "ORDERS",
-    "PORTFOLIO",
-    "REGIME",
-    "RISK",
-    "EVENT_BUS",
+    "CORRELATION_KEYS",
+    "DEFAULT_MAXLEN",
+    "TOPICS",
     "Event",
     "EventBus",
+    "EventEnvelope",
     "Subscription",
+    "correlated",
+    "envelope_of",
     "get_event_bus",
 ]

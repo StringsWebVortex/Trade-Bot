@@ -38,6 +38,8 @@ References: RFC 7919 (named finite-field DH groups); RFC 2785; Lim-Lee,
 "A key recovery attack on discrete log based schemes using a prime order
 subgroup" (1997); Valenta et al., "Measuring small subgroup attacks against
 Diffie-Hellman" (2017).
+
+Registry: SECR-015, SECR-016 (config/quality_registry.json).
 """
 
 from __future__ import annotations
@@ -190,7 +192,7 @@ def is_valid_public_value(y: int, p: int) -> bool:
     """
     if p < 5 or p % 2 == 0:
         raise SafePrimeError(f"p must be an odd prime of at least 5, got {p}")
-    if y in _TRIVIAL_ORDERS or y >= p - 1:
+    if y < 2 or y in _TRIVIAL_ORDERS or y >= p - 1:
         return False
     return pow(y, (p - 1) // 2, p) == 1
 

@@ -154,7 +154,6 @@ splitting them, not by abandoning them.
 | `nightly-quality.yml` | **Exists** *(PR-006)* — mutation matrix, extended fuzz, metrics | Chaos and performance jobs. PR-010. |
 | `release.yml` | — | Created with SBOM, hash and attestation. PR-009. |
 | `production.yml` | — | Created with the protected environment and canary. PR-012. |
-| (advisory) | `claude-review.yml` | Stays advisory. It never approves and never merges. |
 | (advisory) | `workflow-lint.yml` | Runs on every pull request, not only workflow changes. |
 | (scheduled) | `rag-ingest.yml` | Does not run on pull requests, so it has no gate. |
 
@@ -239,9 +238,10 @@ trusted branch + trusted workflow + environment approval + short-lived credentia
 ```
 
 A malicious PR must never be able to print an exchange key by modifying a test
-(`SUP-003`). `retrieve-context` in `claude-review.yml` is the single entry in
-any gate's `ALLOW_SKIPPED` today, precisely because it is skipped on fork pull
-requests.
+(`SUP-003`). The former `retrieve-context` job in `claude-review.yml` was the
+only entry allowed in a gate's `ALLOW_SKIPPED`, because it was skipped on fork
+pull requests. The workflow was removed under GOV-036, so no job is currently
+permitted to skip.
 
 ## 8. Action hardening
 

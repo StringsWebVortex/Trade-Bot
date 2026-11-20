@@ -6,6 +6,10 @@ The risk is that a unified endpoint becomes a bypass: somewhere to set a value
 the dedicated endpoint would have refused. So apply_control is a router --
 every write goes through the setter and the validator that already owned it --
 and these tests assert it cannot write what those would reject.
+
+Decides:
+  - GOV-026 — One write endpoint, and not a second way in
+  - GOV-028 — A setting the operator changes takes effect without a restart
 """
 
 from __future__ import annotations
@@ -20,8 +24,21 @@ from src.tuning.registry import TunableParameter, parameter_registry
 _OPERATOR = {"operator": "alice", "operator_secret": "irrelevant-here"}
 
 
+async def _fake_mode_setter(mode):
+    """Stands in for main._change_execution_mode (rate limit, persist, audit)."""
+    from src.config import runtime_config
+
+    await runtime_config.set_execution_mode(mode)
+
+
 async def _apply(name, value):
-    return await apply_control(name, value, SetRiskControlsRequest, **_OPERATOR)
+    return await apply_control(
+        name,
+        value,
+        SetRiskControlsRequest,
+        execution_mode_setter=_fake_mode_setter,
+        **_OPERATOR,
+    )
 
 
 @pytest.fixture

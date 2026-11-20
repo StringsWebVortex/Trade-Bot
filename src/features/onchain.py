@@ -102,14 +102,13 @@ class OnChainFeatureExtractor:
     SOPR: unimplemented -- always NaN. It needs each spent UTXO's creation-block
           price, and no price-at-block-height source is wired in (REG-0008).
     NVT:  market_cap_usd / (block_tx_volume_btc * spot_price_usd). Computed.
-    MVRV: spot_market_cap / realised_cap, where realised cap is approximated at
-          spot rather than at each UTXO's creation price -- an upper bound, not
-          a true realised cap. NaN when there are no UTXOs to sum.
+    MVRV: unavailable -- always NaN. It needs the chain-wide realised cap (UTXO
+          set with creation prices); node-wallet ``listunspent`` is not that
+          (DAT-004).
     """
 
     def __init__(self, rpc: BitcoinRPCClient | None = None) -> None:
         self._rpc = rpc or BitcoinRPCClient()
-        self._realised_cap_cache: float = 0.0
 
     async def compute(self, spot_price_usd: float, market_cap_usd: float) -> OnChainFeatures:
         try:
@@ -138,11 +137,10 @@ class OnChainFeatureExtractor:
         daily_tx_volume_usd = total_out_btc * spot_price_usd * 144  # blocks/day estimate
         nvt = market_cap_usd / max(daily_tx_volume_usd, 1.0)
 
-        # MVRV: market_cap / realised_cap
-        utxos = await self._rpc.list_unspent()
-        realised_cap = self._estimate_realised_cap(utxos, spot_price_usd)
-        self._realised_cap_cache = realised_cap
-        mvrv = market_cap_usd / max(realised_cap, 1.0)
+        # MVRV needs the chain-wide realised cap (every UTXO at its creation
+        # price). listunspent only sees the node wallet, so there is no valid
+        # source here: NaN (DAT-004).
+        mvrv = self._mvrv_unavailable()
 
         return OnChainFeatures(sopr=sopr, nvt=nvt, mvrv=mvrv)
 
@@ -160,16 +158,13 @@ class OnChainFeatureExtractor:
         """
         return _NAN
 
-    def _estimate_realised_cap(self, utxos: list[dict], spot_price_usd: float) -> float:
+    def _mvrv_unavailable(self) -> float:
         """
-        Realised cap = sum(value_btc * price_at_creation) for all UTXOs.
+        MVRV is unavailable and reports itself as such: always NaN.
 
-        Approximated at spot rather than at creation price, so this is an upper
-        bound on realised cap and the MVRV built from it is correspondingly a
-        lower bound. With no UTXOs there is nothing to sum: NaN, not an invented
-        fraction of the 21M supply (REG-0008).
+        Realised cap is the sum over the whole UTXO set of value x price at
+        creation. ``listunspent`` returns only the node wallet's UTXOs, and no
+        UTXO-set snapshot with creation prices is wired in, so any figure built
+        here would be wallet balance x spot -- arbitrary, not a bound (DAT-004).
         """
-        if not utxos:
-            return _NAN
-        total_btc = sum(float(u.get("amount", 0)) for u in utxos)
-        return total_btc * spot_price_usd
+        return _NAN

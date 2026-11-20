@@ -161,7 +161,13 @@ def lll_reduce_with_transform(
                 transform[k] = [
                     a - factor * b for a, b in zip(transform[k], transform[j], strict=True)
                 ]
-                orthogonal, mu = gram_schmidt(rows)
+                # b_k -= f b_j leaves every b*_i unchanged and shifts only row k
+                # of mu, by f times row j (mu[j][j] being 1). Updating in place is
+                # exact; recomputing the whole Gram-Schmidt here was the cost
+                # that made this reference crawl (audit MTH-020).
+                for i in range(j):
+                    mu[k][i] -= factor * mu[j][i]
+                mu[k][j] -= factor
 
         left = _dot(orthogonal[k], orthogonal[k])
         right = (delta - mu[k][k - 1] ** 2) * _dot(orthogonal[k - 1], orthogonal[k - 1])
@@ -262,7 +268,6 @@ def integer_lll_reduce(
     _validate_delta(delta)
     b = [list(map(int, row)) for row in basis]
     _validate_shape(b)
-    gram_schmidt(b)  # fail fast on a dependent basis, matching lll_reduce
 
     n = len(b)
     delta_num, delta_den = delta.numerator, delta.denominator
@@ -270,6 +275,8 @@ def integer_lll_reduce(
     # d[i] is the i-th Gram determinant: d[0] = 1, d[i] = prod_{j<i} ||b*_j||^2.
     d = [1] * (n + 1)
     d[1] = _dot_int(b[0], b[0])
+    if d[1] == 0:
+        raise _dependent_row(0)
     # lam[i][j] = d[j+1] * mu[i][j], an integer.
     lam = [[0] * n for _ in range(n)]
     kmax = 0
@@ -287,6 +294,13 @@ def integer_lll_reduce(
                 lam[k][j] = u
             else:
                 d[k + 1] = u
+        # Row k is computed here for the first time, and nothing above has yet
+        # touched it: swaps only reorder rows up to k - 1, which span the same
+        # space as the original first k. So a zero Gram determinant means the
+        # original row k depends on the rows before it -- the check the
+        # Fraction Gram-Schmidt used to make up front, at integer cost (MTH-020).
+        if d[k + 1] == 0:
+            raise _dependent_row(k)
 
     def _reduce(k: int, ell: int) -> None:
         if 2 * abs(lam[k][ell]) <= d[ell + 1]:
@@ -316,6 +330,13 @@ def integer_lll_reduce(
             k = max(k - 1, 1)
 
     return b
+
+
+def _dependent_row(index: int) -> ValueError:
+    return ValueError(
+        f"row {index} is a linear combination of the rows before it; LLL "
+        "reduces a basis, and a dependent set is not one"
+    )
 
 
 def _dot_int(u: Sequence[int], v: Sequence[int]) -> int:

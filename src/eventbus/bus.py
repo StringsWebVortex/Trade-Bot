@@ -1,314 +1,374 @@
 """
-In-process publish/subscribe bus — GOV-032, GOV-033, GOV-034.
+INV-032 -- the in-process publish path, and the law that holds it safe.
 
-The GUI transport is a timer today: ``/ws`` sleeps for the heartbeat and
-then builds a snapshot, so a fill landing one millisecond after a tick is
-invisible for the rest of the period. Raising the tick rate trades latency
-for load without ever removing the floor. This bus removes the floor by
-letting the producer say *something changed*.
+The dashboard used to be fed by timers alone: one ``while True: sleep(5)``
+per websocket client, and sixteen ``setInterval`` calls in the browser. A
+timer cannot be faster than its period, so a fill that landed 10ms after a
+tick waited out the rest of the heartbeat no matter how fast the executor
+was. This module is the thing that lets a producer say "it happened" at the
+moment it happens.
 
-Two properties are load-bearing, and both are asserted by tests rather
-than described:
+The load-bearing law, and the reason this file is written the way it is:
 
-**Publishing never blocks.** :meth:`EventBus.publish` is a plain ``def``.
-It cannot await, so no amount of subscriber slowness can suspend a caller
-inside the trading loop. A GUI client on a congested link must never be
-able to delay a fill being recorded.
+    **The GUI must never be able to apply backpressure to the trading loop.**
 
-**A full queue drops the oldest event, not the newest.** Every consumer
-here renders current state. When a slow client falls behind, the stale
-frames are the ones worth losing; dropping the newest would pin the panel
-to whatever was on screen when congestion started and leave it there.
-Drops are counted per subscription and surfaced, because a silent drop is
-indistinguishable from a quiet market.
+Every design choice below follows from it:
 
-The bus is deliberately not durable and not ordered across topics: it is a
-liveness mechanism for display, never a substitute for storage. Nothing
-that must survive a restart may be published and not persisted.
+  publish() is sync      an ``async def`` would let a caller ``await`` on a
+                         consumer, and the first caller to do that puts a
+                         dashboard in the path of an order
+  publish() never awaits nothing in it can yield to the event loop, so a
+                         producer's latency does not depend on how many
+                         subscribers exist or how slow they are
+  publish() never raises a dashboard that has gone wrong is not a reason to
+                         fail a fill; the producer is a risk gate, not a
+                         transport, and must not learn about transport
+  drop the oldest        a bounded buffer that blocks is backpressure wearing
+                         a hat. When a consumer cannot keep up, the consumer
+                         loses data -- never the producer
+  count the drops        a starved client must be *visible*. Silently losing
+                         the oldest frame and showing a confident dashboard is
+                         worse than showing nothing, because the operator
+                         cannot tell the difference
+
+``collections.deque(maxlen=N)`` rather than ``asyncio.Queue(maxsize=N)`` is
+deliberate. Queue's only bounded put is ``put_nowait``, which *raises*
+``QueueFull`` -- so drop-oldest becomes catch, ``get_nowait()``, put again,
+and that sequence has a race against a concurrent drain that can leave the
+queue holding a gap it never counted. A deque with ``maxlen`` evicts the
+leftmost element on append as a single operation, which is exactly the
+semantics wanted, with no exception path to get wrong.
+
+Layering (GOV-018): this package sits in ``foundation``. That is not
+housekeeping -- it is the only layer that works. Producers live in ``data``
+and ``diagnostics`` (io), ``tuning`` and ``intelligence`` (analytics),
+``execution`` and ``risk`` (decision) and ``engine`` (orchestration), and the
+consumer is ``api`` (edge). A bus placed in any of those is imported upward
+by all the ones below it, and ``check_static_invariants`` refuses every one
+of those edges. Only a package below all of them can be imported by all of
+them.
 """
 
 from __future__ import annotations
 
 import asyncio
-import contextlib
+import collections
 import time
-from collections.abc import Callable, Iterable, Mapping
+import uuid
+from collections.abc import AsyncIterator, Iterable, Mapping
 from dataclasses import dataclass, field
-from types import MappingProxyType
-from typing import Any, Final
+from functools import lru_cache
+from typing import Any
 
 import structlog
 
-from .topics import ALL, KNOWN_TOPICS
+log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
-log = structlog.get_logger(__name__)
 
-#: Per-subscription queue depth. Deep enough to absorb a burst from a
-#: single trading cycle, shallow enough that a wedged client cannot hold
-#: meaningful memory: ~256 small dicts per client.
-DEFAULT_MAXSIZE: Final = 256
+# Every topic the bus will carry. A frozen set rather than free-form strings
+# because both ends need it: a producer typo otherwise publishes into a topic
+# nobody reads, and PR 3's client-driven subscribe has to be able to refuse an
+# unknown topic explicitly instead of silently subscribing to nothing.
+TOPICS: frozenset[str] = frozenset(
+    {
+        "position",  # executor open / close / partial fill
+        "equity",  # mark_to_market
+        "order",  # order FSM state transitions
+        "approval",  # approval queue add / resolve
+        "signal",  # orchestrator tick
+        "engine",  # E-01..E-18, consensus, risk quantifier, signal gate: one per cycle
+        "regime",  # orchestrator tick
+        "gate",  # evaluate_all_gates, *including* blocks
+        "killswitch",  # strategy_kill_switch
+        "capital_floor",  # capital_preservation_floor
+        "selftuning",  # parameter change / rollback
+        "drift",  # SignalDebugger
+        "health",  # RuntimeMonitor
+        "intel",  # provider health transitions
+        "price",  # orderbook stream, coalesced
+        "book",  # orderbook stream, coalesced
+        "runtime",  # runtime platform: lifecycle transitions and change audit
+    }
+)
+
+# How many events one subscriber may fall behind by before it starts losing
+# the oldest. Sized for the burst a single orchestrator tick produces (one
+# signal + one regime + a gate result per strategy + a position event per
+# fill), with room to spare: a consumer that cannot drain this between ticks
+# is not briefly busy, it is broken, and the drop counter is how that gets
+# noticed.
+DEFAULT_MAXLEN = 256
+
+
+# structlog contextvars the bus copies onto every event: the correlation ids
+# a tick (trace_id), an order submission (order_key) or a runtime change
+# binds. Read at publish time -- the producer's context, never the consumer's.
+CORRELATION_KEYS: tuple[str, ...] = (
+    "trace_id",
+    "causation_id",
+    "decision_id",
+    "order_key",
+    "strategy_id",
+    "model_id",
+    "runtime_component_id",
+    "change_id",
+    "task_id",
+    "timeframe",
+)
+
+
+def _correlation() -> dict[str, Any]:
+    bound = structlog.contextvars.get_contextvars()
+    return {k: bound[k] for k in CORRELATION_KEYS if k in bound}
+
+
+def _new_event_id() -> str:
+    return uuid.uuid4().hex
+
+
+def _now_ms() -> int:
+    """Wall-clock milliseconds. Stamped at the producer, never at send."""
+    return int(time.time() * 1000)
 
 
 @dataclass(frozen=True, slots=True)
 class Event:
-    """One published fact. Immutable so fan-out can share a single object."""
+    """
+    One published fact.
+
+    ``ts_ms`` is stamped when ``publish`` is called, not when the frame is
+    written to a socket. That is the whole point of carrying it: the
+    difference between this and the browser's clock is the end-to-end lag,
+    and a timestamp applied at send time would report zero lag no matter how
+    badly the transport was starved.
+
+    ``mono_ns`` is the same instant on the monotonic clock, and it exists
+    because the two consumers need different things. The browser can only
+    compare against an epoch timestamp, so the frame has to carry wall clock.
+    The server-side lag histogram is a *duration*, and a duration taken from
+    wall clock is wrong the one time it matters: an NTP correction landing
+    between the publish and the send makes the measurement negative or
+    enormous, which is indistinguishable from the starvation the metric is
+    watching for. Never serialized -- it is meaningless outside this process.
+    """
 
     topic: str
-    payload: Mapping[str, Any]
-    sequence: int
-    published_at: float
-
-    def __post_init__(self) -> None:
-        # Fan-out hands the same instance to every subscriber; a mutable
-        # payload would let one consumer edit what the others receive.
-        object.__setattr__(self, "payload", MappingProxyType(dict(self.payload)))
+    data: Mapping[str, Any]
+    ts_ms: int
+    mono_ns: int = field(default_factory=time.monotonic_ns)
+    event_id: str = field(default_factory=_new_event_id)
+    # The correlation ids bound where publish() was called (CORRELATION_KEYS);
+    # what lets a fill be traced back to the tick and signal that caused it.
+    context: Mapping[str, Any] = field(default_factory=dict)
 
 
 @dataclass(eq=False)
 class Subscription:
     """
-    A consumer's view of the bus.
+    One consumer's view of the bus.
 
-    Async-iterable. Iteration ends when :meth:`close` is called or the bus
-    shuts down, so a consumer task exits on its own rather than needing to
-    be cancelled.
+    Not reusable and not shared: each subscriber owns its own buffer so that
+    one slow consumer cannot evict another's events. Iterate it with ``async
+    for``; call ``close()`` (or use it as an async context manager) to
+    unregister.
     """
 
     topics: frozenset[str]
-    maxsize: int
-    _queue: asyncio.Queue[Event] = field(init=False)
-    _closed: bool = field(default=False, init=False)
-    _wake: asyncio.Event = field(default_factory=asyncio.Event, init=False)
-    dropped: int = field(default=0, init=False)
-    delivered: int = field(default=0, init=False)
+    maxlen: int = DEFAULT_MAXLEN
+    dropped: int = 0
+    """Events discarded because this subscriber was not draining fast enough."""
+
+    _queue: collections.deque[Event] = field(init=False, repr=False)
+    _wake: asyncio.Event = field(init=False, repr=False)
+    _closed: bool = field(default=False, init=False, repr=False)
+    _unsubscribe: Any = field(default=None, init=False, repr=False)
 
     def __post_init__(self) -> None:
-        self._queue = asyncio.Queue(maxsize=self.maxsize)
-
-    @property
-    def closed(self) -> bool:
-        return self._closed
-
-    @property
-    def pending(self) -> int:
-        return self._queue.qsize()
-
-    def wants(self, topic: str) -> bool:
-        return ALL in self.topics or topic in self.topics
+        self._queue = collections.deque(maxlen=self.maxlen)
+        # Safe to build outside a running loop: since 3.10 asyncio.Event no
+        # longer binds the loop at construction, and subscribe() is called
+        # from synchronous setup code.
+        self._wake = asyncio.Event()
 
     def _offer(self, event: Event) -> None:
-        """Enqueue, evicting the oldest event if the queue is already full."""
+        """
+        Called by ``EventBus.publish`` only. Sync, non-blocking, total.
+
+        The drop accounting happens *before* the append because a full deque
+        evicts its leftmost element as part of ``append`` -- once it has
+        happened there is nothing left to observe.
+        """
+        if len(self._queue) == self.maxlen:
+            self.dropped += 1
+        self._queue.append(event)
+        self._wake_consumer()
+
+    def _detach(self) -> None:
+        """Mark closed and unregister from the bus. Idempotent."""
+        self._closed = True
+        if self._unsubscribe is not None:
+            self._unsubscribe(self)
+            self._unsubscribe = None
+
+    def _wake_consumer(self) -> None:
+        """
+        Wake the iterator, or drop this subscription if its loop is gone.
+
+        ``asyncio.Event.set`` resolves the futures ``__aiter__`` parks on, and
+        resolving a future whose loop has since been closed raises. Any
+        subscriber whose consumer died without closing is in that state -- an
+        API lifespan unwound by an exception rather than through its shutdown
+        path, or a process that ran the server under one ``asyncio.run`` and
+        published under the next.
+
+        Catching it here rather than leaving it to ``publish``'s blanket guard
+        is the point: that guard would abandon the rest of the fan-out, so one
+        consumer that is already unreachable would cost every live subscriber
+        the event. Dropping it is also the honest reading -- nothing is going
+        to read that queue again.
+        """
         try:
-            self._queue.put_nowait(event)
-        except asyncio.QueueFull:
-            try:
-                self._queue.get_nowait()
-            except asyncio.QueueEmpty:  # pragma: no cover - drained concurrently
-                pass
-            else:
-                self.dropped += 1
-            # The queue has a free slot now, and publish() is synchronous so
-            # nothing could have refilled it in between.
-            self._queue.put_nowait(event)
-        self.delivered += 1
+            self._wake.set()
+        except RuntimeError:
+            self._detach()
 
     def close(self) -> None:
-        """Idempotent. Wakes an iterator parked in ``__anext__``."""
+        """Unregister and wake the iterator so it can finish."""
         if self._closed:
             return
-        self._closed = True
-        self._wake.set()
+        self._detach()
+        self._wake_consumer()
 
-    async def drain(self, window: float) -> int:
-        """
-        Wait up to `window` seconds for an event, then take every one
-        already queued.
-        Returns how many were consumed; ``0`` means the timeout elapsed or
-        the subscription closed.
-
-        Consumers of this bus render current state, so a burst -- one
-        trading cycle closing three positions -- should cost one render,
-        not three that each overwrite the last. Coalescing here rather
-        than in each consumer keeps that decision in one place.
-
-        A timeout is not an error: for a socket it is the keepalive tick,
-        and the caller does not need to tell the two apart.
-        """
-        try:
-            await asyncio.wait_for(self.__anext__(), timeout=window)
-        except (TimeoutError, StopAsyncIteration):
-            return 0
-        taken = 1
-        while not self._queue.empty():
-            taken += 1
-            self._queue.get_nowait()
-        return taken
-
-    def __aiter__(self) -> Subscription:
+    async def __aenter__(self) -> Subscription:
         return self
 
-    async def __anext__(self) -> Event:
+    async def __aexit__(self, *_exc: object) -> None:
+        self.close()
+
+    async def __aiter__(self) -> AsyncIterator[Event]:
+        """
+        Yield events until closed.
+
+        The clear-then-recheck below is not redundant. A publish that lands
+        between the drain and the clear would otherwise have its wakeup
+        erased, and the consumer would sleep on a non-empty queue until the
+        *next* event arrived -- which, on a quiet topic, is a stall that
+        looks exactly like a dropped connection.
+        """
         while True:
-            if not self._queue.empty():
-                return self._queue.get_nowait()
+            while self._queue:
+                yield self._queue.popleft()
             if self._closed:
-                raise StopAsyncIteration
-            getter = asyncio.ensure_future(self._queue.get())
-            waiter = asyncio.ensure_future(self._wake.wait())
-            done, pending = await asyncio.wait(
-                (getter, waiter), return_when=asyncio.FIRST_COMPLETED
-            )
-            for task in pending:
-                task.cancel()
-            if getter in done:
-                return getter.result()
-            # Woken by close(). Loop: anything queued in the meantime is
-            # drained by the check at the top before iteration ends.
+                return
+            self._wake.clear()
+            if self._queue or self._closed:
+                continue
+            await self._wake.wait()
 
 
 class EventBus:
     """
-    Process-local fan-out. One instance per application; see
-    :func:`get_event_bus`.
+    In-process topic bus. One instance per running system.
 
-    ``clock`` is injected so tests can assert timestamps without sleeping
-    (GOV-016).
+    Deliberately not thread-safe: every producer runs on the orchestrator's
+    event loop, and making it thread-safe would mean a lock in ``publish``,
+    which is a place a trading producer could block. If a producer ever needs
+    to publish from a worker thread, it should hop to the loop first rather
+    than this growing a lock.
     """
 
-    __slots__ = ("_clock", "_maxsize", "_sequence", "_subscribers", "_closed")
-
-    def __init__(
-        self,
-        *,
-        maxsize: int = DEFAULT_MAXSIZE,
-        clock: Callable[[], float] = time.monotonic,
-    ) -> None:
-        if maxsize < 1:
-            raise ValueError(f"maxsize must be >= 1, got {maxsize}")
-        self._clock = clock
-        self._maxsize = maxsize
-        self._sequence = 0
-        self._subscribers: list[Subscription] = []
-        self._closed = False
+    def __init__(self, maxlen: int = DEFAULT_MAXLEN) -> None:
+        self._subscribers: set[Subscription] = set()
+        # Drops of subscribers already detached, so total_dropped is monotonic.
+        self._dropped_detached = 0
+        self._maxlen = maxlen
+        self.published = 0
+        self.unknown_topic_drops = 0
 
     @property
     def subscriber_count(self) -> int:
         return len(self._subscribers)
 
     @property
-    def closed(self) -> bool:
-        return self._closed
+    def total_dropped(self) -> int:
+        """Drops across live and detached subscribers -- what the heartbeat reports."""
+        return self._dropped_detached + sum(sub.dropped for sub in self._subscribers)
 
-    def subscribe(
+    def _remove_subscriber(self, sub: Subscription) -> None:
+        """Unregister ``sub``, folding its drop count into the bus total once."""
+        if sub in self._subscribers:
+            self._subscribers.discard(sub)
+            self._dropped_detached += sub.dropped
+
+    def publish(
         self,
-        topics: Iterable[str] | None = None,
+        topic: str,
+        payload: Mapping[str, Any],
         *,
-        maxsize: int | None = None,
-    ) -> Subscription:
+        ts_ms: int | None = None,
+    ) -> None:
         """
-        Register a consumer. ``topics=None`` means every topic.
+        Hand one event to every subscriber of ``topic``. Never blocks, never
+        raises, never awaits.
 
-        Raises ``ValueError`` for a topic that is not in
-        :data:`~src.eventbus.topics.KNOWN_TOPICS`: a subscriber that names
-        a topic nobody publishes would wait forever, and the symptom is a
-        panel that never updates rather than an error.
+        The blanket ``except`` is not laziness. This is called from inside
+        risk gates and the executor, and the contract those callers rely on
+        is that publishing cannot change what they do. An exception escaping
+        here would turn a dashboard bug into a failed order, which is the one
+        outcome this whole module exists to prevent.
         """
-        if self._closed:
-            raise RuntimeError("cannot subscribe to a closed EventBus")
-        wanted = frozenset({ALL} if topics is None else topics)
-        unknown = {t for t in wanted if t != ALL and t not in KNOWN_TOPICS}
+        try:
+            if topic not in TOPICS:
+                # Not raised: a typo'd topic in a risk gate must not take the
+                # gate down with it. Counted and logged so it is still loud.
+                self.unknown_topic_drops += 1
+                log.error("eventbus.unknown_topic", topic=topic)
+                return
+
+            event = Event(
+                topic=topic,
+                data=payload,
+                ts_ms=ts_ms if ts_ms is not None else _now_ms(),
+                context=_correlation(),
+            )
+            self.published += 1
+            # Snapshot: _offer drops a subscriber whose loop has been closed,
+            # which mutates this set while it is being walked.
+            for sub in tuple(self._subscribers):
+                if topic in sub.topics:
+                    sub._offer(event)
+        except Exception as exc:  # pragma: no cover - defence, not a path
+            log.error("eventbus.publish_failed", topic=topic, error=type(exc).__name__)
+
+    def subscribe(self, topics: Iterable[str]) -> Subscription:
+        """
+        Register a consumer for ``topics``.
+
+        Raises on an unknown topic, unlike ``publish``. The asymmetry is the
+        point: a publish comes from our own code on the trading path and must
+        not be able to break it, while a subscribe comes from a client and is
+        input to be validated. PR 3 turns this into the websocket's
+        ``{"op":"subscribe"}`` refusal.
+        """
+        wanted = frozenset(topics)
+        unknown = wanted - TOPICS
         if unknown:
-            raise ValueError(f"unknown topic(s): {sorted(unknown)}")
-        sub = Subscription(topics=wanted, maxsize=maxsize or self._maxsize)
-        self._subscribers.append(sub)
+            raise ValueError(f"unknown topic(s): {', '.join(sorted(unknown))}")
+
+        sub = Subscription(topics=wanted, maxlen=self._maxlen)
+        sub._unsubscribe = self._remove_subscriber
+        self._subscribers.add(sub)
         return sub
 
-    def unsubscribe(self, sub: Subscription) -> None:
-        """Idempotent. Closes the subscription so its consumer loop exits."""
-        sub.close()
-        with contextlib.suppress(ValueError):
-            self._subscribers.remove(sub)
 
-    def publish(self, topic: str, payload: Mapping[str, Any]) -> int:
-        """
-        Fan ``payload`` out to every matching subscription and return how
-        many received it.
-
-        Synchronous by contract: a caller inside the trading loop cannot be
-        suspended here regardless of consumer behaviour.
-        """
-        if self._closed:
-            return 0
-        if topic not in KNOWN_TOPICS:
-            raise ValueError(f"unknown topic: {topic!r}")
-
-        self._sequence += 1
-        event = Event(
-            topic=topic,
-            payload=payload,
-            sequence=self._sequence,
-            published_at=self._clock(),
-        )
-
-        delivered = 0
-        stale: list[Subscription] = []
-        for sub in self._subscribers:
-            if sub.closed:
-                stale.append(sub)
-                continue
-            if not sub.wants(topic):
-                continue
-            sub._offer(event)
-            delivered += 1
-
-        for sub in stale:
-            self.unsubscribe(sub)
-        return delivered
-
-    def close(self) -> None:
-        """Idempotent. Ends every subscription's iteration."""
-        if self._closed:
-            return
-        self._closed = True
-        for sub in tuple(self._subscribers):
-            sub.close()
-        self._subscribers.clear()
-
-    def stats(self) -> dict[str, int]:
-        """Observability snapshot; safe to call from a metrics handler."""
-        return {
-            "subscribers": len(self._subscribers),
-            "published": self._sequence,
-            "dropped": sum(s.dropped for s in self._subscribers),
-            "pending": sum(s.pending for s in self._subscribers),
-        }
-
-
-#: The application-wide bus.
-#:
-#: Bound once at import and never rebound. The lazy-singleton spelling --
-#: a module global reassigned by ``get_event_bus()`` under a ``global``
-#: statement -- is the shared-mutable-global race LAW2 names: two callers
-#: reaching the ``is None`` check before either assigns each get their own
-#: bus, and the producer then publishes into one while the consumer is
-#: parked on the other. Binding at import removes the window rather than
-#: narrowing it, and costs nothing: the constructor allocates a list and
-#: an int, touches no event loop, and holds no resource worth deferring.
-#:
-#: It is deliberately never closed. Closing the process-wide bus would end
-#: every consumer's iteration with no way to reopen it, which is a
-#: shutdown concern the application does not have and a footgun it does
-#: not need. Tests that need isolation construct their own ``EventBus``.
-EVENT_BUS: Final[EventBus] = EventBus()
-
-
+@lru_cache(maxsize=1)
 def get_event_bus() -> EventBus:
     """
-    Return the application-wide bus.
+    The process-wide bus.
 
-    An accessor rather than a constructor argument threaded through every
-    producer: the alternative is an optional parameter on each call site,
-    and an optional bus is one that is ``None`` in production the first
-    time somebody forgets to pass it.
+    ``lru_cache`` matches ``get_settings``/``default_registry`` rather than a
+    module-level global so it has a ``cache_clear()``. Tests should construct
+    ``EventBus()`` directly instead of touching this -- REG-0005 is the entry
+    for tests whose result depends on process state an earlier test left.
     """
-    return EVENT_BUS
+    return EventBus()

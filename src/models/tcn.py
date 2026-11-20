@@ -78,6 +78,8 @@ class _Chomp1d(nn.Module):
         self.chomp_size = chomp_size
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        if self.chomp_size == 0:
+            return x
         return x[:, :, : -self.chomp_size].contiguous()
 
 
