@@ -232,6 +232,30 @@ def _route_write(tool_input: dict) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Reliability boundary — tested by test_agent_reliability_boundary.py
+# ---------------------------------------------------------------------------
+
+PROTECTED_BOUNDARY_PATHS: frozenset[str] = frozenset(
+    {
+        "src/agent_control/reliability.py",
+        "src/agent_control/completion.py",
+        "config/command_policy.json",
+        ".claude/hooks/pre_tool_use.py",
+        ".claude/hooks/_gh_contract.py",
+    }
+)
+
+
+def _enforcement(policy: dict) -> str:
+    """Return the enforcement mode from the policy dict.
+
+    The TB_COMMAND_POLICY environment variable cannot weaken enforcement;
+    only the repository-committed policy dict determines the mode.
+    """
+    return str(policy.get("enforcement", "block"))
+
+
+# ---------------------------------------------------------------------------
 # main
 # ---------------------------------------------------------------------------
 

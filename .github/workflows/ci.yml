@@ -104,6 +104,18 @@ jobs:
             git push
           fi
 
+  gate:
+    name: CI gate (all jobs green)
+    runs-on: ubuntu-latest
+    if: ${{ always() }}
+    needs: [backend, python-tests, frontend]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Assert every job in this workflow succeeded
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: python3 scripts/assert_jobs_green.py
+
   check-codebase-index:
     name: Check codebase index freshness (PR)
     runs-on: ubuntu-latest
