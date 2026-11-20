@@ -5,5 +5,8 @@
   "ruff.nativeServer": true,
   "ruff.organizeImports": true,
   "github-actions.workflows.pinnedGitHubAction": "warning",
-  "python-envs.defaultEnvManager": "ms-python.python:system"
+  "python-envs.defaultEnvManager": "ms-python.python:system",
+  "editor.wrapOnEscapedLineFeeds": true,
+  "editor.wordWrap": "on",
+  "chat.editor.wordWrap": "on"
 }
