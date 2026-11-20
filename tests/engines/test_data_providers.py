@@ -9,7 +9,6 @@ import pandas as pd
 
 from src.data.quality_gate import DataQualityGate
 
-
 # ---------------------------------------------------------------------------
 # Quality Gate
 # ---------------------------------------------------------------------------
@@ -117,7 +116,7 @@ def test_orderbook_stream_flush(tmp_path):
         )
     stream._flush_orderbook()
     out = tmp_path / "orderbook" / "btcusdt"
-    files = list(out.glob("*.parquet"))
+    files = list(out.rglob("*.parquet"))
     assert len(files) == 1
     df = pd.read_parquet(files[0])
     assert len(df) == 5

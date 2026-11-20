@@ -24,7 +24,6 @@ import structlog
 
 from src.intelligence.onchain.base import OnChainProvider
 
-
 log = structlog.get_logger(__name__)
 
 _BASE = "https://api.dune.com/api/v1"
@@ -61,7 +60,7 @@ class DuneProvider(OnChainProvider):
     _RATE = 1.0  # conservative; Dune free tier throttles aggressively
 
     def __init__(self, api_key: str, cache_ttl_s: int = 3600) -> None:
-        super().__init__()
+        super().__init__(cache_ttl_s)
         self._api_key = api_key
         self._CACHE_TTL_S = cache_ttl_s
         self._daily_executions = 0
@@ -167,6 +166,7 @@ class DuneProvider(OnChainProvider):
             status = await self._get(
                 f"{_BASE}/execution/{execution_id}/results",
                 headers=self._auth(),
+                use_cache=False,  # INT-012: never read/write a cached "pending" poll
             )
             if status is not None and status.get("state") == "QUERY_STATE_COMPLETED":
                 return _extract_rows(status)

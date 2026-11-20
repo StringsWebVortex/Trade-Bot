@@ -21,7 +21,6 @@ import structlog
 
 from src.intelligence.onchain.base import OnChainProvider
 
-
 log = structlog.get_logger(__name__)
 
 _BASE = "https://api.llama.fi"
@@ -49,7 +48,7 @@ class DeFiLlamaProvider(OnChainProvider):
     _RATE = 5.0  # conservative; DeFiLlama public limit is high but unspecified
 
     def __init__(self, cache_ttl_s: int = 300) -> None:
-        super().__init__()
+        super().__init__(cache_ttl_s)
         self._CACHE_TTL_S = cache_ttl_s
 
     @property

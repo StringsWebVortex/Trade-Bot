@@ -1,8 +1,7 @@
+// Tailwind v4: the PostCSS plugin lives in its own package, and vendor
+// prefixing is built in, so autoprefixer is no longer listed.
 export default {
   plugins: {
-    // Tailwind v4 moved the PostCSS plugin out of the `tailwindcss` package;
-    // referencing it directly is what vite build rejects.
     "@tailwindcss/postcss": {},
-    autoprefixer: {},
   },
 };

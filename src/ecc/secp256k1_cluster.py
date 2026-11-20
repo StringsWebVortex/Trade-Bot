@@ -9,6 +9,21 @@ Output: cluster_flow_score ∈ [-1, +1]
   -1 → large whale clusters are distributing (selling)
 
 Fed to all 10 horizons as the ECC cluster feature.
+
+post_quantum posture (LAW12):
+  Nothing here is a cryptographic trust boundary. This module reads
+  public chain data and produces a score; it holds no key, signs
+  nothing, establishes no shared secret, and protects no secret of
+  ours. There is therefore nothing in it for a CRQC to break, and no
+  ML-KEM or ML-DSA migration applies.
+
+  A CRQC changes what these signals *mean*, not what this code must
+  protect. The curve operations here are
+  analysis over public keys already published on-chain -- deriving and
+  comparing addresses -- not signing. Clustering by common-input
+  ownership stays valid under a CRQC; what changes is that the funds
+  being clustered are no longer safe, which is the chain's problem
+  rather than this module's.
 """
 
 from __future__ import annotations
@@ -17,7 +32,6 @@ import os
 from dataclasses import dataclass, field
 
 import structlog
-
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
@@ -51,6 +65,10 @@ class ClusteringResult:
     # analyses (UTXO age curve) reuse the fetch instead of repeating the
     # listunspent round trip against the node.
     utxos: list[dict] = field(default_factory=list)
+    # True only when at least one whale cluster carries real inflow/outflow
+    # data. ``listunspent`` reports no flows, so ``flow_score`` is otherwise a
+    # constant 0.0 that must not be consumed as a signal (MTH-004).
+    flow_available: bool = False
 
 
 class AddressClusterer:
@@ -111,7 +129,13 @@ class AddressClusterer:
 
         def find(x: str) -> str:
             while parent.get(x, x) != x:
-                parent[x] = parent.get(parent.get(x, x), x)
+                p = parent.get(x, x)
+                # Path halving: jump to the grandparent. A root has no entry
+                # in `parent`, so its own value (not the original x) is the
+                # correct default -- defaulting to x here would silently
+                # unwind the union on the next find(), splitting addresses
+                # that share a transaction back into separate clusters.
+                parent[x] = parent.get(p, p)
                 x = parent[x]
             return x
 
@@ -145,12 +169,19 @@ class AddressClusterer:
             clusters.append(ClusterInfo(cluster_id=i, total_btc=total_btc, addresses=addrs))
         return clusters
 
+    @staticmethod
+    def has_flow_data(clusters: list[ClusterInfo]) -> bool:
+        """Whether any whale cluster carries inflow/outflow data."""
+        return any(c.is_whale and (c.inflow_btc or c.outflow_btc) for c in clusters)
+
     def flow_score(self, clusters: list[ClusterInfo]) -> float:
         """
         Compute flow score ∈ [-1, +1] from whale cluster net flows.
 
         Positive → net accumulation; negative → net distribution.
-        Weighted by cluster size (BTC).
+        Computed as sum(net flow) / sum(balance) over whale clusters, i.e.
+        each cluster's flow ratio weighted by its BTC balance. Returns 0.0
+        when no flow data is populated; see :meth:`has_flow_data`.
         """
         whale_clusters = [c for c in clusters if c.is_whale]
         if not whale_clusters:
@@ -208,4 +239,5 @@ class Secp256k1ClusterWorker:
             total_whale_btc=sum(c.total_btc for c in whale_clusters),
             clusters=clusters,
             utxos=utxos,
+            flow_available=self._clusterer.has_flow_data(clusters),
         )

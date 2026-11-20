@@ -1,0 +1,469 @@
+"""
+Guarded Git operations -- what must not run without an explicit, recorded reason.
+
+``common.command_schema`` already refuses the irreversible forms (``reset
+--hard``, ``clean -f``, ``push --force``) without the human approval marker.
+This module covers the next ring out: operations that are recoverable in
+principle but are exactly how uncommitted work and branch state get lost in a
+long session -- ``checkout``, ``switch``, ``restore``, ``reset``, ``rebase``,
+``merge``, ``pull`` (a merge or rebase in disguise), ``cherry-pick``,
+``stash``, ``clean`` and every force push, ``--force-with-lease`` included.
+
+While an agent-control task is active in a worktree, each such operation
+needs a single-use, expiring authorization recorded against the task, and
+recording one captures the pre-mutation Git snapshot as a checkpoint. A vague
+instruction ("clean this up", "go back") authorizes nothing: the only thing
+that does is an authorization naming the operation and the reason.
+
+Detection splits the command the way a shell would -- control operators,
+quoting, ``bash -c``, ``env``/``sudo``/``timeout`` wrappers and ``git -C``
+style global options -- and drops heredoc bodies, so a commit message that
+mentions "git merge" is not mistaken for one. Where the command cannot be
+tokenised (an unbalanced quote) detection falls back to a conservative
+pattern scan: a false positive costs one authorization, a false negative
+costs work.
+
+Registry: GOV-061 (config/quality_registry.json).
+"""
+
+from __future__ import annotations
+
+import os
+import re
+import shlex
+from collections.abc import Iterable, Mapping
+from dataclasses import dataclass
+from datetime import datetime, timedelta
+
+from common.command_schema import redact
+from src.agent_control.model import Authorization, ManifestError, TaskRun, next_id
+
+FORCE_PUSH = "push-force"
+GUARDED_SUBCOMMANDS: frozenset[str] = frozenset(
+    {
+        "checkout",
+        "switch",
+        "restore",
+        "reset",
+        "rebase",
+        "merge",
+        "pull",
+        "cherry-pick",
+        "stash",
+        "clean",
+    }
+)
+GUARDED_OPERATIONS: frozenset[str] = GUARDED_SUBCOMMANDS | {FORCE_PUSH}
+
+DEFAULT_TTL_S = 900
+MAX_TTL_S = 3600
+
+# Subcommand forms that only read.
+_READ_ONLY_FORMS: dict[str, frozenset[str]] = {"stash": frozenset({"list", "show"})}
+_GLOBAL_OPTIONS_WITH_VALUE = frozenset(
+    {"-C", "-c", "--git-dir", "--work-tree", "--namespace", "--super-prefix", "--config-env"}
+)
+_WRAPPERS = frozenset({"sudo", "env", "command", "exec", "nice", "nohup", "time", "timeout"})
+_SHELLS = frozenset({"bash", "sh", "zsh", "dash"})
+_PUNCTUATION = frozenset("();<>|&")
+_ASSIGNMENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
+_HEREDOC = re.compile(r"<<(-?)[ \t]*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\2")
+_FALLBACK = re.compile(
+    r"\bgit\b[^\n;&|]*?"
+    r"\b(checkout|switch|restore|reset|rebase|merge|pull|cherry-pick|stash|clean)\b"
+    r"|\bgit\b[^\n;&|]*?\bpush\b[^\n;&|]*?(--force|\s-[a-zA-Z]*f|\s\+)"
+)
+_FIND_EXEC = frozenset({"-exec", "-execdir", "-ok", "-okdir"})
+_MAX_DEPTH = 3
+
+
+@dataclass(frozen=True, slots=True)
+class GitInvocation:
+    subcommand: str
+    args: tuple[str, ...]
+
+
+def _in_quotes(line: str, index: int) -> bool:
+    quote = ""
+    escaped = False
+    for char in line[:index]:
+        if escaped:
+            escaped = False
+        elif char == "\\" and quote != "'":
+            escaped = True
+        elif quote:
+            if char == quote:
+                quote = ""
+        elif char in ("'", '"'):
+            quote = char
+    return bool(quote)
+
+
+def _heredoc_markers(line: str) -> list[tuple[str, bool]]:
+    markers: list[tuple[str, bool]] = []
+    for match in _HEREDOC.finditer(line):
+        start = match.start()
+        if (start > 0 and line[start - 1] == "<") or _in_quotes(line, start):
+            continue
+        markers.append((match.group(3), match.group(1) == "-"))
+    return markers
+
+
+def strip_heredocs(command: str) -> str:
+    """Drop heredoc bodies: they are data fed to a command, never commands."""
+    kept: list[str] = []
+    pending: list[tuple[str, bool]] = []
+    for line in command.split("\n"):
+        if pending:
+            delimiter, strip_tabs = pending[0]
+            if (line.lstrip("\t") if strip_tabs else line) == delimiter:
+                pending.pop(0)
+            continue
+        kept.append(line)
+        pending.extend(_heredoc_markers(line))
+    return "\n".join(kept)
+
+
+def _join_lines(command: str) -> str:
+    """Unquoted newlines become ``;`` and backslash-newline continues the line."""
+    out: list[str] = []
+    quote = ""
+    index = 0
+    while index < len(command):
+        char = command[index]
+        if char == "\\" and quote != "'" and index + 1 < len(command):
+            pair = command[index : index + 2]
+            out.append("" if pair == "\\\n" else pair)
+            index += 2
+            continue
+        if quote:
+            if char == quote:
+                quote = ""
+        elif char in ("'", '"'):
+            quote = char
+        elif char == "\n":
+            char = " ; "
+        out.append(char)
+        index += 1
+    return "".join(out)
+
+
+def _tokens(command: str) -> list[str]:
+    lexer = shlex.shlex(command, posix=True, punctuation_chars=True)
+    lexer.whitespace_split = True
+    lexer.commenters = ""
+    return list(lexer)
+
+
+def _is_separator(token: str) -> bool:
+    # shlex groups adjacent punctuation, so ")&&" arrives as one token. Any
+    # all-punctuation token is a command boundary unless it is a redirection
+    # (">", ">>", ">&", "<", "<&", ...), which only ever starts with < or >.
+    return bool(token) and set(token) <= _PUNCTUATION and token[0] not in "<>"
+
+
+def _segments(tokens: list[str]) -> list[list[str]]:
+    segments: list[list[str]] = [[]]
+    for token in tokens:
+        if _is_separator(token):
+            segments.append([])
+        else:
+            segments[-1].append(token)
+    return [segment for segment in segments if segment]
+
+
+def _command_substitutions(command: str) -> tuple[str, list[str]]:
+    """Extract shell command substitutions, including nested ``$(...)`` forms."""
+    bodies: list[str] = []
+    out: list[str] = []
+    quote = ""
+    escaped = False
+    index = 0
+    last = 0
+    while index < len(command):
+        char = command[index]
+        if escaped:
+            escaped = False
+            index += 1
+            continue
+        if char == "\\" and quote != "'":
+            escaped = True
+            index += 1
+            continue
+        if quote == "'":
+            if char == "'":
+                quote = ""
+            index += 1
+            continue
+        if quote == '"' and char == '"':
+            quote = ""
+            index += 1
+            continue
+        if not quote and char in ("'", '"'):
+            quote = char
+            index += 1
+            continue
+
+        end = None
+        body = ""
+        if char == "`":
+            cursor = index + 1
+            while cursor < len(command):
+                if command[cursor] == "\\":
+                    cursor += 2
+                    continue
+                if command[cursor] == "`":
+                    end = cursor + 1
+                    body = command[index + 1 : cursor]
+                    break
+                cursor += 1
+        elif command.startswith("$(", index) and not command.startswith("$((", index):
+            depth = 1
+            cursor = index + 2
+            inner_quote = ""
+            inner_escaped = False
+            while cursor < len(command):
+                current = command[cursor]
+                if inner_escaped:
+                    inner_escaped = False
+                elif current == "\\" and inner_quote != "'":
+                    inner_escaped = True
+                elif inner_quote:
+                    if current == inner_quote:
+                        inner_quote = ""
+                elif current in ("'", '"'):
+                    inner_quote = current
+                elif current == "(":
+                    depth += 1
+                elif current == ")":
+                    depth -= 1
+                    if depth == 0:
+                        end = cursor + 1
+                        body = command[index + 2 : cursor]
+                        break
+                cursor += 1
+
+        if end is not None:
+            out.append(command[last:index] + " ")
+            bodies.append(body)
+            index = end
+            last = end
+        else:
+            index += 1
+    out.append(command[last:])
+    return "".join(out), bodies
+
+
+def _first_command_index(words: list[str]) -> int | None:
+    for index, word in enumerate(words):
+        base = os.path.basename(word)
+        if base == "git" or base in _SHELLS or base in ("eval", "find"):
+            return index
+    return None
+
+
+def _expand_alias(
+    invocation: GitInvocation, aliases: Mapping[str, str], depth: int
+) -> list[GitInvocation]:
+    """Resolve a git alias to the command(s) it runs; builtins are never shadowed."""
+    sub = invocation.subcommand
+    if sub in GUARDED_SUBCOMMANDS or sub == "push" or sub not in aliases or depth >= _MAX_DEPTH:
+        return [invocation]
+    expansion = aliases[sub].strip()
+    if expansion.startswith("!"):
+        script = f"{expansion[1:]} {' '.join(shlex.quote(a) for a in invocation.args)}"
+        return _invocations(script, depth + 1, aliases)
+    try:
+        parts = shlex.split(expansion)
+    except ValueError:
+        parts = expansion.split()
+    if not parts:
+        return [invocation]
+    resolved = GitInvocation(parts[0], tuple(parts[1:]) + invocation.args)
+    return _expand_alias(resolved, aliases, depth + 1)
+
+
+def _words_invocations(
+    words: list[str], depth: int, aliases: Mapping[str, str]
+) -> list[GitInvocation]:
+    while words and _ASSIGNMENT.match(words[0]):
+        words = words[1:]
+    if not words:
+        return []
+    head = os.path.basename(words[0])
+    if head in _SHELLS or head == "eval":
+        if depth < _MAX_DEPTH:
+            return _invocations(_nested_script(head, words), depth + 1, aliases)
+        return []
+    if head == "{":
+        if depth < _MAX_DEPTH:
+            return _invocations(" ".join(words[1:]), depth + 1, aliases)
+        return []
+    if head == "find":
+        found: list[GitInvocation] = []
+        for index, word in enumerate(words):
+            if word in _FIND_EXEC and depth < _MAX_DEPTH:
+                tail = words[index + 1 :]
+                end = next((i for i, w in enumerate(tail) if w == "+"), len(tail))
+                found.extend(_words_invocations(tail[:end], depth + 1, aliases))
+        return found
+    if head == "xargs":
+        start = _first_command_index(words)
+        if start is None or depth >= _MAX_DEPTH:
+            return []
+        return _words_invocations(words[start:], depth + 1, aliases)
+    if head in _WRAPPERS:
+        words = next((words[i:] for i, w in enumerate(words) if os.path.basename(w) == "git"), [])
+    if not words or os.path.basename(words[0]) != "git":
+        return []
+    inline = dict(aliases)
+    index = 1
+    while index < len(words) and words[index].startswith("-"):
+        if words[index] == "-c" and index + 1 < len(words):
+            name, _, value = words[index + 1].partition("=")
+            if name.lower().startswith("alias.") and value:
+                inline[name[len("alias.") :]] = value
+        index += 2 if words[index] in _GLOBAL_OPTIONS_WITH_VALUE else 1
+    if index >= len(words):
+        return []
+    return _expand_alias(GitInvocation(words[index], tuple(words[index + 1 :])), inline, depth)
+
+
+def _invocations(command: str, depth: int, aliases: Mapping[str, str]) -> list[GitInvocation]:
+    found: list[GitInvocation] = []
+    outer, bodies = _command_substitutions(command)
+    if depth < _MAX_DEPTH:
+        for body in bodies:
+            found.extend(_invocations(body, depth + 1, aliases))
+    for words in _segments(_tokens(_join_lines(strip_heredocs(outer)))):
+        found.extend(_words_invocations(words, depth, aliases))
+    return found
+
+
+def _nested_script(head: str, words: list[str]) -> str:
+    if head == "eval":
+        return " ".join(words[1:])
+    for index, word in enumerate(words[1:-1], start=1):
+        if word.startswith("-") and not word.startswith("--") and "c" in word:
+            return words[index + 1]
+    return ""
+
+
+def git_invocations(command: str, aliases: Mapping[str, str] | None = None) -> list[GitInvocation]:
+    """
+    Every ``git`` command a shell would run for ``command``.
+
+    ``aliases`` maps configured alias names to their expansion
+    (``git config --get-regexp ^alias\\.``); ``-c alias.x=...`` is read from the
+    command itself. Backtick substitutions, ``xargs`` and ``find -exec`` count
+    as nested commands.
+    """
+    return _invocations(command, 0, aliases or {})
+
+
+def _is_force_push(args: Iterable[str]) -> bool:
+    for arg in args:
+        if arg in ("--force", "--force-with-lease", "--force-if-includes"):
+            return True
+        if arg.startswith("--force-with-lease="):
+            return True
+        if arg.startswith("-") and not arg.startswith("--") and "f" in arg[1:]:
+            return True
+        if arg.startswith("+") and len(arg) > 1:
+            return True
+    return False
+
+
+def operation_of(invocation: GitInvocation) -> str | None:
+    sub = invocation.subcommand
+    if sub == "push":
+        return FORCE_PUSH if _is_force_push(invocation.args) else None
+    if sub not in GUARDED_SUBCOMMANDS:
+        return None
+    read_only = _READ_ONLY_FORMS.get(sub, frozenset())
+    if invocation.args and invocation.args[0] in read_only:
+        return None
+    return sub
+
+
+def guarded_operations(command: str, aliases: Mapping[str, str] | None = None) -> list[str]:
+    """Guarded operations ``command`` would perform, in order, one entry per occurrence."""
+    try:
+        operations = [operation_of(inv) for inv in git_invocations(command, aliases)]
+    except ValueError:
+        operations = []
+        for match in _FALLBACK.finditer(command):
+            operations.append(match.group(1) or FORCE_PUSH)
+    return [op for op in operations if op]
+
+
+def _parse(stamp: str) -> datetime:
+    return datetime.fromisoformat(stamp)
+
+
+def authorize(
+    task: TaskRun,
+    operation: str,
+    reason: str,
+    *,
+    checkpoint_id: str,
+    now: datetime,
+    ttl_s: int = DEFAULT_TTL_S,
+) -> Authorization:
+    """Record a single-use authorization for one guarded operation."""
+    if operation not in GUARDED_OPERATIONS:
+        known = ", ".join(sorted(GUARDED_OPERATIONS))
+        raise ManifestError(f"{operation!r} is not a guarded operation (known: {known})")
+    if not reason.strip():
+        raise ManifestError("an authorization needs a reason")
+    if not 1 <= ttl_s <= MAX_TTL_S:
+        raise ManifestError(f"ttl must be between 1 and {MAX_TTL_S} seconds")
+    grant = Authorization(
+        authorization_id=next_id("AU", (a.authorization_id for a in task.authorizations)),
+        operation=operation,
+        reason=reason.strip(),
+        created_at=now.isoformat(),
+        expires_at=(now + timedelta(seconds=ttl_s)).isoformat(),
+        checkpoint_id=checkpoint_id,
+    )
+    task.authorizations.append(grant)
+    return grant
+
+
+def _available(
+    task: TaskRun, operation: str, now: datetime, taken: Iterable[Authorization] = ()
+) -> Authorization | None:
+    reserved = {id(grant) for grant in taken}
+    for grant in task.authorizations:
+        if (
+            id(grant) not in reserved
+            and grant.operation == operation
+            and grant.consumed_at is None
+            and _parse(grant.expires_at) > now
+        ):
+            return grant
+    return None
+
+
+def consume(task: TaskRun, operations: Iterable[str], command: str, *, now: datetime) -> list[str]:
+    """
+    Spend one authorization per occurrence of each operation (two checkouts
+    need two grants). All or nothing: if any operation
+    lacks a live authorization nothing is consumed and the missing ones are
+    returned.
+    """
+    granted: list[Authorization] = []
+    missing: list[str] = []
+    for operation in operations:
+        grant = _available(task, operation, now, granted)
+        if grant is None:
+            missing.append(operation)
+        else:
+            granted.append(grant)
+    if missing:
+        return missing
+    recorded = redact(command)[0][:500]
+    for grant in granted:
+        grant.consumed_at = now.isoformat()
+        grant.consumed_by = recorded
+    return []
