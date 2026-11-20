@@ -2,6 +2,9 @@
 Integration tests for LiveExecutor with OrderFSM.
 
 Tests that _place_market_order now uses OrderManager with FSM state tracking.
+
+Decides:
+  - INV-003 — Unknown exchange order state cannot become FILLED without reconciliation
 """
 
 import asyncio
@@ -34,6 +37,7 @@ class TestOrderManagerMock:
 
         # Mock exchange that returns filled order immediately
         mock_exchange = AsyncMock()
+        mock_exchange.id = "binance"
         mock_exchange.create_market_order = AsyncMock(
             return_value={
                 "id": "12345",
@@ -74,6 +78,7 @@ class TestOrderManagerMock:
 
         # Mock exchange: first fetch returns pending, second returns filled
         mock_exchange = AsyncMock()
+        mock_exchange.id = "binance"
         mock_exchange.create_market_order = AsyncMock(
             return_value={
                 "id": "12346",
@@ -113,6 +118,7 @@ class TestOrderManagerMock:
 
         # Mock exchange that always returns pending
         mock_exchange = AsyncMock()
+        mock_exchange.id = "binance"
         mock_exchange.create_market_order = AsyncMock(
             return_value={"id": "12347", "status": "open", "filled": 0.0}
         )
@@ -139,6 +145,7 @@ class TestOrderManagerMock:
         import ccxt
 
         mock_exchange = AsyncMock()
+        mock_exchange.id = "binance"
         mock_exchange.create_market_order = AsyncMock(
             return_value={"id": "12348", "status": "open", "filled": 0.0}
         )
