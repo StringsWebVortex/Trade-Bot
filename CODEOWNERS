@@ -1,0 +1,5 @@
+# Scaffold files — require review to prevent silent removal
+/.claude/          @zulqarnain106612-cpu
+/CLAUDE.md         @zulqarnain106612-cpu
+/scripts/audit.sh  @zulqarnain106612-cpu
+/.github/workflows/ci.yml @zulqarnain106612-cpu
