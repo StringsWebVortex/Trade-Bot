@@ -5,6 +5,11 @@ import argparse
 import json
 import sys
 from dataclasses import dataclass, field
+
+try:
+    import jsonschema
+except ImportError:  # the project declares jsonschema; absence is a broken gate runtime
+    jsonschema = None
 from pathlib import Path
 
 import qe_registry_refs as refs
@@ -12,6 +17,7 @@ import qe_registry_refs as refs
 _REPO = Path(__file__).resolve().parents[4]
 _SKILL = Path(__file__).resolve().parents[1]
 _CONFIG_PATH = _SKILL / "qe.config.json"
+_PLAN_SCHEMA_PATH = _SKILL / "schemas" / "change_plan.schema.json"
 
 _GATE_REGISTRY: dict[str, GateFn] = {}
 
@@ -130,21 +136,33 @@ def _load_config() -> dict:
 
 
 def _validate_plan(plan: dict) -> tuple[bool, str]:
-    """Return (ok, reason). ok=True means the plan passes."""
-    verification = plan.get("verification", [])
-    if not verification:
-        return False, "plan has no verification entries — every change needs at least one test that decides it"
+    """Validate the complete plan contract before applying semantic policy."""
+    if not isinstance(plan, dict):
+        return False, "plan root must be a JSON object"
+    if jsonschema is None:
+        return False, "jsonschema is unavailable; refusing to accept an unvalidated plan"
+    try:
+        schema = json.loads(_PLAN_SCHEMA_PATH.read_text(encoding="utf-8"))
+        errors = sorted(
+            jsonschema.Draft7Validator(schema).iter_errors(plan),
+            key=lambda error: (list(error.path), error.message),
+        )
+    except (OSError, json.JSONDecodeError, jsonschema.SchemaError) as exc:
+        return False, f"cannot load a valid change-plan schema: {exc}"
+    if errors:
+        first = errors[0]
+        location = "/".join(str(part) for part in first.path) or "<root>"
+        return False, f"plan schema violation at {location}: {first.message} ({len(errors)} error(s))"
 
-    change_class = plan.get("change_class", "")
-    if change_class == "defect_fix":
-        requirements = plan.get("requirements", [])
+    if plan["change_class"] == "defect_fix":
         has_new_regression = any(
-            r.get("new", False) and str(r.get("id", "")).startswith("REG-")
-            for r in requirements
+            requirement["new"] and requirement["id"].startswith("REG-")
+            for requirement in plan["requirements"]
         )
         if not has_new_regression:
-            return False, "defect_fix requires a new REG- registry entry so the fix is never silently reverted"
-
+            return False, (
+                "defect_fix requires a new REG- registry entry so the fix is never silently reverted"
+            )
     return True, ""
 
 
@@ -199,13 +217,21 @@ def main(argv: list[str] | None = None) -> int:
     for gate_def in config.get("gates", []):
         gid = gate_def["id"]
         fn = _GATE_REGISTRY.get(gid)
+        blocking = gate_def.get("blocking", False)
         if fn is None:
-            results.append({"id": gid, "blocking": gate_def.get("blocking", False), "passed": True, "skipped": True})
+            results.append({
+                "id": gid,
+                "blocking": blocking,
+                "passed": not blocking,
+                "skipped": True,
+                "detail": "no runner registered",
+                "findings": [] if not blocking else [f"blocking gate {gid!r} has no runner"],
+            })
             continue
         gr = fn(config)
         results.append({
             "id": gid,
-            "blocking": gate_def.get("blocking", False),
+            "blocking": blocking,
             "passed": gr.passed,
             "skipped": False,
             "detail": gr.detail,
@@ -215,7 +241,7 @@ def main(argv: list[str] | None = None) -> int:
     payload = {"results": results}
     if args.json_output:
         print(json.dumps(payload, indent=2))
-    return 0
+    return 1 if any(r["blocking"] and not r["passed"] for r in results) else 0
 
 
 # Alias for type hints in _register decorator
