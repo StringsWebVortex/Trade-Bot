@@ -366,7 +366,7 @@ class TestBybitIntelligenceProvider:
             return_value=[{"fundingRate": 0.0001}]
         )
         result = await provider._fetch_funding_data()
-        assert result["rate_pct"] == pytest.approx(0.0001)
+        assert result["rate_pct"] == pytest.approx(0.01)
         assert result["zscore"] == 0.0
 
     @pytest.mark.asyncio
