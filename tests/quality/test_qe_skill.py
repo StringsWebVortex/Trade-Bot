@@ -24,7 +24,8 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from required_import import require
+
+from tests.required_import import require
 
 jsonschema = require("jsonschema")
 from jsonschema import Draft7Validator  # noqa: E402

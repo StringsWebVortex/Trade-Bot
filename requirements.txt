@@ -88,7 +88,7 @@ jsonschema>=4.0,<5.0
 # blocks a release on it. Listing a transitive dependency in the direct
 # manifest is the honest way to raise its floor -- the alternative is an
 # ignore file that outlives the reason it was added.
-msgpack>=1.2.2
+msgpack>=1.2.4
 # filelock arrives through torch and huggingface-hub; CVE-2026-112940 is an
 # arbitrary file overwrite through insecure lock-file reopening, fixed in
 # 4.2.1, and the container scan blocks on it (SEC-0012). Every dependent here

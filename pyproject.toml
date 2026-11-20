@@ -98,3 +98,10 @@ ignore = [
 
 [tool.ruff.format]
 quote-style = "double"
+
+[tool.mypy]
+# scripts/__init__.py (added alongside this config) makes mypy treat all scripts
+# as "scripts.<name>" modules, eliminating the duplicate-module errors that mypy
+# would otherwise raise for scripts/agent_control.py and scripts/ci_diagnostics.py.
+# crypto-predictor/ is a standalone sub-project; exclude it entirely.
+exclude = ["^crypto-predictor/"]
