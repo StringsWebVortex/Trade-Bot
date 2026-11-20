@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-Stop hook: the agent-control completion gate.
+Stop hook: completion gate for the agent-control worktree task.
 
-While the worktree's active agent-control task is ACTIVE and incomplete, the
-turn may not end; the exact blocking predicates are returned instead. No
-active task makes this a no-op. Logic: src/agent_control/hooks.py (stop).
+Delegates to src.agent_control.hooks.run_hook("stop").
+No active task → no-op (exit 0). Fails open on import error.
+Registry: GOV-063.
 """
 
 from __future__ import annotations
@@ -18,8 +18,10 @@ sys.path.insert(0, str(PROJECT_DIR))
 
 try:
     from src.agent_control.hooks import run_hook
-except Exception as exc:  # fail open: a broken control layer must not wedge the session
-    print(f"[completion_gate] agent-control unavailable, allowing: {exc!r}", file=sys.stderr)
-    raise SystemExit(0) from None
 
-raise SystemExit(run_hook("stop", sys.stdin, sys.stdout, sys.stderr))
+    result = run_hook("stop", sys.stdin, sys.stdout, sys.stderr)
+except Exception as exc:
+    print(f"[completion_gate] unavailable: {exc!r}", file=sys.stderr)
+    result = 0
+
+sys.exit(result)

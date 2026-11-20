@@ -32,8 +32,9 @@ def test_compare_metric_significant_regression() -> None:
 def test_compare_metric_noise_not_significant() -> None:
     evaluator = ChallengerEvaluator()
     champion = [0.01, 0.02, -0.01, 0.03, -0.02, 0.015, 0.005, -0.005, 0.02, 0.01] * 2
-    deltas = [0.001 if i % 2 == 0 else -0.001 for i in range(len(champion))]
-    challenger = [value + delta for value, delta in zip(champion, deltas, strict=True)]
+    # Per-fold differences that cancel out: +1, -1, ..., +2, -1 (x 0.001). The
+    # comparison is paired (REG-1711), so noise means differences around zero.
+    challenger = [0.011, 0.019, -0.009, 0.029, -0.019, 0.014, 0.006, -0.006, 0.022, 0.009] * 2
     comparison = evaluator.compare_metric("oos_sharpe", champion, challenger)
     assert not comparison.significant_improvement
     assert not comparison.significant_regression
@@ -116,6 +117,8 @@ def test_evaluation_result_improved_unknown_metric_raises() -> None:
     result = evaluator.evaluate("p", 0.6, [])
     with pytest.raises(KeyError):
         result.improved("does_not_exist")
+    with pytest.raises(KeyError):
+        result.comparison("does_not_exist")
 
 
 # ---------------------------------------------------------------------------

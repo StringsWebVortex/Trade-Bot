@@ -276,7 +276,7 @@ class TestShellIntegration:
         assert text == RCFILE
         # The user's own configuration loads first; the hooks are added after.
         assert text.index('. "$HOME/.bashrc"') < text.index("PROMPT_COMMAND=")
-        assert "133;D;" in text and "133;C" in text and "133;E;" in text
+        assert "133;%s;D;" in text and "133;%s;C" in text and "133;%s;E;" in text
 
     def test_only_bash_is_integrated(self, tmp_path):
         rc = tmp_path / "rc.sh"

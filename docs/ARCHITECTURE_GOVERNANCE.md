@@ -41,7 +41,13 @@ ARCH_FAIL_ON=MEDIUM scripts/arch_gate.sh      # tighten the threshold
 ```
 
 The gate fails on HIGH and CRITICAL findings. Suppress a genuine false positive
-with `# arch-ignore` on the offending line — never by loosening a pattern.
+with `# arch-ignore[LAW12]: <reason>` on the offending line, naming the rule(s) it
+silences (`[LAW5,LAW12]` for several) and why — never by loosening a pattern. The
+comment silences only the named rules; every other rule still fires on that line.
+A bare `# arch-ignore`, or one without a reason, suppresses nothing and is itself
+reported (MEDIUM). LAW6 secrets cannot be suppressed inline; accept them through the
+baseline below. Suppressed hits are counted in the report summary and in the SARIF
+run properties (`suppressedByArchIgnore`).
 
 ## The baseline is debt, not approval
 

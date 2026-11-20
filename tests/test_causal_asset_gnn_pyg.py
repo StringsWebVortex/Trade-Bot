@@ -14,7 +14,8 @@ import importlib
 import numpy as np
 import pandas as pd
 import pytest
-from pyg_stub import installed
+
+from tests.pyg_stub import installed
 
 asset_gnn = importlib.import_module("src.causal.asset_gnn")
 

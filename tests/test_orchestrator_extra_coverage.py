@@ -9,12 +9,12 @@ from datetime import UTC, datetime
 from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 import pytest
-from conftest import settings_double
 
 from src.config import Timeframe, TradingMode
 from src.data.storage import BarRecord
 from src.engine.signal_engine import SignalResult
 from src.risk.kelly import KellyResult
+from tests.conftest import settings_double
 
 
 def _make_bars(n: int = 350) -> list[BarRecord]:
@@ -73,6 +73,9 @@ def _make_executor():
     e.open_positions = MagicMock(return_value=[])
     e.submit_signal = AsyncMock(return_value=("trade-123", "opened"))
     e.get_current_equity = AsyncMock(return_value=100_000.0)
+    # Synchronous on AbstractExecutor (EXR-018): an AsyncMock coroutine
+    # here would be created every tick and never awaited.
+    e.close_approval_window = MagicMock(return_value=None)
     return e
 
 
