@@ -198,11 +198,28 @@ class TestValidateProviderResult:
         out = validate_provider_result(result, "test")
         assert out["whale_buy_sell_ratio"] == ONCHAIN_NEUTRAL["whale_buy_sell_ratio"]
 
-    def test_internal_field_stripped(self) -> None:
+    def test_internal_field_carried_for_merge_then_stripped_from_public_output(self) -> None:
+        # INT-014: validation carries the MVRV contribution through so the
+        # merge step can add it to exchange_stress_score; the merged public
+        # output never exposes the internal field.
         result = {
             "confidence": 0.5,
             "timestamp": 1.0,
             "exchange_stress_score_mvrv_contrib": 0.3,
+        }
+        out = validate_provider_result(result, "test")
+        assert out["exchange_stress_score_mvrv_contrib"] == pytest.approx(0.3)
+        merged = merge_onchain_results([out])
+        assert "exchange_stress_score_mvrv_contrib" not in merged
+        assert merged["exchange_stress_score"] == pytest.approx(
+            ONCHAIN_NEUTRAL["exchange_stress_score"] + 0.3
+        )
+
+    def test_non_finite_internal_field_is_dropped(self) -> None:
+        result = {
+            "confidence": 0.5,
+            "timestamp": 1.0,
+            "exchange_stress_score_mvrv_contrib": float("nan"),
         }
         out = validate_provider_result(result, "test")
         assert "exchange_stress_score_mvrv_contrib" not in out
