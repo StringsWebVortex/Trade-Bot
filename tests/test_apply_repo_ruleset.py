@@ -7,6 +7,10 @@ So the file's content is asserted here as strictly as the script's logic.
 
 Nothing here touches the network. The parts that talk to GitHub are separated
 from the parts that decide what to send, and only the latter are tested.
+
+Decides:
+  - GOV-008 — main is protected and every required check must be green
+  - GOV-037 — Pull requests land through a one-at-a-time merge queue
 """
 
 from __future__ import annotations
@@ -57,9 +61,21 @@ class TestRulesetFile:
         types = {rule["type"] for rule in raw["rules"]}
         assert "required_status_checks" in types
 
-    def test_requires_branch_to_be_up_to_date(self, raw, mod):
+    def test_the_merge_queue_replaces_the_up_to_date_requirement(self, raw, mod):
+        # GOV-037: the queue tests every entry on top of the current base, which
+        # is what the strict policy guaranteed, without anyone updating a branch.
+        # Turning strict off is only safe while the queue rule is present.
         rule = next(r for r in raw["rules"] if r["type"] == "required_status_checks")
-        assert rule["parameters"]["strict_required_status_checks_policy"] is True
+        assert rule["parameters"]["strict_required_status_checks_policy"] is False
+        assert "merge_queue" in {r["type"] for r in raw["rules"]}
+
+    def test_the_queue_merges_one_squashed_pull_request_at_a_time(self, raw):
+        params = next(r for r in raw["rules"] if r["type"] == "merge_queue")["parameters"]
+        assert params["merge_method"] == "SQUASH"
+        assert params["grouping_strategy"] == "ALLGREEN"
+        assert params["max_entries_to_build"] == 1
+        assert params["max_entries_to_merge"] == 1
+        assert params["min_entries_to_merge"] == 1
 
     def test_blocks_force_push_and_deletion(self, raw):
         types = {rule["type"] for rule in raw["rules"]}
@@ -227,3 +243,46 @@ class TestRequiredContexts:
             ]
         }
         assert mod.required_contexts(payload) == ["A", "B"]
+
+
+def test_required_gate_workflows_trigger_on_every_pull_request() -> None:
+    """A required check must run on every pull request, or none of them merge.
+
+    GitHub treats a required check that never reports as *pending*, not as
+    absent: the pull request is blocked forever with no failing job to fix.
+    So a workflow whose gate is named in `required_status_checks` may not
+    path-scope its `pull_request:` trigger.
+
+    This is not hypothetical. `workflow-lint.yml` filtered its pull-request
+    trigger to `.github/workflows/**`, which made `Workflow lint gate (all
+    jobs green)` -- a required context -- unreachable for every pull request
+    that changed only source, and those pull requests sat blocked.
+    """
+    import re
+
+    ruleset = json.loads(RULESET.read_text())
+    required = {
+        check["context"]
+        for rule in ruleset["rules"]
+        if rule["type"] == "required_status_checks"
+        for check in rule["parameters"]["required_status_checks"]
+    }
+
+    workflows = PROJECT_ROOT / ".github" / "workflows"
+    unreachable = []
+    for path in sorted(workflows.glob("*.yml")):
+        text = path.read_text()
+        gates = {
+            m.group(1).strip() for m in re.finditer(r"name:\s*(.*gate \(all jobs green\))", text)
+        }
+        if not gates & required:
+            continue
+        # The `pull_request:` block runs until the next key at the same indent.
+        block = re.search(r"^  pull_request:\n((?:    .*\n|\n)*)", text, re.MULTILINE)
+        if block is not None and re.search(r"^    paths(-ignore)?:", block.group(1), re.MULTILINE):
+            unreachable.append(path.name)
+
+    assert not unreachable, (
+        "these workflows own a required gate but path-scope their pull_request "
+        f"trigger, so the gate never reports and every unrelated PR is blocked: {unreachable}"
+    )
