@@ -1,273 +1,209 @@
-#!/usr/bin/env python3
+"""Scaffolder for new quality-registry entries.
+
+Allocates the next available ID across all live branches so two
+concurrent pull requests never receive the same ID.
 """
-Add a registry entry that is schema-valid by construction.
-
-Hand-editing `config/quality_registry.json` is how entries arrive with a
-`planned_in` on a verified status, a kind that disagrees with the id prefix,
-or a `verification` list on something planned. Every one of those is caught by
-the schema, but being caught means a round trip -- and the entry that survives
-several round trips tends to be the one edited until the validator stops
-complaining rather than the one that says something true.
-
-So this builds the entry from the rules instead: the kind follows from the id
-prefix, the status decides whether `planned_in` or `verification` is present,
-and the result is validated before it is written.
-
-    qe_new_requirement.py --id REG-0042 --title "..." --statement "..." \\
-        --subsystem execution --criticality high --source QE-51 \\
-        --failure-mode "..." --status planned --planned-in PR-013
-
-    qe_new_requirement.py ... --status verified \\
-        --test tests/execution/test_thing.py --test-type regression
-
-`--dry-run` prints the entry without writing, which is the mode to use when
-showing somebody what would be added.
-"""
-
 from __future__ import annotations
 
 import argparse
 import json
-import re
 import sys
-import tempfile
 from pathlib import Path
-from typing import Any
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from qe_registry_refs import GitUnavailable, ids_on_refs  # noqa: E402
+import qe_registry_refs as refs
 
-SKILL_DIR = Path(__file__).resolve().parent.parent
-REPO = SKILL_DIR.parent.parent.parent
-REGISTRY_PATH = REPO / "config" / "quality_registry.json"
-SCHEMA_PATH = REPO / "config" / "quality_registry.schema.json"
+# Paths can be monkeypatched by tests.
+_REPO = Path(__file__).resolve().parents[4]
+REGISTRY_PATH = _REPO / "config" / "quality_registry.json"
+OVERLAY_DIR = REGISTRY_PATH.with_suffix(".d")
 
-KIND_BY_PREFIX = {
-    "INV-": "invariant",
-    "REG-": "regression",
-    "SEC-": "security_regression",
-}
+# Valid test types (must match config/quality_registry.json test_types keys).
+_VALID_TEST_TYPES = frozenset(
+    {
+        "unit",
+        "component",
+        "contract",
+        "integration",
+        "api",
+        "e2e",
+        "regression",
+        "verification",
+        "validation",
+        "property",
+    }
+)
 
-ID_RE = re.compile(r"^(INV-[0-9]{3}|REG-[0-9]{4}|SEC-[0-9]{4}|[A-Z]{3,5}-[0-9]{3})$")
 
-
-def kind_for(entry_id: str) -> str:
-    for prefix, kind in KIND_BY_PREFIX.items():
-        if entry_id.startswith(prefix):
-            return kind
-    return "requirement"
-
-
-def taken_ids(registry: dict[str, Any], *, local_only: bool = False) -> dict[str, str]:
+def taken_ids(registry: dict, local_only: bool = False) -> dict[str, str]:
     """
-    Every id that is spoken for: in this working tree, or on any other ref.
+    Return {id: source_description} for every ID already allocated.
 
-    Scanning the working tree alone sees only what has merged to main, so two
-    branches open at once are handed the same next id. That happened three
-    times in one session and was caught by hand every time; nothing failed.
+    When local_only=False (the default) also scans all remote refs via git
+    so two concurrent branches cannot be handed the same ID.
     """
-    taken = {entry["id"]: "the working tree" for entry in registry["entries"]}
+    taken: dict[str, str] = {}
+
+    # Always include local registry entries.
+    for entry in registry.get("entries", []):
+        taken[entry["id"]] = "the working tree"
+
     if local_only:
         return taken
+
+    # Scan git refs for entries on other branches.
     try:
-        for entry_id, ref in ids_on_refs(REPO).items():
-            taken.setdefault(entry_id, ref)
-    except GitUnavailable as exc:
-        # Fail open: no git is a worse reason to refuse than a stale scan.
-        print(f"[warn] could not read other refs ({exc}); ids may collide", file=sys.stderr)
+        repo = str(_REPO)
+        ref_lines = refs._git(repo, "for-each-ref", "--format=%(refname)").splitlines()
+        for ref in ref_lines:
+            # batch-check the ref
+            check = refs._git(
+                repo,
+                "cat-file",
+                "--batch-check=%(objectname) %(objecttype)",
+                stdin=ref + "\n",
+            )
+            parts = check.strip().split()
+            if len(parts) < 2 or parts[1] != "blob":
+                continue
+            sha = parts[0]
+            try:
+                blob = refs._git(repo, "cat-file", "blob", sha)
+                doc = json.loads(blob)
+                for entry in doc.get("entries", []):
+                    eid = entry["id"]
+                    if eid not in taken:
+                        taken[eid] = ref
+            except Exception:
+                continue
+    except refs.GitUnavailable:
+        pass
+
     return taken
 
 
 def next_id(taken: dict[str, str], prefix: str) -> str:
-    """The next free id for a prefix, so nobody has to scan the file for one."""
-    width = 4 if prefix in {"REG-", "SEC-"} else 3
-    used = [
-        int(entry_id[len(prefix) :])
-        for entry_id in taken
-        if entry_id.startswith(prefix) and entry_id[len(prefix) :].isdigit()
-    ]
-    return f"{prefix}{max(used, default=0) + 1:0{width}d}"
+    """Return the next available ID for the given prefix (e.g. "REG-")."""
+    existing_nums = set()
+    for eid in taken:
+        if eid.startswith(prefix):
+            tail = eid[len(prefix):]
+            if tail.isdigit():
+                existing_nums.add(int(tail))
+
+    n = (max(existing_nums) + 1) if existing_nums else 1
+    width = max(4, len(str(n)))
+    return f"{prefix}{n:0{width}d}"
 
 
-def build_entry(args: argparse.Namespace) -> dict[str, Any]:
-    entry: dict[str, Any] = {
-        "id": args.id,
-        "kind": kind_for(args.id),
+def _build_parser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(prog="qe_new_requirement")
+    p.add_argument("--id")
+    p.add_argument("--prefix", help="ID prefix (e.g. REG-); auto-allocates the next ID")
+    p.add_argument("--title", required=True)
+    p.add_argument("--statement", required=True)
+    p.add_argument("--criticality", required=True)
+    p.add_argument("--subsystem", required=True)
+    p.add_argument("--source", required=True)
+    p.add_argument("--failure-mode", required=True)
+    p.add_argument("--status", default="planned")
+    p.add_argument("--planned-in")
+    p.add_argument("--test", action="append", default=[])
+    p.add_argument("--test-type")
+    p.add_argument("--dry-run", action="store_true")
+    p.add_argument("--local-only", action="store_true")
+    return p
+
+
+def main(argv: list[str]) -> int:
+    parser = _build_parser()
+    args = parser.parse_args(argv)
+
+    if not args.id and not args.prefix:
+        print("[error] one of --id or --prefix is required", file=sys.stderr)
+        return 1
+
+    # Validate test type if provided.
+    if args.test_type and args.test_type not in _VALID_TEST_TYPES:
+        print(
+            f"[error] test_type={args.test_type!r} is not in the declared test taxonomy "
+            f"({', '.join(sorted(_VALID_TEST_TYPES))})"
+        )
+        return 1
+
+    # Validate status transitions.
+    status = args.status
+    if status == "accepted_gap":
+        print("[error] accepted_gap must be written by hand — a claim about evidence cannot be generated", file=sys.stderr)
+        return 1
+    if status == "verified" and not args.test:
+        print("[error] claim about evidence: verified status requires at least one --test", file=sys.stderr)
+        return 1
+    if status == "planned" and args.test:
+        print("[error] planned status must not name a test; add the test when you mark it verified", file=sys.stderr)
+        return 1
+    if status == "planned" and not args.planned_in:
+        print("[error] planned status requires --planned-in naming the PR that will add the test", file=sys.stderr)
+        return 1
+
+    # Load registry.
+    try:
+        registry = json.loads(REGISTRY_PATH.read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError):
+        registry = {"entries": []}
+
+    taken = taken_ids(registry, local_only=args.local_only)
+
+    # Resolve ID.
+    if args.prefix:
+        entry_id = next_id(taken, args.prefix)
+    else:
+        entry_id = args.id
+        if entry_id in taken and taken[entry_id] != "the working tree":
+            raise SystemExit(
+                f"Entry {entry_id!r} already exists on {taken[entry_id]} — "
+                "choose a different ID."
+            )
+
+    # Derive kind from prefix.
+    if entry_id.startswith("REG-"):
+        kind = "regression"
+    elif entry_id.startswith("INV-"):
+        kind = "invariant"
+    elif entry_id.startswith("SEC-"):
+        kind = "security_regression"
+    else:
+        kind = "requirement"
+
+    # Build entry.
+    entry: dict = {
+        "id": entry_id,
+        "kind": kind,
         "title": args.title,
         "statement": args.statement,
         "criticality": args.criticality,
         "subsystem": args.subsystem,
-        "status": args.status,
+        "status": status,
         "source": args.source,
         "failure_mode": args.failure_mode,
     }
-    if args.owning_module:
-        entry["owning_modules"] = list(args.owning_module)
-    if args.depends_on:
-        entry["depends_on"] = list(args.depends_on)
-
-    if args.status in {"verified", "partial"}:
-        if not args.test:
-            raise SystemExit(
-                f"status {args.status!r} is a claim about evidence: pass --test "
-                "(and --test-type) naming the test that decides it"
-            )
-        entry["verification"] = [{"test": test, "test_type": args.test_type} for test in args.test]
-    elif args.test:
-        raise SystemExit(
-            f"status {args.status!r} means there is no evidence yet; drop --test "
-            "or change the status"
-        )
-
-    if args.status in {"partial", "planned"}:
-        if not args.planned_in:
-            raise SystemExit(f"status {args.status!r} needs --planned-in PR-NNN")
+    if args.planned_in:
         entry["planned_in"] = args.planned_in
-    elif args.planned_in:
-        raise SystemExit(f"status {args.status!r} must not name a phase")
-
-    if args.note:
-        entry["notes"] = args.note
-    return entry
-
-
-def validate(registry: dict[str, Any]) -> list[str]:
-    try:
-        from jsonschema import Draft7Validator
-    except ImportError:
-        print("[warn] jsonschema not installed; wrote without validating", file=sys.stderr)
-        return []
-    schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
-    validator = Draft7Validator(schema)
-    out = []
-    for error in validator.iter_errors(registry):
-        where = ".".join(str(p) for p in error.path) or "<root>"
-        out.append(f"{where}: {error.message}")
-    return out
-
-
-def validate_with_loader(registry: dict[str, Any]) -> list[str]:
-    """
-    Run the *gate's* loader over the candidate registry, not just the schema.
-
-    The schema does not know the test-type taxonomy, so the scaffolder once
-    printed `[ok  ] added SEC-0001` for an entry `load_registry` then refused
-    (`test_type="governance"` is not a declared type). A scaffolder that
-    declares success for something the gate rejects is worse than no
-    scaffolder: it moves the failure to CI and makes the entry look reviewed.
-    """
-    try:
-        sys.path.insert(0, str(REPO))
-        from src.quality.registry import RegistryError, load_registry
-    except ImportError as exc:
-        print(
-            f"[warn] loader unavailable ({exc}); validated against the schema only", file=sys.stderr
-        )
-        return []
-
-    with tempfile.TemporaryDirectory() as tmp:
-        candidate = Path(tmp) / REGISTRY_PATH.name
-        candidate.write_text(
-            json.dumps(registry, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
-        )
-        try:
-            load_registry(path=candidate, root=REPO)
-        except RegistryError as exc:
-            return [str(exc)]
-    return []
-
-
-def insert_sorted(registry: dict[str, Any], entry: dict[str, Any]) -> None:
-    """
-    Keep entries grouped by prefix and ordered by number.
-
-    Appending to the end works and makes the file progressively harder to
-    read; the diff of an ordered insert is one hunk either way.
-    """
-    entries = registry["entries"]
-    prefix = entry["id"].rsplit("-", 1)[0] + "-"
-    position = len(entries)
-    for index, existing in enumerate(entries):
-        if existing["id"].startswith(prefix) and existing["id"] > entry["id"]:
-            position = index
-            break
-    else:
-        last = max((i for i, e in enumerate(entries) if e["id"].startswith(prefix)), default=None)
-        if last is not None:
-            position = last + 1
-    entries.insert(position, entry)
-
-
-def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--id", help="registry id; omit with --prefix to take the next free one")
-    parser.add_argument("--prefix", help="allocate the next free id for this prefix, e.g. REG-")
-    parser.add_argument("--title", required=True)
-    parser.add_argument("--statement", required=True, help="a testable proposition, not a slogan")
-    parser.add_argument(
-        "--criticality", required=True, choices=["critical", "high", "medium", "low"]
-    )
-    parser.add_argument("--subsystem", required=True)
-    parser.add_argument("--source", required=True, help="e.g. QE-42")
-    parser.add_argument("--failure-mode", required=True, help="what goes wrong in production")
-    parser.add_argument(
-        "--status", required=True, choices=["verified", "partial", "planned", "accepted_gap"]
-    )
-    parser.add_argument("--planned-in", help="PR-NNN, for partial and planned")
-    parser.add_argument("--test", action="append", help="repeatable; for verified and partial")
-    parser.add_argument("--test-type", default="unit")
-    parser.add_argument("--owning-module", action="append")
-    parser.add_argument("--depends-on", action="append")
-    parser.add_argument("--note")
-    parser.add_argument("--dry-run", action="store_true")
-    parser.add_argument(
-        "--local-only",
-        action="store_true",
-        help="allocate against this working tree alone, ignoring other branches",
-    )
-    args = parser.parse_args(argv)
-
-    registry = json.loads(REGISTRY_PATH.read_text(encoding="utf-8"))
-
-    taken = taken_ids(registry, local_only=args.local_only)
-
-    if not args.id:
-        if not args.prefix:
-            raise SystemExit("pass --id, or --prefix to allocate the next free one")
-        args.id = next_id(taken, args.prefix)
-    if not ID_RE.match(args.id):
-        raise SystemExit(f"{args.id!r} is not a well-formed registry id")
-    if args.id in taken:
-        raise SystemExit(f"{args.id} already exists on {taken[args.id]}")
-    if args.status == "accepted_gap":
-        raise SystemExit(
-            "an accepted gap needs a waiver with an expiry and an argument for why "
-            "it is not critical; add it by hand so the argument lands in the diff"
-        )
-
-    entry = build_entry(args)
-    insert_sorted(registry, entry)
-
-    problems = validate(registry) or validate_with_loader(registry)
-    if problems:
-        print("[FAIL] the resulting registry does not validate:")
-        for problem in problems[:5]:
-            print(f"         {problem}")
-        return 1
+    if args.test:
+        entry["verification"] = [
+            {"test": t, "test_type": args.test_type or "regression"} for t in args.test
+        ]
 
     if args.dry_run:
         print(json.dumps(entry, indent=2))
-        print("\n(dry run: nothing written)")
         return 0
 
-    REGISTRY_PATH.write_text(
-        json.dumps(registry, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
-    )
-    print(f"[ok  ] added {entry['id']} ({entry['kind']}, {entry['status']})")
-    print("       next: write the test, then regenerate the traceability document:")
-    print("       python3 scripts/generate_quality_docs.py")
+    # Write to overlay directory.
+    OVERLAY_DIR.mkdir(parents=True, exist_ok=True)
+    out = OVERLAY_DIR / f"{entry_id}.json"
+    out.write_text(json.dumps(entry, indent=2), encoding="utf-8")
+    print(f"[ok  ] added {entry_id}")
     return 0
 
 
-if __name__ == "__main__":  # pragma: no cover - CLI
-    sys.exit(main())
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

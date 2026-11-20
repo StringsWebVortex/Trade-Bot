@@ -10,6 +10,8 @@ Usage in orchestrator:
         trade_id, exit_price, pnl_usd, predicted_prob,
         actual_direction, current_equity, starting_equity
     )
+
+Registry: MODL-004 (config/quality_registry.json).
 """
 
 from __future__ import annotations
@@ -40,7 +42,7 @@ class DriftIntegrationAdapter:
         trade_id: str,
         exit_price: float,
         pnl_usd: float,
-        predicted_prob: float,  # Direction model P(long)
+        predicted_prob: float | None,  # Direction model P(long); None = unknown, skip accuracy
         actual_direction: int,  # 1 (long) or -1 (short)
         current_equity: float,
         starting_equity: float,

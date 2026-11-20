@@ -41,7 +41,7 @@ flowchart TB
 
     subgraph Cloud["GitHub Actions (cloud only, per your explicit requirement)"]
         subgraph C5["Component 5: Cloud review + retrieval"]
-            BuildCtx["review/build_context.py"] --> Retrieval["review/retrieval.py<br/>vector / full-text / hybrid / graph"]
+            BuildCtx["review/build_context.py (not wired to a workflow)"] --> Retrieval["review/retrieval.py<br/>vector / full-text / hybrid / graph"]
             Retrieval --> RagDB
             Retrieval --> KgDB
             BuildCtx --> ContextJson["context.json artifact"]
@@ -67,17 +67,16 @@ flowchart TB
 |   `-- example_tools.py       # reference tool implementations
 |-- scripts/
 |   `-- orchestration_template.py
-|-- .claude/skills/programmatic-tool-calling/SKILL.md
+|-- .claude/skills/local-checks/SKILL.md
 |-- orchestrator/               # Component 3: plan-big / execute-small
 |   |-- config.py planner.py worker.py synthesizer.py run.py
 |-- orchestrator_cli.py
 |-- kg/                         # Component 4: Knowledge Graph
 |   |-- config.py schema.py db.py extract.py resolve.py assemble.py ingest.py query.py
 |-- kg_cli.py
-|-- review/                     # Component 5: cloud-only review + retrieval
+|-- review/                     # Component 5: review + retrieval package (no workflow invokes it; GOV-036)
 |   |-- config.py retrieval.py build_context.py
-|-- .github/workflows/
-|   `-- claude-review.yml       # runs ONLY on GitHub's runners
+|-- .github/workflows/          # no Claude-driven review workflow exists
 |-- docs/
 |   |-- PTC_PATTERN.md ORCHESTRATOR.md KNOWLEDGE_GRAPH.md CLOUD_REVIEW.md SCHEMA.md
 |-- CLAUDE.md                   # project directives, auto-loaded by Claude Code
@@ -92,53 +91,25 @@ flowchart TB
 | 2 | PTC pattern | `scripts/*.py` | none (in-memory per run) | none (pure orchestration) | Local |
 | 3 | Orchestrator | `orchestrator_cli.py` | none (stateless calls) | sonnet (plan/synth) + haiku (workers) | Local |
 | 4 | Knowledge Graph | `kg_cli.py` | `kg_nodes`, `kg_edges` (same Atlas cluster) | haiku (extract) + sonnet (resolve/query) | Local |
-| 5 | Cloud review | `.github/workflows/claude-review.yml` | reads `documents`, `kg_nodes`, `kg_edges` | sonnet (via claude-code-action) | **GitHub Actions only** |
+| 5 | Review package | `review/` (not invoked by any workflow) | reads `documents`, `kg_nodes`, `kg_edges` (when run manually) | none in CI | Local |
 | 6 | Command policy | `common/shell_exec.py`, `.claude/hooks/pre_tool_use.py` | `config/command_policy.json` (static) | none (deterministic) | Local + cloud |
 | 7 | Math registry | `src/mathcore/registry.py` | `config/math_registry.json` (static) | none (deterministic) | Local + cloud |
 
-## Component 6: command policy (schema 1.2.0)
+## Component 6: command policy
 
-Two enforcement points over one shared classifier, so they cannot disagree.
+The command-policy runtime remains available to repository-owned Python callers
+that deliberately use `common/shell_exec.py`. It is **not** the Claude Code
+session's observation boundary and it does not define what native Claude Code
+tools may execute.
 
-**Runtime** — `common/shell_exec.run()` validates a declaration against
-`COMMAND_EXEC_SCHEMA` and refuses to execute when:
+The Claude Code session uses native tool execution. `.claude/hooks/pre_tool_use.py`
+contains only safety checks for destructive commands and credential disclosure.
+Successful model-visible tool results are reduced by
+`.claude/hooks/observation_gate.py`.
 
-- `schema_version` names a version outside `SUPPORTED_SCHEMA_VERSIONS` — checked
-  *before* validation, since the wrong schema would report a symptom;
-- the declared `classification` is weaker than `classify()` detects;
-- `classification="destructive"` without `confirm_destructive=True`;
-- `cwd` does not exist.
-
-It then applies, in order: stream capture with `timeout_s`, `filter_mode`,
-`max_lines`, `max_bytes`, and secret redaction. Destructive declarations are
-forced to a single attempt regardless of `retry_policy`. Every call — refusals
-included — emits one JSON audit record to the `tradebot.command_audit` logger
-carrying `command_sha256`, `purpose`, the declared and detected classification
-and the outcome, and never the command string itself.
-
-When `jsonschema` is not installed, `_validate_fallback()` walks
-`COMMAND_EXEC_SCHEMA` rather than restating a subset of its rules, so the
-contract is the same on both paths and a constraint cannot be enforced on one
-and not the other. Added in 1.2.0: the 1.1.0 fallback checked `command` and
-`max_lines` only, so a missing dependency silently disabled the effect-class
-guard and every output cap (SEC-0002).
-
-**Session** — `.claude/hooks/pre_tool_use.py` is a `PreToolUse` hook matched to
-`Bash`. It refuses unbounded reads, output bounds above 5 lines, destructive
-commands and credential-echoing commands. It ignores heredoc bodies destined
-for a file (content is not a command line) but still inspects bodies fed to an
-interpreter. It fails **open** on its own misconfiguration, and
-`TB_COMMAND_POLICY=block|warn|off` overrides the configured level for one
-session.
-
-| Concern | Field | Default |
-|---|---|---|
-| Line cap | `output_policy.max_lines` | 50 (project directive: 5 per fetch) |
-| Byte cap | `output_policy.max_bytes` | 65536 |
-| Secret masking | `output_policy.redact.enabled` | `true` |
-| Timeout | `timeout_s` | 120 |
-| Effect class | `classification` | `read_only` (verified against the command) |
-| Environment | `env.allowlist` | inherit everything unless set |
+The command schema's output filtering, environment controls, retries and
+redaction remain valid for explicit `common/shell_exec.run()` callers; they
+must not be described as a requirement on native Claude Code tool usage.
 
 ## Component 7: mathematical foundations registry
 
