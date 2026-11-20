@@ -11,7 +11,8 @@ in two unknowns per signature and reveals nothing. But if the top bits of each
 ``k`` are known -- because the RNG was biased, stuck, or truncated -- then each
 signature pins ``d`` to a narrow interval, and enough such intervals intersect
 at a single point. Recovering that point is a *closest vector* problem, which
-:mod:`mathcore.lattice.lll` solves for the small dimensions here.
+:mod:`mathcore.lattice.lll` solves -- via its integer-preserving reduction, so
+real 256-bit key recovery is feasible, not just a toy demonstration.
 
 This module is the attack, implemented so the defender can run it against their
 own signatures before someone else does. It recovers a key **only** from
@@ -39,7 +40,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from .lll import lll_reduce
+from .lll import integer_lll_reduce
 
 __all__ = [
     "Signature",
@@ -117,8 +118,9 @@ def recover_private_key(
     # Each signature contributes t_i and u_i with k_i = a_i + (small), where
     # a_i is the known part and the unknown part is bounded by 2**(bitlen - b_i).
     # Following HGS: k = s^-1 z + s^-1 r d, so writing d as the hidden number,
-    #   t_i = s_i^-1 r_i (mod n),  u_i = s_i^-1 z_i + a_i (mod n)
-    # and the unknown nonce remainder is small.
+    #   t_i = s_i^-1 r_i (mod n),  u_i = s_i^-1 z_i - a_i (mod n)
+    # and the unknown nonce remainder e_i = k_i - a_i is small. (The sign of
+    # a_i matters only when the known prefix is non-zero: MTH-014.)
     scale = 1 << nonce_bitlength
     ts: list[int] = []
     us: list[int] = []
@@ -127,7 +129,7 @@ def recover_private_key(
         s_inv = pow(sig.s, -1, order)
         a_i = sig.known_value % order
         ts.append((s_inv * sig.r) % order)
-        us.append((s_inv * sig.z + a_i) % order)
+        us.append((s_inv * sig.z - a_i) % order)
         bounds.append(1 << (nonce_bitlength - sig.known_high_bits))
 
     # Common denominator so the bound weights are integers: the lattice wants
@@ -145,7 +147,7 @@ def recover_private_key(
     basis.append(penultimate)
     basis.append(last)
 
-    reduced = lll_reduce(basis)
+    reduced = integer_lll_reduce(basis)
 
     for row in reduced:
         # The candidate for d sits in the penultimate coordinate, recovered by
@@ -154,12 +156,12 @@ def recover_private_key(
             continue
         candidate = (-row[-2] * scale // row[-1]) % order if row[-1] else 0
         for guess in (candidate, (order - candidate) % order):
-            if 1 <= guess < order and _verifies(signatures, guess, order):
+            if 1 <= guess < order and _verifies(signatures, guess, order, nonce_bitlength):
                 return guess
     return None
 
 
-def _verifies(signatures: list[Signature], key: int, order: int) -> bool:
+def _verifies(signatures: list[Signature], key: int, order: int, nonce_bitlength: int) -> bool:
     """
     Whether ``key`` reproduces every signature's nonce consistently.
 
@@ -175,7 +177,10 @@ def _verifies(signatures: list[Signature], key: int, order: int) -> bool:
         k = (s_inv * (sig.z + sig.r * key)) % order
         # Its known high bits must match what the signature claims leaked.
         shift = sig.known_high_bits
-        if (k >> (order.bit_length() - shift)) != (sig.known_value >> (order.bit_length() - shift)):
+        # The leak is positioned against the nonce's own width, which need not
+        # equal the group order's bit length.
+        offset = nonce_bitlength - shift
+        if (k >> offset) != (sig.known_value >> offset):
             return False
     return True
 
@@ -197,10 +202,11 @@ def recovery_limits() -> str:
         "sees nothing in a correctly randomised or RFC 6979 signer, and a None "
         "result is therefore the absence of this one detectable flaw, not proof "
         "that a signer is sound. It is also bounded by its engine: this "
-        "reference reduces the lattice with exact-rational LLL, which is "
-        "correct but scales only to a lattice of a few dozen dimensions. "
-        "Recovering a 256-bit key from a one- or two-bit leak needs tens to "
-        "hundreds of signatures and therefore floating-point BKZ, which this "
-        "module deliberately does not use -- an exact answer on a small lattice "
-        "over a fast, approximate one whose failures are silent."
+        "reference reduces the lattice with integer-preserving LLL, which is "
+        "exact and recovers a real 256-bit key when the leak is large enough to "
+        "need only a few dozen signatures. A one- or two-bit leak at 256 bits "
+        "needs hundreds of signatures, so the lattice grows past what any exact "
+        "LLL reduces quickly and the attack turns to floating-point BKZ, which "
+        "this module deliberately does not use -- an exact answer where one is "
+        "affordable over a fast approximate one whose failures are silent."
     )
