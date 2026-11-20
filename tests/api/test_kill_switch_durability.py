@@ -146,11 +146,13 @@ class TestTheApiPersistsAndRestores:
 
         from src.api import main
 
-        source = inspect.getsource(main.set_execution_mode)
-        assert "save_execution_mode(new_mode)" in source
+        handler = inspect.getsource(main.set_execution_mode)
+        persistence = inspect.getsource(main._change_execution_mode)
+        assert "await _change_execution_mode(new_mode, body.operator)" in handler
+        assert "save_execution_mode(new_mode)" in persistence
         # Persist first: "halted but unaudited" is recoverable, "audited but
         # still trading" is the outcome nobody detects.
-        assert source.index("save_execution_mode") < source.index("insert_audit_event")
+        assert persistence.index("save_execution_mode") < persistence.index("_audit_event")
 
     def test_startup_restores_the_persisted_mode_before_readiness(self):
         import inspect
@@ -160,3 +162,18 @@ class TestTheApiPersistsAndRestores:
         source = inspect.getsource(main.lifespan)
         assert "load_execution_mode(" in source
         assert source.index("load_execution_mode(") < source.index("_state.ready = True")
+
+
+def test_risk_state_replace_failure_removes_the_temporary_file(monkeypatch, tmp_path):
+    from src.risk import state_persistence
+
+    path = tmp_path / "risk.json"
+
+    def fail_replace(_source, _destination):
+        raise OSError("simulated atomic replace failure")
+
+    monkeypatch.setattr(state_persistence.os, "replace", fail_replace)
+    with pytest.raises(OSError, match="atomic replace"):
+        state_persistence.save_state(path, {"disabled": {}})
+
+    assert list(tmp_path.iterdir()) == []

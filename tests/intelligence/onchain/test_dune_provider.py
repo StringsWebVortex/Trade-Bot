@@ -139,7 +139,7 @@ async def test_cache_first_no_execute_when_fresh() -> None:
         DUNE_QUERY_SOPR: _fresh_results(sopr_rows),
     }
 
-    async def mock_get(url: str, headers: Any = None, params: Any = None) -> Any:
+    async def mock_get(url: str, headers: Any = None, params: Any = None, **kwargs: Any) -> Any:
         for qid, resp in fresh.items():
             if str(qid) in url:
                 return resp
@@ -164,7 +164,7 @@ async def test_executes_when_stale_and_budget_remaining() -> None:
     stale = _stale_results(miner_rows)
     get_calls: list[str] = []
 
-    async def mock_get(url: str, headers: Any = None, params: Any = None) -> Any:
+    async def mock_get(url: str, headers: Any = None, params: Any = None, **kwargs: Any) -> Any:
         get_calls.append(url)
         if "execution/" in url:
             return {"state": "QUERY_STATE_COMPLETED", "result": {"rows": miner_rows}}
@@ -196,7 +196,7 @@ async def test_skips_execution_when_budget_exhausted() -> None:
     miner_rows = [{"miner_outflow_btc_7d": 50}] * 3
     stale = _stale_results(miner_rows)
 
-    async def mock_get(url: str, headers: Any = None, params: Any = None) -> Any:
+    async def mock_get(url: str, headers: Any = None, params: Any = None, **kwargs: Any) -> Any:
         if str(DUNE_QUERY_MINER_OUTFLOW) in url:
             return stale
         return (
@@ -222,7 +222,7 @@ async def test_skips_execution_when_budget_exhausted() -> None:
 async def test_returns_neutral_on_poll_timeout() -> None:
     provider = _make_provider()
 
-    async def mock_get(url: str, headers: Any = None, params: Any = None) -> Any:
+    async def mock_get(url: str, headers: Any = None, params: Any = None, **kwargs: Any) -> Any:
         if "execution/" in url:
             return {"state": "QUERY_STATE_EXECUTING"}
         return _stale_results([])  # stale → triggers execute
@@ -255,7 +255,7 @@ async def test_stale_cache_used_when_execution_fails() -> None:
     provider = _make_provider()
     miner_rows = [{"miner_outflow_btc_7d": 200}] * 10
 
-    async def mock_get(url: str, headers: Any = None, params: Any = None) -> Any:
+    async def mock_get(url: str, headers: Any = None, params: Any = None, **kwargs: Any) -> Any:
         if str(DUNE_QUERY_MINER_OUTFLOW) in url and "execution/" not in url:
             return _stale_results(miner_rows)
         return (
@@ -305,7 +305,7 @@ async def test_all_queries_return_none_reduces_confidence() -> None:
     must independently fire when its query returns nothing at all."""
     provider = _make_provider()
 
-    async def mock_get(url: str, headers: Any = None, params: Any = None) -> Any:
+    async def mock_get(url: str, headers: Any = None, params: Any = None, **kwargs: Any) -> Any:
         return None
 
     async def mock_post(url: str, headers: Any = None, json: Any = None) -> Any:
@@ -323,7 +323,7 @@ async def test_execute_response_missing_execution_id_returns_none() -> None:
     miner_rows = [{"miner_outflow_btc_7d": 100}] * 5
     stale = _stale_results(miner_rows)
 
-    async def mock_get(url: str, headers: Any = None, params: Any = None) -> Any:
+    async def mock_get(url: str, headers: Any = None, params: Any = None, **kwargs: Any) -> Any:
         if str(DUNE_QUERY_MINER_OUTFLOW) in url:
             return stale
         return (
