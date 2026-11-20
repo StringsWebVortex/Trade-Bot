@@ -18,7 +18,6 @@ regression has reappeared -- see .project-intel/GAPS.md Gap-014.
 from __future__ import annotations
 
 import asyncio
-import os
 from typing import Any
 
 import pytest
@@ -402,7 +401,7 @@ class TestRuntimeConfigRiskControls:
 
 
 @pytest.fixture()
-def api_client():
+def api_client(monkeypatch):
     """
     Minimal TestClient harness for src/api/main.py.
 
@@ -417,8 +416,8 @@ def api_client():
       - OPERATOR_SECRET is set via env var, matching how the real
         set_execution_mode/set_risk_controls endpoints read it.
     """
-    os.environ["API_SECRET_KEY"] = "test-key-" + "a" * 32
-    os.environ["OPERATOR_SECRET"] = "test-operator-secret"
+    monkeypatch.setenv("API_SECRET_KEY", "test-key-" + "a" * 32)
+    monkeypatch.setenv("OPERATOR_SECRET", "test-operator-secret")
 
     from fastapi.testclient import TestClient
 
@@ -467,6 +466,14 @@ def api_client():
 
 
 class TestRiskControlsEndpoints:
+    # POST /risk-controls is gated by API-008's fail-closed check, which this
+    # TestClient harness never satisfies because it does not run `lifespan`.
+    # Without this the POSTs return 503 before reaching the auth and validation
+    # logic these tests are about. See the fixture in tests/conftest.py.
+    @pytest.fixture(autouse=True)
+    def _healthy_controls(self, healthy_security_controls):
+        return healthy_security_controls
+
     def test_get_risk_controls_returns_defaults(self, api_client) -> None:
         client, _storage, _main = api_client
         resp = client.get("/risk-controls")
