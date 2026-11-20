@@ -378,7 +378,6 @@ class TestOKXProvider:
             p._perp, "fetch_funding_rate_history", new=AsyncMock(return_value=history)
         ):
             result = await p._fetch_funding_data()
-        # rate_pct is expressed in percentage points (fraction * 100).
         assert result["rate_pct"] == pytest.approx(0.01)
         assert result["zscore"] == 0.0
 

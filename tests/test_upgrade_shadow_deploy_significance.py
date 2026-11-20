@@ -49,6 +49,12 @@ def test_significant_paired_improvement_promotes() -> None:
     assert result.promoted
 
 
+def test_predict_rejects_models_without_a_prediction_interface() -> None:
+    d = ShadowDeployer(object(), object(), shadow_hours=0.0)
+    with pytest.raises(TypeError, match="callable or expose predict"):
+        d.predict_incumbent(np.array([1.0]))
+
+
 def test_record_return_requires_predictions() -> None:
     with pytest.raises(TypeError):
         _deployer().record_return(0.01)  # type: ignore[call-arg]
@@ -59,6 +65,18 @@ def test_record_return_accepts_array_valued_predictions() -> None:
     d.record_return(0.02, np.array([0.7]), np.array([-0.2]))
     assert d._incumbent.returns == [0.02]
     assert d._challenger.returns == [-0.02]
+
+
+def test_record_return_rejects_ambiguous_or_nonfinite_predictions() -> None:
+    d = _deployer()
+    with pytest.raises(ValueError, match="exactly one finite prediction"):
+        d.record_return(0.02, np.array([0.7, 0.8]), -0.2)
+    with pytest.raises(ValueError, match="exactly one finite prediction"):
+        d.record_return(0.02, np.array([np.nan]), -0.2)
+    with pytest.raises(ValueError, match="actual_return must be finite"):
+        d.record_return(float("nan"), 0.7, -0.2)
+    assert d._incumbent.returns == []
+    assert d._challenger.returns == []
 
 
 def test_sharpe_uses_configured_periods_per_year() -> None:

@@ -3,6 +3,8 @@ Coverage for src/models/trainer.py — Debt-005.
 
 Targets predict_direction, predict_meta, TrainingResult, and
 compute_win_loss_stats without running expensive training loops.
+
+Decides: REG-1354
 """
 
 from __future__ import annotations
@@ -600,12 +602,12 @@ class TestBuildCPCVFolds:
 
 
 class TestComputeSampleWeights:
-    def test_weights_sum_to_one(self):
+    def test_weights_mean_one(self):
         from src.models.trainer import compute_sample_weights
 
         returns = pd.Series([0.01, -0.02, 0.005, 0.0, 0.03])
         weights = compute_sample_weights(returns)
-        assert abs(weights.sum() - 1.0) < 1e-9
+        assert abs(weights.mean() - 1.0) < 1e-9
 
     def test_zero_return_gets_floor_weight(self):
         from src.models.trainer import compute_sample_weights
@@ -884,9 +886,20 @@ class TestTrainDirection:
 
 
 class TestTrainMetaLabel:
-    def test_full_run_returns_training_result(self):
+    def test_full_run_returns_training_result(self, monkeypatch):
         trainer = _fast_trainer()
         fm = _feature_matrix(n=400)
+        # A meta-label model needs both "bet" and "skip" examples. The
+        # synthetic direction fixture can be perfectly classified by the
+        # first-stage model for this seed, so make the meta-label target
+        # deterministic and balanced to exercise the full training path.
+        monkeypatch.setattr(
+            "src.models.trainer.meta_labels",
+            lambda predictions, labels: pd.Series(
+                np.tile(np.array([0, 1], dtype=np.int8), len(labels) // 2 + 1)[: len(labels)],
+                index=labels.index,
+            ),
+        )
         dir_result = trainer.train_direction(fm)
         meta_result = trainer.train_meta_label(fm, dir_result.model)
         assert isinstance(meta_result, TrainingResult)

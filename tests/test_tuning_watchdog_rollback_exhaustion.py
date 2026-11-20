@@ -28,8 +28,10 @@ class _OkStore:
         self.calls: list[str] = []
 
     def rollback(self, param_name: str):
+        from types import SimpleNamespace
+
         self.calls.append(param_name)
-        return types.SimpleNamespace(value=0.9)
+        return SimpleNamespace(value=0.05)
 
 
 class _RecordingLog:

@@ -24,7 +24,9 @@ def _param() -> TunableParameter:
     )
 
 
-def _evaluation(p_value: float, samples: tuple[float, ...] = ()) -> EvaluationResult:
+def _evaluation(
+    p_value: float, samples: tuple[float, ...] = (), *, samples_are_returns: bool | None = None
+) -> EvaluationResult:
     return EvaluationResult(
         param_name="hmm.entropy_threshold",
         challenger_value=0.55,
@@ -38,6 +40,9 @@ def _evaluation(p_value: float, samples: tuple[float, ...] = ()) -> EvaluationRe
                 significant_improvement=True,
                 significant_regression=False,
                 challenger_samples=samples,
+                challenger_samples_are_returns=(
+                    bool(samples) if samples_are_returns is None else samples_are_returns
+                ),
             ),
         ),
     )
@@ -60,6 +65,21 @@ def test_bonferroni_fallback_when_no_samples_available() -> None:
     many = gate.decide(_param(), evaluation, "oos_sharpe", n_trials=5)
     assert not many.accepted
     assert any("Bonferroni" in r for r in many.reasons)
+
+
+def test_fold_metric_samples_use_bonferroni_not_return_level_dsr() -> None:
+    evaluation = _evaluation(0.01, _SAMPLES, samples_are_returns=False)
+    decision = PromotionGate().decide(_param(), evaluation, "oos_sharpe", n_trials=100)
+    assert not decision.accepted
+    assert any("Bonferroni" in reason for reason in decision.reasons)
+    assert not any("deflated Sharpe" in reason for reason in decision.reasons)
+
+
+def test_nonfinite_primary_p_value_fails_closed() -> None:
+    evaluation = _evaluation(float("nan"))
+    decision = PromotionGate().decide(_param(), evaluation, "oos_sharpe", n_trials=1)
+    assert not decision.accepted
+    assert any("invalid" in reason for reason in decision.reasons)
 
 
 def test_strong_evidence_survives_a_few_attempts() -> None:

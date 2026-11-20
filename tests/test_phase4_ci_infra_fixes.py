@@ -224,28 +224,11 @@ def test_report_must_come_from_the_collector_workflow(monkeypatch):
 
 def test_retrieved_report_is_labelled_untrusted(monkeypatch, capsys):
     sha = "a" * 40
-    manifest = {
-        "schema_version": 1,
-        "status": "finalized",
-        "pr": 7,
-        "head_sha": sha,
-    }
-    master = {
-        "status": "completed",
-        "conclusion": "success",
-        "head_sha": sha,
-        "output": {"summary": json.dumps(manifest)},
-    }
-    monkeypatch.setattr(ci_diagnostics, "_repo_slug", lambda: "o/r")
-    monkeypatch.setattr(
-        ci_diagnostics,
-        "_load_current_pr",
-        lambda slug, pr: {"number": pr, "state": "open", "head": {"sha": sha}},
-    )
-    monkeypatch.setattr(ci_diagnostics, "_report_runs", lambda slug, head, pr: (master, {}))
-    monkeypatch.setattr(ci_diagnostics, "_decode_report_pages", lambda *a, **k: [{"m": "x"}])
+    monkeypatch.setattr(ci_diagnostics, "_answer", lambda pr: (sha, ["untrusted diagnostic"]))
     assert ci_diagnostics._retrieve(7) == 0
-    assert "UNTRUSTED DATA" in capsys.readouterr().err
+    captured = capsys.readouterr()
+    assert "UNTRUSTED DATA" in captured.err
+    assert "untrusted diagnostic" in captured.out
 
 
 # --- OPS-019 ---------------------------------------------------------------

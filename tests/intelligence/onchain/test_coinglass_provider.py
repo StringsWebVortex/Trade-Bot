@@ -283,7 +283,9 @@ class TestCoinglassProviderEnabled:
         with patch.object(prov, "_get", side_effect=mock_get):
             m = await prov.fetch_metrics()
 
-        # 4 fetched fields, each -0.05 penalty on a None fetch -> 1.0 - 0.20 = 0.80.
+        # Four requests are made: OI, liquidations, heatmap and funding.
+        # L/S positioning is intentionally not fetched (INT-020), so four
+        # missing responses subtract 4 * 0.05 from the initial confidence.
         assert m["confidence"] == pytest.approx(0.80)
         assert m["futures_oi_change_pct"] == 0.0
         assert m["liquidation_pressure_24h_zscore"] == 0.0

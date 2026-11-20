@@ -83,27 +83,36 @@ class BayesianExchangeStressModel:
 
     Model: P(exchange_failure | observed_indicators)
 
-    Training data: Historical crises (Celsius, Luna, FTX, etc.)
+    UNCALIBRATED HEURISTIC PRIOR (INT-015).  The slopes below are hand-set
+    literals; this is a logistic transform of a weighted indicator sum, not a
+    fitted Bayesian regression.  It was never trained on labelled crisis
+    episodes (Celsius, Luna, FTX, ...) and its output has not been validated
+    with ``calibration.brier_score``.  Treat the output as a monotone risk
+    score, not as a calibrated probability, until it is fitted and validated.
+    ``CALIBRATED`` is False until that happens.
     Inputs: netflow_zscore, funding_rate, basis_spread, reserve_ratio
     Output: Probability of exchange failure in next 24h
     """
 
+    #: INT-015: explicit status flag. Flip only after fitting on labelled
+    #: episodes and validating with calibration.brier_score.
+    CALIBRATED: bool = False
+
     def __init__(self) -> None:
         """
-        Initialize with weakly informative priors.
-        Will be updated with historical crisis data.
+        Initialize with heuristic (uncalibrated) slopes and a 5% base rate.
         """
         # Prior: 5% baseline probability of major exchange issue
         # (Based on crypto history: ~5 crises/year across all exchanges)
         self.prior_probability = 0.05
 
         # Likelihood: How much do indicators increase probability?
-        # E.g., netflow_zscore=-3.0 (extreme outflows) multiplies prob by 10x
+        # Hand-set heuristic slopes (uncalibrated; only the slope is used).
         self.indicator_weights = {
-            "netflow_zscore": {"slope": -2.0, "intercept": 1.0},  # Stronger = more negative
-            "funding_rate": {"slope": 5.0, "intercept": 0.0},  # Higher rate = riskier
-            "basis_spread": {"slope": 0.01, "intercept": 0.0},  # Wider spread = fragmentation
-            "reserve_ratio": {"slope": -3.0, "intercept": 0.5},  # Lower reserves = riskier
+            "netflow_zscore": {"slope": -2.0},  # Stronger = more negative
+            "funding_rate": {"slope": 5.0},  # Higher rate = riskier
+            "basis_spread": {"slope": 0.01},  # Wider spread = fragmentation
+            "reserve_ratio": {"slope": -3.0},  # Lower reserves = riskier
         }
 
     def predict_failure_probability(
@@ -114,7 +123,7 @@ class BayesianExchangeStressModel:
         reserve_ratio: float,  # 0-1
     ) -> ProbabilisticPrediction:
         """
-        P(exchange_failure | indicators) using Bayesian logistic regression.
+        P(exchange_failure | indicators) via a heuristic (uncalibrated) logistic score.
 
         Args:
             netflow_zscore: Z-score of exchange netflow (negative = sellers leaving)
@@ -321,7 +330,8 @@ class BayesianWhaleActivityModel:
 
         Different effects by regime (CATE: Conditional Average Treatment Effect).
         """
-        # Effect sizes calibrated on backtesting (whale trading data)
+        # Effect sizes are hand-set heuristic constants (INT-015: NOT calibrated on
+        # backtesting data).
         regime_effects = {
             "bull": {"impact": -0.015, "std": 0.008},  # -1.5% vol in bull
             "bear": {"impact": -0.005, "std": 0.012},  # -0.5% vol in bear (less effective)

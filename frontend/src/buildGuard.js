@@ -19,6 +19,12 @@ export function assertNoAdminKeyInBundle(env) {
  * ignored in a meta tag, so it is not listed.
  */
 export function contentSecurityPolicy(apiOrigin = '') {
+  // This value is interpolated into an HTML meta attribute as well as a CSP
+  // source. Accept only the same origin grammar used by apiFetch; otherwise a
+  // malformed build-time URL could break out of the attribute.
+  if (apiOrigin && !/^https?:\/\/[a-zA-Z0-9._-]+(:\d+)?$/.test(apiOrigin)) {
+    throw new Error(`VITE_API_URL "${apiOrigin}" is not an allowed origin.`);
+  }
   const extra = apiOrigin ? ` ${apiOrigin} ${apiOrigin.replace(/^http/, 'ws')}` : '';
   return [
   "default-src 'self'",

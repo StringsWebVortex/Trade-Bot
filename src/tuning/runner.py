@@ -100,7 +100,10 @@ class TuningRunner:
         self._probation_detector_factory = factory
 
     def _cooldown_active(
-        self, param_name: str, closed_trade_count: int | None = None
+        self,
+        param_name: str,
+        closed_trade_count: int | None = None,
+        bar_count: int | None = None,
     ) -> tuple[bool, str]:
         """
         Whether this parameter is still inside its post-attempt cooldown.
@@ -113,10 +116,9 @@ class TuningRunner:
         the hours half of the cadence guard was enforced and the trades half
         silently was not.
 
-        closed_trade_count is optional because the runner has no storage
-        access of its own. When a caller cannot supply it the trade guard is
-        skipped rather than guessed at, and the reason string says so, so a
-        cooldown decision is never silently weaker than it appears.
+        Evidence counters are optional because the runner has no storage
+        access of its own. Trade-driven and bar-driven callers supply their
+        respective counters; an unavailable counter is not guessed at.
         """
         entries = [
             e
@@ -132,15 +134,19 @@ class TuningRunner:
         if elapsed_hours < self._settings.min_hours_between_attempts:
             return True, "cooldown_active"
 
-        if closed_trade_count is None:
-            return False, ""
-        previous = last.details.get("closed_trade_count")
-        if not isinstance(previous, int):
-            # The last attempt predates this field. Nothing to measure
-            # against, so the trade guard cannot claim a verdict.
-            return False, ""
-        if closed_trade_count - previous < self._settings.min_trades_between_attempts:
-            return True, "cooldown_active_insufficient_trades"
+        if closed_trade_count is not None:
+            previous_trades = last.details.get("closed_trade_count")
+            if isinstance(previous_trades, int) and (
+                closed_trade_count - previous_trades < self._settings.min_trades_between_attempts
+            ):
+                return True, "cooldown_active_insufficient_trades"
+
+        if bar_count is not None:
+            previous_bars = last.details.get("bar_count")
+            if isinstance(previous_bars, int) and (
+                bar_count - previous_bars < self._settings.min_bars_between_attempts
+            ):
+                return True, "cooldown_active_insufficient_bars"
         return False, ""
 
     def _write_decision_log(
@@ -193,6 +199,7 @@ class TuningRunner:
         evaluate_fn: EvaluateFn,
         primary_metric: str,
         closed_trade_count: int | None = None,
+        bar_count: int | None = None,
     ) -> AttemptResult:
         """
         Run one propose -> evaluate -> gate -> (shadow-log | promote) cycle.
@@ -204,9 +211,10 @@ class TuningRunner:
         the proposer picked. This runner only orchestrates the decision;
         it does not itself run backtests.
 
-        `closed_trade_count` is the number of closed trades observed so far.
-        It feeds the trade half of the cadence guard (see _cooldown_active);
-        omitting it leaves only the wall-clock half in force.
+        `closed_trade_count` and `bar_count` are the current evidence counts
+        for trade-driven and bar-driven parameters respectively. Each is
+        compared only with the matching count recorded by that parameter's
+        previous proposal.
         """
         if not self._settings.enabled:
             self._audit_log.record(
@@ -232,7 +240,7 @@ class TuningRunner:
                 reasons=("watchdog_locked",),
             )
 
-        blocked, cooldown_reason = self._cooldown_active(param_name, closed_trade_count)
+        blocked, cooldown_reason = self._cooldown_active(param_name, closed_trade_count, bar_count)
         if blocked:
             self._audit_log.record(param_name, TuningEventType.SKIPPED, {"reason": cooldown_reason})
             return AttemptResult(
@@ -259,9 +267,10 @@ class TuningRunner:
             {
                 "champion_value": proposal.champion_value,
                 "challenger_value": proposal.challenger_value,
-                # Recorded so the NEXT attempt can measure how much new trade
-                # evidence has accumulated since this one.
+                # Recorded so the NEXT attempt can measure how much new
+                # trade or bar evidence has accumulated since this one.
                 "closed_trade_count": closed_trade_count,
+                "bar_count": bar_count,
             },
         )
 

@@ -4,22 +4,24 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-from types import SimpleNamespace
+import types
+from datetime import UTC, datetime
 from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 import pytest
-from conftest import settings_double
 
 from src.config import Timeframe, TradingMode
 from src.data.storage import BarRecord
 from src.engine.signal_engine import SignalResult
 from src.risk.kelly import KellyResult
+from tests.conftest import settings_double
 
 
 def _make_bars(n: int = 350) -> list[BarRecord]:
+    latest_ts = int(datetime.now(UTC).timestamp() * 1000)
     return [
         BarRecord(
-            ts=1_700_000_000_000 + i * 900_000,
+            ts=latest_ts - (n - i - 1) * 900_000,
             symbol="BTC/USDT",
             timeframe="15m",
             open=40_000.0 + i,
@@ -44,7 +46,7 @@ def _make_storage():
     s.initialize = AsyncMock(return_value=None)
     s.close = AsyncMock(return_value=None)
     s.latest_close = AsyncMock(return_value=None)
-    s.latest_bar_ts = AsyncMock(return_value=1_700_000_000_000)
+    s.latest_bar_ts = AsyncMock(return_value=_make_bars()[-1].ts)
     s.upsert_regime_snapshot = AsyncMock(return_value=None)
     return s
 
@@ -68,8 +70,12 @@ def _make_executor():
     e.starting_equity_usd = 100_000.0
     e.shutdown = AsyncMock(return_value=None)
     e.open_positions_safe = AsyncMock(return_value=[])
+    e.open_positions = MagicMock(return_value=[])
     e.submit_signal = AsyncMock(return_value=("trade-123", "opened"))
     e.get_current_equity = AsyncMock(return_value=100_000.0)
+    # Synchronous on AbstractExecutor (EXR-018): an AsyncMock coroutine
+    # here would be created every tick and never awaited.
+    e.close_approval_window = MagicMock(return_value=None)
     return e
 
 
@@ -494,7 +500,7 @@ class TestStartupLiveModeAndDriftDetector:
         async def _fake_train(tf):
             orch._trainers[tf.value] = trainer
             orch._detectors[tf.value] = MagicMock()
-            orch._training_results[tf.value] = SimpleNamespace(
+            orch._training_results[tf.value] = types.SimpleNamespace(
                 oos_sharpe=1.5, accuracy=0.58, max_drawdown=10.0, n_trades=400
             )
 

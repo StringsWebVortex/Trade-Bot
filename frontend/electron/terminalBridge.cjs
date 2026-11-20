@@ -18,6 +18,7 @@
 const fs = require("fs");
 const net = require("net");
 const path = require("path");
+const { pathToFileURL } = require("url");
 const { isTrustedSender } = require("./security.cjs");
 const { execFile } = require("child_process");
 
@@ -63,6 +64,9 @@ function runTerminalCli(args, { repoRoot, env, execFileImpl = execFile, timeoutM
     ...env,
     PYTHONPATH: env.PYTHONPATH ? `${repoRoot}${path.delimiter}${env.PYTHONPATH}` : repoRoot,
   };
+  // The desktop API key is consumed by Electron's request hook only. The
+  // terminal service has no API-key role and must not inherit this secret.
+  delete childEnv.TRADEBOT_DESKTOP_API_KEY;
   return new Promise((resolve) => {
     execFileImpl(
       python,
@@ -94,10 +98,11 @@ async function ensureService(options) {
 }
 
 class TerminalBridge {
-  constructor({ ipcMain, repoRoot, env, netImpl = net, execFileImpl = execFile, log = console }) {
+  constructor({ ipcMain, repoRoot, env, appFileUrl, netImpl = net, execFileImpl = execFile, log = console }) {
     this.ipcMain = ipcMain;
     this.repoRoot = repoRoot;
     this.env = env;
+    this.appFileUrl = appFileUrl || pathToFileURL(path.join(repoRoot, "frontend", "dist", "index.html")).href;
     this.netImpl = netImpl;
     this.execFileImpl = execFileImpl;
     this.log = log;
@@ -108,7 +113,7 @@ class TerminalBridge {
 
   register() {
     // FE-07: refuse IPC from any frame that is not the app's own page.
-    const trusted = (event) => isTrustedSender(event, this.env?.VITE_DEV_URL || "http://127.0.0.1:5173");
+    const trusted = (event) => isTrustedSender(event, this.env?.VITE_DEV_URL || "http://127.0.0.1:5173", this.appFileUrl);
     this.ipcMain.handle("terminal:connect", (event) =>
       trusted(event) ? this.connect(event.sender) : { ok: false, error: "untrusted sender" });
     this.ipcMain.on("terminal:send", (event, frame) => { if (trusted(event)) this.send(event.sender, frame); });

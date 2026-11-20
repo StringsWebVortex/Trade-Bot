@@ -37,7 +37,7 @@ def _make_features(n: int = 50, seed: int = 42) -> pd.DataFrame:
 def _fitted_predictor() -> EnsemblePredictor:
     """An ensemble with at least one fitted member, so predict() does not refuse."""
     ep = EnsemblePredictor()
-    X = _make_features(60)
+    X = _make_features(120)
     ep.fit(X, pd.Series(X["a"] * 1.5 + X["b"]))
     return ep
 
@@ -163,7 +163,7 @@ class TestXGBoostPredictor:
             p.fit(X, y)
         assert p.model is None
 
-    def test_predict_exception_is_exposed_to_ensemble(self):
+    def test_predict_exception_propagates(self):
         p = XGBoostPredictor()
         X = _make_features(80)
         y = pd.Series(X["a"] + X["b"])
@@ -330,7 +330,7 @@ class TestGaussianProcessPredictor:
         # (unfitted) instance; rmse never gets updated past the exception.
         assert p.rmse == np.inf
 
-    def test_predict_with_uncertainty_exception_is_exposed_to_ensemble(self):
+    def test_predict_with_uncertainty_exception_propagates(self):
         p = GaussianProcessPredictor()
         X = _make_features(20)
         y = pd.Series(X["a"] * 1.5)
@@ -419,7 +419,7 @@ class TestTreeEnsemblePredictor:
         assert p.rmse == np.inf
         assert p._bootstrap_models == []
 
-    def test_predict_exception_is_exposed_to_ensemble(self):
+    def test_predict_exception_propagates(self):
         p = TreeEnsemblePredictor(n_estimators=10, n_bootstrap=2)
         X = _make_features(80)
         y = pd.Series(X["a"] + X["b"])
@@ -492,7 +492,7 @@ class TestEnsemblePredictor:
 
     def test_fit_and_predict(self):
         ep = EnsemblePredictor()
-        X = _make_features(60)
+        X = _make_features(120)
         y = pd.Series(X["a"] * 2.0)
         with patch(
             "src.intelligence.ensemble_predictor._torch_fits_memory_budget", return_value=True
@@ -500,8 +500,9 @@ class TestEnsemblePredictor:
             ep.fit(X, y)
         result = ep.predict(X.iloc[:1], recent_returns=y.to_numpy())
         assert isinstance(result, EnsemblePrediction)
-        assert len(result.individual_predictions) == 4
-        assert "lstm" in result.failed_models
+        # The LSTM forecasts from the supplied realised-return window.
+        assert len(result.individual_predictions) == 5
+        assert "lstm" in result.individual_predictions
 
     def test_build_lstm_sequences_insufficient(self):
         y = pd.Series([1.0, 2.0, 3.0])
@@ -534,9 +535,11 @@ class TestEnsemblePredictor:
     def test_fit_skips_lstm_on_insufficient_data(self):
         ep = EnsemblePredictor()
         X = _make_features(10)
-        y = pd.Series(X["a"])  # len(y)=10 <= default lstm lookback=20
+        y = pd.Series(X["a"])  # insufficient for a reliable OOS score
         ep.fit(X, y)  # should not raise despite LSTM having too little data
-        assert abs(sum(ep.weights.values()) - 1.0) < 1e-9
+        assert all(weight == 0.0 for weight in ep.weights.values())
+        with pytest.raises(RuntimeError, match="valid out-of-sample score"):
+            ep.predict(X.iloc[:1])
 
     def test_fit_model_exception_is_caught(self):
         ep = EnsemblePredictor()
@@ -572,7 +575,7 @@ class TestPredictRow:
 
     def test_builds_correctly_ordered_row_from_dict(self):
         ep = EnsemblePredictor()
-        X = _make_features(60)
+        X = _make_features(120)
         y = pd.Series(X["a"] * 2.0)
         ep.fit(X, y)
         result = ep.predict_row({"b": 1.0, "a": 0.5})  # deliberately out of order
@@ -580,7 +583,7 @@ class TestPredictRow:
 
     def test_accepts_a_pandas_series(self):
         ep = EnsemblePredictor()
-        X = _make_features(60)
+        X = _make_features(120)
         y = pd.Series(X["a"] * 2.0)
         ep.fit(X, y)
         row = X.iloc[-1]
@@ -591,7 +594,7 @@ class TestPredictRow:
 class TestEnsemblePersistence:
     def test_save_and_load_round_trip(self, tmp_path):
         ep = EnsemblePredictor()
-        X = _make_features(60)
+        X = _make_features(120)
         y = pd.Series(X["a"] * 2.0)
         ep.fit(X, y)
 
@@ -646,7 +649,7 @@ class TestEnsemblePersistence:
         if not _torch_installed():
             pytest.skip("torch not installed")
         ep = EnsemblePredictor()
-        X = _make_features(60)
+        X = _make_features(120)
         y = pd.Series(X["a"] * 2.0)
         with patch(
             "src.intelligence.ensemble_predictor._torch_fits_memory_budget", return_value=True
@@ -715,4 +718,4 @@ def test_lstm_predict_returns_zero_if_lazy_runtime_disappears():
         patch("src.intelligence.ensemble_predictor._torch_installed", return_value=True),
         patch("src.intelligence.ensemble_predictor._load_torch_runtime", return_value=None),
     ):
-        assert p.predict(_make_features(5)) == 0.0
+        assert p.predict(_make_features(5), recent_returns=np.zeros(p.lookback)) == 0.0

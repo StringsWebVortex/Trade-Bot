@@ -2,10 +2,17 @@
 E-17 — Liquidity Stress engine.
 
 Kyle lambda, Amihud ratio, orderbook depth score.
+
+The depth inputs come from the provider-cache "orderbook" snapshot, the same
+field E-02 reads (STR-22). The liquidity score ranks the current Amihud ratio
+against the symbol's own history, so it does not depend on whether volume is
+quoted in base or quote units.
 """
 
 from __future__ import annotations
 
+import json
+import math
 from collections import defaultdict, deque
 from datetime import UTC, datetime
 
@@ -20,6 +27,9 @@ log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 _ENGINE_ID = "E-17"
 _SLA_SECONDS = 5
 _DEPTH_BPS = 50  # basis points for depth score
+# Fewer Amihud readings than this cannot rank the current one; the score stays
+# neutral (1.0, the risk quantifier's default) until the history fills.
+_MIN_AMIHUD_HISTORY = 20
 
 
 def kyle_lambda(price_changes: np.ndarray, signed_volumes: np.ndarray) -> float:
@@ -54,6 +64,39 @@ def depth_score(bids: list[dict], spot: float, n_bps: int = _DEPTH_BPS) -> float
     )
 
 
+def bids_from_orderbook(ob_df: pd.DataFrame | None) -> list[dict]:
+    """
+    Bid levels of the latest snapshot as {"price", "size"} dicts.
+
+    The snapshot's ``bids_json`` is a JSON list of ``[price, qty]`` pairs. A
+    missing, empty or malformed snapshot yields no levels, so depth reads as
+    unknown (0) rather than failing the engine.
+    """
+    if ob_df is None or ob_df.empty:
+        return []
+    try:
+        levels = json.loads(ob_df.iloc[-1]["bids_json"])
+        return [{"price": float(price), "size": float(qty)} for price, qty in levels]
+    except (KeyError, TypeError, ValueError) as exc:
+        log.warning("e17_bad_orderbook", exc=str(exc))
+        return []
+
+
+def amihud_liquidity_score(ar: float, history: deque[float]) -> float:
+    """
+    1 minus the percentile rank of ``ar`` among the symbol's past readings.
+
+    Scale-free: multiplying every volume by a constant divides every Amihud
+    ratio by it and leaves the ranks unchanged. Ties count half. Neutral 1.0
+    until ``history`` holds _MIN_AMIHUD_HISTORY readings.
+    """
+    if len(history) < _MIN_AMIHUD_HISTORY or not math.isfinite(ar):
+        return 1.0
+    below = sum(1 for h in history if h < ar)
+    equal = sum(1 for h in history if h == ar)
+    return float(1.0 - (below + 0.5 * equal) / len(history))
+
+
 def cascade_price_level(bids: list[dict], spot: float, depth_pct10: float) -> float:
     """
     Find the price level where cumulative bid depth first drops below the
@@ -82,6 +125,9 @@ class E17Liquidity:
         # its own past, not with other assets' liquidity (STR-10).
         self._kyle_history: defaultdict[str, deque[float]] = defaultdict(lambda: deque(maxlen=200))
         self._depth_history: defaultdict[str, deque[float]] = defaultdict(lambda: deque(maxlen=200))
+        self._amihud_history: defaultdict[str, deque[float]] = defaultdict(
+            lambda: deque(maxlen=200)
+        )
 
     async def run(self, symbol: str, data: dict) -> EngineOutput:
         spot: float = data.get("spot", 0.0)
@@ -104,7 +150,7 @@ class E17Liquidity:
             ar = amihud_ratio(returns, volumes)
 
             # Orderbook depth
-            bids_raw = data.get("bids", [])
+            bids_raw = bids_from_orderbook(data.get("orderbook"))
             ds = depth_score(bids_raw, spot)
 
             # Track history
@@ -123,7 +169,10 @@ class E17Liquidity:
             # Cascade price: first price level where cumulative bid depth < 10th pct
             depth_pct10 = np.percentile(depth_hist, 10) if len(depth_hist) > 2 else 0.0
             cascade_level = cascade_price_level(bids_raw, spot, depth_pct10)
-            liquidity_score = float(np.clip(1.0 - ar * 1e6, 0.0, 1.0))
+            amihud_hist = self._amihud_history[symbol]
+            liquidity_score = amihud_liquidity_score(ar, amihud_hist)
+            if math.isfinite(ar):
+                amihud_hist.append(ar)
 
             return EngineOutput(
                 engine_id=_ENGINE_ID,

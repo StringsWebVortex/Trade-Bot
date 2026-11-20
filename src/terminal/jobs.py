@@ -90,19 +90,24 @@ class JobReporter:
         queue = self._queue
         if queue is None:  # pragma: no cover - _emit creates it before starting us
             return
-        while not queue.empty():
-            frame = queue.get_nowait()
-            try:
-                await asyncio.wait_for(self._send(frame), timeout=self._timeout)
-                self.sent += 1
-            except (OSError, TimeoutError, ValueError) as exc:
-                self.dropped += 1
-                log.debug("terminal.job_report_dropped", error=type(exc).__name__)
-                await self._disconnect()
-        # AGT-025: this connection only ever writes, and nothing reads the
-        # broadcast frames the server pushes; holding it open lets that backlog
-        # overflow and get the connection dropped mid-job. Reconnect per batch.
-        await self._disconnect()
+        while True:
+            while not queue.empty():
+                frame = queue.get_nowait()
+                try:
+                    await asyncio.wait_for(self._send(frame), timeout=self._timeout)
+                    self.sent += 1
+                except (OSError, TimeoutError, ValueError) as exc:
+                    self.dropped += 1
+                    log.debug("terminal.job_report_dropped", error=type(exc).__name__)
+                    await self._disconnect()
+            # AGT-025: this connection only ever writes, and nothing reads the
+            # broadcast frames the server pushes; holding it open lets that backlog
+            # overflow and get the connection dropped mid-job. Reconnect per batch.
+            await self._disconnect()
+            # An event can arrive while wait_closed() yields. Drain it in this
+            # worker rather than leaving it queued behind a still-running task.
+            if queue.empty():
+                return
 
     async def _send(self, frame: dict[str, Any]) -> None:
         if self._writer is None:

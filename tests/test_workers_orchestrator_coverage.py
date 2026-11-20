@@ -5,6 +5,8 @@ stand-ins, and signal.signal is patched because the worker installs a SIGTERM
 handler that would otherwise leak into the test session.
 
 Decides: REG-1222, REG-1223
+
+Decides: REG-1230
 """
 
 from __future__ import annotations
@@ -170,6 +172,38 @@ def test_model_worker_emits_error_result_when_inference_raises():
     assert result.direction == 0
     assert result.confidence == 0.0
     assert result.algo == "TWAP"
+
+
+def test_model_worker_cooperatively_exits_after_current_task():
+    import threading
+
+    q_in: queue.Queue = queue.Queue()
+    q_out: queue.Queue = queue.Queue()
+    stop = threading.Event()
+    q_in.put(_task(task_id="in-flight"))
+    q_in.put(_task(task_id="must-remain-queued"))
+
+    def finish_and_stop(task):
+        stop.set()
+        return WorkerResult(
+            task_id=task.task_id,
+            horizon_id=task.horizon_id,
+            direction=0,
+            confidence=0.0,
+            magnitude_mu=0.0,
+            magnitude_sigma=1.0,
+            timing=0.5,
+            algo="TWAP",
+        )
+
+    with (
+        patch("src.workers.orchestrator.signal.signal"),
+        patch("src.workers.orchestrator._run_horizon_inference", side_effect=finish_and_stop),
+    ):
+        _model_worker(worker_id=5, queue_in=q_in, queue_out=q_out, stop_event=stop)
+
+    assert q_out.get_nowait().task_id == "in-flight"
+    assert q_in.get_nowait().task_id == "must-remain-queued"
 
 
 def test_model_worker_installs_sigterm_handler():
@@ -410,10 +444,10 @@ def test_scale_same_worker_count_is_a_noop() -> None:
 
 
 def test_scale_up_spawns_the_missing_model_workers() -> None:
-    """AGT-019: scaling to four total workers adds two model workers."""
+    """AGT-019: scaling from two to four total workers adds two model workers."""
     from src.workers.orchestrator import WorkerOrchestrator
 
-    orchestrator = WorkerOrchestrator(n_workers=4, ecc_enabled=False)
+    orchestrator = WorkerOrchestrator(n_workers=2, ecc_enabled=False)
     orchestrator._workers = [_live_worker()]
     with patch.object(orchestrator, "_spawn") as spawn:
         orchestrator.scale(4)
@@ -433,15 +467,20 @@ def test_scale_down_stops_the_removed_processes_themselves() -> None:
 
     orchestrator = WorkerOrchestrator(n_workers=5, ecc_enabled=False)
     workers = [_live_worker() for _ in range(4)]
+    stop_events = [MagicMock() for _ in workers]
     orchestrator._queue_in = SentinelQueue()
     orchestrator._workers = list(workers)
+    orchestrator._worker_stop_events = list(stop_events)
 
     orchestrator.scale(3)
 
     assert orchestrator._queue_in.items == []
     assert orchestrator._workers == workers[:2]
+    assert orchestrator._worker_stop_events == stop_events[:2]
     for worker in workers[2:]:
         worker.join.assert_any_call(timeout=5)
+    for stop_event in stop_events[2:]:
+        stop_event.set.assert_called_once_with()
 
 
 def test_stuck_worker_is_terminated_then_killed() -> None:
@@ -487,15 +526,21 @@ def test_ecc_worker_stops_on_event_and_does_not_block_on_full_queue() -> None:
     full = MagicMock()
     full.put.side_effect = queue.Full
     stop = threading.Event()
+    started = threading.Event()
+
+    def _cycle(**_kwargs):
+        started.set()
+        return {}
+
     thread = threading.Thread(
         target=mod._ecc_worker, args=(full, "u", "u", "p", 3600.0, stop), daemon=True
     )
     with (
         patch.dict(sys.modules, stubs),
-        patch.object(mod, "_run_ecc_cycle", return_value={}),
+        patch.object(mod, "_run_ecc_cycle", side_effect=_cycle),
     ):
         thread.start()
-        time.sleep(0.2)
+        assert started.wait(timeout=1.0)
         stop.set()
         thread.join(timeout=5)
     assert not thread.is_alive()

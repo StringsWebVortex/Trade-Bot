@@ -59,7 +59,7 @@ def _equity(mode: str, ts: int, equity: float, cash: float, peak: float) -> Equi
     )
 
 
-def _open_trade(mode: str, trade_id: str = "t-open") -> TradeRecord:
+def _open_trade(mode: str, trade_id: str = "t-open", raw_signal: float | None = 0.5) -> TradeRecord:
     return TradeRecord(
         id=trade_id,
         symbol="BTC/USDT",
@@ -81,7 +81,7 @@ def _open_trade(mode: str, trade_id: str = "t-open") -> TradeRecord:
         meta_label_prob=0.6,
         exit_reason=None,
         approved_by="auto",
-        raw_signal=0.5,
+        raw_signal=raw_signal,
     )
 
 
@@ -95,6 +95,13 @@ class TestPaperRestart:
         await ex.initialize()
         assert set(ex._positions) == {"t-open"}
         assert ex._positions["t-open"].quantity == 5.0
+
+    async def test_unknown_entry_probability_stays_unknown_after_restart(self, storage) -> None:
+        await storage.insert_trade(_open_trade("paper", raw_signal=None))
+        ex = PaperExecutor(storage, starting_capital=10_000.0)
+        await ex.initialize()
+        position = ex._positions["t-open"]
+        assert position.raw_signal is None
 
     async def test_closed_trades_not_rebuilt(self, storage) -> None:
         """Negative case: only trades with exit_ts NULL come back."""
@@ -142,6 +149,13 @@ class TestLiveRestart:
         ex._reconcile_with_exchange.assert_awaited_once()
         assert ex._drawdown_tracker.drawdown_from_peak_pct == pytest.approx(-25.0)
         assert ex._drawdown_tracker.daily_pnl_usd == pytest.approx(0.0)
+
+    async def test_unknown_entry_probability_stays_unknown_after_restart(self, storage) -> None:
+        await storage.insert_trade(_open_trade("live", raw_signal=None))
+        ex = self._executor(storage)
+        await ex.initialize()
+        position = ex._positions["t-open"]
+        assert position.raw_signal is None
 
 
 class TestFloorRestart:
@@ -233,3 +247,15 @@ class TestKillSwitchRestart:
         m.enable_persistence(path)
         m.register_strategy("s1", _baseline())
         assert not m.is_enabled("s1")
+
+    def test_corrupt_file_disables_already_registered_strategies(self) -> None:
+        """A singleton manager may already have strategies when state is loaded."""
+        path = state_file("ks_existing_corrupt")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("garbage", encoding="utf-8")
+        manager = StrategyKillSwitchManager()
+        manager.register_strategy("s1", _baseline())
+        assert manager.is_enabled("s1")
+        manager.enable_persistence(path)
+        assert not manager.is_enabled("s1")
+        assert manager.disabled_reason("s1") == "kill-switch state unreadable, failing closed"

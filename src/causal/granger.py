@@ -80,12 +80,14 @@ class GrangerCausalityDetector:
         """
         btc_returns = _as_series(btc_returns)
         if len(btc_returns) < _MIN_WINDOW:
+            self._results.clear()
             return self._results
 
         try:
             from statsmodels.tsa.stattools import grangercausalitytests
         except ImportError:
             log.warning("statsmodels_not_available_granger_disabled")
+            self._results.clear()
             return self._results
 
         btc_ret = btc_returns.dropna().iloc[-self._window :]

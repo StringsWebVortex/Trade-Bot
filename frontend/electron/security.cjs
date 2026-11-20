@@ -11,21 +11,29 @@ function isSafeExternalUrl(url) {
   }
 }
 
-/** True when `url` is the dev server's origin or a file:// app page. */
-function isAppUrl(url, devUrl) {
+/** True only for the dev origin or the exact packaged dashboard document. */
+function isAppUrl(url, devUrl, appFileUrl) {
   try {
-    const u = new URL(url);
-    if (u.protocol === "file:") return true;
-    return !!devUrl && u.origin === new URL(devUrl).origin;
+    const candidate = new URL(url);
+    if (candidate.protocol === "file:") {
+      if (!appFileUrl) return false;
+      const app = new URL(appFileUrl);
+      if (app.protocol !== "file:") return false;
+      // Hash navigation is still the same document; another local file is not.
+      candidate.hash = "";
+      app.hash = "";
+      return candidate.href === app.href;
+    }
+    return !!devUrl && candidate.origin === new URL(devUrl).origin;
   } catch {
     return false;
   }
 }
 
 /** IPC guard: the calling frame must be the app, not some navigated page. */
-function isTrustedSender(event, devUrl) {
+function isTrustedSender(event, devUrl, appFileUrl) {
   const url = event && event.senderFrame && event.senderFrame.url;
-  return typeof url === "string" && isAppUrl(url, devUrl);
+  return typeof url === "string" && isAppUrl(url, devUrl, appFileUrl);
 }
 
 /**
@@ -34,9 +42,21 @@ function isTrustedSender(event, devUrl) {
  * the WebSocket upgrade) bound for the API, so the renderer never holds it.
  */
 function apiKeyHeaderHook(apiOrigin, key) {
+  let expectedOrigin = null;
+  try {
+    expectedOrigin = new URL(apiOrigin).origin;
+  } catch {
+    // An invalid API origin must never receive the credential.
+  }
   return (details, callback) => {
     const headers = { ...details.requestHeaders };
-    if (key && details.url.startsWith(apiOrigin)) headers["x-api-key"] = key;
+    let requestOrigin = null;
+    try {
+      requestOrigin = new URL(details.url).origin;
+    } catch {
+      // Non-URL requests are not API requests.
+    }
+    if (key && expectedOrigin && requestOrigin === expectedOrigin) headers["x-api-key"] = key;
     callback({ requestHeaders: headers });
   };
 }

@@ -1,4 +1,7 @@
-"""Tests for src/features/mempool.py -- bitcoind mempool feature fetch."""
+"""Tests for src/features/mempool.py -- bitcoind mempool feature fetch.
+
+Decides: REG-1330
+"""
 
 from __future__ import annotations
 

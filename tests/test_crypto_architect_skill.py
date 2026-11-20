@@ -6,6 +6,8 @@ and asserts the finding a reviewer or CI gate would act on, never the
 presence of a keyword in the validator itself.
 
 Decides: SEC-1228
+
+Decides: SEC-1232
 """
 
 from __future__ import annotations
@@ -302,6 +304,28 @@ def test_malformed_baseline_is_an_input_error(va, in_tmp: Path, monkeypatch) -> 
     src.write_text("X = 1\n", encoding="utf-8")
     baseline = in_tmp / "b.json"
     baseline.write_text("{not json", encoding="utf-8")
+    assert (
+        _main(va, monkeypatch, "--non-interactive", "--file", str(src), "--baseline", str(baseline))
+        == 2
+    )
+
+
+@pytest.mark.parametrize(
+    "baseline_payload",
+    [
+        '{"fingerprints": [], "counts": []}',
+        '{"fingerprints": [], "counts": {"LAW5|x|a.py": -1}}',
+        '{"fingerprints": "not-an-array"}',
+        '{"fingerprints": [3]}',
+    ],
+)
+def test_malformed_baseline_counts_are_input_errors(
+    va, in_tmp: Path, monkeypatch, baseline_payload
+):
+    src = in_tmp / "m.py"
+    src.write_text("X = 1\n", encoding="utf-8")
+    baseline = in_tmp / "b.json"
+    baseline.write_text(baseline_payload, encoding="utf-8")
     assert (
         _main(va, monkeypatch, "--non-interactive", "--file", str(src), "--baseline", str(baseline))
         == 2

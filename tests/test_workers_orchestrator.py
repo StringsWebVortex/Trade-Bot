@@ -173,6 +173,9 @@ def test_rpc_url_credentials_are_redacted_and_no_default_password():
     from src.workers.orchestrator import redact_url
 
     assert redact_url("http://u:p@host:8332/x") == "http://***@host:8332/x"
+    ipv6_url = "http://u:p@[2001:db8::1]:8332/x"
+    assert redact_url(ipv6_url) == "http://***@[2001:db8::1]:8332/x"
+    assert redact_url("http://u:p@host:0/x") == "http://***@host:0/x"
     assert redact_url("http://host:8332") == "http://host:8332"
     from src.workers.orchestrator import WorkerOrchestrator
 

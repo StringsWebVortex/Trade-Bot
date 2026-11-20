@@ -209,7 +209,10 @@ def _hmac_key() -> bytes:
         raise NotQualifiedError(
             f"{HMAC_KEY_ENV} is not set: the qualification record cannot be signed or verified"
         )
-    return key.encode("utf-8")
+    encoded = key.encode("utf-8")
+    if len(encoded) < 32:
+        raise NotQualifiedError(f"{HMAC_KEY_ENV} must contain at least 32 bytes")
+    return encoded
 
 
 def _sign(payload: dict[str, Any]) -> str:

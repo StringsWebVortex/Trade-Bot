@@ -230,3 +230,66 @@ class TestCacheAndLoops:
 
         fetch.assert_awaited_once()
         assert calls == [900]
+
+
+def test_seen_key_cache_is_bounded(tmp_path: Path) -> None:
+    from src.data import sentiment_provider as module
+
+    provider = SentimentProvider(data_root=tmp_path)
+    for i in range(module._MAX_SEEN_KEYS):
+        provider._remember_key(("feed", f"guid-{i}"))
+    assert provider._remember_key(("feed", "newest"))
+    assert len(provider._seen) == module._MAX_SEEN_KEYS
+    assert ("feed", "guid-0") not in provider._seen
+    assert ("feed", "newest") in provider._seen
+
+
+def test_seen_keys_restore_recent_rss_rows_and_skip_corrupt_snapshots(tmp_path: Path) -> None:
+    directory = tmp_path / "sentiment"
+    directory.mkdir()
+    pd.DataFrame(
+        [
+            {"source": "feed-a", "guid": "guid-1", "headline": "A real headline"},
+            {"source": "feed-a", "guid": "", "headline": "Fallback headline"},
+            {"source": "fear_greed", "guid": "fg", "headline": ""},
+            {"source": "", "guid": "missing-source", "headline": "No source"},
+            {"source": "feed-b", "guid": "empty-title", "headline": "   "},
+        ]
+    ).to_parquet(directory / "2026-11-10.parquet")
+    (directory / "2026-11-11.parquet").write_text("not parquet", encoding="utf-8")
+
+    provider = SentimentProvider(data_root=tmp_path)
+
+    assert ("feed-a", "guid-1") in provider._seen
+    assert ("feed-a", "Fallback headline") in provider._seen
+    assert ("fear_greed", "fg") not in provider._seen
+    assert ("", "missing-source") not in provider._seen
+    assert ("feed-b", "empty-title") not in provider._seen
+
+
+def test_cache_publish_failure_is_logged_after_a_real_fetch(tmp_path: Path) -> None:
+    provider = SentimentProvider(data_root=tmp_path)
+    provider._fg_score = 61.0
+    with patch(
+        "src.data.provider_cache.get_provider_cache", side_effect=RuntimeError("cache down")
+    ):
+        provider._update_cache()
+
+
+def test_unparseable_rss_pubdate_uses_fetch_time(tmp_path: Path) -> None:
+    provider = SentimentProvider(data_root=tmp_path)
+
+    class _Vader:
+        @staticmethod
+        def polarity_scores(_headline: str) -> dict[str, float]:
+            return {"compound": 0.25}
+
+    xml = """<rss><channel><item>
+      <title>Headline with invalid date</title>
+      <guid>bad-date-guid</guid>
+      <pubDate>not-a-date</pubDate>
+    </item></channel></rss>"""
+    rows = provider._parse_rss(xml, "feed", _Vader())
+    assert len(rows) == 1
+    assert rows[0]["_key"] == "bad-date-guid"
+    assert rows[0]["timestamp_utc"].tzinfo is not None

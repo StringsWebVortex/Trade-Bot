@@ -43,6 +43,8 @@ describe('SEC-1240 admin key is never bundled', () => {
     expect(out.requestHeaders['x-api-key']).toBe('k');
     hook({ url: 'https://evil.example/', requestHeaders: {} }, (r) => { out = r; });
     expect(out.requestHeaders['x-api-key']).toBeUndefined();
+    hook({ url: 'http://localhost:8000.evil.example/status', requestHeaders: {} }, (r) => { out = r; });
+    expect(out.requestHeaders['x-api-key']).toBeUndefined();
   });
 });
 
@@ -57,17 +59,21 @@ describe('SEC-1241 electron navigation and IPC guards', () => {
   it('allows only the app origin to navigate or call IPC', () => {
     const dev = 'http://127.0.0.1:5173';
     expect(sec.isAppUrl('http://127.0.0.1:5173/x', dev)).toBe(true);
-    expect(sec.isAppUrl('file:///app/dist/index.html', dev)).toBe(true);
+    const appFile = 'file:///app/dist/index.html';
+    expect(sec.isAppUrl(appFile, dev, appFile)).toBe(true);
+    expect(sec.isAppUrl('file:///etc/passwd', dev, appFile)).toBe(false);
     expect(sec.isAppUrl('https://evil.example', dev)).toBe(false);
     expect(sec.isTrustedSender({ senderFrame: { url: 'https://evil.example' } }, dev)).toBe(false);
     expect(sec.isTrustedSender({}, dev)).toBe(false);
-    expect(sec.isTrustedSender({ senderFrame: { url: 'file:///a/index.html' } }, dev)).toBe(true);
+    expect(sec.isTrustedSender({ senderFrame: { url: appFile } }, dev, appFile)).toBe(true);
+    expect(sec.isTrustedSender({ senderFrame: { url: 'file:///tmp/evil.html' } }, dev, appFile)).toBe(false);
   });
 });
 
 describe('SEC-1242 content security policy', () => {
   it('is restrictive and injected into the built page', () => {
     const csp = contentSecurityPolicy('http://10.0.0.5:8000');
+    expect(() => contentSecurityPolicy('https://api.example" onload="alert(1)')).toThrow(/not an allowed origin/);
     expect(csp).toContain("script-src 'self'");
     expect(csp).toContain("object-src 'none'");
     expect(csp).toContain('ws://10.0.0.5:8000');

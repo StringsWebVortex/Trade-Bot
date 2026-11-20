@@ -336,8 +336,18 @@ def _clear_mongo_client_caches():
 
 @pytest.fixture(autouse=True)
 def _reset_operator_secret_lockout():
-    """SEC-1015: a failed-secret test must not lock out the next test."""
+    """SEC-1015: reset the process-global secret lockout budget around each test."""
     from src.api.operator_secret import reset_failures
+
+    reset_failures()
+    yield
+    reset_failures()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _no_unraisable_at_session_end():
+    """REG-1707: fail if async-resource finalizers raise at session shutdown."""
+    from tests.regression.unraisable import collect_unraisable
 
     reset_failures()
     yield

@@ -1,6 +1,6 @@
 {
   "component": "trade-bot",
-  "generated_by": "validate_arch.py v3.0",
+  "generated_by": ".claude/skills/crypto-architect/scripts/validate_arch.py v3.0",
   "fingerprints": [
     "LAW10|Wash trade detection|src/execution/order_manager.py",
     "LAW10|Wash trade detection|src/execution/router.py",

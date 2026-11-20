@@ -27,6 +27,7 @@ from pathlib import Path
 import pytest
 
 from src.terminal import install
+from src.terminal.config import ensure_managed_state_dir
 from src.terminal.jobs import JobReporter
 
 from ._support import AsyncClient
@@ -134,7 +135,7 @@ class TestUninstall:
     def test_removes_exactly_what_it_installed(self, home, systemctl, tmp_path):
         install.install(python=PYTHON, repo=REPO, env=home, run=FakeRunner())
         state = tmp_path / "state"
-        state.mkdir()
+        ensure_managed_state_dir(state)
         (state / "token").write_text("t", encoding="utf-8")
         runner = FakeRunner()
         report = install.uninstall(env=home, state_dir=state, run=runner)
@@ -176,6 +177,31 @@ class TestJobReporter:
         finally:
             await reporter.aclose()
             await watcher.close()
+
+    async def test_event_queued_during_disconnect_is_drained_by_the_same_worker(self, tmp_path):
+        reporter = JobReporter(tmp_path / "terminal.sock")
+        sent = []
+
+        async def fake_send(frame):
+            sent.append(frame)
+
+        disconnects = 0
+
+        async def racing_disconnect():
+            nonlocal disconnects
+            disconnects += 1
+            if disconnects == 1:
+                reporter.output(job, "arrived during close")
+                await asyncio.sleep(0)
+
+        reporter._send = fake_send
+        reporter._disconnect = racing_disconnect
+        job = reporter.begin("batch")
+        await reporter._worker
+
+        assert [frame["t"] for frame in sent] == ["job.begin", "job.output"]
+        assert reporter._queue is not None and reporter._queue.empty()
+        assert reporter.sent == 2 and reporter.dropped == 0
 
     async def test_reporting_to_a_missing_service_is_dropped_quietly(self, short_tmp):
         reporter = JobReporter(short_tmp / "absent.sock")
@@ -234,11 +260,42 @@ class TestJobReporter:
 
 
 class TestPurgeSafety:
-    def test_purge_refuses_a_directory_without_the_token(self, home, tmp_path):
-        """AGT-029: a mis-set state dir (e.g. $HOME) must not be deleted."""
+    def test_purge_refuses_an_unmarked_directory_even_if_it_has_a_token(self, home, tmp_path):
+        """AGT-029: a token in a user-selected directory is not proof of ownership."""
         state = tmp_path / "not_ours"
         state.mkdir()
+        (state / "token").write_text("a" * 64, encoding="utf-8")
         (state / "precious.txt").write_text("x", encoding="utf-8")
+        ensure_managed_state_dir(state)  # existing arbitrary dirs must remain unmarked
         report = install.uninstall(env=home, state_dir=state, purge=True, run=FakeRunner())
+        assert (state / "token").exists()
         assert (state / "precious.txt").exists()
         assert report.conflicts
+
+    def test_purge_removes_only_files_in_a_marked_state_dir(self, home, tmp_path, monkeypatch):
+        state = tmp_path / "managed"
+        ensure_managed_state_dir(state)
+        (state / "token").write_text("a" * 64, encoding="utf-8")
+        (state / "termd.log").write_text("service log", encoding="utf-8")
+        report = install.uninstall(env=home, state_dir=state, purge=True, run=FakeRunner())
+        assert not state.exists()
+        assert str(state) in report.removed
+
+        with_extra = tmp_path / "managed_with_user_data"
+        ensure_managed_state_dir(with_extra)
+        (with_extra / "token").write_text("b" * 64, encoding="utf-8")
+        (with_extra / "precious.txt").write_text("keep", encoding="utf-8")
+        report = install.uninstall(env=home, state_dir=with_extra, purge=True, run=FakeRunner())
+        assert (with_extra / "token").exists()
+        assert (with_extra / "precious.txt").read_text(encoding="utf-8") == "keep"
+        assert report.conflicts
+
+        monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path))
+        monkeypatch.delenv("TB_TERMINAL_STATE_DIR", raising=False)
+        legacy = tmp_path / "tradebot-terminal"
+        legacy.mkdir()
+        (legacy / "token").write_text("c" * 64, encoding="utf-8")
+        ensure_managed_state_dir(legacy)
+        report = install.uninstall(env=home, state_dir=legacy, purge=True, run=FakeRunner())
+        assert not legacy.exists()
+        assert str(legacy) in report.removed

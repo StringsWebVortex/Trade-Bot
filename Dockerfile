@@ -28,8 +28,11 @@
 # enforce them; what it can do is be usable with them, which the health check
 # below exercises.
 
-# python:3.11-slim -- matches .python-version, which is what CI installs
-FROM python@sha256:bab1b7ef4b450c81002278d035eff85ebe394ae94df904f7a3ba14f7e16e487b AS build
+# python:3.11-slim -- matches .python-version, which is what CI installs.
+# The tag stays beside the digest so a Dependabot update has to name the tag
+# it moves to: with a bare digest it proposed a python 3.15.1 image as a plain
+# digest refresh (#516), and the dependency install failed on it.
+FROM python:3.15-slim@sha256:65a65fc7b30b06cb6df4930fd4650697cb23f4c2698ab81fc87e4b031bc36928 AS build
 
 WORKDIR /build
 
@@ -64,7 +67,7 @@ COPY scripts ./scripts
 
 # ---------------------------------------------------------------------------
 
-FROM python@sha256:bab1b7ef4b450c81002278d035eff85ebe394ae94df904f7a3ba14f7e16e487b AS runtime
+FROM python:3.15-slim@sha256:65a65fc7b30b06cb6df4930fd4650697cb23f4c2698ab81fc87e4b031bc36928 AS runtime
 
 # Pin the base, then patch it.
 #

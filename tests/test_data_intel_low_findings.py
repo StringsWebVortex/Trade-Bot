@@ -171,8 +171,8 @@ def test_cryptoquant_reserve_ratio_needs_live_price_and_limiters_burst() -> None
     from src.intelligence.onchain.cryptoquant_provider import CryptoQuantProvider, _reserve_ratio
 
     assert _reserve_ratio({"result": {"data": [{"reserve_usd": 1e9}]}}) is None
-    ratio = _reserve_ratio({"result": {"data": [{"reserve_usd": 21e9, "price": 100.0}]}})
-    assert ratio == pytest.approx(21e9 / (21_000_000 * 100.0))
+    ratio = _reserve_ratio({"result": {"data": [{"reserve_usd": 210e6, "price": 100.0}]}})
+    assert ratio == pytest.approx(210e6 / (21_000_000 * 100.0))
     for cls in (CryptoQuantProvider, CoinglassProvider):
         assert cls._RATE_WINDOW_S == 60.0
         assert cls._RATE >= 10.0

@@ -231,7 +231,7 @@ def test_ensemble_member_scores_are_out_of_sample():
     assert sum(ep.weights.values()) == pytest.approx(1.0)
 
 
-def test_ensemble_without_holdout_data_gets_no_optimistic_score():
+def test_ensemble_without_holdout_data_gets_no_optimistic_score(tmp_path):
     rng = np.random.default_rng(1)
     X = pd.DataFrame(rng.standard_normal((20, 3)), columns=list("abc"))
     y = pd.Series(rng.standard_normal(20))
@@ -239,3 +239,11 @@ def test_ensemble_without_holdout_data_gets_no_optimistic_score():
     ep.models = {"xgboost": XGBoostPredictor()}
     ep.fit(X, y)
     assert ep.models["xgboost"].rmse == np.inf
+    assert ep.weights["xgboost"] == 0.0
+    with pytest.raises(RuntimeError, match="no ensemble member has a valid out-of-sample score"):
+        ep.predict(pd.DataFrame(rng.standard_normal((1, 3)), columns=list("abc")))
+    ep.save(tmp_path, "BTC/USDT", "15m")
+    restored = EnsemblePredictor.load(tmp_path, "BTC/USDT", "15m")
+    assert restored.weights["xgboost"] == 0.0
+    with pytest.raises(RuntimeError, match="no ensemble member has a valid out-of-sample score"):
+        restored.predict(pd.DataFrame(rng.standard_normal((1, 3)), columns=list("abc")))

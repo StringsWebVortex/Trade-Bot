@@ -27,8 +27,14 @@ _BODY = {"value": "manual", "operator": "alice", "operator_secret": _OP_SECRET}
 
 @pytest.fixture
 def wired():
+    from src.api.fail_closed import CONTROL_HEALTH, SecurityControl, mark_all_healthy
     from src.api.main import AppState
 
+    # API-008: model startup completing, then restore the process-wide registry
+    # exactly as it was so this module cannot leak health state to other tests.
+    previous_health = {control: CONTROL_HEALTH.status(control) for control in SecurityControl}
+    CONTROL_HEALTH.reset()
+    mark_all_healthy(CONTROL_HEALTH)
     state = AppState()
     state.ready = True
     state.storage = AsyncMock()
@@ -44,7 +50,15 @@ def wired():
         patch("src.api.main.save_execution_mode") as save,
     ):
         state.save_mock = save
-        yield state
+        try:
+            yield state
+        finally:
+            CONTROL_HEALTH.reset()
+            for control, status in previous_health.items():
+                if status.healthy:
+                    CONTROL_HEALTH.mark_healthy(control)
+                else:
+                    CONTROL_HEALTH.mark_degraded(control, status.reason)
 
 
 def _client() -> TestClient:
@@ -118,18 +132,18 @@ def test_apply_control_refuses_execution_mode_without_the_safe_setter() -> None:
 
 
 @pytest.mark.parametrize(
-    "name",
+    ("name", "expected_status"),
     [
-        "storage.decision_log_path",
-        "intelligence.glassnode_base_url",
-        "binance.testnet",
-        "binance.base_url",
+        ("storage.decision_log_path", 403),
+        ("intelligence.glassnode_base_url", 409),
+        ("binance.testnet", 409),
+        ("binance.base_url", 403),
     ],
 )
-def test_non_allow_listed_leaves_are_refused(wired, name) -> None:
-    """decision_log_path was an arbitrary-file-append primitive."""
+def test_non_allow_listed_leaves_are_refused(wired, name, expected_status) -> None:
+    """Unallowlisted keys are refused; startup-bound keys use conflict semantics."""
     resp = _post(name, {**_BODY, "value": "/tmp/x"})
-    assert resp.status_code == 403, resp.text
+    assert resp.status_code == expected_status, resp.text
 
 
 @pytest.mark.parametrize(
@@ -148,6 +162,30 @@ def test_allow_list_is_default_deny(name, expected) -> None:
     from src.api.control_surface import is_operator_writable
 
     assert is_operator_writable(name) is expected
+
+
+def test_registered_tunables_still_require_the_operator_allow_list(monkeypatch) -> None:
+    """A newly registered parameter must not bypass the API's default-deny list."""
+    import asyncio
+
+    from src.api import control_surface
+    from src.api.control_surface import ControlWriteError, apply_control
+
+    monkeypatch.setattr(control_surface.parameter_registry, "is_registered", lambda _name: True)
+    apply = patch.object(control_surface, "_apply_tunable")
+    with apply as apply_tunable:
+        with pytest.raises(ControlWriteError) as exc_info:
+            asyncio.run(
+                apply_control(
+                    "future_group.new_parameter",
+                    1,
+                    object,
+                    operator="alice",
+                    operator_secret=_OP_SECRET,
+                )
+            )
+    assert exc_info.value.status == 403
+    apply_tunable.assert_not_called()
 
 
 def test_a_control_write_is_audited(wired) -> None:

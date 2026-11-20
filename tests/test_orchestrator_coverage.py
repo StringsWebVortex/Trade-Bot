@@ -18,10 +18,10 @@ from contextlib import contextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from conftest import settings_double
 
 from src.config import Timeframe, TradingMode
 from src.data.storage import BarRecord
+from tests.conftest import settings_double
 
 
 def _make_bars(n: int = 350) -> list[BarRecord]:
@@ -82,6 +82,9 @@ def _make_executor():
     e.open_positions = MagicMock(return_value=[])
     e.open_positions_safe = AsyncMock(return_value=[])
     e.equity_usd = 1000.0
+    # Synchronous on AbstractExecutor (EXR-018): an AsyncMock coroutine
+    # here would be created every tick and never awaited.
+    e.close_approval_window = MagicMock(return_value=None)
     e.starting_equity_usd = 1000.0
     e.shutdown = AsyncMock(return_value=None)
     return e
@@ -1344,47 +1347,6 @@ class TestTickCorrelationFallback:
         signal.p_long = 0.8
         signal.p_bet = 0.8
         signal.kelly_result = MagicMock()
-        signal.kelly_result.entry_price = 100.0
-        engine = AsyncMock()
-        engine.tick = AsyncMock(return_value=signal)
-        orch._engines[Timeframe.INTRADAY.value] = engine
-
-        tracker = MagicMock()
-        tracker.correlation_scalar = MagicMock(return_value=1.0)
-        tracker.push_bar_returns = MagicMock()
-
-        with (
-            patch("src.engine.orchestrator.get_portfolio_correlation", return_value=tracker),
-            patch(
-                "src.engine.orchestrator.compute_win_loss_stats", return_value=(0, 0.0, 0.0, 0.0)
-            ),
-            patch("src.engine.orchestrator.update_metrics"),
-            patch.object(
-                orch._drift_adapter,
-                "check_drift",
-                return_value={"drifted": True, "metric": "sharpe", "reason": "below floor"},
-            ),
-        ):
-            await orch._tick(Timeframe.INTRADAY)
-
-        # drift blocked → submit_signal must NOT be called
-        executor.submit_signal.assert_not_called()
-
-    @pytest.mark.asyncio
-    async def test_tick_drift_does_not_block_paper_signal(self):
-        """EXR-004: drift is live-only; a drifted detector must not stop paper trading."""
-        orch = self._make_orch()
-        orch._cfg.trading_mode = TradingMode.PAPER
-        executor = _make_executor()
-        executor.open_positions_safe = AsyncMock(return_value=[])
-        orch._executor = executor
-
-        signal = MagicMock()
-        signal.tradeable = True
-        signal.regime = None
-        signal.p_long = 0.8
-        signal.p_bet = 0.8
-        signal.kelly_result = MagicMock()
         engine = AsyncMock()
         engine.tick = AsyncMock(return_value=signal)
         orch._engines[Timeframe.INTRADAY.value] = engine
@@ -1408,6 +1370,53 @@ class TestTickCorrelationFallback:
             await orch._tick(Timeframe.INTRADAY)
 
         chk.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_tick_drift_does_not_block_paper_signal(self):
+        """EXR-004: live mode's paper-only secondary timeframe must not drift-halt."""
+        orch = self._make_orch()
+        # The global mode is LIVE, but this non-primary timeframe is paper-only.
+        orch._cfg.trading_mode = TradingMode.LIVE
+        orch._primary_tf = Timeframe.SCALPING
+        executor = _make_executor()
+        executor.open_positions_safe = AsyncMock(return_value=[])
+        orch._non_primary_executor = executor
+        orch._executor = _make_executor()
+
+        signal = MagicMock()
+        signal.tradeable = True
+        signal.regime = None
+        signal.p_long = 0.8
+        signal.p_bet = 0.8
+        signal.direction = 1
+        signal.kelly_result = MagicMock()
+        signal.kelly_result.entry_price = 65_000.0
+        signal.ensemble_point_estimate = None
+        executor.submit_signal = AsyncMock(return_value=("paper-trade", "opened"))
+        engine = AsyncMock()
+        engine.tick = AsyncMock(return_value=signal)
+        orch._engines[Timeframe.INTRADAY.value] = engine
+
+        tracker = MagicMock()
+        tracker.correlation_scalar = MagicMock(return_value=1.0)
+        tracker.push_bar_returns = MagicMock()
+
+        with (
+            patch("src.engine.orchestrator.get_portfolio_correlation", return_value=tracker),
+            patch(
+                "src.engine.orchestrator.compute_win_loss_stats", return_value=(0, 0.0, 0.0, 0.0)
+            ),
+            patch("src.engine.orchestrator.update_metrics"),
+            patch.object(
+                orch._drift_adapter,
+                "check_drift",
+                return_value={"drifted": True, "metric": "sharpe", "reason": "below floor"},
+            ) as chk,
+        ):
+            await orch._tick(Timeframe.INTRADAY)
+
+        chk.assert_not_called()
+        executor.submit_signal.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_drift_triggers_retrain_task(self):

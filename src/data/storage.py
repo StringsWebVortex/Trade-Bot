@@ -705,6 +705,66 @@ class EquityRecord:
 # ---------------------------------------------------------------------------
 
 
+# Single definition of the keys store_intelligence_features accepts, shared with
+# the Timescale backend so the two cannot drift (DAT-007).
+INTELLIGENCE_FEATURE_KEYS: Final[frozenset[str]] = frozenset(
+    {
+        "intelligence_exchange_netflow_7d_zscore",
+        "intelligence_whale_buy_sell_ratio",
+        "intelligence_exchange_reserve_ratio",
+        "intelligence_miner_netflow_signal",
+        "intelligence_staking_unlock_risk",
+        "intelligence_entity_exchange_imbalance",
+        "intelligence_binance_funding_rate_pct",
+        "intelligence_liquidation_pressure_24h_zscore",
+        "intelligence_futures_oi_change_pct",
+        "intelligence_liquidation_cascade_risk_usd",
+        "intelligence_btc_dominance_regime",
+        "intelligence_stablecoin_reserve_ratio",
+        "intelligence_network_activity_score",
+        "intelligence_exchange_stress_score",
+        "intelligence_cross_exchange_basis_spread_bps",
+        "intelligence_defi_tvl_7d_change_pct",
+        "intelligence_mvrv_z_score",
+        "intelligence_sopr",
+        "direction_v6",
+        "size_pct_v6",
+        "confidence_v6",
+        "horizon_idx_v6",
+        "ecc_anomaly_v6",
+        "conflict_v6",
+        "regime_id_v6",
+        "agreement_ratio_v6",
+        "kyle_lambda_v6",
+        "ofi_v6",
+        "vpin_v6",
+        "expected_return_v6",
+        "uncertainty_v6",
+        "algo_v6",
+        "horizon_contributions_v6",
+        "model_versions_v6",
+        "freshness_seconds_v6",
+    }
+)
+# V6 columns whose values are stored as text (the rest are numeric).
+INTELLIGENCE_V6_TEXT_KEYS: Final[tuple[str, ...]] = (
+    "algo_v6",
+    "horizon_contributions_v6",
+    "model_versions_v6",
+    "freshness_seconds_v6",
+)
+# V6 numeric columns declared INTEGER in Postgres (SQLite is dynamically typed).
+INTELLIGENCE_V6_INT_KEYS: Final[tuple[str, ...]] = (
+    "direction_v6",
+    "horizon_idx_v6",
+    "conflict_v6",
+    "regime_id_v6",
+)
+INTELLIGENCE_V6_KEYS: Final[tuple[str, ...]] = tuple(
+    sorted(k for k in INTELLIGENCE_FEATURE_KEYS if k.endswith("_v6"))
+)
+
+
 class StorageBackend:
     """
     Async SQLite storage backend.
@@ -799,13 +859,19 @@ class StorageBackend:
                 version=version,
                 description=description,
             )
-            if sql.strip():
-                await conn.executescript(sql)
-            # Bump user_version inside the same transaction context.
-            # user_version PRAGMA cannot be set inside executescript (it's DDL-level),
-            # so we use a raw execute. aiosqlite auto-commits between executescript calls.
-            await conn.execute(f"PRAGMA user_version = {version}")
-            await conn.commit()
+            # One transaction per migration, version bump included (DAT-021).
+            # executescript runs its script in autocommit mode, so without the
+            # explicit BEGIN a statement failing midway left the earlier ones
+            # applied and user_version unbumped: every retry then failed on
+            # "duplicate column". user_version is an ordinary transactional
+            # header write, so it commits or rolls back with the schema change.
+            try:
+                await conn.executescript(
+                    f"BEGIN IMMEDIATE;\n{sql}\nPRAGMA user_version = {version};\nCOMMIT;"
+                )
+            except BaseException:
+                await conn.rollback()
+                raise
 
         self._log.info(
             "storage.migration.complete",
@@ -982,7 +1048,7 @@ class StorageBackend:
             symbol:     Asset symbol, e.g. "BTCUSDT".
             timeframe:  Timeframe string, e.g. "1h".
             bar_ts:     Bar timestamp, Unix ms (matches bars.ts).
-            features:   Dict keyed by the 18 intelligence column names.
+            features:   Dict keyed by supported intelligence_* and V6 columns.
                         Missing keys are stored as NULL (acceptable — coverage
                         check in trainer will flag low-coverage columns).
             confidence: Provider confidence score [0.0, 1.0].
@@ -991,44 +1057,7 @@ class StorageBackend:
         from datetime import UTC
         from datetime import datetime as _dt
 
-        allowed_features = {
-            "intelligence_exchange_netflow_7d_zscore",
-            "intelligence_whale_buy_sell_ratio",
-            "intelligence_exchange_reserve_ratio",
-            "intelligence_miner_netflow_signal",
-            "intelligence_staking_unlock_risk",
-            "intelligence_entity_exchange_imbalance",
-            "intelligence_binance_funding_rate_pct",
-            "intelligence_liquidation_pressure_24h_zscore",
-            "intelligence_futures_oi_change_pct",
-            "intelligence_liquidation_cascade_risk_usd",
-            "intelligence_btc_dominance_regime",
-            "intelligence_stablecoin_reserve_ratio",
-            "intelligence_network_activity_score",
-            "intelligence_exchange_stress_score",
-            "intelligence_cross_exchange_basis_spread_bps",
-            "intelligence_defi_tvl_7d_change_pct",
-            "intelligence_mvrv_z_score",
-            "intelligence_sopr",
-            "direction_v6",
-            "size_pct_v6",
-            "confidence_v6",
-            "horizon_idx_v6",
-            "ecc_anomaly_v6",
-            "conflict_v6",
-            "regime_id_v6",
-            "agreement_ratio_v6",
-            "kyle_lambda_v6",
-            "ofi_v6",
-            "vpin_v6",
-            "expected_return_v6",
-            "uncertainty_v6",
-            "algo_v6",
-            "horizon_contributions_v6",
-            "model_versions_v6",
-            "freshness_seconds_v6",
-        }
-        unsupported = set(features) - allowed_features
+        unsupported = set(features) - INTELLIGENCE_FEATURE_KEYS
         if unsupported:
             raise ValueError(
                 "unsupported intelligence feature columns: " + ", ".join(sorted(unsupported))
@@ -1419,6 +1448,34 @@ class StorageBackend:
             direction=trade.direction,
         )
 
+    async def record_trade_partial_exit(
+        self,
+        trade_id: str,
+        exit_price: float,
+        pnl_usd: float,
+        fee_usd: float,
+    ) -> None:
+        """Persist realised PnL/fees while leaving the trade open."""
+        conn = self._require_conn()
+        async with self._write_ctx():
+            cursor = await conn.execute(
+                """
+                UPDATE trades
+                SET exit_price=?,
+                    pnl_usd=COALESCE(pnl_usd, 0.0)+?,
+                    pnl_pct=(COALESCE(pnl_usd, 0.0)+?)/notional_usd,
+                    fee_usd=fee_usd+?
+                WHERE id=? AND exit_ts IS NULL
+                """,
+                (exit_price, pnl_usd, pnl_usd, fee_usd, trade_id),
+            )
+            await conn.commit()
+        if cursor.rowcount == 0:
+            raise ValueError(
+                f"No open trade found with id={trade_id!r} (already closed or id not found)"
+            )
+        self._log.info("trade.partial_exit_recorded", trade_id=trade_id, pnl_usd=pnl_usd)
+
     async def update_trade_exit(
         self,
         trade_id: str,
@@ -1429,21 +1486,19 @@ class StorageBackend:
         exit_reason: str,
         fee_usd: float,
     ) -> None:
-        """Patch exit fields on an existing trade row."""
+        """Persist the final fill, accumulating any earlier partial fills."""
         conn = self._require_conn()
         async with self._write_ctx():
             cursor = await conn.execute(
                 """
                 UPDATE trades
-                SET exit_price=?, exit_ts=?, pnl_usd=?, pnl_pct=?,
+                SET exit_price=?, exit_ts=?,
+                    pnl_usd=COALESCE(pnl_usd, 0.0)+?,
+                    pnl_pct=(COALESCE(pnl_usd, 0.0)+?)/notional_usd,
                     exit_reason=?, fee_usd=fee_usd+?
                 WHERE id=? AND exit_ts IS NULL
                 """,
-                # SCAN2-002: fee_usd+? intentionally accumulates entry_fee (stored at
-                # insert_trade) + exit_fee_usd (passed here). The parameter is named
-                # exit_fee_usd at the call site to prevent misreading as total fee.
-                # AND exit_ts IS NULL prevents double-exit writes on the same trade.
-                (exit_price, exit_ts, pnl_usd, pnl_pct, exit_reason, fee_usd, trade_id),
+                (exit_price, exit_ts, pnl_usd, pnl_usd, exit_reason, fee_usd, trade_id),
             )
             await conn.commit()
         if cursor.rowcount == 0:
@@ -1473,7 +1528,7 @@ class StorageBackend:
         exist (never blocks the trade path over an audit-trail write).
         """
         conn = self._require_conn()
-        async with self._get_lock():
+        async with self._write_ctx():
             await conn.execute(
                 "UPDATE trades SET ensemble_point_estimate=?, ensemble_blend_weight=? WHERE id=?",
                 (ensemble_point_estimate, ensemble_blend_weight, trade_id),

@@ -148,6 +148,8 @@ def test_mutation_timeout_scores_as_failed(monkeypatch, tmp_path, capsys):
     monkeypatch.setattr(mod.subprocess, "run", _boom)
     result = mod.run_subsystem("risk", {"paths": ["src/risk"], "min_score": 0.8}, timeout_s=1)
     assert result.passed is False
+    assert result.timed_out is True
+    assert "timed out" in result.line()
     assert not (tmp_path / ".mutmut-cache").exists()
 
 

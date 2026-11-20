@@ -4,7 +4,13 @@ Decides:
   - REG-1221 -- see config/quality_registry.json
   - REL-004 — Automatic halt triggers are machine-enforced
 
-  - REG-0028 — regression coverage for the recorded behavior."""
+  - REG-0028 — regression coverage for the recorded behavior.
+
+Decides:
+  - REG-1492 — Tick-stall failures accumulate toward escalation
+
+Decides: REG-1229
+"""
 
 from __future__ import annotations
 
@@ -430,3 +436,39 @@ def test_get_monitor_returns_singleton():
     m2 = get_monitor()
     assert m1 is m2
     assert isinstance(m1, RuntimeMonitor)
+
+
+@pytest.mark.asyncio
+async def test_engine_background_task_helper_registers_task_with_runtime_monitor(monkeypatch):
+    from src.engine import orchestrator as engine_orchestrator
+
+    watched = []
+    monkeypatch.setattr(
+        engine_orchestrator,
+        "get_monitor",
+        lambda: MagicMock(watch_task=watched.append),
+    )
+
+    async def work():
+        return None
+
+    task = asyncio.create_task(work(), name="engine-background-test")
+    try:
+        assert engine_orchestrator._watch_background_task(task) is task
+        assert watched == [task]
+    finally:
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+
+
+@pytest.mark.asyncio
+async def test_tick_stall_failures_accumulate_for_escalation():
+    """AGT-013: a persistent stall must count up, not reset to 1 every cycle."""
+    m = RuntimeMonitor()
+    with patch("src.diagnostics.runtime_monitor.time.monotonic", return_value=1000.0):
+        m.register_tick_source("5m", lambda: 100.0)
+        await m._run_all_probes()
+        await m._run_all_probes()
+        await m._run_all_probes()
+    assert m._results["tick_stall_5m"].consecutive_failures == 3

@@ -73,7 +73,6 @@ _FALLBACK = re.compile(
     r"\b(checkout|switch|restore|reset|rebase|merge|pull|cherry-pick|stash|clean)\b"
     r"|\bgit\b[^\n;&|]*?\bpush\b[^\n;&|]*?(--force|\s-[a-zA-Z]*f|\s\+)"
 )
-_BACKTICKS = re.compile(r"`([^`]*)`")
 _FIND_EXEC = frozenset({"-exec", "-execdir", "-ok", "-okdir"})
 _MAX_DEPTH = 3
 
@@ -173,35 +172,86 @@ def _segments(tokens: list[str]) -> list[list[str]]:
     return [segment for segment in segments if segment]
 
 
-def _backtick_bodies(command: str) -> tuple[str, list[str]]:
-    """Split out `` `...` `` substitutions (live outside single quotes) as nested commands."""
+def _command_substitutions(command: str) -> tuple[str, list[str]]:
+    """Extract shell command substitutions, including nested ``$(...)`` forms."""
     bodies: list[str] = []
     out: list[str] = []
-    last = 0
-    for match in _BACKTICKS.finditer(command):
-        if _in_single_quotes(command, match.start()):
-            continue
-        bodies.append(match.group(1))
-        out.append(command[last : match.start()] + " ")
-        last = match.end()
-    out.append(command[last:])
-    return "".join(out), bodies
-
-
-def _in_single_quotes(line: str, index: int) -> bool:
     quote = ""
     escaped = False
-    for char in line[:index]:
+    index = 0
+    last = 0
+    while index < len(command):
+        char = command[index]
         if escaped:
             escaped = False
-        elif char == "\\" and quote != "'":
+            index += 1
+            continue
+        if char == "\\" and quote != "'":
             escaped = True
-        elif quote:
-            if char == quote:
+            index += 1
+            continue
+        if quote == "'":
+            if char == "'":
                 quote = ""
-        elif char in ("'", '"'):
+            index += 1
+            continue
+        if quote == '"' and char == '"':
+            quote = ""
+            index += 1
+            continue
+        if not quote and char in ("'", '"'):
             quote = char
-    return quote == "'"
+            index += 1
+            continue
+
+        end = None
+        body = ""
+        if char == "`":
+            cursor = index + 1
+            while cursor < len(command):
+                if command[cursor] == "\\":
+                    cursor += 2
+                    continue
+                if command[cursor] == "`":
+                    end = cursor + 1
+                    body = command[index + 1 : cursor]
+                    break
+                cursor += 1
+        elif command.startswith("$(", index) and not command.startswith("$((", index):
+            depth = 1
+            cursor = index + 2
+            inner_quote = ""
+            inner_escaped = False
+            while cursor < len(command):
+                current = command[cursor]
+                if inner_escaped:
+                    inner_escaped = False
+                elif current == "\\" and inner_quote != "'":
+                    inner_escaped = True
+                elif inner_quote:
+                    if current == inner_quote:
+                        inner_quote = ""
+                elif current in ("'", '"'):
+                    inner_quote = current
+                elif current == "(":
+                    depth += 1
+                elif current == ")":
+                    depth -= 1
+                    if depth == 0:
+                        end = cursor + 1
+                        body = command[index + 2 : cursor]
+                        break
+                cursor += 1
+
+        if end is not None:
+            out.append(command[last:index] + " ")
+            bodies.append(body)
+            index = end
+            last = end
+        else:
+            index += 1
+    out.append(command[last:])
+    return "".join(out), bodies
 
 
 def _first_command_index(words: list[str]) -> int | None:
@@ -245,6 +295,10 @@ def _words_invocations(
         if depth < _MAX_DEPTH:
             return _invocations(_nested_script(head, words), depth + 1, aliases)
         return []
+    if head == "{":
+        if depth < _MAX_DEPTH:
+            return _invocations(" ".join(words[1:]), depth + 1, aliases)
+        return []
     if head == "find":
         found: list[GitInvocation] = []
         for index, word in enumerate(words):
@@ -277,7 +331,7 @@ def _words_invocations(
 
 def _invocations(command: str, depth: int, aliases: Mapping[str, str]) -> list[GitInvocation]:
     found: list[GitInvocation] = []
-    outer, bodies = _backtick_bodies(command)
+    outer, bodies = _command_substitutions(command)
     if depth < _MAX_DEPTH:
         for body in bodies:
             found.extend(_invocations(body, depth + 1, aliases))

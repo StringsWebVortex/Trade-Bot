@@ -119,10 +119,20 @@ class StrategyKillSwitchManager:
         except (StateUnreadableError, KeyError, TypeError, ValueError) as exc:
             self._state_unreadable = True
             log.critical("strategy_kill_switch.state_unreadable", error=str(exc))
-        for sid, entry in self._persisted_disabled.items():
-            state_obj = self._states.get(sid)
-            if state_obj is not None:
-                self._apply_persisted(state_obj, entry)
+        if self._state_unreadable:
+            # The manager is process-wide and can already contain strategies
+            # when persistence is reconfigured (for example, a second
+            # orchestrator startup). Fail closed for those existing entries
+            # too; protecting only subsequently registered strategies leaves
+            # an already-live strategy able to trade through corrupt state.
+            for state_obj in self._states.values():
+                state_obj.enabled = False
+                state_obj.disabled_reason = "kill-switch state unreadable, failing closed"
+        else:
+            for sid, entry in self._persisted_disabled.items():
+                state_obj = self._states.get(sid)
+                if state_obj is not None:
+                    self._apply_persisted(state_obj, entry)
 
     @staticmethod
     def _apply_persisted(state: StrategyRuntimeState, entry: dict[str, Any]) -> None:
@@ -155,7 +165,7 @@ class StrategyKillSwitchManager:
             # accumulates evidence over time rather than reacting to a
             # single window, so it flags persistent structural decay
             # distinctly from this class's transient drift-triggered halts.
-            decay_detector=CusumDecayDetector(baseline_mean=baseline.oos_sharpe),
+            decay_detector=CusumDecayDetector(baseline_mean=baseline.sharpe_baseline_per_trade),
         )
         log.info("strategy_kill_switch.registered", strategy_id=strategy_id)
         if strategy_id in self._persisted_disabled:
@@ -169,7 +179,7 @@ class StrategyKillSwitchManager:
         self,
         strategy_id: str,
         pnl_usd: float,
-        predicted_prob: float,
+        predicted_prob: float | None,
         actual_direction: int,
         current_equity: float,
         starting_equity: float,
