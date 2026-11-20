@@ -1,169 +1,123 @@
 #!/usr/bin/env python3
-"""
-Per-package / per-file coverage floor enforcement — GAP-020.
+"""Enforce a per-file coverage floor on top of the repo-wide gate.
 
-Reads the .coverage data produced by pytest-cov (via ``coverage json``) and
-asserts that safety-critical paths meet minimum line-coverage thresholds that
-the global ``fail_under=95`` gate cannot catch.
+``--cov-fail-under=99`` is an *aggregate*: a single critical file can rot from
+99% to 40% and the total barely moves, because the other twenty thousand
+statements absorb it. This check closes that hole by requiring every measured
+file to clear ``MIN_PERCENT`` on its own.
 
-Usage (run after pytest):
-    python3 scripts/check_coverage_floors.py [--coverage-file .coverage]
+Files that legitimately sit lower are listed in ``EXCEPTIONS`` with the reason
+and the number observed when the entry was added. The list is a ratchet: an
+exception whose file now clears the floor is reported as stale so it gets
+removed rather than quietly licensing a future regression.
 
-Exit codes:
-    0  — all floors met
-    1  — one or more floors violated (details printed to stdout)
-    2  — .coverage file not found or coverage package missing
+Run after pytest, which leaves the ``.coverage`` data file behind:
 
-Integration:
-    Add to CI after ``pytest`` step, e.g.:
-        pytest
-        python3 scripts/check_coverage_floors.py
-
-    Or via Makefile / scripts/autofix.sh after the standard test run.
+    pytest -q
+    python scripts/check_coverage_floors.py
 """
 
 from __future__ import annotations
 
-import argparse
 import json
 import subprocess
 import sys
 from pathlib import Path
 
+REPO_ROOT = Path(__file__).resolve().parent.parent
 
-# ---------------------------------------------------------------------------
-# Floor definitions — per GAP-020 recommendation.
-# Keys are fnmatch patterns relative to the project root (forward-slash, no
-# leading ./). Values are minimum line-coverage percentages (0-100).
-# ---------------------------------------------------------------------------
-COVERAGE_FLOORS: dict[str, int] = {
-    # Live order placement — highest blast radius.
-    "src/execution/live.py": 75,
-    "src/execution/paper.py": 70,
-    "src/execution/order_fsm.py": 70,
-    "src/execution/order_manager.py": 70,
-    # Main event loop.
-    "src/engine/orchestrator.py": 60,
-    "src/engine/signal_engine.py": 65,
-    # Runtime diagnostics — must catch regressions before they matter.
-    "src/diagnostics/runtime_monitor.py": 50,
-    # Risk gates — the sequential gate stack that guards every trade.
-    "src/risk/gates.py": 70,
-    "src/risk/cognitive_engine.py": 65,
-    "src/risk/kelly.py": 70,
-}
+# Every measured file must reach this, counting branch coverage. Set below
+# the observed minimum across the 248 measured files (src/models/gru.py at
+# 91.67%) so the floor bites on a real regression rather than on today's
+# weakest file, which is why EXCEPTIONS is empty.
+MIN_PERCENT = 90.0
+
+# path -> (floor, reason). Keep the reason concrete; "hard to test" is not one.
+EXCEPTIONS: dict[str, tuple[float, str]] = {}
 
 
-def _export_coverage_json(coverage_file: Path, out_file: Path) -> bool:
-    """Run ``coverage json`` and write JSON report to *out_file*.
-
-    ``coverage json`` applies the ``[tool.coverage.report] fail_under``
-    threshold and exits 2 when total coverage is below it -- even though it
-    still writes the JSON report first. Treat that as success (the report we
-    need exists); only a missing report is a real failure.
-    """
-    result = subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "coverage",
-            "json",
-            f"--data-file={coverage_file}",
-            "-o",
-            str(out_file),
-            "-q",
-        ],
+def _coverage_json() -> dict:
+    """Return coverage's JSON report, generated from the existing .coverage."""
+    # check=False: a failure here means "pytest has not run yet", and the
+    # SystemExit below says so. CalledProcessError would not.
+    proc = subprocess.run(
+        [sys.executable, "-m", "coverage", "json", "-o", "-", "--quiet"],
+        cwd=REPO_ROOT,
         capture_output=True,
         text=True,
+        check=False,
     )
-    if not out_file.exists():
-        print(f"[check_coverage_floors] coverage json failed:\n{result.stderr}", file=sys.stderr)
-        return False
-    return True
+    if proc.returncode != 0:
+        sys.stderr.write(proc.stderr)
+        raise SystemExit("could not read coverage data -- run pytest before this check\n")
+    return json.loads(proc.stdout)
 
 
-def _pct(executed: int, total: int) -> float:
-    if total == 0:
-        return 100.0
-    return round(executed / total * 100.0, 1)
+def _percent(summary: dict) -> float:
+    """Line+branch percentage for one file, as coverage computes the total."""
+    covered = summary["covered_lines"] + summary.get("covered_branches", 0)
+    total = summary["num_statements"] + summary.get("num_branches", 0)
+    return 100.0 if total == 0 else 100.0 * covered / total
 
 
-def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Per-file coverage floor check (GAP-020)")
-    parser.add_argument(
-        "--coverage-file",
-        default=".coverage",
-        help="Path to .coverage data file (default: .coverage)",
-    )
-    args = parser.parse_args(argv)
+def _missing_ranges(entry: dict, cap: int = 24) -> str:
+    """
+    The uncovered lines of one file, as compact ranges.
 
-    coverage_file = Path(args.coverage_file)
-    if not coverage_file.exists():
-        print(
-            f"[check_coverage_floors] ERROR: {coverage_file} not found. "
-            "Run pytest first to generate coverage data.",
-            file=sys.stderr,
-        )
-        return 2
+    The percentage alone says a file is short and not what to write a test
+    for, and the only other source is the job log -- which the CI failure
+    notice exists to avoid reading. This check is the step that fails, so its
+    output is what reaches the notice; it has to carry the lines.
+    """
+    lines = sorted(entry.get("missing_lines") or [])
+    if not lines:
+        return ""
+    groups: list[tuple[int, int]] = []
+    for n in lines:
+        if groups and n == groups[-1][1] + 1:
+            groups[-1] = (groups[-1][0], n)
+        else:
+            groups.append((n, n))
+    shown = [f"{a}" if a == b else f"{a}-{b}" for a, b in groups[:cap]]
+    more = "" if len(groups) <= cap else f", +{len(groups) - cap} more"
+    return ", ".join(shown) + more
 
-    json_out = Path(".coverage_floors_tmp.json")
-    try:
-        if not _export_coverage_json(coverage_file, json_out):
-            return 2
 
-        data: dict = json.loads(json_out.read_text())
-    finally:
-        if json_out.exists():
-            json_out.unlink()
+def main() -> int:
+    report = _coverage_json()
+    if not report.get("files"):
+        # Zero measured files would otherwise print "All 0 measured files" and pass.
+        print("coverage report contains no measured files; refusing to pass")
+        return 1
+    failures: list[str] = []
+    stale: list[str] = []
 
-    files_data: dict[str, dict] = data.get("files", {})
+    for path, entry in sorted(report["files"].items()):
+        pct = _percent(entry["summary"])
+        floor, reason = EXCEPTIONS.get(path, (MIN_PERCENT, ""))
+        if pct + 1e-9 < floor:
+            note = f" (exception: {reason})" if reason else ""
+            missing = _missing_ranges(entry)
+            where = f" -- missing {missing}" if missing else ""
+            failures.append(f"  {path}: {pct:.2f}% < {floor:.0f}%{note}{where}")
+        elif path in EXCEPTIONS and pct + 1e-9 >= MIN_PERCENT:
+            stale.append(f"  {path}: {pct:.2f}% now clears the {MIN_PERCENT:.0f}% floor")
 
-    # Normalise keys: coverage json uses OS paths; strip leading "./" and
-    # normalise to forward-slash for matching.
-    normalised: dict[str, dict] = {}
-    for raw_path, info in files_data.items():
-        key = raw_path.replace("\\", "/").lstrip("./")
-        normalised[key] = info
+    if stale:
+        print("Stale exceptions -- delete these entries from EXCEPTIONS:")
+        print("\n".join(stale))
 
-    violations: list[str] = []
-
-    for pattern, min_pct in COVERAGE_FLOORS.items():
-        # Find matching file (exact or suffix match).
-        match_key: str | None = None
-        for key in normalised:
-            if key == pattern or key.endswith(("/" + pattern, pattern)):
-                match_key = key
-                break
-
-        if match_key is None:
-            print(f"  [SKIP]  {pattern:<55} — not found in coverage data (file may be excluded)")
-            continue
-
-        summary = normalised[match_key].get("summary", {})
-        num_stmts = summary.get("num_statements", 0)
-        covered = summary.get("covered_lines", 0)
-        actual_pct = summary.get("percent_covered", _pct(covered, num_stmts))
-        actual_pct = round(float(actual_pct), 1)
-
-        status = "OK  " if actual_pct >= min_pct else "FAIL"
-        marker = "✓" if status == "OK  " else "✗"
-        print(f"  [{status}] {marker} {pattern:<55} {actual_pct:5.1f}% " f"(floor={min_pct}%)")
-
-        if actual_pct < min_pct:
-            violations.append(f"{pattern}: {actual_pct:.1f}% < required {min_pct}%")
-
-    print()
-    if violations:
-        print(f"[check_coverage_floors] FAILED — {len(violations)} floor(s) violated:")
-        for v in violations:
-            print(f"  • {v}")
+    if failures:
+        print(f"\nFiles below their coverage floor ({len(failures)}):")
+        print("\n".join(failures))
         return 1
 
-    print(
-        f"[check_coverage_floors] PASSED — all {len(COVERAGE_FLOORS)} safety-critical floors met."
-    )
+    if stale:
+        return 1
+
+    print(f"All {len(report['files'])} measured files clear their coverage floor.")
     return 0
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    raise SystemExit(main())

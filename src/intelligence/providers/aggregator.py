@@ -12,8 +12,9 @@ Merge strategy per field:
     network_activity): taken from the dedicated provider (CoinGecko /
     blockchain.info); these are not exchange-specific.
   - Glassnode-gated fields (exchange_netflow, reserve_ratio,
-    miner_netflow, staking_unlock, entity_exchange_imbalance): remain
-    NaN until paid API keys are provisioned (GAP-015).
+    miner_netflow, staking_unlock, entity_exchange_imbalance): are
+    not populated (no Glassnode provider exists) and stay at their neutral
+    defaults (0.0 / 0.5), not NaN.
 
 Extensibility:
   - Add a new provider by implementing ExchangeIntelligenceProvider and
@@ -36,6 +37,7 @@ from __future__ import annotations
 
 import asyncio
 import math
+import threading
 import time
 from collections.abc import Sequence
 from typing import Final
@@ -43,7 +45,6 @@ from typing import Final
 import structlog
 
 from src.intelligence.providers.base import ExchangeIntelligenceProvider
-
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
@@ -261,6 +262,7 @@ def _is_neutral(field: str, value: float) -> bool:
 # ---------------------------------------------------------------------------
 
 _aggregator: MultiProviderIntelligenceAggregator | None = None
+_aggregator_lock = threading.Lock()
 
 
 def get_multi_provider_aggregator(
@@ -274,29 +276,45 @@ def get_multi_provider_aggregator(
     symbol/perp_symbol are only used on first call.
     """
     global _aggregator
-    if _aggregator is None:
-        from src.intelligence.providers.binance_provider import get_binance_intelligence_provider
-        from src.intelligence.providers.blockchain_provider import (
-            get_blockchain_intelligence_provider,
-        )
-        from src.intelligence.providers.bybit_provider import get_bybit_intelligence_provider
-        from src.intelligence.providers.coingecko_provider import (
-            get_coingecko_intelligence_provider,
-        )
-        from src.intelligence.providers.okx_provider import get_okx_intelligence_provider
+    # Locked, not a bare check-then-assign: provider construction sits
+    # between the check and the assignment, so two callers arriving
+    # together could both find it unset and both build one -- each with
+    # its own provider instances underneath. Same shape as
+    # get_allocation_controller() in src/tuning/meta_allocator.py.
+    with _aggregator_lock:
+        if _aggregator is None:
+            from src.intelligence.providers.binance_provider import (
+                get_binance_intelligence_provider,
+            )
+            from src.intelligence.providers.blockchain_provider import (
+                get_blockchain_intelligence_provider,
+            )
+            from src.intelligence.providers.bybit_provider import get_bybit_intelligence_provider
+            from src.intelligence.providers.coingecko_provider import (
+                get_coingecko_intelligence_provider,
+            )
+            from src.intelligence.providers.okx_provider import get_okx_intelligence_provider
 
-        _aggregator = MultiProviderIntelligenceAggregator(
-            exchange_providers=[
-                get_binance_intelligence_provider(symbol=symbol, perp_symbol=perp_symbol),
-                get_okx_intelligence_provider(symbol=symbol, perp_symbol=perp_symbol),
-                get_bybit_intelligence_provider(symbol=symbol, perp_symbol=perp_symbol),
-            ],
-            macro_providers=[
-                get_coingecko_intelligence_provider(),
-                get_blockchain_intelligence_provider(),
-            ],
-        )
-    return _aggregator
+            _aggregator = MultiProviderIntelligenceAggregator(
+                exchange_providers=[
+                    get_binance_intelligence_provider(symbol=symbol, perp_symbol=perp_symbol),
+                    get_okx_intelligence_provider(symbol=symbol, perp_symbol=perp_symbol),
+                    get_bybit_intelligence_provider(symbol=symbol, perp_symbol=perp_symbol),
+                ],
+                macro_providers=[
+                    get_coingecko_intelligence_provider(),
+                    get_blockchain_intelligence_provider(),
+                ],
+            )
+            _aggregator._singleton_key = (symbol, perp_symbol)
+        # INT-021: the singleton is bound to the first (symbol, perp_symbol);
+        # serving a different symbol from it would return the wrong market's data.
+        if getattr(_aggregator, "_singleton_key", (symbol, perp_symbol)) != (symbol, perp_symbol):
+            raise ValueError(
+                f"singleton already bound to {_aggregator._singleton_key}; "
+                f"refusing to serve {(symbol, perp_symbol)}"
+            )
+        return _aggregator
 
 
 # ---------------------------------------------------------------------------
@@ -415,6 +433,7 @@ class OnChainAwareAggregator(MultiProviderIntelligenceAggregator):
 # ---------------------------------------------------------------------------
 
 _onchain_aware_aggregator: OnChainAwareAggregator | None = None
+_onchain_aware_aggregator_lock = threading.Lock()
 
 
 def get_onchain_aware_aggregator(
@@ -430,52 +449,71 @@ def get_onchain_aware_aggregator(
     written into the merged dict.  Symbol args are only used on first call.
     """
     global _onchain_aware_aggregator
-    if _onchain_aware_aggregator is None:
-        from src.config import get_settings
-        from src.intelligence.onchain.arkham_provider import ArkhamProvider
-        from src.intelligence.onchain.coinglass_provider import CoinglassProvider
-        from src.intelligence.onchain.cryptoquant_provider import CryptoQuantProvider
-        from src.intelligence.onchain.defillama_provider import DeFiLlamaProvider
-        from src.intelligence.onchain.dune_provider import DuneProvider
-        from src.intelligence.providers.binance_provider import get_binance_intelligence_provider
-        from src.intelligence.providers.blockchain_provider import (
-            get_blockchain_intelligence_provider,
-        )
-        from src.intelligence.providers.bybit_provider import get_bybit_intelligence_provider
-        from src.intelligence.providers.coingecko_provider import (
-            get_coingecko_intelligence_provider,
-        )
-        from src.intelligence.providers.okx_provider import get_okx_intelligence_provider
+    # Locked, not a bare check-then-assign: provider construction sits
+    # between the check and the assignment, so two callers arriving
+    # together could both find it unset and both build one -- each with
+    # its own provider instances underneath. Same shape as
+    # get_allocation_controller() in src/tuning/meta_allocator.py.
+    with _onchain_aware_aggregator_lock:
+        if _onchain_aware_aggregator is None:
+            from src.config import get_settings
+            from src.intelligence.onchain.arkham_provider import ArkhamProvider
+            from src.intelligence.onchain.coinglass_provider import CoinglassProvider
+            from src.intelligence.onchain.cryptoquant_provider import CryptoQuantProvider
+            from src.intelligence.onchain.defillama_provider import DeFiLlamaProvider
+            from src.intelligence.onchain.dune_provider import DuneProvider
+            from src.intelligence.providers.binance_provider import (
+                get_binance_intelligence_provider,
+            )
+            from src.intelligence.providers.blockchain_provider import (
+                get_blockchain_intelligence_provider,
+            )
+            from src.intelligence.providers.bybit_provider import get_bybit_intelligence_provider
+            from src.intelligence.providers.coingecko_provider import (
+                get_coingecko_intelligence_provider,
+            )
+            from src.intelligence.providers.okx_provider import get_okx_intelligence_provider
 
-        cfg = get_settings().intelligence  # IntelligenceSettings
+            cfg = get_settings().intelligence  # IntelligenceSettings
 
-        _onchain_aware_aggregator = OnChainAwareAggregator(
-            exchange_providers=[
-                get_binance_intelligence_provider(symbol=symbol, perp_symbol=perp_symbol),
-                get_okx_intelligence_provider(symbol=symbol, perp_symbol=perp_symbol),
-                get_bybit_intelligence_provider(symbol=symbol, perp_symbol=perp_symbol),
-            ],
-            macro_providers=[
-                get_coingecko_intelligence_provider(),
-                get_blockchain_intelligence_provider(),
-            ],
-            onchain_providers=[
-                ArkhamProvider(
-                    api_key=cfg.arkham_api_key,
-                    cache_ttl_s=cfg.arkham_cache_ttl_s,
-                ),
-                DeFiLlamaProvider(cache_ttl_s=cfg.defillama_cache_ttl_s),
-                DuneProvider(
-                    api_key=cfg.dune_api_key,
-                    cache_ttl_s=cfg.dune_cache_ttl_s,
-                ),
-                CryptoQuantProvider(
-                    api_key=cfg.cryptoquant_api_key,
-                ),
-                CoinglassProvider(
-                    api_key=cfg.coinglass_api_key,
-                    cache_ttl_s=cfg.coinglass_cache_ttl_s,
-                ),
-            ],
-        )
-    return _onchain_aware_aggregator
+            _onchain_aware_aggregator = OnChainAwareAggregator(
+                exchange_providers=[
+                    get_binance_intelligence_provider(symbol=symbol, perp_symbol=perp_symbol),
+                    get_okx_intelligence_provider(symbol=symbol, perp_symbol=perp_symbol),
+                    get_bybit_intelligence_provider(symbol=symbol, perp_symbol=perp_symbol),
+                ],
+                macro_providers=[
+                    get_coingecko_intelligence_provider(),
+                    get_blockchain_intelligence_provider(),
+                ],
+                onchain_providers=[
+                    ArkhamProvider(
+                        api_key=cfg.arkham_api_key,
+                        cache_ttl_s=cfg.arkham_cache_ttl_s,
+                    ),
+                    DeFiLlamaProvider(cache_ttl_s=cfg.defillama_cache_ttl_s),
+                    DuneProvider(
+                        api_key=cfg.dune_api_key,
+                        cache_ttl_s=cfg.dune_cache_ttl_s,
+                    ),
+                    CryptoQuantProvider(
+                        api_key=cfg.cryptoquant_api_key,
+                    ),
+                    CoinglassProvider(
+                        api_key=cfg.coinglass_api_key,
+                        cache_ttl_s=cfg.coinglass_cache_ttl_s,
+                    ),
+                ],
+            )
+            _onchain_aware_aggregator._singleton_key = (symbol, perp_symbol)
+        # INT-021: the singleton is bound to the first (symbol, perp_symbol);
+        # serving a different symbol from it would return the wrong market's data.
+        if getattr(_onchain_aware_aggregator, "_singleton_key", (symbol, perp_symbol)) != (
+            symbol,
+            perp_symbol,
+        ):
+            raise ValueError(
+                f"singleton already bound to {_onchain_aware_aggregator._singleton_key}; "
+                f"refusing to serve {(symbol, perp_symbol)}"
+            )
+        return _onchain_aware_aggregator

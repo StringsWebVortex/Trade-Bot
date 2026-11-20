@@ -31,68 +31,163 @@ Rasmussen & Williams (2006) Gaussian Processes for Machine Learning.
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import hmac
+import importlib.util
+import io
 import json
+import os
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Final
+from typing import Any, ClassVar, Final
 
 import joblib
 import numpy as np
 import pandas as pd
 import structlog
 
-
 log = structlog.get_logger(__name__)
 
-try:
-    import torch
-    import torch.nn as nn
 
-    class _LSTMNet(nn.Module):  # type: ignore[misc]
-        """
-        Module-level (not nested in LSTMPredictor.fit()) so instances are
-        picklable — joblib/pickle cannot serialize a class defined inside a
-        function, which previously made EnsemblePredictor.save() raise
-        PicklingError whenever the LSTM member had been fit.
-        """
+# Torch is an optional, comparatively large native runtime. Do not import it
+# during API startup; load it only for an optional LSTM fit or compatible
+# artifact load. Runtime dependencies are returned to callers rather than
+# stored in mutable module globals, avoiding shared-state races.
+@dataclass(frozen=True)
+class _TorchRuntime:
+    torch: Any
+    nn: Any
+    lstm_net: Any
 
-        def __init__(self, hidden_dim: int) -> None:
-            super().__init__()
-            self.lstm = nn.LSTM(input_size=1, hidden_size=hidden_dim, batch_first=True)
-            self.head = nn.Linear(hidden_dim, 1)
 
-        def forward(self, x: torch.Tensor) -> torch.Tensor:
-            out, _ = self.lstm(x)
-            return self.head(out[:, -1, :])
+# Immutable capability snapshot retained for compatibility with existing
+# diagnostics/tests. The imported Torch modules and model class themselves are
+# never stored in mutable module globals.
+_TORCH_AVAILABLE: Final[bool] = importlib.util.find_spec("torch") is not None
 
-    _TORCH_AVAILABLE = True
-except ImportError:
-    _TORCH_AVAILABLE = False
+
+def _torch_installed() -> bool:
+    return _TORCH_AVAILABLE
+
+
+def _load_torch_runtime() -> _TorchRuntime | None:
+    """Load Torch lazily and return its dependencies without mutating globals."""
+    try:
+        torch_module = importlib.import_module("torch")
+        nn_module = importlib.import_module("torch.nn")
+        from src.intelligence.lstm_runtime import LSTMNet
+    except ImportError:
+        return None
+    return _TorchRuntime(torch=torch_module, nn=nn_module, lstm_net=LSTMNet)
+
+
+def __getattr__(name: str) -> Any:
+    """Resolve the legacy pickle class path without registering mutable globals."""
+    if name != "_LSTMNet":
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    if not _torch_fits_memory_budget():
+        raise AttributeError("legacy LSTM artifact exceeds the available Torch memory budget")
+    runtime = _load_torch_runtime()
+    if runtime is None:
+        raise AttributeError("legacy LSTM artifact requires an unavailable Torch runtime")
+    return runtime.lstm_net
+
+
+def _current_rss_mb() -> float | None:
+    """Current process RSS in MiB when the host exposes /proc status."""
+    try:
+        for line in Path("/proc/self/status").read_text().splitlines():
+            if line.startswith("VmRSS:"):
+                return round(int(line.split()[1]) / 1024.0, 1)
+    except OSError:
+        return None
+    return None
+
+
+def _torch_fits_memory_budget() -> bool:
+    """Do not load the optional native Torch runtime without safe headroom.
+
+    The installed CPU Torch runtime adds hundreds of MiB to RSS, before the
+    LSTM's tensors and optimizer state. The ensemble is additive/optional; if
+    the configured critical RSS limit cannot cover a conservative reserve,
+    keep the other ensemble members and report the LSTM as degraded instead
+    of pushing the trading process over its memory ceiling.
+    """
+    from src.diagnostics.runtime_monitor import MEMORY_CRITICAL_MB
+
+    rss_mb = _current_rss_mb()
+    if rss_mb is None:
+        # On platforms without /proc we cannot make a reliable RSS estimate.
+        return True
+    reserve_mb = max(600.0, MEMORY_CRITICAL_MB * 0.60)
+    return rss_mb + reserve_mb < MEMORY_CRITICAL_MB
+
 
 _MODEL_FILENAME: Final[str] = "ensemble_{symbol}_{timeframe}.joblib"
 _MANIFEST_SUFFIX: Final[str] = ".sha256"
 
 
-def _write_manifest(path: Path) -> None:
-    digest = hashlib.sha256(path.read_bytes()).hexdigest()
-    path.with_suffix(_MANIFEST_SUFFIX).write_text(json.dumps({"file": path.name, "sha256": digest}))
+def _atomic_write_bytes(path: Path, data: bytes) -> None:
+    """INT-011: temp-file + os.replace so readers never see a torn file."""
+    tmp_path = path.with_name(f"{path.name}.tmp{os.getpid()}")
+    tmp_path.write_bytes(data)
+    os.replace(tmp_path, path)
 
 
-def _verify_manifest(path: Path) -> None:
+def _write_manifest(path: Path, data: bytes) -> None:
+    digest = hashlib.sha256(data).hexdigest()
+    _atomic_write_bytes(
+        path.with_suffix(_MANIFEST_SUFFIX),
+        json.dumps({"file": path.name, "sha256": digest}).encode("utf-8"),
+    )
+
+
+def _verify_manifest(path: Path) -> bytes:
+    """Verify and return the bytes read once (INT-011, as VF-020)."""
     manifest_path = path.with_suffix(_MANIFEST_SUFFIX)
     if not manifest_path.exists():
         raise RuntimeError(f"Ensemble model manifest missing for {path}. Re-train to regenerate.")
     manifest = json.loads(manifest_path.read_text())
     expected = manifest.get("sha256", "")
-    actual = hashlib.sha256(path.read_bytes()).hexdigest()
+    data = path.read_bytes()
+    actual = hashlib.sha256(data).hexdigest()
     if not hmac.compare_digest(actual.encode(), expected.encode()):
         raise RuntimeError(
             f"Ensemble model integrity check FAILED for {path}. "
             "File may be tampered. Re-train to replace."
         )
+    return data
+
+
+def _realised_return_window(
+    recent_returns: pd.Series | np.ndarray | None,
+    need: int,
+    member: str,
+    *,
+    last_only: bool = False,
+) -> np.ndarray:
+    """
+    The realised log returns a sequence member forecasts from, oldest first.
+
+    REG-1714: ARIMA and the LSTM model the return series itself, so their
+    input is the closed-bar return history, never the tabular feature row.
+    Returns every value supplied, or only the last ``need`` with
+    ``last_only``, after checking there are at least ``need`` of them and that
+    every returned value is finite. Anything less raises, so the ensemble
+    excludes the member rather than forecasting from a fabricated sequence.
+    """
+    if recent_returns is None:
+        raise ValueError(f"{member} needs the realised return window; none was supplied")
+    window = np.asarray(recent_returns, dtype=float).ravel()
+    if window.size < need:
+        raise ValueError(f"{member} needs {need} realised returns, got {window.size}")
+    if last_only:
+        window = window[-need:]
+    if not np.all(np.isfinite(window)):
+        raise ValueError(f"{member} return window contains non-finite values")
+    return window
 
 
 @dataclass
@@ -151,6 +246,10 @@ class PredictionModel(ABC):
         """
         return getattr(self, "model", None) is not None
 
+    #: True for members that forecast from the realised return window
+    #: (``recent_returns``) rather than from the tabular feature row.
+    uses_return_window: ClassVar[bool] = False
+
     @abstractmethod
     def predict(self, features: pd.DataFrame) -> float:
         """Point prediction."""
@@ -174,7 +273,22 @@ class ARIMAPredictor(PredictionModel):
     """
     ARIMA: Autoregressive Integrated Moving Average.
     Good for: Time-series momentum, trend following.
+
+    REG-1714: the forecast is conditioned on the realised return window
+    passed at inference. The fitted parameters are kept and the state is
+    filtered over that window (``apply(window, refit=False)``), so the
+    forecast moves with every new closed bar. Forecasting from the end of the
+    training sample returned the same number on every call until the next
+    retrain. ``append`` is not used: the training sample is the
+    label-filtered ``fm.log_returns`` (time-exit and tail rows dropped), so it
+    is not a contiguous bar series that live returns could continue, and
+    ensembles on non-primary timeframes are not retrained in-session, so their
+    training end soon leaves the live bar window.
     """
+
+    uses_return_window: ClassVar[bool] = True
+    #: Fewest realised returns the state is filtered over before forecasting.
+    min_window: ClassVar[int] = 20
 
     def __init__(self, order: tuple = (1, 1, 1)):
         self.order = order
@@ -191,22 +305,29 @@ class ARIMAPredictor(PredictionModel):
         except ImportError:
             log.warning("statsmodels not installed, ARIMA disabled")
 
-    def predict(self, features: pd.DataFrame) -> float:
+    def predict(
+        self,
+        features: pd.DataFrame,
+        recent_returns: pd.Series | np.ndarray | None = None,
+    ) -> float:
         if self.model is None:
             return 0.0
+        window = _realised_return_window(recent_returns, self.min_window, "arima")
         try:
-            # statsmodels forecast() returns a Series whose index continues from
-            # the training series' length (e.g. label 60 for a 60-row fit), not
-            # from 0 — positional .iloc[0] is required, [0] label-indexes and
-            # raises KeyError on virtually every real call.
-            forecast = self.model.forecast(steps=1).iloc[0]
-            return float(forecast)
+            forecast = self.model.apply(window, refit=False).forecast(steps=1)
+            # A numpy endog gives an ndarray forecast and a pandas one a Series
+            # whose label continues from the sample length; read it by position.
+            return float(np.asarray(forecast, dtype=float).ravel()[0])
         except Exception as e:
             log.error("arima_prediction_failed", error=str(e), exc_info=True)
-            return 0.0
+            raise
 
-    def predict_with_uncertainty(self, features: pd.DataFrame) -> tuple[float, float]:
-        point = self.predict(features)
+    def predict_with_uncertainty(
+        self,
+        features: pd.DataFrame,
+        recent_returns: pd.Series | np.ndarray | None = None,
+    ) -> tuple[float, float]:
+        point = self.predict(features, recent_returns=recent_returns)
         uncertainty = self.rmse if self.rmse != np.inf else 0.1
         return point, uncertainty
 
@@ -235,6 +356,7 @@ class XGBoostPredictor(PredictionModel):
                 max_depth=self.max_depth,
                 learning_rate=self.learning_rate,
                 n_estimators=100,
+                n_jobs=1,
                 random_state=42,
             )
             self.model.fit(X, y)
@@ -249,7 +371,7 @@ class XGBoostPredictor(PredictionModel):
             return float(self.model.predict(features)[0])
         except Exception as e:
             log.error("xgboost_prediction_failed", error=str(e), exc_info=True)
-            return 0.0
+            raise  # INT-006: let the ensemble exclude this member
 
     def predict_with_uncertainty(self, features: pd.DataFrame) -> tuple[float, float]:
         point = self.predict(features)
@@ -273,7 +395,15 @@ class LSTMPredictor(PredictionModel):
     member. torch>=2.4 is now a pinned dependency (requirements.in) and is
     CPU-only here (no CUDA needed for a single-feature, 20-step LSTM at
     this data scale).
+
+    REG-1714: it is trained on ``lookback``-step windows of realised log
+    returns, so inference feeds it the last ``lookback`` realised returns as a
+    (1, lookback, 1) tensor. The tabular feature row is never reshaped into a
+    sequence; with fewer than ``lookback`` finite returns the member raises
+    and the ensemble excludes it.
     """
+
+    uses_return_window: ClassVar[bool] = True
 
     def __init__(self, hidden_dim: int = 64, lookback: int = 20, epochs: int = 30):
         self.hidden_dim = hidden_dim
@@ -284,24 +414,38 @@ class LSTMPredictor(PredictionModel):
 
     def fit(self, X: np.ndarray, y: np.ndarray) -> None:
         """Fit LSTM (requires torch). X shape: (n_samples, lookback, 1)."""
-        if not _TORCH_AVAILABLE:
+        if not _torch_installed():
             log.warning("torch not installed, LSTM disabled")
             return
+        if not _torch_fits_memory_budget():
+            from src.diagnostics.runtime_monitor import MEMORY_CRITICAL_MB
+
+            log.warning(
+                "lstm_skipped_memory_budget",
+                rss_mb=_current_rss_mb(),
+                critical_rss_mb=MEMORY_CRITICAL_MB,
+                reason="optional Torch runtime lacks the required memory headroom",
+            )
+            return
+        runtime = _load_torch_runtime()
+        if runtime is None:
+            log.warning("torch import unavailable, LSTM disabled")
+            return
         try:
-            torch.manual_seed(42)
+            runtime.torch.manual_seed(42)
 
-            net = _LSTMNet(self.hidden_dim)
-            X_t = torch.tensor(np.asarray(X), dtype=torch.float32)
-            y_t = torch.tensor(np.asarray(y), dtype=torch.float32).reshape(-1, 1)
+            net = runtime.lstm_net(input_size=1, hidden_dim=self.hidden_dim)
+            X_t = runtime.torch.tensor(np.asarray(X), dtype=runtime.torch.float32)
+            y_t = runtime.torch.tensor(np.asarray(y), dtype=runtime.torch.float32).reshape(-1, 1)
 
-            optimizer = torch.optim.Adam(net.parameters(), lr=1e-3)
-            loss_fn = nn.MSELoss()
+            optimizer = runtime.torch.optim.Adam(net.parameters(), lr=1e-3)
+            loss_fn = runtime.nn.MSELoss()
 
             net.train()
             batch_size = min(32, len(X_t))
             n = len(X_t)
             for _epoch in range(self.epochs):
-                perm = torch.randperm(n)
+                perm = runtime.torch.randperm(n)
                 for start in range(0, n, batch_size):
                     idx = perm[start : start + batch_size]
                     optimizer.zero_grad()
@@ -311,7 +455,7 @@ class LSTMPredictor(PredictionModel):
                     optimizer.step()
 
             net.eval()
-            with torch.no_grad():
+            with runtime.torch.no_grad():
                 fitted = net(X_t).numpy().flatten()
             self.rmse = float(np.sqrt(np.mean((fitted - np.asarray(y)) ** 2)))
             self.model = net
@@ -328,26 +472,35 @@ class LSTMPredictor(PredictionModel):
         a member starts answering 0.0 through a path the ensemble thinks it
         has excluded.
         """
-        return self.model is not None and _TORCH_AVAILABLE
+        return self.model is not None and _torch_installed()
 
-    def predict(self, features: pd.DataFrame) -> float:
-        if self.model is None or not _TORCH_AVAILABLE:
+    def predict(
+        self,
+        features: pd.DataFrame,
+        recent_returns: pd.Series | np.ndarray | None = None,
+    ) -> float:
+        if self.model is None or not _torch_installed():
+            return 0.0
+        window = _realised_return_window(recent_returns, self.lookback, "lstm", last_only=True)
+        runtime = _load_torch_runtime()
+        if runtime is None:
             return 0.0
         try:
-            # Reshape for LSTM (assumes timeseries input — same contract
-            # as the original implementation: caller supplies `lookback`
-            # raw sequential values).
-            X_reshaped = np.array(features, dtype=np.float32).reshape(-1, self.lookback, 1)
+            sequence = window.reshape(1, self.lookback, 1)
             self.model.eval()
-            with torch.no_grad():
-                out = self.model(torch.tensor(X_reshaped, dtype=torch.float32))
+            with runtime.torch.no_grad():
+                out = self.model(runtime.torch.tensor(sequence, dtype=runtime.torch.float32))
             return float(out.numpy().flatten()[0])
         except Exception as e:
             log.error("lstm_prediction_failed", error=str(e), exc_info=True)
-            return 0.0
+            raise
 
-    def predict_with_uncertainty(self, features: pd.DataFrame) -> tuple[float, float]:
-        point = self.predict(features)
+    def predict_with_uncertainty(
+        self,
+        features: pd.DataFrame,
+        recent_returns: pd.Series | np.ndarray | None = None,
+    ) -> tuple[float, float]:
+        point = self.predict(features, recent_returns=recent_returns)
         uncertainty = self.rmse if self.rmse != np.inf else 0.2
         return point, uncertainty
 
@@ -436,7 +589,7 @@ class GaussianProcessPredictor(PredictionModel):
             return float(mean[0]), float(std[0])
         except Exception as e:
             log.error("gp_prediction_failed", error=str(e), exc_info=True)
-            return 0.0, 0.2
+            raise  # INT-006: let the ensemble exclude this member
 
     def get_performance_metrics(self) -> dict[str, Any]:
         return {"rmse": self.rmse, "model_type": "GaussianProcess"}
@@ -532,7 +685,7 @@ class TreeEnsemblePredictor(PredictionModel):
             return float(self.model.predict(features)[0])
         except Exception as e:
             log.error("tree_ensemble_prediction_failed", error=str(e), exc_info=True)
-            return 0.0
+            raise  # INT-006: let the ensemble exclude this member
 
     def predict_with_uncertainty(self, features: pd.DataFrame) -> tuple[float, float]:
         point = self.predict(features)
@@ -578,31 +731,101 @@ class EnsemblePredictor:
         # column-order-sensitive; a mismatch silently mispredicts rather
         # than raising). Set by fit(); None until then.
         self._feature_cols: list[str] | None = None
+        # Distinguish a never-fitted cold start (equal weights are a harmless
+        # constructor default) from a completed fit with no valid OOS scores.
+        self._fit_completed = False
         self._update_weights()
 
-    def fit(self, X: pd.DataFrame, y: pd.Series) -> None:
+    # Fraction of the (chronologically last) rows held out to score members.
+    _HOLDOUT_FRACTION = 0.2
+    # Minimum rows on each side of the holdout split for the score to mean anything.
+    _MIN_HOLDOUT_TRAIN = 30
+    _MIN_HOLDOUT_TEST = 10
+
+    def fit(self, X: pd.DataFrame, y: pd.Series, label_horizon: int = 0) -> None:
         """
-        Fit all ensemble members.
+        Fit all ensemble members, then score them out of sample (INT-007).
 
-        BUG FIX: previously called `model.fit(X, y)` identically for every
-        model, but ARIMA and XGBoost/LSTM are not interchangeable here:
-
-        - ARIMAPredictor.fit() takes a single univariate `timeseries`
-          argument (it models the target's own autocorrelation structure,
-          not a feature matrix). Calling it with (X, y) raised a TypeError
-          on every single fit, silently swallowed by the broad except --
-          meaning ARIMA was never actually trained through this path.
-        - LSTMPredictor.fit() expects pre-windowed 3D sequences
-          (n_samples, lookback, 1), not a raw tabular DataFrame. Calling it
-          with the raw (X, y) either raised inside Keras or silently
-          produced a meaningless fit.
-
-        Each model is now dispatched with the input shape it actually
-        requires, and weights are refreshed immediately after fitting
-        (previously weights stayed at their stale pre-fit values until the
-        next predict() call, which could mislead a caller checking
-        .weights right after .fit()).
+        Each member's ``rmse`` -- which drives the inverse-RMSE weights and the
+        aleatoric uncertainty -- used to be its fit error on its own training
+        rows, so the member that overfit most got the most weight and the
+        credible intervals were too narrow. The score now comes from a
+        chronological holdout: fresh members are fitted on the head of the
+        data, scored on the tail, and the ``label_horizon`` rows between the
+        two are purged because a label there reaches into the holdout. The
+        shipped members are then fitted on all rows and keep the holdout score.
+        A member with no holdout score keeps ``rmse = inf`` and so gets zero
+        weight rather than an optimistic one.
         """
+        n = len(y)
+        holdout_n = int(n * self._HOLDOUT_FRACTION)
+        split = n - holdout_n
+        train_end = split - max(0, int(label_horizon))
+        oos_rmse: dict[str, float] = {}
+        if train_end >= self._MIN_HOLDOUT_TRAIN and holdout_n >= self._MIN_HOLDOUT_TEST:
+            scratch = EnsemblePredictor()
+            scratch.models = copy.deepcopy(self.models)
+            scratch._fit_members(X.iloc[:train_end], y.iloc[:train_end])
+            for name, member in scratch.models.items():
+                oos_rmse[name] = self._holdout_rmse(
+                    name, member, X.iloc[split:], y.iloc[split:], y.iloc[:train_end]
+                )
+        else:
+            log.warning(
+                "ensemble_holdout_insufficient_data",
+                have=n,
+                reason="no out-of-sample member scores; members get zero weight",
+            )
+
+        self._fit_members(X, y)
+        for name, member in self.models.items():
+            if member.is_fitted:
+                member.rmse = oos_rmse.get(name, np.inf)
+        self._fit_completed = True
+        self._update_weights()
+
+    @staticmethod
+    def _holdout_rmse(
+        name: str,
+        member: PredictionModel,
+        X_hold: pd.DataFrame,
+        y_hold: pd.Series,
+        y_train: pd.Series,
+    ) -> float:
+        """RMSE of a member fitted on the head against the held-out tail; inf if unavailable."""
+        if not member.is_fitted:
+            return float("inf")
+        actual = np.asarray(y_hold, dtype=float)
+        try:
+            if name == "arima":
+                fitted = member.model
+                preds = np.asarray(fitted.forecast(steps=len(actual)), dtype=float)
+            elif name == "lstm":
+                lookback = int(getattr(member, "lookback", 20))
+                hist = np.concatenate([np.asarray(y_train, dtype=float)[-lookback:], actual])
+                if len(hist) < lookback + len(actual):
+                    return float("inf")
+                preds = np.array(
+                    [
+                        member.predict(pd.DataFrame([hist[i : i + lookback]]))
+                        for i in range(len(actual))
+                    ],
+                    dtype=float,
+                )
+            else:
+                cols = getattr(member, "_feature_cols", None)
+                X_in = X_hold[cols] if cols else X_hold
+                fitted = member.model
+                preds = np.asarray(fitted.predict(X_in), dtype=float).ravel()
+        except Exception as e:
+            log.error("ensemble_holdout_failed", model=name, error=str(e), exc_info=True)
+            return float("inf")
+        if preds.shape != actual.shape or not np.all(np.isfinite(preds)):
+            return float("inf")
+        return float(np.sqrt(np.mean((preds - actual) ** 2)))
+
+    def _fit_members(self, X: pd.DataFrame, y: pd.Series) -> None:
+        """Fit every member on (X, y); each member's ``rmse`` is its in-sample error."""
         log.info("ensemble_fitting", num_models=len(self.models))
         self._feature_cols = list(X.columns)
 
@@ -655,13 +878,18 @@ class EnsemblePredictor:
         y_seq = values[lookback:]
         return X_seq.reshape(-1, lookback, 1), y_seq
 
-    def predict_row(self, features: dict[str, float] | pd.Series) -> EnsemblePrediction:
+    def predict_row(
+        self,
+        features: dict[str, float] | pd.Series,
+        recent_returns: pd.Series | np.ndarray | None = None,
+    ) -> EnsemblePrediction:
         """
         Convenience wrapper for live single-row inference.
 
         Builds a 1-row DataFrame with columns in the exact order recorded
         at fit() time, so column-order-sensitive members (XGBoost, GP,
         TreeEnsemble) never silently mispredict on a mismatched order.
+        ``recent_returns`` is passed through to predict().
 
         Raises
         ------
@@ -670,11 +898,22 @@ class EnsemblePredictor:
         if self._feature_cols is None:
             raise RuntimeError("EnsemblePredictor.predict_row() called before fit()")
         row = {col: float(features[col]) for col in self._feature_cols}
-        return self.predict(pd.DataFrame([row], columns=self._feature_cols))
+        return self.predict(
+            pd.DataFrame([row], columns=self._feature_cols), recent_returns=recent_returns
+        )
 
-    def predict(self, features: pd.DataFrame) -> EnsemblePrediction:
+    def predict(
+        self,
+        features: pd.DataFrame,
+        recent_returns: pd.Series | np.ndarray | None = None,
+    ) -> EnsemblePrediction:
         """
         Ensemble prediction with uncertainty quantification.
+
+        ``recent_returns`` are the realised closed-bar log returns up to the
+        last closed bar, oldest first (REG-1714).
+        Sequence members (ARIMA, LSTM) forecast from them; without enough of
+        them those members are excluded, never fed the feature row.
 
         Returns:
             EnsemblePrediction with point + credible interval + uncertainty sources
@@ -692,7 +931,12 @@ class EnsemblePredictor:
                 failed.append(name)
                 continue
             try:
-                point, uncertainty = model.predict_with_uncertainty(features)
+                if getattr(model, "uses_return_window", False):
+                    point, uncertainty = model.predict_with_uncertainty(
+                        features, recent_returns=recent_returns
+                    )
+                else:
+                    point, uncertainty = model.predict_with_uncertainty(features)
             except Exception as e:
                 log.error("ensemble_member_failed", model=name, error=str(e), exc_info=True)
                 failed.append(name)
@@ -735,12 +979,17 @@ class EnsemblePredictor:
             )
             ensemble_point = weighted / live_weight
         else:
-            # Survivors carry no weight yet (cold start). Equal-weight them
-            # rather than returning zero, which would be a prediction.
+            # Equal weighting is only a pre-fit cold-start behavior. After a
+            # completed fit, zero weights mean no member earned an OOS score;
+            # promoting those members equally would undo the fail-closed gate.
+            if getattr(self, "_fit_completed", False):
+                raise RuntimeError(
+                    "no ensemble member has a valid out-of-sample score; refusing to predict"
+                )
             ensemble_point = float(np.mean(list(individual_predictions.values())))
 
         # Aleatoric uncertainty: average of individual model uncertainties
-        aleatoric = np.mean(list(individual_uncertainties.values()))
+        aleatoric = float(np.mean(list(individual_uncertainties.values())))
 
         # Epistemic uncertainty: disagreement between the models that spoke.
         # Failed members are excluded: their 0.0 was not an opinion, and
@@ -817,19 +1066,24 @@ class EnsemblePredictor:
         total = sum(inverse_rmse.values())
 
         if total <= 0.0:
-            # Cold start: no model has finite performance data yet (e.g.
-            # immediately after construction, before .fit() is called, or
-            # if every model's optional dependency -- statsmodels/xgboost/
-            # tensorflow -- is missing). There is no performance signal to
-            # differentiate models on, so fall back to equal weighting
-            # rather than crashing or silently producing NaN weights.
-            n = len(self.models)
-            self.weights = dict.fromkeys(self.models, 1.0 / n)
-            log.warning(
-                "ensemble_weights_cold_start_fallback",
-                reason="no model has finite RMSE yet; using equal weights",
-                n_models=n,
-            )
+            if getattr(self, "_fit_completed", False):
+                # No holdout score is not a cold start: no member is eligible
+                # to contribute to a forecast.
+                self.weights = dict.fromkeys(self.models, 0.0)
+                log.error(
+                    "ensemble_weights_no_oos_scores",
+                    reason="all fitted members lack a finite holdout score; all weights set to zero",
+                    n_models=len(self.models),
+                )
+            else:
+                # Constructor cold start only. This is never used after fit().
+                n = len(self.models)
+                self.weights = dict.fromkeys(self.models, 1.0 / n)
+                log.warning(
+                    "ensemble_weights_cold_start_fallback",
+                    reason="not fitted yet; using equal placeholder weights",
+                    n_models=n,
+                )
         else:
             self.weights = {name: w / total for name, w in inverse_rmse.items()}
 
@@ -849,11 +1103,15 @@ class EnsemblePredictor:
             "models": self.models,
             "weights": self.weights,
             "feature_cols": self._feature_cols,
+            "fit_completed": self._fit_completed,
             "symbol": symbol,
             "timeframe": timeframe,
         }
-        joblib.dump(payload, path, compress=3)
-        _write_manifest(path)
+        buf = io.BytesIO()
+        joblib.dump(payload, buf, compress=3)
+        data = buf.getvalue()
+        _atomic_write_bytes(path, data)
+        _write_manifest(path, data)
         log.info("ensemble.saved", path=str(path))
         return path
 
@@ -872,10 +1130,18 @@ class EnsemblePredictor:
         )
         if not path.exists():
             raise FileNotFoundError(f"No saved ensemble model at {path} — call fit() first.")
-        _verify_manifest(path)
-        payload: dict = joblib.load(path)
+        verified = _verify_manifest(path)
+        # Older compatible artifacts may contain a fitted Torch _LSTMNet.
+        # Register that class before unpickling only when the memory guard says
+        # the optional native runtime can be loaded safely. If the guard is
+        # closed and the artifact needs Torch, joblib fails closed and the
+        # orchestrator can retrain a degraded ensemble without the LSTM.
+        if _torch_fits_memory_budget():
+            _load_torch_runtime()
+        payload: dict = joblib.load(io.BytesIO(verified))
         instance = cls()
         instance.models = payload["models"]
         instance.weights = payload["weights"]
         instance._feature_cols = payload["feature_cols"]
+        instance._fit_completed = bool(payload.get("fit_completed", False))
         return instance

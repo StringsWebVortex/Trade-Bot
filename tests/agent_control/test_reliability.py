@@ -1,0 +1,334 @@
+"""GOV-057 / GOV-063 -- deterministic agent reliability controls.
+
+Decides: SEC-1220, REG-1491, REG-1497
+
+Decides: SEC-1233
+"""
+
+from __future__ import annotations
+
+import json
+
+import pytest
+
+from src.agent_control import reliability
+from src.agent_control.reliability import ReliabilityStateError
+
+
+def test_repeated_tool_failure_is_escalated(monkeypatch, tmp_path):
+    monkeypatch.setattr(reliability, "_git_common_dir", lambda: tmp_path)
+    for _ in range(3):
+        event = reliability.record_tool_failure(
+            tool="Bash", command="pytest -q", summary="FAILED tests/x.py::test_x"
+        )
+    assert event["repeat_count"] == 3
+    assert event["status"] == "repeat"
+    assert json.loads(reliability.state_path().read_text())["events"][-1]["status"] == "repeat"
+
+
+def test_ci_verdict_is_bound_to_exact_head(monkeypatch, tmp_path):
+    monkeypatch.setattr(reliability, "_git_common_dir", lambda: tmp_path)
+    reliability.record_ci_verdict(sha="a" * 40, pr=1, status="failed", failed_checks=["lint"])
+    assert not reliability.gate(task_id=None, head_sha="a" * 40, requires_ci=True).ok
+    reliability.record_ci_verdict(sha="b" * 40, pr=1, status="green")
+    assert reliability.gate(task_id=None, head_sha="b" * 40, requires_ci=True).ok
+    assert not reliability.gate(task_id=None, head_sha="c" * 40, requires_ci=True).ok
+
+
+def test_green_new_head_resolves_ci_lineage(monkeypatch, tmp_path):
+    monkeypatch.setattr(reliability, "_git_common_dir", lambda: tmp_path)
+    reliability.record_ci_verdict(sha="a" * 40, pr=1, status="failed", failed_checks=["coverage"])
+    reliability.record_ci_verdict(sha="b" * 40, pr=1, status="green")
+    state = json.loads(reliability.state_path().read_text())
+    assert all(event["status"] == "resolved" for event in state["events"] if event["kind"] == "ci")
+
+
+def test_notice_parser_keeps_failed_check_identity(monkeypatch, tmp_path):
+    monkeypatch.setattr(reliability, "_git_common_dir", lambda: tmp_path)
+    notice = (
+        "CI abc1234 - 2 not green\n"
+        "**CI / python-lint** — failure\n"
+        "**CI / python-coverage** — failure"
+    )
+    record = reliability.record_ci_from_notice(sha="a" * 40, pr=7, notice=notice)
+    assert record["status"] == "failed"
+    assert record["failed_checks"] == ["CI / python-coverage", "CI / python-lint"]
+
+
+def test_state_load_quarantines_corrupt_files(monkeypatch, tmp_path):
+    monkeypatch.setattr(reliability, "_git_common_dir", lambda: tmp_path)
+    assert reliability.snapshot()["events"] == []
+    path = reliability.state_path()
+    path.write_text("{not-json", encoding="utf-8")
+    with pytest.raises(ReliabilityStateError, match="unreadable"):
+        reliability.snapshot()
+    assert not path.exists()
+    assert path.with_suffix(".corrupt").exists()
+    assert reliability.snapshot() == {"version": 1, "events": [], "ci": {}}
+    path.write_text("[]", encoding="utf-8")
+    with pytest.raises(ReliabilityStateError, match="not an object"):
+        reliability.snapshot()
+    assert not path.exists()
+
+
+def test_state_load_adds_missing_top_level_keys(monkeypatch, tmp_path):
+    monkeypatch.setattr(reliability, "_git_common_dir", lambda: tmp_path)
+    path = reliability.state_path()
+    path.parent.mkdir(parents=True)
+    path.write_text('{"events": []}', encoding="utf-8")
+    state = reliability.snapshot()
+    assert state["version"] == 1
+    assert state["ci"] == {}
+
+
+def test_git_common_dir_falls_back_on_git_failure(monkeypatch, tmp_path):
+    class Result:
+        returncode = 1
+        stdout = ""
+
+    monkeypatch.setattr(reliability, "ROOT", tmp_path)
+    monkeypatch.setattr(reliability.subprocess, "run", lambda *args, **kwargs: Result())
+    assert reliability._git_common_dir() == tmp_path / ".git"
+
+
+def test_fingerprint_normalizes_and_bounds_input():
+    value = reliability.fingerprint("  alpha  ", "beta", "x" * 5000)
+    assert len(value) == 20
+    assert value == reliability.fingerprint("alpha", "beta", "x" * 5000)
+
+
+def test_tool_failure_can_be_resolved_before_repeat(monkeypatch, tmp_path):
+    monkeypatch.setattr(reliability, "_git_common_dir", lambda: tmp_path)
+    first = reliability.record_tool_failure(tool="Bash", command="cmd", summary="failure")
+    path = reliability.state_path()
+    state = json.loads(path.read_text(encoding="utf-8"))
+    state["events"][0]["status"] = "resolved"
+    path.write_text(json.dumps(state), encoding="utf-8")
+    second = reliability.record_tool_failure(tool="Bash", command="cmd", summary="failure")
+    assert first["repeat_count"] == 1
+    assert second["repeat_count"] == 1
+
+
+def test_invalid_ci_status_is_rejected():
+    try:
+        reliability.record_ci_verdict(sha="a" * 40, pr=1, status="bad")
+    except ValueError as exc:
+        assert "invalid CI status" in str(exc)
+    else:
+        raise AssertionError("invalid status was accepted")
+
+
+def test_notice_parser_detects_green_and_pending(monkeypatch, tmp_path):
+    monkeypatch.setattr(reliability, "_git_common_dir", lambda: tmp_path)
+    green = reliability.record_ci_from_notice(sha="a" * 40, pr=1, notice="All checks green")
+    pending = reliability.record_ci_from_notice(sha="b" * 40, pr=1, notice="CI still running")
+    assert green["status"] == "green"
+    assert pending["status"] == "pending"
+
+
+def test_notice_with_no_verdict_is_non_green_not_pending(monkeypatch, tmp_path):
+    monkeypatch.setattr(reliability, "_git_common_dir", lambda: tmp_path)
+    record = reliability.record_ci_from_notice(
+        sha="c" * 40,
+        pr=1,
+        notice="**CI / Python tests (shard 1/6)** — no verdict",
+    )
+    assert record["status"] == "failed"
+    assert record["failed_checks"] == ["CI / Python tests (shard 1/6)"]
+
+
+def test_notice_parser_uses_non_green_fallback(monkeypatch, tmp_path):
+    monkeypatch.setattr(reliability, "_git_common_dir", lambda: tmp_path)
+    record = reliability.record_ci_from_notice(sha="a" * 40, pr=1, notice="CI result unavailable")
+    assert record["status"] == "failed"
+    assert record["failed_checks"] == ["non-green CI"]
+
+
+def test_gate_short_circuits_when_ci_not_required(monkeypatch, tmp_path):
+    monkeypatch.setattr(reliability, "_git_common_dir", lambda: tmp_path)
+    assert reliability.gate(task_id=None, head_sha=None, requires_ci=False).ok
+
+
+def test_gate_requires_head_and_green_status(monkeypatch, tmp_path):
+    monkeypatch.setattr(reliability, "_git_common_dir", lambda: tmp_path)
+    assert (
+        "HEAD unavailable"
+        in reliability.gate(task_id=None, head_sha=None, requires_ci=True).blockers[0]
+    )
+    reliability.record_ci_verdict(sha="a" * 40, pr=1, status="pending")
+    result = reliability.gate(task_id=None, head_sha="a" * 40, requires_ci=True)
+    assert not result.ok
+    assert "pending" in result.blockers[0]
+
+
+def test_gate_rejects_unresolved_repeat_for_same_task_and_head(monkeypatch, tmp_path):
+    monkeypatch.setattr(reliability, "_git_common_dir", lambda: tmp_path)
+    sha = "a" * 40
+    for _ in range(3):
+        reliability.record_tool_failure(
+            tool="Bash", command="cmd", summary="failure", task_id="task-1", head_sha=sha
+        )
+    reliability.record_ci_verdict(sha=sha, pr=1, status="green")
+    result = reliability.gate(task_id="task-1", head_sha=sha, requires_ci=True)
+    assert not result.ok
+    assert "repeated failure" in result.blockers[0]
+
+
+def test_active_context_handles_non_git_and_valid_git(monkeypatch, tmp_path):
+    monkeypatch.setattr(reliability, "ROOT", tmp_path)
+
+    class Failed:
+        returncode = 1
+        stdout = ""
+
+    monkeypatch.setattr(reliability.subprocess, "run", lambda *args, **kwargs: Failed())
+    assert reliability._active_context() == (None, None)
+
+    class Ok:
+        returncode = 0
+
+        def __init__(self, stdout):
+            self.stdout = stdout
+
+    def fake_run(command, **kwargs):
+        if command[-1] == "--show-toplevel":
+            return Ok(str(tmp_path))
+        if command[-1] == "--git-common-dir":
+            return Ok(str(tmp_path))
+        if command[-1] == "HEAD":
+            return Ok("a" * 40)
+        return Ok("")
+
+    monkeypatch.setattr(reliability.subprocess, "run", fake_run)
+    assert reliability._active_context()[1] == "a" * 40
+
+
+def test_tool_failure_binds_active_context_when_not_supplied(monkeypatch, tmp_path):
+    monkeypatch.setattr(reliability, "_git_common_dir", lambda: tmp_path)
+    monkeypatch.setattr(reliability, "_active_context", lambda: ("task-1", "a" * 40))
+    event = reliability.record_tool_failure(tool="Bash", command="cmd", summary="failure")
+    assert event["task_id"] == "task-1"
+    assert event["head_sha"] == "a" * 40
+
+
+def test_save_cleans_up_temporary_file_when_atomic_replace_fails(monkeypatch, tmp_path):
+    path = tmp_path / "reliability.json"
+
+    def fail_replace(_source, _destination):
+        raise OSError("simulated atomic replace failure")
+
+    monkeypatch.setattr(reliability.os, "replace", fail_replace)
+
+    with pytest.raises(OSError, match="simulated atomic replace failure"):
+        reliability._save(path, {"events": []})
+
+    assert not path.exists()
+    assert list(tmp_path.glob(".reliability-*.tmp")) == []
+
+
+def test_active_context_survives_task_store_failure(monkeypatch, tmp_path):
+    from src.agent_control.store import TaskStore
+
+    monkeypatch.setattr(reliability, "ROOT", tmp_path)
+    monkeypatch.setattr(reliability, "_git_common_dir", lambda: tmp_path)
+
+    def fail_active_task_id(_self, _worktree):
+        raise RuntimeError("simulated task-store failure")
+
+    monkeypatch.setattr(TaskStore, "active_task_id", fail_active_task_id)
+
+    class Ok:
+        returncode = 0
+
+        def __init__(self, stdout):
+            self.stdout = stdout
+
+    def fake_run(command, **_kwargs):
+        if command[-1] == "--show-toplevel":
+            return Ok(str(tmp_path))
+        if command[-1] == "HEAD":
+            return Ok("a" * 40)
+        return Ok("")
+
+    monkeypatch.setattr(reliability.subprocess, "run", fake_run)
+
+    assert reliability._active_context() == (None, "a" * 40)
+
+
+def test_ci_is_green_only_for_a_recorded_green_verdict_on_that_sha(monkeypatch, tmp_path):
+    monkeypatch.setattr(reliability, "_git_common_dir", lambda: tmp_path)
+    reliability.record_ci_verdict(sha="a" * 40, pr=1, status="failed", failed_checks=["lint"])
+    reliability.record_ci_verdict(sha="b" * 40, pr=1, status="green")
+    assert reliability.ci_is_green("b" * 40)
+    assert not reliability.ci_is_green("a" * 40)
+    assert not reliability.ci_is_green("c" * 40)
+    assert not reliability.ci_is_green(None)
+
+
+def test_ci_is_green_fails_closed_for_malformed_store(monkeypatch, tmp_path):
+    monkeypatch.setattr(reliability, "_git_common_dir", lambda: tmp_path)
+    path = reliability.state_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text('{"ci": null}', encoding="utf-8")
+    assert not reliability.ci_is_green("a" * 40)
+
+
+def test_ci_fingerprint_ignores_whitespace_differences(monkeypatch, tmp_path):
+    """AGT-006: the whitespace regex must match whitespace, not a literal backslash-s."""
+    monkeypatch.setattr(reliability, "_git_common_dir", lambda: tmp_path)
+    a = reliability.record_ci_verdict(
+        sha="a" * 40, pr=1, status="failed", failed_checks=["x"], notice="boom   here"
+    )
+    b = reliability.record_ci_verdict(
+        sha="b" * 40, pr=1, status="failed", failed_checks=["x"], notice="boom here"
+    )
+    events = json.loads(reliability.state_path().read_text())["events"]
+    assert events[-1]["repeat_count"] == 2, (a, b)
+
+
+def test_corrupt_state_fails_closed_and_is_backed_up(monkeypatch, tmp_path):
+    """AGT-007: a corrupt file must not silently erase failure history."""
+    monkeypatch.setattr(reliability, "_git_common_dir", lambda: tmp_path)
+    monkeypatch.delenv("TB_AGENT_STATE_DIR", raising=False)
+    path = reliability.state_path()
+    path.parent.mkdir(parents=True)
+    path.write_text("{not json")
+    result = reliability.gate(task_id=None, head_sha="a" * 40, requires_ci=True)
+    assert not result.ok
+    assert path.with_suffix(".corrupt").read_text() == "{not json"
+
+    # Valid JSON with malformed nested state is corrupt too, not a usable empty state.
+    path.write_text(json.dumps({"events": None, "ci": {}}))
+    result = reliability.gate(task_id=None, head_sha="b" * 40, requires_ci=True)
+    assert not result.ok
+    backups = list(path.parent.glob(f"{path.name}.corrupt.*"))
+    assert len(backups) == 1
+    assert json.loads(backups[0].read_text())["events"] is None
+    assert path.with_suffix(".corrupt").read_text() == "{not json"
+
+    # Invalid UTF-8 is unreadable state as well, and must preserve both prior backups.
+    path.write_bytes(b"\xff\xfe")
+    result = reliability.gate(task_id=None, head_sha="c" * 40, requires_ci=True)
+    assert not result.ok
+    assert len(list(path.parent.glob(f"{path.name}.corrupt.*"))) == 2
+    assert path.with_suffix(".corrupt").read_text() == "{not json"
+
+
+def test_repeated_ci_event_blocks_the_gate(monkeypatch, tmp_path):
+    """AGT-007: CI events carry no task_id yet must still be seen by the repeat filter."""
+    monkeypatch.setattr(reliability, "_git_common_dir", lambda: tmp_path)
+    sha = "a" * 40
+    reliability.record_ci_verdict(sha=sha, pr=1, status="green")
+    path = reliability.state_path()
+    data = json.loads(path.read_text())
+    data["events"].append({"kind": "ci", "status": "repeat", "head_sha": sha})
+    path.write_text(json.dumps(data))
+    result = reliability.gate(task_id="T-1", head_sha=sha, requires_ci=True)
+    assert not result.ok
+    assert any("repeated failure" in m for m in result.blockers)
+
+
+def test_state_path_follows_state_dir_override(monkeypatch, tmp_path):
+    """AGT-008."""
+    monkeypatch.setenv("TB_AGENT_STATE_DIR", str(tmp_path / "custom"))
+    assert reliability.state_path() == tmp_path / "custom" / "reliability.json"
