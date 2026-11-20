@@ -67,6 +67,12 @@ Sections (grep or read by line range, never whole file):
 
 Use Layer 2 for architecture decisions, cross-module invariants, or when Layer 1 cites a file but you need more context.
 
+## Quality-engineering skill
+- Use the quality-engineering skill for any change that touches requirements, registry entries, or test coverage.
+- Run `.claude/skills/quality-engineering/scripts/qe_gate.py --list` to see the active gates.
+- Validate a change plan with `qe_gate.py --plan <plan.json>` before opening a PR.
+- The `PostToolUse` hook at `.claude/hooks/quality_gate.py` runs on every edit automatically.
+
 ## Agents (see .claude/agents/)
 - explorer (read-only map/summary), auditor (read-only review), fixer (applies approved fixes),
   async-security-reviewer (auth, DB, background tasks, API boundary).
