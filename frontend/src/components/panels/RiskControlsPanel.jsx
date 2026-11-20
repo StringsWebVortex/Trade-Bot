@@ -1,4 +1,3 @@
-import { useState, useEffect } from 'react';
 import { Toggle, Slider, NumberInput } from '../Controls';
 
 export function RiskControlsPanel({ riskControls, onUpdate }) {

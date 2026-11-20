@@ -1,4 +1,31 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
+
+/**
+ * A button for a high-impact operator action (FE-04): optionally asks for
+ * confirmation first, and stays disabled while the request is in flight so a
+ * double-click cannot send the action twice.
+ */
+export function ActionButton({ onAction, confirmMessage, children, disabled, ...rest }) {
+  const [pending, setPending] = useState(false);
+  const busy = useRef(false);
+  const handle = async () => {
+    if (busy.current) return;
+    if (confirmMessage && !window.confirm(confirmMessage)) return;
+    busy.current = true;
+    setPending(true);
+    try {
+      await onAction();
+    } finally {
+      busy.current = false;
+      setPending(false);
+    }
+  };
+  return (
+    <button type="button" {...rest} disabled={disabled || pending} aria-busy={pending} onClick={handle}>
+      {children}
+    </button>
+  );
+}
 
 export function Toggle({ checked, onChange, label, disabled }) {
   return (
@@ -21,6 +48,15 @@ export function Toggle({ checked, onChange, label, disabled }) {
 export function Slider({ value, onChange, min, max, step, label, unit, decimals = 2 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
+  // FE-02: dragging only moves local state; one write is sent on release.
+  const [drag, setDrag] = useState(null);
+  const dragRef = useRef(null);
+  const commitDrag = () => {
+    const v = dragRef.current;
+    dragRef.current = null;
+    setDrag(null);
+    if (v != null && v !== value) onChange(v);
+  };
 
   const handleSubmit = useCallback(() => {
     const n = parseFloat(draft);
@@ -42,8 +78,15 @@ export function Slider({ value, onChange, min, max, step, label, unit, decimals 
           min={min}
           max={max}
           step={step || (max - min) / 100}
-          value={value ?? min}
-          onChange={(e) => onChange(parseFloat(e.target.value))}
+          value={drag ?? value ?? min}
+          onChange={(e) => {
+            const v = parseFloat(e.target.value);
+            dragRef.current = v;
+            setDrag(v);
+          }}
+          onPointerUp={commitDrag}
+          onKeyUp={commitDrag}
+          onBlur={commitDrag}
         />
         {editing ? (
           <input
@@ -75,9 +118,9 @@ export function NumberInput({ value, onChange, label, min, max, step, unit }) {
 
   const commit = () => {
     const n = parseFloat(draft);
-    if (!Number.isNaN(n)) {
-      if (min != null && n < min) return;
-      if (max != null && n > max) return;
+    // FE-03: write only a valid, changed value; anything else just leaves
+    // draft mode (an out-of-range entry reverts to the current value).
+    if (!Number.isNaN(n) && !(min != null && n < min) && !(max != null && n > max) && n !== Number(value)) {
       onChange(n);
     }
     setFocused(false);
@@ -112,7 +155,11 @@ export function ModeSwitcher({ current, onSwitch }) {
       {modes.map((m) => (
         <button
           key={m}
-          onClick={() => onSwitch(m)}
+          onClick={() => {
+            if (m === current) return;
+            if (m === 'automatic' && !window.confirm('Switch to AUTOMATIC execution mode? Trades will be placed without approval.')) return;
+            onSwitch(m);
+          }}
           className={`mode-btn ${current === m ? activeClass[m] : ''}`}
         >
           {m}

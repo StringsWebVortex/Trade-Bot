@@ -6,6 +6,10 @@ passes when it should not is worse than no gate, because it is trusted. The
 second is the wiring: a gate that silently stops covering a job -- because
 someone added a job and did not add it to `needs:` -- fails open, and nothing
 about the green check would show it.
+
+Decides:
+  - GOV-003 — Mutation testing runs nightly on the critical subsystems
+  - GOV-008 — main is protected and every required check must be green
 """
 
 from __future__ import annotations
@@ -39,6 +43,10 @@ def run_gate(needs: dict | str, allow_skipped: str | None = None) -> subprocess.
         timeout=30,
         check=False,
     )
+
+
+# Mirrors the guard applied in .github/workflows/*.yml; see
+# tests/test_pr_queue.py, which owns the requirement that it exists.
 
 
 class TestPasses:
@@ -143,7 +151,7 @@ class TestMalformedInputIsNeverAPass:
 class TestStaleAllowance:
     def test_unused_allowance_is_reported(self):
         result = run_gate({"a": {"result": "success"}}, allow_skipped="gone")
-        assert result.returncode == 0
+        assert result.returncode == 2
         assert "gone" in result.stdout
         assert "stale allowance" in result.stdout
 
@@ -193,7 +201,15 @@ class TestEveryPullRequestWorkflowIsGated:
         jobs = spec.get("jobs", {})
         if "gate" not in jobs:
             pytest.skip(f"{path.name} has no gate job")
-        assert jobs["gate"].get("if") == "always()", path.name
+        # `always()` is the only condition a gate may carry, checked as an
+        # exact alternative rather than a substring: `always() && false` still
+        # has to fail. The pull-request queue used to AND a draft guard onto
+        # this, and that was the hole -- a draft skipped the gate job, and
+        # GitHub counts a required check whose conclusion is `skipped` as
+        # satisfied. #292 merged with all four gates skipped and its suite
+        # never run. Nothing may condition a gate again.
+        permitted = {"always()", "${{ always() }}"}
+        assert jobs["gate"].get("if") in permitted, path.name
 
     @pytest.mark.parametrize("path", workflow_files(), ids=lambda p: p.name)
     def test_gate_invokes_the_shared_script(self, path):
