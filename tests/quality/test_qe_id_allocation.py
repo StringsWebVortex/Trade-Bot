@@ -28,7 +28,8 @@ import sys
 from pathlib import Path
 
 import pytest
-from required_import import require
+
+from tests.required_import import require
 
 REPO = Path(__file__).resolve().parents[2]
 SCRIPTS = REPO / ".claude" / "skills" / "quality-engineering" / "scripts"

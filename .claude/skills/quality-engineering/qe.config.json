@@ -1,0 +1,45 @@
+{
+  "version": "1.0",
+  "name": "quality-engineering",
+  "gates": [
+    {
+      "id": "gate-registry-collision",
+      "why": "Two branches that allocate the same requirement ID produce a merge conflict that cannot be auto-resolved; detecting the collision early costs nothing and prevents wasted review cycles.",
+      "command": ".claude/skills/quality-engineering/scripts/qe_gate.py --only gate-registry-collision",
+      "blocking": false
+    },
+    {
+      "id": "gate-registry-evidence",
+      "why": "A registry status is only useful while its named test files and dependency links remain real; stale paths and broken dependencies must fail the quality gate.",
+      "command": ".claude/skills/quality-engineering/scripts/qe_gate.py --only gate-registry-evidence",
+      "blocking": true
+    }
+  ],
+  "never": [
+    {
+      "rule": "Delete or weaken a test to make CI green",
+      "why": "A test deleted because it is inconvenient was the only record that something could go wrong. The fix goes in the production code, not the test suite."
+    },
+    {
+      "rule": "Mark a requirement accepted_gap without a written waiver",
+      "why": "An unreviewed gap is an invisible risk; the requirement stays planned until a human writes the waiver and assigns accountability with a review date."
+    }
+  ],
+  "registry": {
+    "path": "config/quality_registry.json",
+    "schema": "config/quality_registry.schema.json",
+    "loader": "src/quality/registry.py",
+    "generated_docs": [
+      {
+        "generator": "scripts/generate_quality_docs.py",
+        "doc": "docs/quality/REQUIREMENTS_TRACEABILITY.md"
+      }
+    ],
+    "id_prefixes": {
+      "INV-": "invariant",
+      "REG-": "regression",
+      "SEC-": "security_regression",
+      "*": "requirement"
+    }
+  }
+}
