@@ -14,14 +14,14 @@ Authority: https://defillama.com/docs/api
 
 from __future__ import annotations
 
-import logging
 import time
 from typing import Any
 
+import structlog
+
 from src.intelligence.onchain.base import OnChainProvider
 
-
-logger = logging.getLogger(__name__)
+log = structlog.get_logger(__name__)
 
 _BASE = "https://api.llama.fi"
 _STABLE_BASE = "https://stablecoins.llama.fi"
@@ -48,7 +48,7 @@ class DeFiLlamaProvider(OnChainProvider):
     _RATE = 5.0  # conservative; DeFiLlama public limit is high but unspecified
 
     def __init__(self, cache_ttl_s: int = 300) -> None:
-        super().__init__()
+        super().__init__(cache_ttl_s)
         self._CACHE_TTL_S = cache_ttl_s
 
     @property

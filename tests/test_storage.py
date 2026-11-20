@@ -176,6 +176,8 @@ class TestInitializeAndClose:
         sb = StorageBackend(db_path=path)
         await sb.close()  # should not raise
 
+        assert sb._conn is None
+
     @pytest.mark.asyncio
     async def test_get_lock_double_checked_race_reuses_winner(self):
         """VF-004-style guard: if a second caller acquires the init guard
@@ -354,6 +356,42 @@ class TestTrades:
             await backend.insert_trade(make_trade(trade_id="dup"))
 
     @pytest.mark.asyncio
+    async def test_insert_trade_persists_ensemble_fields(self, backend):
+        trade = make_trade(trade_id="t1")
+        trade.ensemble_point_estimate = 0.55
+        trade.ensemble_blend_weight = 0.3
+        await backend.insert_trade(trade)
+        rows = await backend.fetch_trades()
+        assert rows[0].ensemble_point_estimate == pytest.approx(0.55)
+        assert rows[0].ensemble_blend_weight == pytest.approx(0.3)
+
+    @pytest.mark.asyncio
+    async def test_insert_trade_defaults_ensemble_fields_to_none(self, backend):
+        await backend.insert_trade(make_trade(trade_id="t1"))
+        rows = await backend.fetch_trades()
+        assert rows[0].ensemble_point_estimate is None
+        assert rows[0].ensemble_blend_weight is None
+
+    @pytest.mark.asyncio
+    async def test_update_trade_ensemble_fields(self, backend):
+        await backend.insert_trade(make_trade(trade_id="t1"))
+        await backend.update_trade_ensemble_fields(
+            "t1", ensemble_point_estimate=0.62, ensemble_blend_weight=0.25
+        )
+        rows = await backend.fetch_trades()
+        assert rows[0].ensemble_point_estimate == pytest.approx(0.62)
+        assert rows[0].ensemble_blend_weight == pytest.approx(0.25)
+
+    @pytest.mark.asyncio
+    async def test_update_trade_ensemble_fields_unknown_id_is_noop(self, backend):
+        # Best-effort audit write -- must never raise for a missing trade_id.
+        await backend.update_trade_ensemble_fields(
+            "does_not_exist", ensemble_point_estimate=0.5, ensemble_blend_weight=0.5
+        )
+
+        assert await backend.fetch_trades() == []
+
+    @pytest.mark.asyncio
     async def test_update_trade_exit_success(self, backend):
         await backend.insert_trade(make_trade(trade_id="t1"))
         await backend.update_trade_exit(
@@ -368,6 +406,38 @@ class TestTrades:
         rows = await backend.fetch_trades()
         assert rows[0].exit_price == 110.0
         assert rows[0].pnl_usd == 10.0
+
+    @pytest.mark.asyncio
+    async def test_partial_exits_accumulate_pnl_and_fees_before_final_close(self, backend):
+        await backend.insert_trade(make_trade(trade_id="t1"))
+        await backend.record_trade_partial_exit(
+            trade_id="t1", exit_price=105.0, pnl_usd=2.0, fee_usd=0.03
+        )
+        await backend.record_trade_partial_exit(
+            trade_id="t1", exit_price=108.0, pnl_usd=3.0, fee_usd=0.02
+        )
+
+        open_rows = await backend.fetch_trades(open_only=True)
+        assert len(open_rows) == 1
+        assert open_rows[0].exit_ts is None
+        assert open_rows[0].pnl_usd == pytest.approx(5.0)
+        assert open_rows[0].pnl_pct == pytest.approx(0.05)
+        assert open_rows[0].fee_usd == pytest.approx(0.15)
+
+        await backend.update_trade_exit(
+            trade_id="t1",
+            exit_price=110.0,
+            exit_ts=3000,
+            pnl_usd=4.0,
+            pnl_pct=0.04,
+            exit_reason="tp",
+            fee_usd=0.05,
+        )
+        rows = await backend.fetch_trades()
+        assert rows[0].exit_ts == 3000
+        assert rows[0].pnl_usd == pytest.approx(9.0)
+        assert rows[0].pnl_pct == pytest.approx(0.09)
+        assert rows[0].fee_usd == pytest.approx(0.2)
 
     @pytest.mark.asyncio
     async def test_update_trade_exit_accumulates_fee(self, backend):
@@ -688,6 +758,10 @@ class TestValidateSymbol:
         await backend.upsert_bars([make_bar(symbol="BTC/USDT")])
         await backend.validate_symbol("BTC/USDT")  # should not raise
 
+        # The check reads stored bars: a well-formed symbol with none is refused.
+        with pytest.raises(ValueError, match="Unknown symbol"):
+            await backend.validate_symbol("ETH/USDT")
+
     @pytest.mark.asyncio
     async def test_invalid_format_raises(self, backend):
         with pytest.raises(ValueError, match="Invalid symbol format"):
@@ -835,6 +909,40 @@ class TestSchemaMigrations:
             assert "spread_bps" in cols, "spread_bps column should exist after migration"
 
             # Confirm user_version bumped to current
+            row = await backend._conn.execute("PRAGMA user_version")
+            assert (await row.fetchone())[0] == _SCHEMA_VERSION
+        finally:
+            await backend.close()
+
+    @pytest.mark.asyncio
+    async def test_migration_v5_adds_ensemble_columns(self, tmp_path: pathlib.Path) -> None:
+        """Upgrade a valid v5 schema through current migrations, including ensemble columns."""
+        import aiosqlite
+
+        from src.data.storage import _DDL, _MIGRATIONS, _SCHEMA_VERSION, StorageBackend
+
+        db_path = tmp_path / "migrate_v5_test.db"
+        async with aiosqlite.connect(db_path) as conn:
+            await conn.executescript(_DDL)
+            # A v5 database already contains each schema object from migrations 1-5.
+            for version, _description, sql in _MIGRATIONS[:5]:
+                if sql.strip():
+                    await conn.executescript(sql)
+                await conn.execute(f"PRAGMA user_version = {version}")
+            await conn.commit()
+
+            row = await conn.execute("PRAGMA table_info(trades)")
+            cols = [r[1] for r in await row.fetchall()]
+            assert "ensemble_point_estimate" not in cols
+            assert "ensemble_blend_weight" not in cols
+
+        backend = StorageBackend(db_path)
+        try:
+            await backend.initialize()
+            row = await backend._conn.execute("PRAGMA table_info(trades)")
+            cols = [r[1] for r in await row.fetchall()]
+            assert "ensemble_point_estimate" in cols
+            assert "ensemble_blend_weight" in cols
             row = await backend._conn.execute("PRAGMA user_version")
             assert (await row.fetchone())[0] == _SCHEMA_VERSION
         finally:
