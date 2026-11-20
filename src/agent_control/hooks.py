@@ -36,8 +36,8 @@ from collections.abc import Mapping
 from datetime import datetime
 from typing import Any, TextIO
 
-from src.agent_control.hook_protocol import format_result, get_hook_spec, parse_event
 from src.agent_control.git_safety import git_invocations
+from src.agent_control.hook_protocol import format_result, get_hook_spec, parse_event
 from src.agent_control.gitstate import GitError
 from src.agent_control.model import CompletionState
 from src.agent_control.workspace import Workspace
@@ -176,5 +176,5 @@ def run_hook(name: str, stdin: TextIO, stdout: TextIO, stderr: TextIO) -> int:
     except Exception as exc:
         # Hook failures are advisory except when the handler itself deliberately
         # returns a blocking decision (notably an unpersisted PreCompact state).
-        stderr.write(f"[agent-control] {name} hook degraded, allowing: {exc!r}\\n")
+        stderr.write(f"[agent-control] {name} hook degraded, allowing: {exc!r}\n")
     return 0
