@@ -8,6 +8,8 @@ row-count assertions depend on whatever previous runs left behind.
 `_DB_PATH` is read from `DUCKDB_PATH` at import time, so this must run
 before any test imports `src.data.duckdb_store` — a `tests/conftest.py`
 module body is imported first, which is why this is not a fixture.
+
+Registry: REG-0005, REG-0009 (config/quality_registry.json).
 """
 
 from __future__ import annotations
@@ -313,6 +315,14 @@ def _isolate_parameter_registry():
 
 
 @pytest.fixture(autouse=True)
+def _isolate_risk_state_dir(tmp_path, monkeypatch):
+    """EXR-013: capital-floor and kill-switch state files go to a per-test dir,
+    so a halt persisted by one test can never be restored by another."""
+    monkeypatch.setenv("RISK_STATE_DIR", str(tmp_path / "risk_state"))
+    yield
+
+
+@pytest.fixture(autouse=True)
 def _clear_mongo_client_caches():
     import kg.db
     import rag_mongo.db
@@ -322,3 +332,27 @@ def _clear_mongo_client_caches():
     yield
     kg.db._client_for.cache_clear()
     rag_mongo.db._client_for.cache_clear()
+
+
+@pytest.fixture(autouse=True)
+def _reset_operator_secret_lockout():
+    """SEC-1015: reset the process-global secret lockout budget around each test."""
+    from src.api.operator_secret import reset_failures
+
+    reset_failures()
+    yield
+    reset_failures()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _no_unraisable_at_session_end():
+    """REG-1707: fail if async-resource finalizers raise at session shutdown."""
+    from tests.regression.unraisable import collect_unraisable
+
+    yield
+    caught = collect_unraisable()
+    if caught:
+        raise AssertionError(
+            "exceptions raised by finalizers at session end: "
+            + "; ".join(f"{u.object!r}: {u.exc_value!r}" for u in caught)
+        )
