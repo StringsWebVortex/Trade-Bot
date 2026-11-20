@@ -39,14 +39,18 @@ from __future__ import annotations
 
 import asyncio
 import statistics
+import threading
 import time
 from typing import Any, Final
 
 import ccxt.async_support as ccxt
 import structlog
 
-from src.intelligence.providers.base import ExchangeIntelligenceProvider
-
+from src.intelligence.providers.base import (
+    ExchangeIntelligenceProvider,
+    exchange_stress_score,
+    tickers_are_synchronous,
+)
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
@@ -56,10 +60,6 @@ _FR_HISTORY_PERIODS: Final[int] = 90  # 30 days of 8h periods
 _OI_HISTORY_HOURS: Final[int] = 25  # 25 → delta between [0] and [-1]
 # Kline window for taker-flow whale ratio
 _KLINE_LIMIT: Final[int] = 48  # 48 x 15m = 12h window
-# Stress score weights (must sum to 1.0)
-_W_BASIS: Final[float] = 0.35
-_W_FR_Z: Final[float] = 0.40
-_W_OI: Final[float] = 0.25
 # Confidence penalty per missing paid-source field
 _CONFIDENCE_PENALTY: Final[float] = 0.05
 _MISSING_PAID_FIELDS: Final[int] = 8  # fields that need Glassnode/CQ
@@ -352,8 +352,26 @@ class BinanceIntelligenceProvider(ExchangeIntelligenceProvider):
         if not spot_last or not perp_last or spot_last <= 0:
             return 0.0
 
+        if not tickers_are_synchronous(spot_ticker, perp_ticker):
+            log.warning(
+                "binance.basis_tickers_out_of_sync",
+                spot_ts=spot_ticker.get("timestamp"),
+                perp_ts=perp_ticker.get("timestamp"),
+                action="basis suppressed — a stale leg reports the move it missed",
+            )
+            return 0.0
+
         basis_bps = ((perp_last - spot_last) / spot_last) * 10_000.0
-        # Clamp to ±500 bps (beyond this is data error / exchange anomaly)
+        # Clamp to ±500 bps (beyond this is data error / exchange anomaly).
+        # Logged rather than saturated silently: at the clamp a broken feed
+        # and a genuine dislocation are otherwise indistinguishable.
+        if abs(basis_bps) > 500.0:
+            log.warning(
+                "binance.basis_clamped",
+                raw_bps=round(basis_bps, 1),
+                spot_last=spot_last,
+                perp_last=perp_last,
+            )
         basis_bps = max(-500.0, min(500.0, basis_bps))
         self._set_cache(cache_key, basis_bps)
         return basis_bps
@@ -453,34 +471,8 @@ class BinanceIntelligenceProvider(ExchangeIntelligenceProvider):
     # Stress score composite
     # ------------------------------------------------------------------
 
-    @staticmethod
-    def _compute_stress_score(
-        basis_bps: float,
-        funding_zscore: float,
-        oi_change_pct: float,
-    ) -> float:
-        """
-        Exchange stress composite [0, 1].
-
-        Components:
-          basis_bps     : extreme positive or negative basis signals fragmentation
-          funding_zscore: high z-score = elevated leverage = stress
-          oi_change_pct : rapid OI drop = forced deleveraging = stress
-
-        All components normalised to [0, 1] before weighting.
-        Higher = more stress.
-        """
-        # Basis: stress from extreme basis in either direction (>50 bps = stressed)
-        basis_stress = min(abs(basis_bps) / 100.0, 1.0)
-
-        # Funding: high z-score → over-leveraged → stress
-        funding_stress = min(abs(funding_zscore) / 3.0, 1.0)
-
-        # OI drop: rapid deleveraging (negative OI change) = forced liquidations
-        oi_stress = min(max(-oi_change_pct, 0.0) / 5.0, 1.0)
-
-        score = _W_BASIS * basis_stress + _W_FR_Z * funding_stress + _W_OI * oi_stress
-        return round(min(max(score, 0.0), 1.0), 4)
+    # Shared formula (base.exchange_stress_score); kept as a class attribute for callers.
+    _compute_stress_score = staticmethod(exchange_stress_score)
 
 
 # ---------------------------------------------------------------------------
@@ -488,6 +480,7 @@ class BinanceIntelligenceProvider(ExchangeIntelligenceProvider):
 # ---------------------------------------------------------------------------
 
 _provider: BinanceIntelligenceProvider | None = None
+_provider_lock = threading.Lock()
 
 
 def get_binance_intelligence_provider(
@@ -501,9 +494,23 @@ def get_binance_intelligence_provider(
     subsequent calls return the existing instance regardless of args.
     """
     global _provider
-    if _provider is None:
-        _provider = BinanceIntelligenceProvider(
-            symbol=symbol,
-            perp_symbol=perp_symbol,
-        )
-    return _provider
+    # Locked, not a bare check-then-assign: the two steps have a constructor
+    # between them, so two callers arriving together could both find it unset
+    # and both build a provider -- each with its own ccxt client and rate-limit
+    # budget, against an exchange that counts them as one. Same shape as
+    # get_allocation_controller() in src/tuning/meta_allocator.py.
+    with _provider_lock:
+        if _provider is None:
+            _provider = BinanceIntelligenceProvider(
+                symbol=symbol,
+                perp_symbol=perp_symbol,
+            )
+            _provider._singleton_key = (symbol, perp_symbol)
+        # INT-021: the singleton is bound to the first (symbol, perp_symbol);
+        # serving a different symbol from it would return the wrong market's data.
+        if getattr(_provider, "_singleton_key", (symbol, perp_symbol)) != (symbol, perp_symbol):
+            raise ValueError(
+                f"singleton already bound to {_provider._singleton_key}; "
+                f"refusing to serve {(symbol, perp_symbol)}"
+            )
+        return _provider

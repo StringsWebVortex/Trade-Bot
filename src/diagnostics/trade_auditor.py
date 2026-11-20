@@ -22,10 +22,10 @@ from __future__ import annotations
 from collections import deque
 from dataclasses import asdict, dataclass
 from datetime import UTC
+from functools import lru_cache
 from typing import Any, Final
 
 import structlog
-
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
@@ -82,6 +82,12 @@ class AuditRecord:
     # Diagnostics
     tick_latency_ms: float = 0.0  # wall-clock ms for full tick
     equity_usd_at_decision: float = 0.0
+
+    # Ensemble blending (RiskSettings.ensemble_blend_weight) — None when the
+    # ensemble predictor isn't wired in or blend weight is 0.0 for this tick.
+    ensemble_point_estimate: float | None = None
+    ensemble_uncertainty: float | None = None
+    ensemble_blend_weight: float | None = None
 
     def to_dict(self) -> dict[str, Any]:
         d = asdict(self)
@@ -271,11 +277,15 @@ class TradeAuditor:
 # Module-level singleton
 # ---------------------------------------------------------------------------
 
-_auditor: TradeAuditor | None = None
 
-
+@lru_cache(maxsize=1)
 def get_auditor() -> TradeAuditor:
-    global _auditor
-    if _auditor is None:
-        _auditor = TradeAuditor()
-    return _auditor
+    """Process-wide TradeAuditor.
+
+    lru_cache rather than a module global under `global`: the read and the
+    assignment were two steps, so two callers arriving together could both
+    find it unset and both construct one, with the second silently replacing
+    the first. Same idiom as get_settings() in src/config.py, and it gives
+    tests cache_clear() instead of reaching for the global.
+    """
+    return TradeAuditor()

@@ -6,7 +6,6 @@ import pytest
 
 from src.execution.order_throttler import OrderThrottler, ThrottleResult
 
-
 # ---------------------------------------------------------------------------
 # Construction validation
 # ---------------------------------------------------------------------------
@@ -153,6 +152,8 @@ def test_reset_all_exchanges():
 def test_reset_nonexistent_no_error():
     t = OrderThrottler()
     t.reset("ghost")  # should not raise
+
+    assert "ghost" not in t._buckets
 
 
 # ---------------------------------------------------------------------------

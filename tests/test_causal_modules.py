@@ -3,9 +3,20 @@
 from __future__ import annotations
 
 import numpy as np
-
+import pandas as pd
+import pytest
 
 # ─── Granger ──────────────────────────────────────────────────────────────────
+
+
+@pytest.fixture(autouse=True)
+def _seeded_global_rng():
+    # Seed the global NumPy RNG for each test and restore it afterwards, so
+    # failures reproduce and no seed leaks into later tests.
+    state = np.random.get_state()
+    np.random.seed(12345)
+    yield
+    np.random.set_state(state)
 
 
 class TestGrangerCausalityDetector:
@@ -20,33 +31,37 @@ class TestGrangerCausalityDetector:
         from src.causal.granger import GrangerCausalityDetector
 
         gcd = GrangerCausalityDetector(window=60)
-        btc = np.random.randn(5)
-        alt_prices = {"ETH": np.random.randn(5).tolist()}
+        btc = pd.Series(np.random.randn(5))
+        alt_prices = {"ETH": pd.Series(100 + np.random.randn(5).cumsum())}
         result = gcd.update(btc, alt_prices)
-        # Below _MIN_WINDOW the detector returns its (still empty) result cache.
+        # Below the minimum window, update returns the (empty) result cache.
         assert result == {}
 
     def test_update_with_sufficient_data(self) -> None:
-        from src.causal.granger import GrangerCausalityDetector, GrangerResult
+        from src.causal.granger import GrangerCausalityDetector
 
-        gcd = GrangerCausalityDetector(window=30, max_lag=2)
-        n = 60
-        btc = np.random.randn(n)
+        # The detector skips any pair with fewer than its 60-observation minimum,
+        # so the window and the series must both reach it.
+        gcd = GrangerCausalityDetector(window=60, max_lag=2)
+        n = 100
+        rng = np.random.default_rng(7)
+        btc = pd.Series(rng.standard_normal(n) * 0.01)
         alt_prices = {
-            "ETH": (btc + np.random.randn(n) * 0.1).tolist(),
-            "SOL": np.random.randn(n).tolist(),
+            "ETH": pd.Series(100 * np.exp((btc + rng.standard_normal(n) * 0.001).cumsum())),
+            "SOL": pd.Series(100 * np.exp((rng.standard_normal(n) * 0.01).cumsum())),
         }
         result = gcd.update(btc, alt_prices)
-        assert isinstance(result, dict)
-        assert all(isinstance(r, GrangerResult) for r in result.values())
+        pytest.importorskip("statsmodels.tsa.stattools")
+        # Each alt symbol with a full window must get a result entry.
+        assert set(result) == {"ETH", "SOL"}
 
     def test_feature_vector_returns_floats(self) -> None:
         from src.causal.granger import GrangerCausalityDetector
 
         gcd = GrangerCausalityDetector(window=30, max_lag=2)
         n = 60
-        btc = np.random.randn(n)
-        alt = {"ETH": np.random.randn(n).tolist()}
+        btc = pd.Series(np.random.randn(n))
+        alt = {"ETH": pd.Series(100 + np.random.randn(n).cumsum())}
         gcd.update(btc, alt)
         fv = gcd.to_feature_vector()
         for v in fv.values():

@@ -14,7 +14,7 @@ import pandas as pd
 import pytest
 
 from src.config import Timeframe, TradingMode
-
+from tests.conftest import settings_double
 
 MIN_ROWS = 12
 
@@ -32,7 +32,7 @@ def _make_orch(storage, *, enabled: bool = True, lookback: int = 30):
     from src.engine.orchestrator import Orchestrator
 
     with patch("src.engine.orchestrator.get_settings") as mock_cfg:
-        cfg = MagicMock()
+        cfg = settings_double()
         cfg.primary_symbol = "BTC/USDT"
         cfg.active_timeframes = [Timeframe.INTRADAY]
         cfg.primary_timeframe = Timeframe.INTRADAY
@@ -42,7 +42,13 @@ def _make_orch(storage, *, enabled: bool = True, lookback: int = 30):
         cfg.risk.macro_exposure_enabled = enabled
         cfg.risk.macro_exposure_lookback_bars = lookback
         mock_cfg.return_value = cfg
-        return Orchestrator(storage, MagicMock())
+        orch = Orchestrator(storage, MagicMock())
+        # Pin the double explicitly. get_settings() is read at use time now
+        # (GOV-028), so constructing inside the patch no longer freezes the
+        # fake onto the instance -- the with-block exits and later reads see
+        # the real settings. The pin says what the test always meant.
+        orch._cfg = cfg
+        return orch
 
 
 def _risk_off_features(rows: int = MIN_ROWS) -> pd.DataFrame:
