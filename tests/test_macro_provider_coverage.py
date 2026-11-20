@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -36,8 +37,20 @@ def _warm_the_parquet_engine(tmp_path_factory: pytest.TempPathFactory) -> None:
     pd.read_parquet(path)
 
 
+def _recent_market_day() -> date:
+    day = datetime.now(UTC).date() - timedelta(days=1)
+    while day.weekday() >= 5:
+        day -= timedelta(days=1)
+    return day
+
+
+def _fresh_row(close: float = 4200.0) -> dict:
+    return {"date": _recent_market_day().isoformat(), "spx_close": close}
+
+
 def _hist(closes: list[float]) -> pd.DataFrame:
-    return pd.DataFrame({"Close": closes})
+    index = pd.date_range(end=pd.Timestamp(_recent_market_day()), periods=len(closes), freq="D")
+    return pd.DataFrame({"Close": closes}, index=index)
 
 
 def _yf(frame: pd.DataFrame) -> MagicMock:
@@ -88,7 +101,7 @@ class TestFetchSync:
 class TestPersistAndCache:
     def test_persist_then_load_round_trips(self, tmp_path: Path) -> None:
         provider = MacroProvider(data_root=tmp_path)
-        provider._persist({"date": "2026-01-01", "spx_close": 4200.0})
+        provider._persist(_fresh_row())
         assert provider._load_cached()["spx_close"] == 4200.0
 
     def test_a_missing_directory_is_not_an_error(self, tmp_path: Path) -> None:
@@ -96,7 +109,7 @@ class TestPersistAndCache:
 
     def test_an_unreadable_file_is_skipped_for_the_next_one(self, tmp_path: Path) -> None:
         provider = MacroProvider(data_root=tmp_path)
-        provider._persist({"date": "2026-01-01", "spx_close": 4200.0})
+        provider._persist(_fresh_row())
         # Sorts first under reverse=True, so it is tried before the good file.
         (tmp_path / "macro" / "9999-01-01.parquet").write_text("not parquet")
         assert provider._load_cached()["spx_close"] == 4200.0
@@ -111,12 +124,12 @@ class TestPersistAndCache:
 class TestLatest:
     def test_the_in_memory_value_wins(self, tmp_path: Path) -> None:
         provider = MacroProvider(data_root=tmp_path)
-        provider._latest = {"spx_close": 1.0}
-        assert provider.latest() == {"spx_close": 1.0}
+        provider._latest = _fresh_row(1.0)
+        assert provider.latest() == _fresh_row(1.0)
 
     def test_it_falls_back_to_the_cache(self, tmp_path: Path) -> None:
         provider = MacroProvider(data_root=tmp_path)
-        provider._persist({"date": "2026-01-01", "spx_close": 4200.0})
+        provider._persist(_fresh_row())
         assert provider.latest()["spx_close"] == 4200.0
 
 
@@ -124,28 +137,28 @@ class TestAsync:
     @pytest.mark.asyncio
     async def test_fetch_once_runs_the_sync_fetch_off_the_loop(self, tmp_path: Path) -> None:
         provider = MacroProvider(data_root=tmp_path)
-        with patch.object(provider, "_fetch_sync", return_value={"spx_close": 1.0}):
-            assert await provider.fetch_once() == {"spx_close": 1.0}
+        with patch.object(provider, "_fetch_sync", return_value=_fresh_row(1.0)):
+            assert await provider.fetch_once() == _fresh_row(1.0)
 
     @pytest.mark.asyncio
     async def test_run_loop_publishes_a_result_to_the_shared_cache(self, tmp_path: Path) -> None:
         provider = MacroProvider(data_root=tmp_path)
         cache = MagicMock()
         with (
-            patch.object(provider, "fetch_once", return_value={"spx_close": 1.0}),
+            patch.object(provider, "fetch_once", return_value=_fresh_row(1.0)),
             patch("src.data.provider_cache.get_provider_cache", return_value=cache),
             patch("asyncio.sleep", side_effect=asyncio.CancelledError),
         ):
             with pytest.raises(asyncio.CancelledError):
                 await provider.run_loop()
-        assert provider._latest == {"spx_close": 1.0}
-        cache.set_macro.assert_called_once_with({"spx_close": 1.0})
+        assert provider._latest == _fresh_row(1.0)
+        cache.set_macro.assert_called_once_with(_fresh_row(1.0))
 
     @pytest.mark.asyncio
     async def test_a_cache_fault_does_not_stop_the_loop(self, tmp_path: Path) -> None:
         provider = MacroProvider(data_root=tmp_path)
         with (
-            patch.object(provider, "fetch_once", return_value={"spx_close": 1.0}),
+            patch.object(provider, "fetch_once", return_value=_fresh_row(1.0)),
             patch(
                 "src.data.provider_cache.get_provider_cache", side_effect=RuntimeError("no cache")
             ),
@@ -153,7 +166,7 @@ class TestAsync:
         ):
             with pytest.raises(asyncio.CancelledError):
                 await provider.run_loop()
-        assert provider._latest == {"spx_close": 1.0}
+        assert provider._latest == _fresh_row(1.0)
 
     @pytest.mark.asyncio
     async def test_an_empty_result_is_not_published(self, tmp_path: Path) -> None:

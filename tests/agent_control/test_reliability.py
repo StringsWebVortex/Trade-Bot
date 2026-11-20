@@ -1,8 +1,8 @@
 """GOV-057 / GOV-063 -- deterministic agent reliability controls.
 
-Decides:
-  - REG-1491 — CI failure fingerprint normalises whitespace
-  - REG-1497 — Agent reliability state fails closed and follows the state dir
+Decides: SEC-1220, REG-1491, REG-1497
+
+Decides: SEC-1233
 """
 
 from __future__ import annotations
@@ -12,6 +12,7 @@ import json
 import pytest
 
 from src.agent_control import reliability
+from src.agent_control.reliability import ReliabilityStateError
 
 
 def test_repeated_tool_failure_is_escalated(monkeypatch, tmp_path):
@@ -54,14 +55,20 @@ def test_notice_parser_keeps_failed_check_identity(monkeypatch, tmp_path):
     assert record["failed_checks"] == ["CI / python-coverage", "CI / python-lint"]
 
 
-def test_state_load_recovers_missing_and_corrupt_files(monkeypatch, tmp_path):
+def test_state_load_quarantines_corrupt_files(monkeypatch, tmp_path):
     monkeypatch.setattr(reliability, "_git_common_dir", lambda: tmp_path)
     assert reliability.snapshot()["events"] == []
     path = reliability.state_path()
     path.write_text("{not-json", encoding="utf-8")
+    with pytest.raises(ReliabilityStateError, match="unreadable"):
+        reliability.snapshot()
+    assert not path.exists()
+    assert path.with_suffix(".corrupt").exists()
     assert reliability.snapshot() == {"version": 1, "events": [], "ci": {}}
     path.write_text("[]", encoding="utf-8")
-    assert reliability.snapshot() == {"version": 1, "events": [], "ci": {}}
+    with pytest.raises(ReliabilityStateError, match="not an object"):
+        reliability.snapshot()
+    assert not path.exists()
 
 
 def test_state_load_adds_missing_top_level_keys(monkeypatch, tmp_path):
@@ -246,6 +253,24 @@ def test_active_context_survives_task_store_failure(monkeypatch, tmp_path):
     monkeypatch.setattr(reliability.subprocess, "run", fake_run)
 
     assert reliability._active_context() == (None, "a" * 40)
+
+
+def test_ci_is_green_only_for_a_recorded_green_verdict_on_that_sha(monkeypatch, tmp_path):
+    monkeypatch.setattr(reliability, "_git_common_dir", lambda: tmp_path)
+    reliability.record_ci_verdict(sha="a" * 40, pr=1, status="failed", failed_checks=["lint"])
+    reliability.record_ci_verdict(sha="b" * 40, pr=1, status="green")
+    assert reliability.ci_is_green("b" * 40)
+    assert not reliability.ci_is_green("a" * 40)
+    assert not reliability.ci_is_green("c" * 40)
+    assert not reliability.ci_is_green(None)
+
+
+def test_ci_is_green_fails_closed_for_malformed_store(monkeypatch, tmp_path):
+    monkeypatch.setattr(reliability, "_git_common_dir", lambda: tmp_path)
+    path = reliability.state_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text('{"ci": null}', encoding="utf-8")
+    assert not reliability.ci_is_green("a" * 40)
 
 
 def test_ci_fingerprint_ignores_whitespace_differences(monkeypatch, tmp_path):

@@ -236,7 +236,11 @@ class OnChainProvider(ExchangeIntelligenceProvider):
     _RATE: float = 1.0
     _RATE_WINDOW_S: float = 1.0
 
-    def __init__(self) -> None:
+    def __init__(self, cache_ttl_s: int | None = None) -> None:
+        # INT-013: the configured TTL must be applied before the cache is
+        # built; the cache captures default_ttl_s at construction.
+        if cache_ttl_s is not None:
+            self._CACHE_TTL_S = cache_ttl_s
         self._async_cache: AsyncHTTPCache = AsyncHTTPCache(default_ttl_s=self._CACHE_TTL_S)
         self._limiter = RateLimiter(rate=self._RATE, window_s=self._RATE_WINDOW_S)
         # type(self).__name__ rather than exchange_id: exchange_id is an
@@ -260,11 +264,13 @@ class OnChainProvider(ExchangeIntelligenceProvider):
         url: str,
         headers: dict[str, str] | None = None,
         params: dict[str, Any] | None = None,
+        use_cache: bool = True,
     ) -> dict[str, Any] | None:
         cache_key = f"GET:{url}:{sorted((params or {}).items())}"
-        cached = await self._async_cache.get(cache_key)
-        if cached is not None:
-            return cached
+        if use_cache:
+            cached = await self._async_cache.get(cache_key)
+            if cached is not None:
+                return cached
         await self._limiter.acquire()
         try:
 
@@ -275,7 +281,8 @@ class OnChainProvider(ExchangeIntelligenceProvider):
                     return await resp.json(content_type=None)
 
             data = await self._breaker.call(_do)
-            await self._async_cache.set(cache_key, data)
+            if use_cache:
+                await self._async_cache.set(cache_key, data)
             return data
         except CircuitOpenError:
             log.warning("get_circuit_open", provider=self.__class__.__name__, url=url)

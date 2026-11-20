@@ -143,16 +143,29 @@ class TestConfirmOrderFill:
         assert confirmed["average"] == 100.0
 
     @pytest.mark.asyncio
-    async def test_filled_with_price_fallback_succeeds(self):
+    async def test_filled_with_only_the_request_price_is_not_booked(self):
+        """EXR-024: `price` is what was asked for on a limit order, not what
+        traded, so it is never a fill-price fallback."""
         manager = OrderManager()
         exchange = _make_exchange(
             create_result={"id": "ord-2"},
             fetch_result={"status": "closed", "filled": 1.0, "price": 99.5},
         )
+        with pytest.raises(ValueError, match="cannot safely record"):
+            await manager.place_order_with_fsm(exchange, "BTC/USDT", "sell", 1.0, _test_key())
+
+    @pytest.mark.asyncio
+    async def test_filled_without_average_uses_cost_over_filled(self):
+        manager = OrderManager()
+        exchange = _make_exchange(
+            create_result={"id": "ord-2b"},
+            fetch_result={"status": "closed", "filled": 2.0, "price": 150.0, "cost": 199.0},
+        )
         fsm, _confirmed = await manager.place_order_with_fsm(
-            exchange, "BTC/USDT", "sell", 1.0, _test_key()
+            exchange, "BTC/USDT", "sell", 2.0, _test_key()
         )
         assert fsm.state.status == OrderStatus.FILLED
+        assert fsm.state.average_fill_price == pytest.approx(99.5)
 
     @pytest.mark.asyncio
     async def test_filled_with_no_fill_price_raises_and_fails_fsm(self):

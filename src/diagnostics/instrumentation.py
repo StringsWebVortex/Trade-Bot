@@ -66,27 +66,13 @@ def _install_asyncio_task_factory(loop: asyncio.AbstractEventLoop | None = None)
     if getattr(previous_factory, "_tradebot_instrumentation_factory", False):
         return
 
-    def _default_task(inner_loop: asyncio.AbstractEventLoop, coro: Any, **kwargs: Any):
-        try:
-            return asyncio.Task(coro, loop=inner_loop, **kwargs)
-        except TypeError:
-            # Older Task constructors may not accept name/context. Never call
-            # loop.create_task() here: it would recursively invoke this factory.
-            task = asyncio.Task(coro, loop=inner_loop)
-            if "name" in kwargs:
-                task.set_name(kwargs["name"])
-            return task
-
     def _task_factory(inner_loop: asyncio.AbstractEventLoop, coro: Any, **kwargs: Any):
+        # Create the task using the default behaviour (preserve origin factory if any)
         try:
-            t = (
-                previous_factory(inner_loop, coro, **kwargs)
-                if previous_factory is not None
-                else _default_task(inner_loop, coro, **kwargs)
-            )
+            t = asyncio.Task(coro, loop=inner_loop, **kwargs)
         except Exception:
-            # A broken/incompatible prior factory must not prevent task creation.
-            t = _default_task(inner_loop, coro, **kwargs)
+            # Fall back to loop.create_task() if Task() signature differs
+            t = inner_loop.create_task(coro, **kwargs)
         # Never raise from instrumentation
         with contextlib.suppress(Exception):
             log.debug(

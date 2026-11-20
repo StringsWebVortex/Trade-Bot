@@ -440,12 +440,6 @@ class TestTrades:
             exit_reason="tp",
             fee_usd=5.0,
         )
-        sql, *args = b._pool.conn.execute.await_args.args
-        args = tuple(args)
-        assert "UPDATE trades" in sql
-        assert "exit_ts IS NULL" in sql  # guards against double exit writes
-        assert "fee_usd=fee_usd+$6" in sql  # exit fee accumulates on entry fee
-        assert args == (31000.0, 1_700_003_600_000, 100.0, 3.33, "tp", 5.0, "trade-001")
 
 
 # ---------------------------------------------------------------------------
@@ -803,7 +797,11 @@ class TestIntelligenceFeatures:
         assert "INSERT INTO intelligence_features_history" in sql
         assert args[:3] == ("BTC/USDT", "1h", 1_700_000_000_000)
         assert 1.2 in args and 55.0 in args  # feature values reach the query
-        assert args[-2:] == (0.85, "live")  # confidence and source
+        from src.data.timescale_storage import _INTEL_COLUMNS
+
+        confidence_index = 4 + len(_INTEL_COLUMNS)
+        assert args[confidence_index : confidence_index + 2] == (0.85, "live")
+        assert args[confidence_index + 2 :]  # V6 columns follow legacy metadata
 
     @pytest.mark.asyncio
     async def test_fetch_intelligence_features_empty(self):

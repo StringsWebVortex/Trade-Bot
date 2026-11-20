@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import ipaddress
 import os
+import re
 import stat
 import tempfile
 from collections.abc import Mapping
@@ -43,6 +44,43 @@ MAX_SOCKET_PATH_BYTES = 107
 
 class TerminalConfigError(ValueError):
     """A configuration value is invalid or a path is not safe to use."""
+
+
+_ENV_ALLOW = frozenset(
+    {
+        "PATH",
+        "HOME",
+        "LANG",
+        "TERM",
+        "SHELL",
+        "USER",
+        "LOGNAME",
+        "TZ",
+        "COLORTERM",
+        "DISPLAY",
+        "WAYLAND_DISPLAY",
+        "PYTHONPATH",
+    }
+)
+_ENV_ALLOW_PREFIXES = ("XDG_", "LC_", _ENV_PREFIX)
+_SECRET_NAME = re.compile(r"KEY|SECRET|TOKEN|PASS|CRED|AUTH|PRIVATE|SEED|MNEMONIC", re.IGNORECASE)
+
+
+def scrubbed_environment(env: Mapping[str, str] | None = None) -> dict[str, str]:
+    """Allowlisted copy of ``env`` (default ``os.environ``) for the daemon and its PTYs.
+
+    The daemon may be started from a shell or API process whose environment holds
+    exchange keys or OPERATOR_SECRET; passing that on would hand it to every
+    terminal session and job (AGT-023). Names that look secret are dropped even
+    when they match an allowed prefix.
+    """
+    source = os.environ if env is None else env
+    return {
+        name: value
+        for name, value in source.items()
+        if (name in _ENV_ALLOW or name.startswith(_ENV_ALLOW_PREFIXES))
+        and not _SECRET_NAME.search(name)
+    }
 
 
 @dataclass(frozen=True)

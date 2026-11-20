@@ -45,7 +45,11 @@ from typing import Any, TextIO
 from src.terminal import SERVICE_VERSION, auth, install
 from src.terminal.client import TerminalClient, TerminalClientError
 from src.terminal.config import (
-    REPO_ROOT, TerminalConfig, TerminalConfigError, ensure_managed_state_dir, ensure_private_dir,
+    REPO_ROOT,
+    TerminalConfig,
+    TerminalConfigError,
+    ensure_managed_state_dir,
+    scrubbed_environment,
 )
 from src.terminal.protocol import PROCESS_ID_RE, SESSION_ID_RE, SIGNALS
 
@@ -173,7 +177,7 @@ def _spawn_detached(config: TerminalConfig) -> None:
     if log_path.exists() and log_path.stat().st_size > LOG_ROTATE_BYTES:
         log_path.unlink()
     descriptor = os.open(log_path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
-    env = dict(os.environ)
+    env = scrubbed_environment()
     existing = env.get("PYTHONPATH")
     env["PYTHONPATH"] = f"{REPO_ROOT}{os.pathsep}{existing}" if existing else str(REPO_ROOT)
     try:
@@ -262,20 +266,20 @@ def stop_daemon(
         # The socket can be unlinked during shutdown before the process has
         # actually exited. Keep waiting for the daemon itself, not just its
         # listening pathname; systemd is the fallback when no pid is known.
-        if pid is not None:
-            still_running = _is_daemon_process(pid, proc)
-        elif managed_by_systemd:
+        if managed_by_systemd:
             still_running = _unit_active(run)
+        elif pid is not None:
+            still_running = _is_daemon_process(pid, proc)
         else:
             still_running = config.socket_path.exists()
         if not still_running and not config.socket_path.exists():
             break
         time.sleep(0.1)
 
-    if pid is not None:
-        still_running = _is_daemon_process(pid, proc)
-    elif managed_by_systemd:
+    if managed_by_systemd:
         still_running = _unit_active(run)
+    elif pid is not None:
+        still_running = _is_daemon_process(pid, proc)
     else:
         still_running = False
     if config.socket_path.exists() or still_running:

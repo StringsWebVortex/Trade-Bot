@@ -472,3 +472,54 @@ class TestRejectionsAreAudited:
         # The rejection still happens; only the record of it is lost, and that
         # is logged. Validation must not depend on the audit trail being up.
         assert not gate.check_orderbook(500.0).passed
+
+
+def test_macro_business_day_counter_handles_weekends_and_future_dates():
+    from datetime import date
+
+    from src.data.quality_gate import macro_business_days_elapsed
+
+    assert macro_business_days_elapsed(date(2026, 11, 6), date(2026, 11, 9)) == 1
+    assert macro_business_days_elapsed(date(2026, 11, 7), date(2026, 11, 9)) == 1
+    assert macro_business_days_elapsed(date(2026, 11, 9), date(2026, 11, 9)) == 0
+    assert macro_business_days_elapsed(date(2026, 11, 10), date(2026, 11, 9)) == -1
+
+
+def test_macro_gate_accepts_timezone_aware_dates_and_rejects_future_dates(gate):
+    fresh = {"date": datetime.now(UTC).isoformat()}
+    assert gate.check_macro(fresh).passed
+
+    future = {"date": (datetime.now(UTC) + timedelta(days=1)).isoformat()}
+    result = gate.check_macro(future)
+    assert not result.passed
+    assert result.reason == "macro_future_market_date"
+
+
+def test_macro_gate_enforces_business_day_age_separately_from_calendar_age(gate):
+    from src.data.quality_gate import FreshnessBudget
+
+    today = datetime.now(UTC).date()
+    cursor = today
+    elapsed = 0
+    while elapsed < 3:
+        cursor -= timedelta(days=1)
+        if cursor.weekday() < 5:
+            elapsed += 1
+    market_date = datetime.combine(cursor, datetime.min.time(), tzinfo=UTC)
+    result = gate.check_macro(
+        {"date": market_date.isoformat()},
+        budget=FreshnessBudget(label="macro-test", max_age_s=30 * 86_400),
+    )
+    assert not result.passed
+    assert "business days old" in result.reason
+
+
+def test_bars_with_an_out_of_range_epoch_index_are_rejected(gate):
+    index = np.array([np.iinfo(np.int64).max], dtype=np.int64)
+    bars = pd.DataFrame(
+        {"open": [1.0], "high": [2.0], "low": [0.5], "close": [1.5], "volume": [1.0]},
+        index=index,
+    )
+    result = gate.check_bars(bars)
+    assert not result.passed
+    assert "timestamp_unparseable" in result.reason

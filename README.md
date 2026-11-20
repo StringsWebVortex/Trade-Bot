@@ -35,7 +35,6 @@ unreachable or unkeyed — never blocks the core trading loop.
 | On-chain (paid) | Glassnode, CryptoQuant | Optional; CryptoQuant funding-rate falls back to Binance perp if unset |
 | Market cap / dominance | CoinGecko | Free |
 | Ensemble | `src/intelligence/ensemble_predictor.py`, `probabilistic.py` | Combines provider signals, probabilistic calibration |
-| Causal weighting | `src/intelligence/causal_inference.py` | **Experimental, not wired** — blocked on API key provisioning (DECISION_LOG GAP-015) |
 
 `GET /intelligence/coverage` and `GET /intelligence/providers` report live
 provider health and field coverage.
@@ -199,7 +198,7 @@ src/
     client.py               Aggregator entrypoint used by the feature pipeline
     providers/               Exchange providers: binance, okx, coingecko, blockchain.info
     onchain/                 On-chain providers: arkham, dune, coinglass, defillama, cryptoquant
-    ensemble_predictor.py, causal_inference.py, probabilistic.py, calibration.py, risk_quantification.py
+    ensemble_predictor.py, probabilistic.py, calibration.py, risk_quantification.py
   regime/
     detector.py             GaussianHMM fit / predict / persist
   models/
@@ -468,4 +467,3 @@ Set `TRADING_MODE=live` in `.env` — the only way to unlock live trading.
 - Carver (2019) *Systematic Trading*
 - Peters (1994) *Fractal Market Hypothesis*
 - Thorp (2006) "The Kelly Criterion in Blackjack, Sports Betting and the Stock Market"
-// test change

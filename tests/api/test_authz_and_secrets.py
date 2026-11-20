@@ -132,18 +132,18 @@ def test_apply_control_refuses_execution_mode_without_the_safe_setter() -> None:
 
 
 @pytest.mark.parametrize(
-    "name",
+    ("name", "expected_status"),
     [
-        "storage.decision_log_path",
-        "intelligence.glassnode_base_url",
-        "binance.testnet",
-        "binance.base_url",
+        ("storage.decision_log_path", 403),
+        ("intelligence.glassnode_base_url", 409),
+        ("binance.testnet", 409),
+        ("binance.base_url", 403),
     ],
 )
-def test_non_allow_listed_leaves_are_refused(wired, name) -> None:
-    """decision_log_path was an arbitrary-file-append primitive."""
+def test_non_allow_listed_leaves_are_refused(wired, name, expected_status) -> None:
+    """Unallowlisted keys are refused; startup-bound keys use conflict semantics."""
     resp = _post(name, {**_BODY, "value": "/tmp/x"})
-    assert resp.status_code == 403, resp.text
+    assert resp.status_code == expected_status, resp.text
 
 
 @pytest.mark.parametrize(

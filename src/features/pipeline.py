@@ -826,6 +826,7 @@ def build_feature_matrix(
         cfg.atr_window,
         cfg.sharpe_window,
         cfg.volume_zscore_window,
+        cfg.garch_window,  # DAT-016: rolling GARCH requires a full fit window
         # VF-016: include the frac-diff weight window so the min-rows guard
         # accounts for the 200-bar NaN burn-in, preventing silent row loss.
         _FRAC_DIFF_MAX_WINDOW,
