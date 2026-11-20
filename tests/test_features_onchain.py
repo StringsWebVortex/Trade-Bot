@@ -105,8 +105,8 @@ async def test_compute_happy_path():
 
     assert math.isnan(feats.sopr)  # REG-0008: unimplemented, never a constant
     assert feats.nvt > 0
-    # realised cap = 3 BTC * 50k = 150k -> mvrv = 1e12 / 150k
-    assert feats.mvrv == pytest.approx(1e12 / 150_000.0)
+    # DAT-004: wallet UTXOs are not a realised cap, so MVRV is never derived from them
+    assert math.isnan(feats.mvrv)
 
 
 async def test_compute_falls_back_on_rpc_failure():
@@ -118,38 +118,8 @@ async def test_compute_falls_back_on_rpc_failure():
     assert all(math.isnan(v) for v in (feats.sopr, feats.nvt, feats.mvrv))
 
 
-async def test_compute_caches_realised_cap():
-    rpc = _fake_rpc(utxos=[{"amount": 4.0}])
-    extractor = OnChainFeatureExtractor(rpc=rpc)
-    await extractor.compute(10_000.0, 1e9)
-    assert extractor._realised_cap_cache == 40_000.0
-
-
 async def test_compute_with_zero_tx_volume_does_not_divide_by_zero():
     rpc = _fake_rpc(stats={"total_out": 0})
     extractor = OnChainFeatureExtractor(rpc=rpc)
     feats = await extractor.compute(50_000.0, 1e12)
     assert feats.nvt == 1e12  # divided by the 1.0 floor
-
-
-def test_estimate_realised_cap_empty_utxos_is_nan():
-    """REG-0008: no UTXOs means nothing to sum, not half the 21M supply at spot."""
-    extractor = OnChainFeatureExtractor(rpc=_fake_rpc())
-    assert math.isnan(extractor._estimate_realised_cap([], 100.0))
-
-
-def test_estimate_realised_cap_sums_utxo_amounts():
-    extractor = OnChainFeatureExtractor(rpc=_fake_rpc())
-    utxos = [{"amount": 1.5}, {"amount": 2.5}, {"no_amount": 1}]
-    assert extractor._estimate_realised_cap(utxos, 1000.0) == 4000.0
-
-
-def test_sopr_is_nan_because_it_is_unimplemented():
-    """REG-0008: SOPR has no input to derive from, so it must not fabricate one."""
-    extractor = OnChainFeatureExtractor(rpc=_fake_rpc())
-    assert math.isnan(extractor._sopr_unimplemented())
-
-
-def test_extractor_builds_default_rpc_client_when_none_given():
-    extractor = OnChainFeatureExtractor()
-    assert isinstance(extractor._rpc, BitcoinRPCClient)

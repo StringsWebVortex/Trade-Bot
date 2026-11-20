@@ -162,3 +162,48 @@ def test_accuracy_drift_computes_over_a_full_window():
             starting_equity=10_000.0,
         )
     assert detector._check_accuracy_drift().drifted is True
+
+
+def test_baseline_rejects_invalid_optional_win_rate_fields():
+    import pytest
+
+    with pytest.raises(ValueError, match="oos_win_rate"):
+        _baseline(oos_win_rate=1.2)
+    with pytest.raises(ValueError, match="train_win_rate"):
+        _baseline(train_win_rate=float("nan"))
+
+
+def test_rolling_sharpe_guards_a_window_that_shrinks_during_snapshot():
+    class ShrinkingWindow:
+        def __len__(self):
+            return 20
+
+        def __iter__(self):
+            return iter([1.0])
+
+    detector = _detector()
+    detector._live_pnl_window = ShrinkingWindow()
+    assert detector.current_rolling_sharpe() is None
+    assert detector._check_sharpe_drift().drifted is False
+
+
+def test_rolling_sortino_guards_subnormal_downside_underflow():
+    detector = _detector()
+    _fill_window(detector, [1.0] * 19 + [-5e-324])
+    assert detector.current_rolling_sortino() is None
+
+
+def test_accuracy_drift_guards_a_window_drained_after_its_length_check():
+    class DrainedPredictions:
+        def __len__(self):
+            return 20
+
+        def __bool__(self):
+            return False
+
+        def __iter__(self):
+            return iter(())
+
+    detector = _detector()
+    detector._live_predictions = DrainedPredictions()
+    assert detector._check_accuracy_drift().drifted is False

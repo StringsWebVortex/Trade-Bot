@@ -105,7 +105,7 @@ def validate_provider_result(
     - Ensures required fields are present.
     - Clamps `confidence` to [0.0, 1.0].
     - Replaces NaN/Inf with neutral values.
-    - Strips internal fields from the public output.
+    - Carries internal fields (MVRV contribution) through for the merge step.
     - If `strict=True`, raises ValueError on missing required fields.
       Otherwise logs a warning and fills with neutral.
 
@@ -115,7 +115,16 @@ def validate_provider_result(
 
     for field, value in result.items():
         if field in _INTERNAL_FIELDS:
-            continue  # handled separately by aggregator
+            # INT-014: carry the internal contribution through validation so
+            # merge_onchain_results can add it to exchange_stress_score
+            # (it is stripped from the merged public output).
+            if (
+                isinstance(value, int | float)
+                and not isinstance(value, bool)
+                and math.isfinite(value)
+            ):
+                out[field] = float(value)
+            continue
         if not isinstance(value, int | float):
             continue
         if math.isnan(value) or math.isinf(value):

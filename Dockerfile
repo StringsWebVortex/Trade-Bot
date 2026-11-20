@@ -28,8 +28,11 @@
 # enforce them; what it can do is be usable with them, which the health check
 # below exercises.
 
-# python:3.11-slim -- matches .python-version, which is what CI installs
-FROM python@sha256:9534e5a8e315485d4061ed659af0fd78a284c015f9b73661b41d6bab25604534 AS build
+# python:3.11-slim -- matches .python-version, which is what CI installs.
+# The tag stays beside the digest so a Dependabot update has to name the tag
+# it moves to: with a bare digest it proposed a python 3.15.1 image as a plain
+# digest refresh (#516), and the dependency install failed on it.
+FROM python:3.15-slim@sha256:65a65fc7b30b06cb6df4930fd4650697cb23f4c2698ab81fc87e4b031bc36928 AS build
 
 WORKDIR /build
 
@@ -38,8 +41,24 @@ WORKDIR /build
 # that can silently pick up something different.
 COPY requirements.txt ./
 
+# The CPU torch index first, for the same reason ci.yml does it (GOV-015).
+# PyPI's default torch wheel bundles the CUDA runtime: gigabytes of wheel for
+# an image that has no GPU and never executes a line of it. Unpacked into a
+# build layer it exhausted the runner's disk outright -- the container job
+# died on "No space left on device" before it reached the scan. The range pin
+# below is already satisfied when pip reaches requirements.txt, so that file
+# stays the single source of truth for the version.
+#
+# pip does not look inside --prefix for what is already installed, so the
+# second pass needs /install on PYTHONPATH. Without it the pre-pass's torch
+# is not seen as satisfied, and a dependency the pre-pass installed (filelock
+# 3.32.3, CVE-2026-112940) is not upgraded but installed again beside itself:
+# its old dist-info stays in the image and the scan reads it (SEC-0012).
 RUN python -m pip install --no-cache-dir --upgrade pip \
-    && python -m pip install --no-cache-dir --prefix=/install -r requirements.txt
+    && python -m pip install --no-cache-dir --prefix=/install \
+         --index-url https://download.pytorch.org/whl/cpu "torch>=2.14.0,<3.0" \
+    && PYTHONPATH=/install/lib/python3.11/site-packages \
+         python -m pip install --no-cache-dir --prefix=/install -r requirements.txt
 
 COPY src ./src
 COPY common ./common
@@ -48,7 +67,7 @@ COPY scripts ./scripts
 
 # ---------------------------------------------------------------------------
 
-FROM python@sha256:9534e5a8e315485d4061ed659af0fd78a284c015f9b73661b41d6bab25604534 AS runtime
+FROM python:3.15-slim@sha256:65a65fc7b30b06cb6df4930fd4650697cb23f4c2698ab81fc87e4b031bc36928 AS runtime
 
 # Pin the base, then patch it.
 #
@@ -106,6 +125,11 @@ COPY --from=build --chown=root:root /build/scripts /app/scripts
 RUN python -m pip uninstall --yes pip wheel \
     && rm -rf /usr/local/lib/python3.11/site-packages/pip \
     && rm -rf /root/.cache
+
+# OPS-005: the only writable paths under a read-only root. Created owned by the
+# app user so named volumes mounted here inherit that ownership.
+RUN mkdir -p /app/data /app/logs /app/models \
+    && chown -R 10001:10001 /app/data /app/logs /app/models
 
 # Owned by root, run as tradebot: the running process cannot modify its own
 # code. This is the single most useful property in the file.

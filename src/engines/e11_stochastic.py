@@ -57,7 +57,9 @@ def gbm_mc(
 ) -> np.ndarray:
     """GBM Monte Carlo: returns terminal price distribution."""
     dt = t_hours / 8760
-    _rng = rng if rng is not None else np.random.default_rng()
+    # Fixed default seed: identical inputs must give identical output (STR-18).
+    # Annualisation assumes 1h bars (8760/yr).
+    _rng = rng if rng is not None else np.random.default_rng(0)
     z = _rng.standard_normal(n)
     return s0 * np.exp((mu - 0.5 * sigma**2) * dt + sigma * np.sqrt(dt) * z)
 
