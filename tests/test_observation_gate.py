@@ -1,6 +1,7 @@
 """Tests for the PostToolUse observation gate.
 
 Decides:
+  - REG-1227 -- see config/quality_registry.json
   - GOV-057 — all model-visible tool observations cross the repository boundary
 """
 
@@ -19,14 +20,14 @@ def load_gate():
     return module
 
 
-def test_read_output_is_compacted_to_three_model_visible_lines():
+def test_read_output_is_compacted_to_a_useful_bounded_excerpt():
     gate = load_gate()
     raw = "\n".join(f"{i + 1}\tdef important_source_{i}():" for i in range(200))
     event = {"tool_name": "Read", "tool_response": raw}
     output = gate.transform(event)["hookSpecificOutput"]["updatedToolOutput"]
     assert output != raw
-    assert len(output.splitlines()) <= 31
-    assert "source observation bounded" in output
+    assert len(output.splitlines()) <= 81
+    assert "source observation compacted" in output
 
 
 def test_small_read_output_is_preserved():
@@ -52,6 +53,25 @@ def test_bash_output_is_replaced_without_changing_tool_shape():
     assert set(output) == {"stdout", "stderr", "interrupted", "isImage"}
     assert "ERROR: build failed" in output["stdout"]
     assert len(output["stdout"].splitlines()) <= 4
+
+
+def test_prfail_report_keeps_every_failure_up_to_the_larger_budget():
+    """DOC-021: the CI report used to be cut to its first 3 error lines."""
+    gate = load_gate()
+    raw = "\n".join(f"ERROR: check {i} failed" for i in range(12))
+
+    def stdout_for(command):
+        event = {
+            "tool_name": "Bash",
+            "tool_input": {"command": command},
+            "tool_response": {"stdout": raw, "stderr": "", "interrupted": False, "isImage": False},
+        }
+        return gate.transform(event)["hookSpecificOutput"]["updatedToolOutput"]["stdout"]
+
+    report = stdout_for("./scripts/prfail --pr 123")
+    assert all(f"check {i} failed" in report for i in range(12))
+    assert "check 11 failed" not in stdout_for("./scripts/prfail --pr 123; echo hi")
+    assert "check 11 failed" not in stdout_for("pytest")
 
 
 def test_bash_success_summary_is_small():

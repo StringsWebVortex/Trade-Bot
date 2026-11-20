@@ -23,6 +23,9 @@ _ROLL_DAYS = 60 * 24  # 60 days hourly
 _Z_THRESHOLD = 2.0
 
 
+_PC1_SCORE_BARS = 5  # recent returns projected on PC1 for the direction
+
+
 class E07LinearAlgebra:
     def __init__(self, horizon_hours: int = 4) -> None:
         self._horizon = horizon_hours
@@ -80,8 +83,14 @@ class E07LinearAlgebra:
         matrix = np.column_stack([r[-min_len:] for r in all_returns])
         matrix -= matrix.mean(axis=0)
         _, _, Vt = np.linalg.svd(matrix, full_matrices=False)
-        pc1_direction = Vt[0, 0]  # first coin's loading on PC1
-        return 1 if pc1_direction > 0 else -1
+        pc1 = Vt[0]
+        # SVD sign is arbitrary: fix the convention (loadings sum positive) so
+        # the direction does not depend on the solver (STR-12).
+        if pc1.sum() < 0:
+            pc1 = -pc1
+        # Direction is the sign of the recent PC1 score, not of one loading.
+        score = float((matrix[-_PC1_SCORE_BARS:] @ pc1).mean())
+        return 1 if score > 0 else (-1 if score < 0 else 0)
 
     @staticmethod
     def _cointegration_signal(

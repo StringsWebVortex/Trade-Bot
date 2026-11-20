@@ -41,7 +41,7 @@ flowchart TB
 
     subgraph Cloud["GitHub Actions (cloud only, per your explicit requirement)"]
         subgraph C5["Component 5: Cloud review + retrieval"]
-            BuildCtx["review/build_context.py"] --> Retrieval["review/retrieval.py<br/>vector / full-text / hybrid / graph"]
+            BuildCtx["review/build_context.py (not wired to a workflow)"] --> Retrieval["review/retrieval.py<br/>vector / full-text / hybrid / graph"]
             Retrieval --> RagDB
             Retrieval --> KgDB
             BuildCtx --> ContextJson["context.json artifact"]
@@ -74,10 +74,9 @@ flowchart TB
 |-- kg/                         # Component 4: Knowledge Graph
 |   |-- config.py schema.py db.py extract.py resolve.py assemble.py ingest.py query.py
 |-- kg_cli.py
-|-- review/                     # Component 5: cloud-only review + retrieval
+|-- review/                     # Component 5: review + retrieval package (no workflow invokes it; GOV-036)
 |   |-- config.py retrieval.py build_context.py
-|-- .github/workflows/
-|   `-- claude-review.yml       # runs ONLY on GitHub's runners
+|-- .github/workflows/          # no Claude-driven review workflow exists
 |-- docs/
 |   |-- PTC_PATTERN.md ORCHESTRATOR.md KNOWLEDGE_GRAPH.md CLOUD_REVIEW.md SCHEMA.md
 |-- CLAUDE.md                   # project directives, auto-loaded by Claude Code
@@ -92,7 +91,7 @@ flowchart TB
 | 2 | PTC pattern | `scripts/*.py` | none (in-memory per run) | none (pure orchestration) | Local |
 | 3 | Orchestrator | `orchestrator_cli.py` | none (stateless calls) | sonnet (plan/synth) + haiku (workers) | Local |
 | 4 | Knowledge Graph | `kg_cli.py` | `kg_nodes`, `kg_edges` (same Atlas cluster) | haiku (extract) + sonnet (resolve/query) | Local |
-| 5 | Cloud review | `.github/workflows/claude-review.yml` | reads `documents`, `kg_nodes`, `kg_edges` | sonnet (via claude-code-action) | **GitHub Actions only** |
+| 5 | Review package | `review/` (not invoked by any workflow) | reads `documents`, `kg_nodes`, `kg_edges` (when run manually) | none in CI | Local |
 | 6 | Command policy | `common/shell_exec.py`, `.claude/hooks/pre_tool_use.py` | `config/command_policy.json` (static) | none (deterministic) | Local + cloud |
 | 7 | Math registry | `src/mathcore/registry.py` | `config/math_registry.json` (static) | none (deterministic) | Local + cloud |
 

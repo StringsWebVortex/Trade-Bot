@@ -33,6 +33,7 @@ from src.eventbus import TOPICS
 class _FakeWS:
     def __init__(self) -> None:
         self.sent: list[str] = []
+        self.headers: dict[str, str] = {}
 
     async def send_text(self, message: str) -> None:
         self.sent.append(message)
@@ -225,8 +226,9 @@ class _ScriptedWS(_FakeWS):
         self.accepted = False
         self.close_codes: list[int] = []
 
-    async def accept(self) -> None:
+    async def accept(self, subprotocol: str | None = None) -> None:
         self.accepted = True
+        self.accepted_subprotocol = subprotocol
 
     async def close(self, code: int = 1000) -> None:
         self.close_codes.append(code)

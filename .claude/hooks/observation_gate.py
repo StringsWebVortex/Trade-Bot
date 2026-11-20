@@ -1,12 +1,4 @@
-#!/usr/bin/env python3
-"""Universal model-observation boundary for Claude Code tool results.
-
-This hook runs after successful tool execution. Tool execution is unchanged;
-only the value returned to the model is transformed. The implementation is
-tool-agnostic by default and preserves structured metadata while compacting
-large text payloads. A few tool families receive stronger semantic handling.
-"""
-
+"""PostToolUse observation gate: compacts tool outputs to stay within context budgets."""
 from __future__ import annotations
 
 import json
@@ -15,320 +7,216 @@ import re
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any
 
-MAX_DIAGNOSTIC_LINES = 3
-MAX_SUMMARY_LINES = 3
-MAX_SUMMARY_CHARS = 1200
-MIN_COMPACT_CHARS = 1200
-MAX_SOURCE_LINES = 30
-MAX_CHANGED_DIFF_LINES = 80
-MAX_SEARCH_CHARS = 6000
-MAX_SEARCH_ITEMS = 40
+# ---------------------------------------------------------------------------
+# Limits (from config/observation_boundary.json when available)
+# ---------------------------------------------------------------------------
 
-TOOL_NAME_KEYS = ("tool_name", "toolName")
-PRESERVE_TOOLS = {"TaskOutput", "AskUserQuestion", "ExitPlanMode"}
-SEARCH_TOOLS = {"Grep", "Glob", "LS"}
-EXECUTION_TOOLS = {"Bash", "Monitor", "PowerShell"}
-SOURCE_TOOLS = {"Read", "NotebookRead"}
-
-SIGNAL_RE = re.compile(
-    r"(?i)\b(error|failed|failure|exception|traceback|fatal|panic|"
-    r"assert(?:ion)?|test\s+failed|command\s+failed|build\s+failed|"
-    r"warning|warn|exit\s+code|passed|success|completed|changed|created|"
-    r"deleted|updated)\b"
-)
-DIAGNOSTIC_RE = re.compile(
-    r"(?i)\b(error|failed|failure|exception|traceback|fatal|panic|"
-    r"assert(?:ion)?|test\s+failed|command\s+failed|build\s+failed|"
-    r"exit\s+code|timed?\s*out)\b"
-)
-SOURCE_SIGNAL_RE = re.compile(
-    r"^\s*(?:"
-    r"(?:from|import)\s+|(?:async\s+)?def\s+|class\s+"
-    r"|(?:if|elif|else|for|while|try|except|finally|with)\b"
-    r"|(?:return|raise|yield|assert)\b|@\w+"
-    r"|#\s*(?:TODO|FIXME|NOTE|HACK)\b)"
-)
-NOISE_RE = re.compile(
-    r"(?i)^(npm warn|warning:|hint:|notice:|progress|downloading|"
-    r"\s*[-\\|/]+\s*$)"
-)
-LOG_FIELD_NAMES = {
-    "stdout",
-    "stderr",
-    "log",
-    "logs",
-    "console",
-    "trace",
-    "stack",
-    "stacktrace",
-    "diagnostics",
-    "raw_log",
-    "raw_logs",
-    "execution_log",
-    "test_output",
-    "build_output",
-    "error",
-    "errors",
-    "message",
-    "detail",
-}
+_CONFIG_PATH = Path(__file__).resolve().parents[2] / "config" / "observation_boundary.json"
 
 
-def tool_name(event: dict[str, Any]) -> str:
-    return str(next((event.get(k) for k in TOOL_NAME_KEYS if event.get(k)), "unknown"))
-
-
-def compact_text(value: object) -> str:
-    if value is None:
-        return ""
-    if isinstance(value, str):
-        return value
-    if isinstance(value, (int, float, bool)):
-        return str(value)
+def _load_limits() -> dict:
     try:
-        return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
-    except Exception:
-        return str(value)
+        return json.loads(_CONFIG_PATH.read_text(encoding="utf-8")).get("limits", {})
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
 
 
-def _normalize_lines(text: str) -> list[str]:
-    return [
-        line.rstrip()
-        for line in text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
-        if line.strip()
-    ]
+_LIMITS = _load_limits()
+
+_MAX_SOURCE_LINES: int = _LIMITS.get("max_source_lines", 80)
+_MAX_SUCCESS_LINES: int = _LIMITS.get("max_success_lines", 80)
+_MAX_SEARCH_ITEMS: int = _LIMITS.get("max_search_items", 40)
+_MAX_LIST_ITEMS: int = _LIMITS.get("max_list_items", 40)
+_MAX_ERROR_LINES = 3
+
+# Pattern for the prfail report command.
+_PRFAIL_RE = re.compile(r"^\s*\./scripts/prfail\s+--pr\s+[1-9][0-9]*\s*$")
+
+_ERROR_KEYWORDS = ("ERROR", "FAIL", "Warning", "Exception", "Traceback", "Error")
 
 
-def _finalize(selected: list[str], total: int, *, marker: str) -> str:
-    if not selected:
-        return "(completed; no diagnostic output)"
-    result = "\n".join(selected)
-    compacted = total > len(selected)
-    if len(result) > MAX_SUMMARY_CHARS:
-        result = result[:MAX_SUMMARY_CHARS].rsplit("\n", 1)[0]
-        compacted = True
-    if compacted:
-        result += f"\n{marker}"
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _is_prfail_command(tool_input: dict | None) -> bool:
+    if tool_input is None:
+        return False
+    return bool(_PRFAIL_RE.match(tool_input.get("command", "")))
+
+
+def _extract_important_lines(lines: list[str]) -> list[str]:
+    return [line for line in lines if any(kw in line for kw in _ERROR_KEYWORDS)]
+
+
+def _compact_long_text(text: str, label: str = "observation compacted") -> str:
+    """Compact text, prioritising error lines over head/tail."""
+    lines = text.splitlines()
+    if len(lines) <= _MAX_SUCCESS_LINES:
+        return text
+
+    error_lines = _extract_important_lines(lines)
+    if error_lines:
+        kept = error_lines[:_MAX_ERROR_LINES]
+        note = f"[{label}: {len(lines)} lines; showing {len(kept)} error/warning lines]"
+        return "\n".join(kept + [note])
+
+    tail = next((line for line in reversed(lines) if line.strip()), "")
+    suffix = f"[{label}: {len(lines)} lines]"
+    return f"{tail}\n{suffix}" if tail else suffix
+
+
+def _compact_bash_stdout(stdout: str, is_prfail: bool) -> str:
+    if not stdout:
+        return stdout
+
+    if is_prfail:
+        return stdout
+
+    lines = stdout.splitlines()
+    error_lines = _extract_important_lines(lines)
+
+    # Compact when there are many error lines, even if total count is small.
+    if len(error_lines) > _MAX_ERROR_LINES:
+        kept = error_lines[:_MAX_ERROR_LINES]
+        note = (
+            f"[observation compacted: {len(lines)} lines, "
+            f"{len(error_lines)} errors; showing first {_MAX_ERROR_LINES}]"
+        )
+        return "\n".join(kept + [note])
+
+    if len(lines) <= _MAX_SUCCESS_LINES:
+        return stdout
+
+    # Total lines exceed budget.
+    if error_lines:
+        kept = error_lines[:_MAX_ERROR_LINES]
+        note = f"[observation compacted: {len(lines)} lines total, showing {len(kept)} error lines]"
+        return "\n".join(kept + [note])
+
+    tail = next((line for line in reversed(lines) if line.strip()), "")
+    suffix = f"[observation compacted: {len(lines)} lines total]"
+    return f"{tail}\n{suffix}" if tail else suffix
+
+
+def _compact_search_output(raw: str) -> str:
+    lines = raw.splitlines()
+    if len(lines) <= _MAX_SEARCH_ITEMS:
+        return raw
+
+    seen_files: dict[str, str] = {}
+    for line in lines:
+        m = re.match(r"^([^:]+\.py):", line)
+        if m:
+            fname = m.group(1)
+            if fname not in seen_files:
+                seen_files[fname] = line
+
+    total = len(lines)
+    kept = list(seen_files.values())[:_MAX_SEARCH_ITEMS]
+    result = "\n".join(kept)
+    if total > len(kept):
+        result += (
+            f"\n[search compacted: {total} matches across {len(seen_files)} files; "
+            f"{total - len(kept)} lines omitted]"
+        )
     return result
 
 
-def summarize_execution(text: str) -> str:
-    if not text:
-        return ""
-    lines = _normalize_lines(text)
-    diagnostics = [line for line in lines if DIAGNOSTIC_RE.search(line)]
-    selected = (diagnostics or [line for line in lines if not NOISE_RE.search(line)])[
-        :MAX_DIAGNOSTIC_LINES
-    ]
-    return _finalize(selected, len(lines), marker="[observation compacted]")
+def _compact_glob_output(raw: str) -> str:
+    lines = [line for line in raw.splitlines() if line.strip()]
+    total = len(lines)
+    if total <= _MAX_LIST_ITEMS:
+        return raw
+
+    dirs: dict[str, list[str]] = {}
+    for line in lines:
+        parts = line.split("/")
+        top = parts[0] if len(parts) > 1 else "."
+        dirs.setdefault(top, []).append(line)
+
+    result_lines = [f"[{total} entries across {len(dirs)} directories]"]
+    for d, files in sorted(dirs.items()):
+        result_lines.append(f"{d}/ ({len(files)} files)")
+        result_lines.extend(f"  {f}" for f in files[:2])
+        if len(files) > 2:
+            result_lines.append(f"  ... {len(files) - 2} more")
+    result_lines.append("[Use a narrower search query to see specific files]")
+    return "\n".join(result_lines)
 
 
-def _file_path(event: dict[str, Any]) -> Path | None:
-    tool_input = event.get("tool_input") or {}
-    if not isinstance(tool_input, dict):
-        return None
-    raw = tool_input.get("file_path") or tool_input.get("path")
-    if not isinstance(raw, str) or not raw.strip():
-        return None
-    path = Path(raw)
-    if not path.is_absolute():
-        path = Path(os.environ.get("CLAUDE_PROJECT_DIR", ".")).resolve() / path
-    try:
-        return path.resolve()
-    except OSError:
-        return path.absolute()
+def _compact_content_list(items: list) -> list:
+    result = []
+    for item in items:
+        if isinstance(item, dict) and item.get("type") == "text":
+            text = item.get("text", "")
+            compacted = _compact_long_text(text)
+            if compacted != text:
+                item = {**item, "text": compacted}
+        result.append(item)
+    return result
 
 
-def _changed_file_candidates(event: dict[str, Any]) -> str | None:
-    """Return only current Git diff candidates for a repeated source read."""
-    path = _file_path(event)
-    if path is None:
-        return None
-    project = Path(os.environ.get("CLAUDE_PROJECT_DIR", ".")).resolve()
-    try:
-        relative = path.relative_to(project)
-    except ValueError:
-        return None
-    try:
-        proc = subprocess.run(
-            ["git", "diff", "--no-ext-diff", "--unified=2", "HEAD", "--", str(relative)],
-            cwd=project,
-            capture_output=True,
-            text=True,
-            timeout=2,
-            check=False,
-        )
-    except (OSError, subprocess.SubprocessError):
-        return None
-    diff = proc.stdout.strip()
-    if not diff:
-        return None
-    lines = _normalize_lines(diff)
-    if len(lines) <= MAX_CHANGED_DIFF_LINES:
-        return _finalize(
-            lines,
-            len(lines),
-            marker="[changed candidates bounded; request a narrower range only if needed]",
-        )
-    candidates = [
-        line
-        for line in lines
-        if line.startswith(("diff --git ", "index ", "--- ", "+++ ", "@@", "+", "-"))
-    ][:MAX_CHANGED_DIFF_LINES]
-    return _finalize(
-        candidates,
-        len(lines),
-        marker="[changed candidates compacted; request a narrower range only if needed]",
-    )
+def _compact_mcp_dict(response: dict) -> dict:
+    result = dict(response)
+    for key, val in response.items():
+        if isinstance(val, str):
+            compacted = _compact_long_text(val)
+            if compacted != val:
+                result[key] = compacted
+        elif isinstance(val, list):
+            result[key] = _compact_content_list(val)
+    return result
 
 
-def summarize_source(text: str, event: dict[str, Any]) -> str:
-    """Keep bounded reads useful and prefer changed candidates for modified files."""
-    candidates = _changed_file_candidates(event)
-    if candidates:
-        return candidates
-    lines = _normalize_lines(text)
-    if len(lines) <= MAX_SOURCE_LINES and len(text) < MIN_COMPACT_CHARS:
-        return text
-
-    diagnostics = [line for line in lines if DIAGNOSTIC_RE.search(line)]
-    if diagnostics:
-        selected = diagnostics[:MAX_SOURCE_LINES]
-    else:
-        selected = lines[:MAX_SOURCE_LINES]
-    return _finalize(
-        selected,
-        len(lines),
-        marker="[source observation bounded; request a narrower range for exact content]",
-    )
+# ---------------------------------------------------------------------------
+# Main transform
+# ---------------------------------------------------------------------------
 
 
-def summarize_generic(text: str) -> str:
-    lines = _normalize_lines(text)
-    diagnostics = [line for line in lines if DIAGNOSTIC_RE.search(line)]
-    if diagnostics:
-        selected = diagnostics[:MAX_DIAGNOSTIC_LINES]
-    else:
-        signals = [line for line in lines if SIGNAL_RE.search(line)]
-        meaningful = [line for line in lines if not NOISE_RE.search(line)]
-        selected = (signals or meaningful)[:MAX_SUMMARY_LINES]
-    return _finalize(selected, len(lines), marker="[observation compacted]")
+def transform(event: dict) -> dict:
+    """
+    Transform a PostToolUse event, compacting the tool output if needed.
+    Returns {"hookSpecificOutput": {"updatedToolOutput": <compacted>}}.
+    """
+    tool_name = event.get("tool_name", "")
+    tool_input = event.get("tool_input")
+    response = event.get("tool_response")
+
+    if tool_name == "Read" and isinstance(response, str):
+        lines = response.splitlines()
+        if len(lines) <= _MAX_SOURCE_LINES:
+            return _wrap(response)
+        kept = lines[:_MAX_SOURCE_LINES]
+        omitted = len(lines) - _MAX_SOURCE_LINES
+        kept.append(f"[source observation compacted: {omitted} lines omitted]")
+        return _wrap("\n".join(kept))
+
+    if tool_name == "Bash" and isinstance(response, dict):
+        is_prfail = _is_prfail_command(tool_input)
+        stdout = response.get("stdout", "")
+        updated = {**response, "stdout": _compact_bash_stdout(stdout, is_prfail)}
+        return _wrap(updated)
+
+    if tool_name == "Grep" and isinstance(response, str):
+        return _wrap(_compact_search_output(response))
+
+    if tool_name == "Glob" and isinstance(response, str):
+        return _wrap(_compact_glob_output(response))
+
+    if tool_name.startswith("mcp__") and isinstance(response, dict):
+        return _wrap(_compact_mcp_dict(response))
+
+    return _wrap(response)
 
 
-def summarize_search(text: str, tool: str) -> str:
-    lines = _normalize_lines(text)
-    if not lines:
-        return ""
-    joined = "\n".join(lines)
-    if len(joined) <= MAX_SEARCH_CHARS:
-        return joined
-
-    if tool == "Grep":
-        path_counts: dict[str, int] = {}
-        examples: dict[str, list[str]] = {}
-        for line in lines:
-            match = re.match(r"(?:[^:]+:)?(?P<path>[^:\n]+):(?P<line>\d+)(?::|$)", line)
-            path = match.group("path") if match else line.split(":", 1)[0]
-            path_counts[path] = path_counts.get(path, 0) + 1
-            examples.setdefault(path, [])
-            if len(examples[path]) < 3:
-                examples[path].append(line)
-        ordered = sorted(path_counts.items(), key=lambda item: (-item[1], item[0]))
-        out = [f"[search compacted: {len(lines)} matches across {len(ordered)} paths]"]
-        for path, count in ordered[:MAX_SEARCH_ITEMS]:
-            out.append(f"{path} ({count} matches)")
-            out.extend(f"  {example}" for example in examples[path])
-        if len(ordered) > MAX_SEARCH_ITEMS:
-            out.append(
-                f"[+{len(ordered) - MAX_SEARCH_ITEMS} paths; run a narrower search to inspect them]"
-            )
-        return "\n".join(out)[:MAX_SEARCH_CHARS]
-
-    paths = sorted(dict.fromkeys(lines))
-    directories: dict[str, int] = {}
-    for path in paths:
-        parts = path.replace("\\", "/").split("/")
-        directory = "/".join(parts[:-1]) or "."
-        directories[directory] = directories.get(directory, 0) + 1
-    out = [f"[search compacted: {len(paths)} entries across {len(directories)} directories]"]
-    for directory, count in sorted(directories.items(), key=lambda item: (-item[1], item[0]))[
-        :MAX_SEARCH_ITEMS
-    ]:
-        out.append(f"{directory} ({count} entries)")
-    out.append("[Use a narrower search query or a bounded Read for exact content]")
-    return "\n".join(out)[:MAX_SEARCH_CHARS]
-
-
-def _compact_scalar(value: object, *, tool: str, field: str, event: dict[str, Any]) -> object:
-    if not isinstance(value, str) or len(value) < MIN_COMPACT_CHARS:
-        return value
-    if tool in SOURCE_TOOLS:
-        return summarize_source(value, event)
-    if tool in EXECUTION_TOOLS or field.lower() in LOG_FIELD_NAMES:
-        return summarize_execution(value)
-    return summarize_generic(value)
-
-
-def _compact_any(value: object, *, tool: str, field: str = "", event: dict[str, Any] | None = None) -> object:
-    if isinstance(value, str):
-        return _compact_scalar(value, tool=tool, field=field, event=event or {})
-    if isinstance(value, list):
-        return [
-            _compact_any(item, tool=tool, field=f"{field}[{index}]", event=event)
-            for index, item in enumerate(value)
-        ]
-    if isinstance(value, dict):
-        if str(value.get("type", "")).lower() in {"image", "input_image"}:
-            return value
-        return {key: _compact_any(item, tool=tool, field=str(key), event=event) for key, item in value.items()}
-    return value
-
-
-def transform(event: dict[str, Any]) -> dict[str, Any]:
-    raw = event.get("tool_response")
-    tool = tool_name(event)
-
-    if tool in PRESERVE_TOOLS:
-        replacement = raw
-    elif tool in SEARCH_TOOLS and isinstance(raw, str):
-        replacement = summarize_search(raw, tool)
-    elif tool in EXECUTION_TOOLS and isinstance(raw, dict):
-        replacement = dict(raw)
-        for key in ("stdout", "stderr"):
-            if key in replacement:
-                replacement[key] = summarize_execution(compact_text(replacement[key]))
-    elif tool in EXECUTION_TOOLS and isinstance(raw, str):
-        replacement = summarize_execution(raw)
-    else:
-        replacement = _compact_any(raw, tool=tool, event=event)
-
-    return {
-        "hookSpecificOutput": {
-            "hookEventName": "PostToolUse",
-            "updatedToolOutput": replacement,
-        }
-    }
-
-
-def main() -> int:
-    try:
-        event = json.load(sys.stdin)
-        print(json.dumps(transform(event), ensure_ascii=False))
-    except Exception as exc:
-        print(
-            json.dumps(
-                {
-                    "hookSpecificOutput": {
-                        "hookEventName": "PostToolUse",
-                    },
-                    "error": f"observation boundary failed: {type(exc).__name__}: {exc}",
-                }
-            )
-        )
-    return 0
+def _wrap(output) -> dict:
+    return {"hookSpecificOutput": {"updatedToolOutput": output}}
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    payload = json.loads(sys.stdin.read())
+    result = transform(payload)
+    print(json.dumps(result))

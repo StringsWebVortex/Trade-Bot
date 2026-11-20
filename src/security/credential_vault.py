@@ -106,7 +106,12 @@ class CredentialVault:
 
         Returns deterministic key material; same inputs → same output.
         """
-        exch_idx = self._EXCHANGE_INDICES.get(exchange.lower(), len(self._EXCHANGE_INDICES))
+        exch_idx = self._EXCHANGE_INDICES.get(exchange.lower())
+        if exch_idx is None:
+            # Unknown exchanges used to share one index and so one key (API-018).
+            raise ValueError(f"unknown exchange {exchange!r}")
+        if not 0 <= key_index < _HARDENED_OFFSET:
+            raise ValueError("key_index out of range")
         coin_type = 0  # 0 = BTC namespace; use per-coin if needed
 
         # m/44'/coin_type'/exchange_index'/0/key_index

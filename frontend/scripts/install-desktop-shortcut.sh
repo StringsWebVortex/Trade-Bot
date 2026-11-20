@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Installs a Linux app-drawer entry + Desktop shortcut for the Trade Bot
-# Electron app. Run once after `npm install`; the entry launches through
+# Electron app, and the integrated terminal service (`tradebot-term`). Run
+# once after `npm install` (and again to upgrade); the entry launches through
 # `npm run electron:dev`.
 #
 # The packaged-AppImage branch below is kept for a release/ directory built
@@ -37,9 +38,12 @@ else
   exit 1
 fi
 
+# Escape the characters special in a sed replacement (\ & and the | delimiter).
+sed_escape() { printf '%s' "$1" | sed -e 's/[\\&|]/\\&/g'; }
+
 sed \
-  -e "s|__LAUNCH_CMD__|${LAUNCH_CMD}|" \
-  -e "s|__ICON_PATH__|${ICONS_DIR}/tradebot-dashboard.png|" \
+  -e "s|__LAUNCH_CMD__|$(sed_escape "${LAUNCH_CMD}")|" \
+  -e "s|__ICON_PATH__|$(sed_escape "${ICONS_DIR}/tradebot-dashboard.png")|" \
   "$FRONTEND_DIR/linux/tradebot-dashboard.desktop" > "$APPS_DIR/tradebot-dashboard.desktop"
 chmod +x "$APPS_DIR/tradebot-dashboard.desktop"
 
@@ -53,3 +57,30 @@ command -v update-desktop-database >/dev/null 2>&1 && \
 
 echo "Installed app-drawer entry: $APPS_DIR/tradebot-dashboard.desktop"
 [[ -d "$DESKTOP_DIR" ]] && echo "Installed desktop shortcut: $DESKTOP_DIR/tradebot-dashboard.desktop"
+
+# Integrated terminal service (TERM-008): the `tradebot-term` host CLI in
+# ~/.local/bin and, where `systemctl --user` works, a user unit that keeps the
+# service running. Re-running this script is the upgrade. Only files carrying
+# the installer's marker are ever rewritten; nothing here touches .env, keys or
+# the terminal access token. Set TB_TERMINAL_NO_SYSTEMD=1 to skip the unit
+# (the desktop app then starts the service on demand).
+REPO_DIR="$(cd "$FRONTEND_DIR/.." && pwd)"
+PYTHON="${TB_TERMINAL_PYTHON:-}"
+if [[ -z "$PYTHON" ]]; then
+  if [[ -x "$REPO_DIR/.venv/bin/python" ]]; then
+    PYTHON="$REPO_DIR/.venv/bin/python"
+  else
+    PYTHON="$(command -v python3 || true)"
+  fi
+fi
+if [[ -z "$PYTHON" ]]; then
+  echo "warning: no Python interpreter found; the integrated terminal was not installed." >&2
+  echo "         Create the virtualenv (see README), then re-run: npm run desktop:install" >&2
+  exit 0
+fi
+TERMINAL_ARGS=(install)
+[[ "${TB_TERMINAL_NO_SYSTEMD:-}" == "1" ]] && TERMINAL_ARGS+=(--no-systemd)
+if ! (cd "$REPO_DIR" && PYTHONPATH="$REPO_DIR" "$PYTHON" -m src.terminal "${TERMINAL_ARGS[@]}"); then
+  echo "warning: the integrated terminal service was not fully installed (see above)." >&2
+  echo "         The dashboard still works; run 'tradebot-term install' to retry." >&2
+fi
