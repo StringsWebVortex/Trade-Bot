@@ -14,6 +14,7 @@ import pytest
 
 from src.config import Timeframe, TradingMode
 from src.execution.unified_ledger import UnifiedLedger, VenuePosition
+from tests.conftest import settings_double
 
 
 def _pos(symbol: str, direction: str, quantity: float, price: float, notional: float):
@@ -30,7 +31,7 @@ def _make_orch(symbol: str = "BTC/USDT"):
     from src.engine.orchestrator import Orchestrator
 
     with patch("src.engine.orchestrator.get_settings") as mock_cfg:
-        cfg = MagicMock()
+        cfg = settings_double()
         cfg.primary_symbol = symbol
         cfg.active_timeframes = [Timeframe.INTRADAY]
         cfg.primary_timeframe = Timeframe.INTRADAY
@@ -38,7 +39,13 @@ def _make_orch(symbol: str = "BTC/USDT"):
         cfg.starting_capital_usd = 1000.0
         cfg.storage.model_dir = "/tmp/models"
         mock_cfg.return_value = cfg
-        return Orchestrator(MagicMock(), MagicMock())
+        orch = Orchestrator(MagicMock(), MagicMock())
+        # Pin the double explicitly. get_settings() is read at use time now
+        # (GOV-028), so constructing inside the patch no longer freezes the
+        # fake onto the instance -- the with-block exits and later reads see
+        # the real settings. The pin says what the test always meant.
+        orch._cfg = cfg
+        return orch
 
 
 @pytest.fixture

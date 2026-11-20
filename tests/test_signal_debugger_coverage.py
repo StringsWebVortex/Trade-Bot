@@ -16,9 +16,8 @@ from src.diagnostics.signal_debugger import (
     get_degradation_tracker,
     get_drift_monitor,
     get_label_shift_detector,
-    run_pipeline_selftest,
 )
-
+from src.features.selftest import run_pipeline_selftest
 
 # ---------------------------------------------------------------------------
 # FeatureDriftRecord
@@ -165,6 +164,10 @@ class TestModelDegradationTracker:
         self.tracker.record_prediction(0.7, 0.6)
         self.tracker.resolve_last(1)
         self.tracker.resolve_last(0)  # nothing to resolve → noop
+
+        # The second call found nothing open, so the first outcome stands.
+        assert self.tracker._preds[-1].actual_direction == 1
+        assert self.tracker._resolved_count == 1
 
     def test_record_trade_result(self):
         self.tracker.record_trade_result(100.0)
@@ -440,7 +443,7 @@ def test_get_label_shift_detector_singleton():
 def test_run_pipeline_selftest_failure_path():
     """Force build_feature_matrix to raise so the except branch is covered."""
     with patch(
-        "src.features.pipeline.build_feature_matrix",
+        "src.features.selftest.build_feature_matrix",
         side_effect=RuntimeError("synthetic failure"),
     ):
         result = run_pipeline_selftest()

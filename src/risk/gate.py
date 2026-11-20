@@ -15,12 +15,12 @@ RiskGate.size() formula:
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
 import structlog
-
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
@@ -86,6 +86,11 @@ class RiskGate:
         edge = float(signal.get("edge", 0.01))
         odds = float(signal.get("odds", 1.0))
 
+        if (
+            not all(math.isfinite(v) for v in (confidence, sharpe_est, edge, odds, vol, cvar))
+            or not horizon_idx >= 0
+        ):
+            return SizeResult(0.0, 0.0, 0.0, 0.0, True, "non-finite or invalid sizing input")
         if confidence < self._conf_threshold:
             return SizeResult(
                 0.0, 0.0, 0.0, 0.0, True, f"confidence {confidence:.3f} < {self._conf_threshold}"
@@ -115,8 +120,17 @@ class RiskGate:
         """
         Update ADWIN for the given horizon with a new metric observation.
 
-        Returns True when drift is detected → triggers retrain pipeline.
+        Returns True when drift is detected. src/intel.py then suppresses the
+        horizon signal and records the drift; matured-label retraining runs on its
+        own schedule (HorizonLearningStore.train_pending).
         """
+        if not 0 <= horizon_idx < len(self._adwin):
+            # Fail safe: an unknown horizon cannot be shown drift-free.
+            log.warning("adwin_horizon_out_of_range", horizon_idx=horizon_idx)
+            return True
+        if not math.isfinite(metric):
+            log.warning("adwin_non_finite_metric_ignored", horizon_idx=horizon_idx)
+            return False
         adwin = self._adwin[horizon_idx]
         if adwin is None:
             return False
