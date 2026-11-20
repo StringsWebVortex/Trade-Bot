@@ -29,6 +29,8 @@ Authority:
   - Chan (2013) Algorithmic Trading Ch.7 (drawdown controls)
   - Almgren & Chriss (2001) "Optimal Execution of Portfolio Transactions"
     (gate 0 — slippage/market-impact veto, see src/risk/slippage.py)
+
+Registry: INV-001, INV-002, INV-004, INV-005, INV-006, INV-010, MODL-002, REL-001, REL-003, RISK-001, RISK-002 (config/quality_registry.json).
 """
 
 from __future__ import annotations
@@ -46,6 +48,7 @@ from src.config import (
     TradingMode,
     get_settings,
 )
+from src.eventbus import get_event_bus
 from src.risk.slippage import SlippageEstimate
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
@@ -292,6 +295,21 @@ def check_capital_preservation_floor(halted: bool) -> GateResult:
     return GateResult.pass_gate(details={"halted": False})
 
 
+def stricter_daily_pnl(realised_pnl_usd: float, marked_pnl_usd: float) -> float:
+    """
+    The worse of today's realised PnL and today's marked equity change.
+
+    EXR-029: the daily-drawdown halt saw realised PnL only, so an open loss of
+    any size never tripped it until the position closed. Marked PnL alone
+    would let an open gain offset a realised loss. Taking the minimum is
+    never looser than either. A non-finite input returns NaN, which
+    check_daily_drawdown treats as a halt.
+    """
+    if _non_finite(realised_pnl_usd, marked_pnl_usd):
+        return math.nan
+    return min(float(realised_pnl_usd), float(marked_pnl_usd))
+
+
 def check_daily_drawdown(
     daily_pnl_usd: float,
     starting_equity_usd: float,
@@ -300,12 +318,14 @@ def check_daily_drawdown(
     """
     Gate 1: daily drawdown halt.
 
-    Blocks new positions when today's realized PnL has fallen below
-    -N% of starting equity (spec: N=2%).
+    Blocks new positions when today's PnL has fallen below -N% of starting
+    equity (spec: N=2%).
 
     Parameters
     ----------
-    daily_pnl_usd      : today's net realized PnL in USD (negative = loss)
+    daily_pnl_usd      : today's PnL in USD (negative = loss); the orchestrator
+                         passes stricter_daily_pnl(realised, marked), so an
+                         open loss counts (EXR-029)
     starting_equity_usd: equity at the start of the trading day
 
     Returns
@@ -745,6 +765,20 @@ def evaluate_all_gates(
                 reason=result.reason,
                 **dict(result.details.items()),
             )
+            # A block had no push path at all: it reached the operator only
+            # via a 30s poll of /debug/audit, so the most important thing the
+            # risk layer does was also the slowest thing to see. Publishing is
+            # synchronous and cannot raise, which is why it is safe to call
+            # from inside a gate -- see src/eventbus (INV-032).
+            get_event_bus().publish(
+                "gate",
+                {
+                    "passed": False,
+                    "status": result.status.value,
+                    "reason": result.reason,
+                    "details": {str(k): v for k, v in result.details.items()},
+                },
+            )
             return result
         if result.size_scalar < 1.0:
             advisory_scalar *= result.size_scalar
@@ -754,6 +788,18 @@ def evaluate_all_gates(
                 status=result.status.value,
                 scalar=result.size_scalar,
                 reason=result.reason,
+            )
+            # Advisory reductions are published too. A size silently cut to a
+            # third is not a block, but an operator watching fills get smaller
+            # with no explanation is looking at the same mystery.
+            get_event_bus().publish(
+                "gate",
+                {
+                    "passed": True,
+                    "status": result.status.value,
+                    "reason": result.reason,
+                    "size_scalar": result.size_scalar,
+                },
             )
 
     log.debug(
@@ -796,6 +842,21 @@ class DrawdownTracker:
         self._peak: float = starting_equity
         self._current: float = starting_equity
         self._daily_start: float = starting_equity
+
+    @classmethod
+    def restored(
+        cls, starting_equity: float, *, peak: float, daily_start: float, current: float
+    ) -> DrawdownTracker:
+        """
+        Rebuild a tracker after a restart (EXR-010) from stored equity: the
+        stored all-time peak and today's opening equity, rather than the
+        configured starting capital for both.
+        """
+        tracker = cls(starting_equity)
+        tracker.update(peak)
+        tracker.reset_daily(daily_start)
+        tracker.update(current)
+        return tracker
 
     def update(self, equity: float) -> None:
         """Update current equity and rolling peak."""

@@ -1,0 +1,22 @@
+{
+  "id": "REG-1709",
+  "kind": "regression",
+  "title": "A schema migration and its version bump commit or roll back together",
+  "statement": "StorageBackend._run_migrations runs each pending migration's SQL and its PRAGMA user_version bump in one BEGIN IMMEDIATE ... COMMIT script and rolls back on any failure, so a migration that fails partway leaves neither its earlier statements nor a version bump behind and the next start retries it cleanly.",
+  "criticality": "high",
+  "subsystem": "data",
+  "status": "verified",
+  "source": "OPS-2026-10-28",
+  "failure_mode": "executescript runs in autocommit mode, so when a multi-statement migration (v7, v8 and v10 add several columns each) failed on a later statement the earlier ALTERs stayed applied while user_version was not bumped; every following start re-ran the migration and failed on duplicate column, so the database could not be opened again without manual repair. The storage tests only migrated successfully, so a partial failure was never exercised; the deciding test now fails a migration midway and retries it.",
+  "owning_modules": [
+    "src/data/storage.py"
+  ],
+  "verification": [
+    {
+      "test": "tests/test_storage_migration_atomicity.py",
+      "test_type": "regression"
+    }
+  ],
+  "depends_on": [],
+  "notes": "Audit DAT-021. layer: test-suite"
+}
