@@ -44,7 +44,6 @@ from src.config import (
 )
 from src.tuning.live_overrides import effective_hmm_settings
 
-
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -343,25 +342,47 @@ class RegimeDetector:
                 random_state=cfg.random_state + seed,
                 verbose=False,
             )
-            candidate.fit(X, lengths=lengths_arg)
             try:
+                # fit() belongs inside the guard, not outside it. A degenerate
+                # covariance raises during EM at least as often as it does at
+                # the score call, and out here it aborted the whole multi-init
+                # loop -- destroying the restart budget that exists precisely
+                # to survive that failure. One bad seed took down all n.
+                candidate.fit(X, lengths=lengths_arg)
                 score = candidate.score(X, lengths=lengths_arg)
             except Exception as exc:
-                # A restart that cannot be scored is usually a degenerate
-                # covariance — routine with covariance_type="full" on a short
-                # window, and the reason multiple restarts exist. Skipping it
-                # is right; skipping it silently is not: the detector would
-                # happily select from one surviving restart out of n while
-                # reporting nothing, and regime quality feeds every consumer
-                # downstream.
+                # A restart that cannot be fitted or scored is usually a
+                # degenerate covariance — routine with covariance_type="full"
+                # on a short window, and the reason multiple restarts exist.
+                # Skipping it is right; skipping it silently is not: the
+                # detector would happily select from one surviving restart out
+                # of n while reporting nothing, and regime quality feeds every
+                # consumer downstream.
                 failed_seeds.append(seed)
                 log.debug(
-                    "regime.hmm_restart_score_failed",
+                    "regime.hmm_restart_failed",
                     seed=seed,
                     error=str(exc),
                 )
                 continue
-            if score > best_score:
+
+            # A restart that exhausted n_iter without converging is not
+            # comparable to one that did: EM log-likelihood rises
+            # monotonically, so a stopped-early fit can still out-score a
+            # converged one while sitting on parameters the optimiser was
+            # still moving. Converged candidates therefore win outright, and
+            # unconverged ones only compete among themselves -- which keeps
+            # the "not converged -> force VOLATILE" fallback below meaningful
+            # instead of being decided by an accident of scoring.
+            candidate_converged = bool(candidate.monitor_.converged)
+            best_converged = best_model is not None and bool(best_model.monitor_.converged)
+            if best_model is None:
+                better = True
+            elif candidate_converged != best_converged:
+                better = candidate_converged
+            else:
+                better = score > best_score
+            if better:
                 best_score = score
                 best_model = candidate
 
@@ -403,7 +424,8 @@ class RegimeDetector:
         self._state_map = _assign_canonical_states(self._model)
         self._fitted = True
 
-        # H-07: SHA-256 replaces MD5 — more collision-resistant; 16 hex chars = 64 bits
+        # H-07 replaced a weaker digest here with SHA-256, which is more
+        # collision-resistant; 16 hex chars = 64 bits.
         self._train_hash = hashlib.sha256(obs_df.to_numpy(dtype=np.float64).tobytes()).hexdigest()[
             :16
         ]
@@ -798,5 +820,9 @@ class RegimeDetector:
         obs = features[HMM_FEATURE_COLS]
         if obs.isna().any().any():
             raise ValueError("Observation matrix contains NaN — drop NaN rows before inference.")
-        assert self._scaler is not None
-        return self._scaler.transform(obs.to_numpy(dtype=np.float64))
+        # _require_fitted() rather than an assert: `python -O` strips asserts,
+        # and this one covered less than the helper already does. Transforming
+        # with a scaler while _fitted is False, or while _model is None, is the
+        # same "not fitted" mistake and now gets the same clear RuntimeError.
+        _, scaler = self._require_fitted()
+        return scaler.transform(obs.to_numpy(dtype=np.float64))
