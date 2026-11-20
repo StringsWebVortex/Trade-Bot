@@ -1,8 +1,10 @@
-"""Tests for RiskGate v2 (CVaR-Kelly sizing, ADWIN drift, circuit breaker)."""
+"""Tests for RiskGate v2 (CVaR-Kelly sizing, ADWIN drift, circuit breaker).
+
+Decides:
+  - REL-001 — Paper qualification precedes live
+"""
 
 from __future__ import annotations
-
-import pytest
 
 
 class TestRiskGateSizing:
@@ -110,9 +112,11 @@ class TestADWINDrift:
         from src.risk.gate import RiskGate
 
         gate = RiskGate(n_horizons=3)
-        # Should not raise even without river
+        # Should not raise even without river. With ADWIN unavailable the
+        # horizon has no detector, so no drift can be reported.
         result = gate.check_drift(0, 0.8)
-        assert isinstance(result, bool)
+        assert result is False
+        assert gate._adwin[0] is None
 
     def test_check_drift_valid_horizon(self) -> None:
         from src.risk.gate import RiskGate
@@ -128,9 +132,10 @@ class TestADWINDrift:
         from src.risk.gate import RiskGate
 
         gate = RiskGate(n_horizons=3)
-        # horizon_idx >= n_horizons → IndexError would be a bug
-        with pytest.raises(IndexError):
-            gate.check_drift(10, 0.8)
+        # EXR-028: an unknown horizon cannot be shown drift-free, so it reports
+        # drift (fail safe) instead of raising IndexError.
+        assert gate.check_drift(10, 0.8) is True
+        assert gate.check_drift(-1, 0.8) is True
 
 
 class TestHorizonConflictResolver:

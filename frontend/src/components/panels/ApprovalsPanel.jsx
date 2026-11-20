@@ -1,4 +1,5 @@
 import { fmt } from '../../utils/format';
+import { ActionButton } from '../Controls';
 
 const REGIME_NAME = { 0: 'RANGING', 1: 'TRENDING', 2: 'VOLATILE' };
 
@@ -39,12 +40,12 @@ export function ApprovalsPanel({ approvals, onResolve }) {
             </div>
           </div>
           <div style={{ display: 'flex', gap: 6 }}>
-            <button className="btn btn-green" onClick={() => onResolve(req.request_id, true)}>
+            <ActionButton className="btn btn-green" confirmMessage={`Approve ${req.direction?.toUpperCase()} ${req.symbol}?`} onAction={() => onResolve(req.request_id, true)}>
               APPROVE
-            </button>
-            <button className="btn btn-red" onClick={() => onResolve(req.request_id, false)}>
+            </ActionButton>
+            <ActionButton className="btn btn-red" confirmMessage={`Reject ${req.direction?.toUpperCase()} ${req.symbol}?`} onAction={() => onResolve(req.request_id, false)}>
               REJECT
-            </button>
+            </ActionButton>
           </div>
         </div>
       ))}
