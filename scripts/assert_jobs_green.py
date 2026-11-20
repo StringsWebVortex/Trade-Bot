@@ -71,7 +71,7 @@ def evaluate(needs: dict, allow_skipped: set[str]) -> tuple[list[str], list[str]
             continue
         offenders.append(job_id)
 
-    offenders.sort(key=lambda j: (_ORDER.get(needs[j].get("result", ""), 9), j))
+    offenders.sort(key=lambda j: (_ORDER.get((needs[j] or {}).get("result", ""), 9), j))
     return offenders, sorted(allowed)
 
 
@@ -129,11 +129,12 @@ def main() -> int:
         # or removed, and the exemption silently outlived its reason.
         print(f"\nALLOW_SKIPPED names job(s) not in needs: {', '.join(unused)}")
         print("Remove them, or correct the id -- a stale allowance hides a gap.")
+        return 2
 
     if offenders:
         print("\nGate failed. These jobs did not succeed:", file=sys.stderr)
         for job_id in offenders:
-            print(f"  {job_id}: {needs[job_id].get('result', 'missing')}", file=sys.stderr)
+            print(f"  {job_id}: {(needs[job_id] or {}).get('result', 'missing')}", file=sys.stderr)
         print(
             "\nA skipped or cancelled job is not a pass. Fix the job, or -- only if "
             "the skip is correct for this event -- add it to ALLOW_SKIPPED with a "

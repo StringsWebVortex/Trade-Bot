@@ -26,7 +26,9 @@ _CORR_WINDOW = 30 * 24  # 30 days hourly
 class E13Contagion:
     def __init__(self, horizon_hours: int = 4) -> None:
         self._horizon = horizon_hours
-        self._prev_corr: dict[str, float] | None = None
+        # Keyed by symbol so one symbol's correlation state never becomes
+        # another's baseline (STR-10).
+        self._prev_corr: dict[str, dict[str, float]] = {}
 
     async def run(self, symbol: str, data: dict) -> EngineOutput:
         spot: float = data.get("spot", 0.0)
@@ -41,8 +43,8 @@ class E13Contagion:
         try:
             btc_returns = df["close"].pct_change().dropna().values[-_CORR_WINDOW:]
             corr = self._build_correlation_state(btc_returns, macro, data)
-            contagion_score = self._contagion_index(corr)
-            self._prev_corr = corr
+            contagion_score = self._contagion_index(corr, symbol)
+            self._prev_corr[symbol] = corr
 
             granger_p = self._granger_causality(btc_returns, macro)
             corr_state = self._classify_regime(corr)
@@ -112,10 +114,11 @@ class E13Contagion:
 
         return corr
 
-    def _contagion_index(self, corr: dict[str, float]) -> float:
-        if self._prev_corr is None:
+    def _contagion_index(self, corr: dict[str, float], symbol: str) -> float:
+        prev = self._prev_corr.get(symbol)
+        if prev is None:
             return 0.0
-        diffs = [abs(corr.get(k, 0.0) - self._prev_corr.get(k, 0.0)) for k in corr]
+        diffs = [abs(corr.get(k, 0.0) - prev.get(k, 0.0)) for k in corr]
         return float(np.mean(diffs)) if diffs else 0.0
 
     @staticmethod
