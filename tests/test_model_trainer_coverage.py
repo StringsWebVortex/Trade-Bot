@@ -3,6 +3,8 @@ Coverage for src/models/trainer.py — Debt-005.
 
 Targets predict_direction, predict_meta, TrainingResult, and
 compute_win_loss_stats without running expensive training loops.
+
+Decides: REG-1354
 """
 
 from __future__ import annotations
@@ -11,7 +13,7 @@ import hashlib
 import json
 import tempfile
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pandas as pd
@@ -20,9 +22,9 @@ from xgboost import XGBClassifier
 
 from src.config import FeatureSettings, XGBoostSettings
 from src.features.pipeline import BASE_FEATURE_COLUMNS, FeatureMatrix
+from src.models.provenance import ModelProvenance
 from src.models.trainer import ModelTrainer, TrainingResult
 from src.risk.kelly import compute_win_loss_stats
-
 
 # Derived from BASE_FEATURE_COLUMNS so the count stays in sync as features are added.
 FEATURES = list(BASE_FEATURE_COLUMNS)
@@ -600,12 +602,12 @@ class TestBuildCPCVFolds:
 
 
 class TestComputeSampleWeights:
-    def test_weights_sum_to_one(self):
+    def test_weights_mean_one(self):
         from src.models.trainer import compute_sample_weights
 
         returns = pd.Series([0.01, -0.02, 0.005, 0.0, 0.03])
         weights = compute_sample_weights(returns)
-        assert abs(weights.sum() - 1.0) < 1e-9
+        assert abs(weights.mean() - 1.0) < 1e-9
 
     def test_zero_return_gets_floor_weight(self):
         from src.models.trainer import compute_sample_weights
@@ -679,6 +681,8 @@ def test_build_xgb_returns_classifier():
     from xgboost import XGBClassifier
 
     assert isinstance(clf, XGBClassifier)
+    assert clf.get_params()["n_jobs"] == cfg.n_jobs == 1
+    assert clf.get_params()["max_depth"] == cfg.max_depth == 6
 
 
 # ---------------------------------------------------------------------------
@@ -716,14 +720,12 @@ class TestSaveLoad:
             assert loaded is not None
 
     def test_load_direction_missing_raises(self):
-        with tempfile.TemporaryDirectory() as d:
-            with pytest.raises(FileNotFoundError):
-                ModelTrainer.load_direction(d, "ETH/USDT", "1h")
+        with tempfile.TemporaryDirectory() as d, pytest.raises(FileNotFoundError):
+            ModelTrainer.load_direction(d, "ETH/USDT", "1h")
 
     def test_load_meta_missing_raises(self):
-        with tempfile.TemporaryDirectory() as d:
-            with pytest.raises(FileNotFoundError):
-                ModelTrainer.load_meta(d, "ETH/USDT", "1h")
+        with tempfile.TemporaryDirectory() as d, pytest.raises(FileNotFoundError):
+            ModelTrainer.load_meta(d, "ETH/USDT", "1h")
 
     def test_load_direction_rejects_path_traversal_timeframe(self):
         """UI-014: timeframe is interpolated directly into a model filename
@@ -884,9 +886,20 @@ class TestTrainDirection:
 
 
 class TestTrainMetaLabel:
-    def test_full_run_returns_training_result(self):
+    def test_full_run_returns_training_result(self, monkeypatch):
         trainer = _fast_trainer()
         fm = _feature_matrix(n=400)
+        # A meta-label model needs both "bet" and "skip" examples. The
+        # synthetic direction fixture can be perfectly classified by the
+        # first-stage model for this seed, so make the meta-label target
+        # deterministic and balanced to exercise the full training path.
+        monkeypatch.setattr(
+            "src.models.trainer.meta_labels",
+            lambda predictions, labels: pd.Series(
+                np.tile(np.array([0, 1], dtype=np.int8), len(labels) // 2 + 1)[: len(labels)],
+                index=labels.index,
+            ),
+        )
         dir_result = trainer.train_direction(fm)
         meta_result = trainer.train_meta_label(fm, dir_result.model)
         assert isinstance(meta_result, TrainingResult)
@@ -972,9 +985,8 @@ class TestTrainEnsemble:
             assert loaded_pred.point_estimate == pytest.approx(original_pred.point_estimate)
 
     def test_load_ensemble_missing_raises(self):
-        with tempfile.TemporaryDirectory() as d:
-            with pytest.raises(FileNotFoundError):
-                ModelTrainer.load_ensemble(d, "ETH/USDT", "1h")
+        with tempfile.TemporaryDirectory() as d, pytest.raises(FileNotFoundError):
+            ModelTrainer.load_ensemble(d, "ETH/USDT", "1h")
 
     def test_load_ensemble_rejects_path_traversal_timeframe(self):
         with tempfile.TemporaryDirectory() as d:
@@ -996,3 +1008,200 @@ class TestTrainEnsemble:
             if c in fm.features.columns
         ]
         assert ensemble._feature_cols == expected_cols
+
+
+# ---------------------------------------------------------------------------
+# Provenance-safe artifact reuse
+# ---------------------------------------------------------------------------
+
+
+def _cache_provenance(
+    trainer: ModelTrainer,
+    model_name: str,
+    columns: list[str],
+    *,
+    data_hash: str = "matching-data",
+    schema_hash: str = "matching-schema",
+    oos_sharpe: float = 2.0,
+    created_at: str = "2026-10-10T00:00:00+00:00",
+) -> ModelProvenance:
+    return ModelProvenance(
+        model_id=f"{model_name}:{trainer._symbol}:{trainer._timeframe}",
+        training_data_hash=data_hash,
+        feature_schema_hash=schema_hash,
+        code_commit="test-commit",
+        hyperparameters=trainer._xgb_cfg.model_dump(),
+        random_seed=int(trainer._xgb_cfg.random_state),
+        library_versions={"xgboost": "test-version"},
+        metrics={
+            "oos_sharpe": oos_sharpe,
+            "max_drawdown": 0.01,
+            "accuracy": 0.9,
+            "precision": 0.9,
+            "recall": 0.9,
+            "f1": 0.9,
+            "n_trades": 1000.0,
+        },
+        validation_methodology=trainer._cpcv_methodology(),
+        artifact_sha256="a" * 64,
+        created_at=created_at,
+        symbol=trainer._symbol,
+        timeframe=trainer._timeframe,
+        feature_columns=tuple(columns),
+    )
+
+
+def test_cached_direction_and_meta_models_reused_only_with_matching_provenance():
+    trainer = _fast_trainer()
+    fm = _feature_matrix(n=400)
+    direction_columns = list(FEATURES)
+    meta_columns = [*direction_columns, "p_long", "confidence"]
+    direction_provenance = _cache_provenance(trainer, "direction", direction_columns)
+    meta_provenance = _cache_provenance(trainer, "meta_label", meta_columns)
+    direction_model = MagicMock()
+    direction_model.predict_proba.return_value = np.tile([0.25, 0.75], (len(fm.features), 1))
+    meta_model = MagicMock()
+
+    def read_provenance(path):
+        return meta_provenance if "xgb_meta_" in path.name else direction_provenance
+
+    with (
+        patch("src.models.trainer.read_provenance", side_effect=read_provenance),
+        patch("src.models.trainer.read_manifest", return_value={"sha256": "a" * 64}),
+        patch("src.models.trainer.code_commit", return_value="test-commit"),
+        patch("src.models.trainer.library_versions", return_value={"xgboost": "test-version"}),
+        patch("src.models.trainer.hash_training_data", return_value="matching-data"),
+        patch("src.models.trainer.hash_feature_schema", return_value="matching-schema"),
+        patch.object(
+            ModelTrainer, "load_direction", return_value=direction_model
+        ) as load_direction,
+        patch.object(ModelTrainer, "load_meta", return_value=meta_model) as load_meta,
+    ):
+        result = trainer.load_compatible_cached_models(fm, "/tmp/cache")
+
+    assert result is not None
+    direction_result, meta_result = result
+    assert direction_result.model is direction_model
+    assert meta_result.model is meta_model
+    assert direction_result.live_gate_pass is True
+    assert meta_result.live_gate_pass is True
+    assert trainer.cached_model_version == direction_provenance.created_at
+    load_direction.assert_called_once()
+    load_meta.assert_called_once()
+
+
+def test_cached_models_rejected_when_training_data_hash_is_stale():
+    trainer = _fast_trainer()
+    fm = _feature_matrix(n=400)
+    direction_provenance = _cache_provenance(
+        trainer, "direction", list(FEATURES), data_hash="stale-data"
+    )
+    meta_provenance = _cache_provenance(trainer, "meta_label", [*FEATURES, "p_long", "confidence"])
+    with (
+        patch(
+            "src.models.trainer.read_provenance",
+            side_effect=[direction_provenance, meta_provenance],
+        ),
+        patch("src.models.trainer.read_manifest", return_value={"sha256": "a" * 64}),
+        patch("src.models.trainer.code_commit", return_value="test-commit"),
+        patch("src.models.trainer.library_versions", return_value={"xgboost": "test-version"}),
+        patch("src.models.trainer.hash_training_data", return_value="matching-data"),
+        patch("src.models.trainer.hash_feature_schema", return_value="matching-schema"),
+        patch.object(ModelTrainer, "load_direction") as load_direction,
+    ):
+        assert trainer.load_compatible_cached_models(fm, "/tmp/cache") is None
+    load_direction.assert_not_called()
+
+
+def test_cached_models_rejected_when_timestamp_or_current_live_gate_is_invalid():
+    trainer = _fast_trainer()
+    fm = _feature_matrix(n=400)
+    direction_provenance = _cache_provenance(
+        trainer, "direction", list(FEATURES), oos_sharpe=-10.0, created_at="not-a-timestamp"
+    )
+    meta_provenance = _cache_provenance(trainer, "meta_label", [*FEATURES, "p_long", "confidence"])
+    with (
+        patch(
+            "src.models.trainer.read_provenance",
+            side_effect=[direction_provenance, meta_provenance],
+        ),
+        patch("src.models.trainer.read_manifest", return_value={"sha256": "a" * 64}),
+        patch("src.models.trainer.code_commit", return_value="test-commit"),
+        patch("src.models.trainer.library_versions", return_value={"xgboost": "test-version"}),
+        patch("src.models.trainer.hash_training_data", return_value="matching-data"),
+        patch("src.models.trainer.hash_feature_schema", return_value="matching-schema"),
+        patch.object(ModelTrainer, "load_direction") as load_direction,
+    ):
+        assert trainer.load_compatible_cached_models(fm, "/tmp/cache") is None
+    load_direction.assert_not_called()
+
+
+def test_cached_models_rejected_when_the_current_live_gate_fails():
+    trainer = _fast_trainer()
+    fm = _feature_matrix(n=400)
+    direction_provenance = _cache_provenance(trainer, "direction", list(FEATURES), oos_sharpe=-10.0)
+    meta_provenance = _cache_provenance(trainer, "meta_label", [*FEATURES, "p_long", "confidence"])
+    direction_model = MagicMock()
+    direction_model.predict_proba.return_value = np.tile([0.25, 0.75], (len(fm.features), 1))
+    with (
+        patch(
+            "src.models.trainer.read_provenance",
+            side_effect=[direction_provenance, meta_provenance],
+        ),
+        patch("src.models.trainer.read_manifest", return_value={"sha256": "a" * 64}),
+        patch("src.models.trainer.code_commit", return_value="test-commit"),
+        patch("src.models.trainer.library_versions", return_value={"xgboost": "test-version"}),
+        patch("src.models.trainer.hash_training_data", return_value="matching-data"),
+        patch("src.models.trainer.hash_feature_schema", return_value="matching-schema"),
+        patch.object(ModelTrainer, "load_direction", return_value=direction_model),
+        patch.object(ModelTrainer, "load_meta", return_value=MagicMock()),
+    ):
+        assert trainer.load_compatible_cached_models(fm, "/tmp/cache") is None
+
+
+def test_cached_models_rejected_when_artifact_digest_disagrees():
+    trainer = _fast_trainer()
+    fm = _feature_matrix(n=400)
+    direction_columns = list(FEATURES)
+    meta_columns = [*direction_columns, "p_long", "confidence"]
+    direction_provenance = _cache_provenance(trainer, "direction", direction_columns)
+    meta_provenance = _cache_provenance(trainer, "meta_label", meta_columns)
+
+    with (
+        patch(
+            "src.models.trainer.read_provenance",
+            side_effect=[direction_provenance, meta_provenance],
+        ),
+        patch(
+            "src.models.trainer.read_manifest",
+            side_effect=[{"sha256": "wrong-digest"}, {"sha256": "a" * 64}],
+        ),
+    ):
+        assert trainer.load_compatible_cached_models(fm, "/tmp/cache") is None
+
+
+def test_cached_models_rejected_when_meta_provenance_does_not_match():
+    trainer = _fast_trainer()
+    fm = _feature_matrix(n=400)
+    direction_columns = list(FEATURES)
+    meta_columns = [*direction_columns, "p_long", "confidence"]
+    direction_provenance = _cache_provenance(trainer, "direction", direction_columns)
+    meta_provenance = _cache_provenance(
+        trainer, "meta_label", meta_columns, data_hash="stale-meta-data"
+    )
+    direction_model = MagicMock()
+    direction_model.predict_proba.return_value = np.tile([0.25, 0.75], (len(fm.features), 1))
+
+    with (
+        patch(
+            "src.models.trainer.read_provenance",
+            side_effect=[direction_provenance, meta_provenance],
+        ),
+        patch("src.models.trainer.read_manifest", return_value={"sha256": "a" * 64}),
+        patch("src.models.trainer.code_commit", return_value="test-commit"),
+        patch("src.models.trainer.library_versions", return_value={"xgboost": "test-version"}),
+        patch("src.models.trainer.hash_training_data", return_value="matching-data"),
+        patch("src.models.trainer.hash_feature_schema", return_value="matching-schema"),
+        patch.object(ModelTrainer, "load_direction", return_value=direction_model),
+    ):
+        assert trainer.load_compatible_cached_models(fm, "/tmp/cache") is None

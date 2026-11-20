@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import threading
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import ccxt.async_support as ccxt_async
@@ -22,7 +22,6 @@ from src.data.fetcher import (
     open_fetcher,
 )
 from src.data.storage import BarRecord
-
 
 # ---------------------------------------------------------------------------
 # OrderBookSnapshot
@@ -204,9 +203,8 @@ async def test_with_retry_raises_after_max_network_attempts():
     async def _always_fail():
         raise ccxt_async.NetworkError("network")
 
-    with patch("asyncio.sleep", new=AsyncMock()):
-        with pytest.raises(ccxt_async.NetworkError):
-            await _with_retry(lambda: _always_fail(), label="test", attempts=3, base_delay=0.01)
+    with patch("asyncio.sleep", new=AsyncMock()), pytest.raises(ccxt_async.NetworkError):
+        await _with_retry(lambda: _always_fail(), label="test", attempts=3, base_delay=0.01)
 
 
 @pytest.mark.asyncio
@@ -214,9 +212,8 @@ async def test_with_retry_raises_rate_limit_after_max_attempts():
     async def _rate_limit():
         raise ccxt_async.RateLimitExceeded("slow down")
 
-    with patch("asyncio.sleep", new=AsyncMock()):
-        with pytest.raises(ccxt_async.RateLimitExceeded):
-            await _with_retry(lambda: _rate_limit(), label="test", attempts=3, base_delay=0.01)
+    with patch("asyncio.sleep", new=AsyncMock()), pytest.raises(ccxt_async.RateLimitExceeded):
+        await _with_retry(lambda: _rate_limit(), label="test", attempts=3, base_delay=0.01)
 
 
 @pytest.mark.asyncio
@@ -409,6 +406,9 @@ async def test_get_sem_double_checked_lock_race_reuses_winner():
 async def test_close_without_initialize():
     f = _make_fetcher()
     await f.close()  # should not raise
+
+    assert f._binance is None
+    assert f._okx is None
 
 
 @pytest.mark.asyncio
@@ -643,7 +643,16 @@ async def test_fetch_ohlcv_okx():
     storage = _make_storage()
     f = MarketDataFetcher(storage)
 
-    raw = [[int(datetime.now(UTC).timestamp() * 1000), 1.0, 2.0, 0.5, 1.5, 100.0]]
+    raw = [
+        [
+            int((datetime.now(UTC) - timedelta(hours=1)).timestamp() * 1000),
+            1.0,
+            2.0,
+            0.5,
+            1.5,
+            100.0,
+        ]
+    ]
     mock_okx = MagicMock()
     mock_okx.fetch_ohlcv = AsyncMock(return_value=raw)
     f._okx = mock_okx
@@ -896,6 +905,29 @@ async def test_fetch_funding_rate_okx():
 
 
 @pytest.mark.asyncio
+async def test_cancelled_venue_initialization_closes_the_unregistered_client():
+    storage = _make_storage()
+    fetcher = MarketDataFetcher(storage)
+    entered = asyncio.Event()
+    exchange = MagicMock()
+
+    async def never_load_markets():
+        entered.set()
+        await asyncio.Event().wait()
+
+    exchange.load_markets = AsyncMock(side_effect=never_load_markets)
+    exchange.close = AsyncMock()
+    with patch("src.data.fetcher._build_binance", return_value=exchange):
+        task = asyncio.create_task(fetcher._open_venue(EXCHANGE_BINANCE))
+        await asyncio.wait_for(entered.wait(), 2)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+    exchange.close.assert_awaited_once()
+    assert fetcher._binance is None
+
+
+@pytest.mark.asyncio
 async def test_open_fetcher_context_manager():
     storage = _make_storage()
     mock_binance = MagicMock()
@@ -912,6 +944,16 @@ async def test_open_fetcher_context_manager():
         async with open_fetcher(storage) as f:
             assert isinstance(f, MarketDataFetcher)
         mock_binance.close.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_open_fetcher_can_defer_network_initialization_until_after_api_bind():
+    storage = _make_storage()
+    with patch.object(MarketDataFetcher, "initialize", new_callable=AsyncMock) as initialize:
+        async with open_fetcher(storage, initialize=False) as fetcher:
+            assert isinstance(fetcher, MarketDataFetcher)
+            initialize.assert_not_awaited()
+        initialize.assert_not_awaited()
 
 
 @pytest.mark.asyncio

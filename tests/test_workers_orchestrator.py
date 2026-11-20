@@ -1,4 +1,8 @@
-"""Tests for WorkerOrchestrator — multiprocessing pool + ECC thread."""
+"""Tests for WorkerOrchestrator — multiprocessing pool + ECC thread.
+
+Decides:
+  - SEC-1499 — ECC worker has no default RPC password and redacts URLs
+"""
 
 from __future__ import annotations
 
@@ -14,7 +18,7 @@ class TestWorkerOrchestrator:
         from src.workers.orchestrator import WorkerOrchestrator
 
         orch = WorkerOrchestrator(n_workers=100)  # above MAX_WORKERS=24
-        assert orch._n_workers == 24
+        assert orch._n_workers == 4
 
     def test_start_and_shutdown(self) -> None:
         from src.workers.orchestrator import WorkerOrchestrator
@@ -47,6 +51,9 @@ class TestWorkerOrchestrator:
     def test_collect_returns_none_on_empty(self) -> None:
         from src.workers.orchestrator import WorkerOrchestrator
 
+        # Deliberately not started: the ECC thread publishes a result as soon
+        # as it runs, so asserting an empty queue against a live orchestrator
+        # is a race, not a test of collect().
         orch = WorkerOrchestrator(n_workers=2, ecc_interval=3600.0)
         orch.start()
         # The ECC thread does one scan at startup regardless of ecc_interval,
@@ -123,3 +130,75 @@ class TestWorkerTask:
         )
         assert res.direction == 1
         assert 0.0 <= res.confidence <= 1.0
+
+    def test_untrained_horizon_never_emits_a_fabricated_prediction(self) -> None:
+        from src.workers.orchestrator import WorkerTask, _run_horizon_inference
+
+        result = _run_horizon_inference(
+            WorkerTask(
+                task_id="untrained-1",
+                horizon_id=4,
+                symbol="BTC/USDT",
+                features={"close": 100.0, "volume": 5.0},
+                horizon_seconds=3600,
+                source_event_ts=1_700_000_000.0,
+                architecture_names=("tft", "patchtst"),
+                model_dir="/missing/model/artifact",
+            )
+        )
+
+        assert result.horizon_id == 4
+        assert result.status == "UNTRAINED"
+        assert result.error
+        assert result.direction == 0
+        assert result.confidence == 0.0
+        assert result.model_id is None
+        assert result.feature_schema_hash
+
+
+class TestWorkerSignalHandler:
+    def test_sigterm_uses_system_exit_without_site_quitter(self) -> None:
+        from src.workers.orchestrator import _handle_worker_sigterm
+
+        try:
+            _handle_worker_sigterm()
+        except SystemExit as exc:
+            assert exc.code == 0
+        else:
+            raise AssertionError("SIGTERM handler did not request clean worker exit")
+
+
+def test_rpc_url_credentials_are_redacted_and_no_default_password():
+    """AGT-020."""
+    from src.workers.orchestrator import redact_url
+
+    assert redact_url("http://u:p@host:8332/x") == "http://***@host:8332/x"
+    ipv6_url = "http://u:p@[2001:db8::1]:8332/x"
+    assert redact_url(ipv6_url) == "http://***@[2001:db8::1]:8332/x"
+    assert redact_url("http://u:p@host:0/x") == "http://***@host:0/x"
+    assert redact_url("http://host:8332") == "http://host:8332"
+    from src.workers.orchestrator import WorkerOrchestrator
+
+    assert WorkerOrchestrator(n_workers=2)._btc_rpc_pass == ""
+
+
+def test_block_fetch_checks_http_status(monkeypatch):
+    """AGT-020: a non-2xx RPC reply must raise instead of being parsed."""
+    import sys
+    import types
+
+    import pytest
+
+    from src.workers.orchestrator import _fetch_recent_block_transactions
+
+    class Resp:
+        def raise_for_status(self):
+            raise RuntimeError("401")
+
+        def json(self):
+            raise AssertionError("body must not be parsed")
+
+    fake = types.SimpleNamespace(post=lambda *a, **k: Resp())
+    monkeypatch.setitem(sys.modules, "requests", fake)
+    with pytest.raises(RuntimeError, match="401"):
+        _fetch_recent_block_transactions("http://h", "u", "p")

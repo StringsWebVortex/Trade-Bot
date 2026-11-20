@@ -21,7 +21,6 @@ from src.risk.strategy_kill_switch import (
 )
 from src.tuning.promotion_gauntlet import GauntletCriteria, GauntletObservation
 
-
 _DAY_MS = 86_400_000
 _NOW = 1_700_000_000_000
 
@@ -33,7 +32,9 @@ def _baseline() -> PerformanceBaseline:
         train_accuracy=0.6,
         oos_accuracy=0.55,
         train_win_rate=0.55,
-        max_drawdown_pct=10.0,
+        # A fraction, not a percentage -- PerformanceBaseline validates the
+        # range and every other field in this helper is already a fraction.
+        max_drawdown_pct=0.10,
         trades_in_backtest=600,
     )
 
