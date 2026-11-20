@@ -11,6 +11,9 @@ prevent.
 So the rule is mechanical: whatever is required to merge must also run in the
 queue. These tests derive the required set from the workflows themselves
 rather than restating it, so adding a gate cannot quietly skip this check.
+
+Decides:
+  - GOV-014 — Every required check also runs in the merge queue
 """
 
 from __future__ import annotations
@@ -27,8 +30,8 @@ WORKFLOWS = PROJECT_ROOT / ".github" / "workflows"
 # workflow may run Claude again.
 ADVISORY: set[str] = set()
 
-# Reports on a failed run of another workflow; it has no place in a queue.
-NOT_A_GATE = {"ci-failure-notify.yml"}
+# The autonomous diagnostics collector reports on other workflows; it is not a gate.
+NOT_A_GATE = {"ci-diagnostics.yml"}
 
 
 def _triggers(spec: dict) -> dict:

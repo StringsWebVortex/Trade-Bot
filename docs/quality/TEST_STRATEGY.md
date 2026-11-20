@@ -117,6 +117,8 @@ empty directory is a claim that something is tested there.
 
 ## 4. Where each phase writes
 
+Planned directories: most of the paths below did not exist when this was written. Check `ls tests/` before relying on one.
+
 | Phase | New directories |
 |---|---|
 | PR-001 | `tests/quality/` |
