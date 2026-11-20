@@ -57,6 +57,8 @@ class BlockchainIntelligenceProvider(ExchangeIntelligenceProvider):
         # Rolling history for momentum computation
         self._hashrate_history: list[float] = []
         self._tx_history: list[float] = []
+        # INT-022: histories grow once per cache window, not once per call.
+        self._hist_ts: float | None = None
         self._log = log.bind(component="blockchain_intelligence")
 
     @property
@@ -94,10 +96,13 @@ class BlockchainIntelligenceProvider(ExchangeIntelligenceProvider):
                 n_txs = float(stats.get("n_tx", 0.0) or 0.0)
 
                 # Accumulate rolling histories
-                if hash_rate > 0:
-                    self._hashrate_history.append(hash_rate)
-                if n_txs > 0:
-                    self._tx_history.append(n_txs)
+                now_m = time.monotonic()
+                if self._hist_ts is None or now_m - self._hist_ts >= self._cache_ttl:
+                    self._hist_ts = now_m
+                    if hash_rate > 0:
+                        self._hashrate_history.append(hash_rate)
+                    if n_txs > 0:
+                        self._tx_history.append(n_txs)
 
                 # Trim to window
                 self._hashrate_history = self._hashrate_history[-_HASHRATE_WINDOW:]
