@@ -24,6 +24,12 @@ There are no REG/SEC entries yet. That is the honest state of a registry
 created three phases ago, and the tests below assert the *contract* those
 entries will be held to, so the first one filed lands on rails rather than
 inventing its own shape.
+
+Decides:
+  - EXEC-007 — Mutation score on the execution subsystem is at or above 90%
+  - GOV-003 — Mutation testing runs nightly on the critical subsystems
+  - RISK-006 — Mutation score on the risk subsystem is at or above 90%
+  - SIG-003 — Mutation score on the signal subsystem is at or above 85%
 """
 
 from __future__ import annotations
@@ -33,7 +39,7 @@ import json
 import subprocess
 import sys
 from pathlib import Path
-from types import ModuleType
+from types import ModuleType, SimpleNamespace
 
 import pytest
 
@@ -79,13 +85,21 @@ class TestTheRegistryHasAPlaceForDefects:
         assert "never deleted" in registry.kind_definitions["regression"]
         assert "permanent" in registry.kind_definitions["security_regression"]
 
-    def test_the_filed_defects_are_the_ones_we_know_about(self, registry):
-        # This test is the visible event. It used to assert that no defect had
-        # been filed; updating it is how filing one announces itself, rather
-        # than a defect appearing by silent append. Each id is listed here on
-        # purpose, so a new entry cannot ride in unnoticed on a passing suite.
-        assert {e.id for e in registry.by_kind("regression")} == {"REG-0001"}
-        assert not registry.by_kind("security_regression")
+    def test_every_filed_defect_is_filed_under_its_own_kind(self, registry):
+        # This test used to list every REG/SEC id by hand, so that filing one
+        # announced itself as an edit here. It also meant every pull request
+        # that filed a defect conflicted with every other one, whatever order
+        # they merged in (GOV-071). A new entry is now its own file under
+        # config/quality_registry.d/, which announces it in the diff just as
+        # visibly. What stays asserted is that the defects exist and that each
+        # one is filed where the escaped-defect metric will count it.
+        regressions = registry.by_kind("regression")
+        security = registry.by_kind("security_regression")
+        assert "REG-0005" in {e.id for e in regressions}
+        assert "SEC-0005" in {e.id for e in security}
+        for entry in (*regressions, *security):
+            assert entry.id.startswith(("REG-", "SEC-")), entry.id
+            assert entry.expected_kind == entry.kind, entry.id
 
     def test_every_filed_defect_names_a_permanent_test(self, registry):
         # The rule that separates a regression entry from a bug report: the
@@ -286,7 +300,9 @@ class TestTheMetricsCollector:
     def test_it_reports_the_registry_counts(self, collector, registry):
         metrics = collector.collect()["metrics"]
         assert metrics["requirements_total"]["value"] == len(registry)
-        assert metrics["requirements_waived"]["value"] == 0
+        # Main carries five explicitly accepted architecture-baseline waivers;
+        # they remain visible and time-bounded rather than silently counted as zero.
+        assert metrics["requirements_waived"]["value"] == 5
 
     def test_an_unmeasurable_metric_is_reported_not_omitted(self, collector):
         # A report that quietly drops what it could not measure reads as a
@@ -297,16 +313,32 @@ class TestTheMetricsCollector:
             assert metrics[name]["status"] == "unavailable"
             assert metrics[name]["reason"]
 
-    def test_zero_escaped_defects_is_stated_explicitly(self, collector):
-        # "We have not measured this" and "this is zero" are different
-        # statements, and only one of them is good news.
-        metric = collector.collect()["metrics"]["escaped_defects_by_layer"]
-        assert metric["status"] == "ok"
+    def test_a_filed_defect_is_counted_against_its_layer(self, collector, registry):
         # Every filed defect names the layer that should have caught it. An
         # "unknown" bucket would mean an entry skipped that question, which
         # makes the metric useless: it measures which layer needs work.
+        metric = collector.collect()["metrics"]["escaped_defects_by_layer"]
+        assert metric["status"] == "ok"
         assert "unknown" not in metric["value"]
-        assert metric["value"] == {"monitoring": 1}
+        # The per-layer totals used to be pinned here, so every pull request
+        # that filed a defect edited the same line (GOV-071). The property is
+        # that every defect lands in exactly one known layer.
+        assert set(metric["value"]) <= {"test-suite", "review", "supply-chain", "ci-gate-design"}
+        defects = (*registry.by_kind("regression"), *registry.by_kind("security_regression"))
+        assert sum(metric["value"].values()) == len(defects)
+
+    def test_zero_escaped_defects_would_be_stated_explicitly(self, collector, monkeypatch):
+        # "We have not measured this" and "this is zero" are different
+        # statements, and only one of them is good news. Once a defect is
+        # filed the live registry can no longer reach that branch, so drive it
+        # with a registry that has none rather than dropping the guarantee.
+        monkeypatch.setattr(
+            collector, "load_registry", lambda: SimpleNamespace(by_kind=lambda _kind: ())
+        )
+        metric = collector.escaped_defects()["escaped_defects_by_layer"]
+        assert metric["status"] == "ok"
+        assert metric["value"] == {}
+        assert "explicit zero" in metric["note"]
 
     def test_it_counts_critical_requirements_with_no_test(self, collector):
         metric = collector.collect()["metrics"]["critical_unverified"]
