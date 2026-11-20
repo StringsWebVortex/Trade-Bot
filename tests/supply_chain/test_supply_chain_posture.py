@@ -13,6 +13,11 @@ exactly the same code; what this file adds is the other half — that the
 checker itself detects the violations it claims to, driven against synthetic
 workflows. A scanner nobody has shown a positive to is a scanner that passes
 because it finds nothing anywhere.
+
+Decides:
+  - SUP-002 — Third-party actions are pinned to a full commit SHA
+  - SUP-003 — Fork pull requests cannot reach production secrets
+  - SUP-005 — Dependency vulnerabilities are surveilled continuously
 """
 
 from __future__ import annotations
@@ -220,9 +225,10 @@ class TestThePinningCheckDetects:
 
 
 class TestTheForkCheckDetects:
-    def test_pull_request_target(self, fake_repo):
-        # The single most dangerous trigger in GitHub Actions: base-repository
-        # secrets plus fork-controlled code.
+    def test_pull_request_target_that_checks_out_the_fork(self, fake_repo):
+        # The single most dangerous combination in GitHub Actions: base-repository
+        # secrets plus fork-controlled code. The trigger alone does not do it --
+        # the `ref:` override is what pulls the fork's code in.
         write_workflow(
             fake_repo,
             "bad.yml",
@@ -235,10 +241,37 @@ class TestTheForkCheckDetects:
               build:
                 runs-on: ubuntu-latest
                 steps:
-                  - run: echo hi
+                  - uses: actions/checkout@v4
+                    with:
+                      ref: ${{ github.event.pull_request.head.sha }}
+                  - run: ./build.sh
             """,
         )
         assert check_fork_secret_isolation(fake_repo)
+
+    def test_pull_request_target_reaching_the_head_by_any_spelling(self, fake_repo):
+        # head.ref and github.head_ref name the same fork-controlled code as
+        # head.sha. A check that only knew one spelling would be trivially
+        # sidestepped by an author who preferred another.
+        for spelling in ("github.head_ref", "github.event.pull_request.head.ref"):
+            write_workflow(
+                fake_repo,
+                "bad.yml",
+                f"""
+                name: Bad
+                on: [pull_request_target]
+                permissions:
+                  contents: read
+                jobs:
+                  build:
+                    runs-on: ubuntu-latest
+                    steps:
+                      - uses: actions/checkout@v4
+                        with:
+                          ref: ${{{{ {spelling} }}}}
+                """,
+            )
+            assert check_fork_secret_isolation(fake_repo), spelling
 
     def test_an_unguarded_secret_on_a_pull_request(self, fake_repo):
         write_workflow(
@@ -307,28 +340,60 @@ class TestTheForkCheckDetects:
         assert frozenset({"pull_request", "pull_request_target"}) == FORK_TRIGGERS
 
 
+class TestTheForkCheckAccepts:
+    def test_pull_request_target_that_never_fetches_the_fork(self, fake_repo):
+        # The safe and intended use: a controller that reads pull request
+        # metadata and acts through the API, checking out the base repository
+        # only. `.github/workflows/pr-queue.yml` is exactly this.
+        #
+        # SUP-003's statement is about a fork reaching a *secret*. Reporting
+        # the trigger on its own said nothing about that, and a gate that
+        # fires on a safe pattern is a gate people learn to wave through --
+        # which costs more than the check was ever worth.
+        write_workflow(
+            fake_repo,
+            "controller.yml",
+            """
+            name: Controller
+            on: [pull_request_target]
+            permissions:
+              contents: read
+              pull-requests: write
+            jobs:
+              promote:
+                runs-on: ubuntu-latest
+                steps:
+                  - uses: actions/checkout@v4
+                  - run: python3 scripts/promote.py
+            """,
+        )
+        assert check_fork_secret_isolation(fake_repo) == []
+
+
 class TestTheProductionCheckDetects:
     @pytest.mark.parametrize("trigger", ["push", "pull_request", "schedule"])
     def test_a_release_workflow_with_an_automatic_trigger(self, fake_repo, trigger):
+        # Each case is a complete workflow rather than a fragment spliced into
+        # an indented template. The schedule form is two lines deep, and
+        # interpolating it mid-template left its continuation lines at column
+        # zero: `textwrap.dedent` then found a common prefix of "" and stripped
+        # nothing, producing YAML that only failed under the parser. The test
+        # was checking the fixture, not the rule.
         body = {
-            "push": "on: [push]",
-            "pull_request": "on: [pull_request]",
-            "schedule": 'on:\n  schedule:\n    - cron: "0 0 * * *"',
+            "push": "on: [push]\n",
+            "pull_request": "on: [pull_request]\n",
+            "schedule": 'on:\n  schedule:\n    - cron: "0 0 * * *"\n',
         }[trigger]
         write_workflow(
             fake_repo,
             "release.yml",
-            f"""
-            name: Release
-            {body}
-            permissions:
-              contents: read
-            jobs:
-              build:
-                runs-on: ubuntu-latest
-                steps:
-                  - run: publish.sh
-            """,
+            "name: Release\n" + body + "permissions:\n"
+            "  contents: read\n"
+            "jobs:\n"
+            "  build:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps:\n"
+            "      - run: publish.sh\n",
         )
         assert check_bot_cannot_reach_production(fake_repo)
 

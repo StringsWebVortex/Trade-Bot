@@ -10,6 +10,8 @@ a prior instead of trusting small samples at face value, and so calibration
 Authority:
   - Gelman et al. (2013) Bayesian Data Analysis
   - McElreath (2020) Statistical Rethinking
+
+Registry: RISK-004 (config/quality_registry.json).
 """
 
 from __future__ import annotations
@@ -104,6 +106,8 @@ def brier_score(probabilities: list[float], outcomes: list[float]) -> float:
 
     p = np.asarray(probabilities, dtype=float)
     y = np.asarray(outcomes, dtype=float)
+    if not (np.all(np.isfinite(p)) and np.all((p >= 0.0) & (p <= 1.0))):
+        raise ValueError("probabilities must be finite and within [0, 1]")
     return float(np.mean((p - y) ** 2))
 
 

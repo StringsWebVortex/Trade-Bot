@@ -81,7 +81,7 @@ Provides the arithmetic every symmetric and asymmetric primitive is defined over
 - **References:** FIPS 197, SEC 2 v2
 
 #### Cyclic groups and the discrete logarithm problem
-`cyclic-groups-dlp` — **LOAD-BEARING** · relevance: security · status: planned
+`cyclic-groups-dlp` — **LOAD-BEARING** · relevance: security · status: implemented
 
 The hardness assumption under Diffie-Hellman, DSA, ECDSA and Schnorr. Security is exactly the difficulty of recovering x from g^x in a group of large prime order.
 
@@ -93,7 +93,7 @@ The hardness assumption under Diffie-Hellman, DSA, ECDSA and Schnorr. Security i
 - **References:** SEC 1 v2, FIPS 186-5
 
 #### Elliptic curves over finite fields
-`elliptic-curves` — **LOAD-BEARING** · relevance: security · status: planned
+`elliptic-curves` — **LOAD-BEARING** · relevance: security · status: implemented
 
 Supplies the group in which the discrete logarithm is hard at 256-bit key sizes rather than 3072-bit ones. Every signature this project verifies or produces lives on one.
 
@@ -101,13 +101,13 @@ Supplies the group in which the discrete logarithm is hard at 256-bit key sizes 
 - **Risk if misused:** Point arithmetic that does not validate an input point lies on the curve accepts an invalid-curve point and leaks the private scalar over repeated queries.
 - **Depends on:** `finite-fields`, `cyclic-groups-dlp`
 - **Owned by:** `src/mathcore/curves/secp256k1.py`
-- **Consumed by:** `src/ecc/ecdsa_scan.py`, `src/ecc/schnorr_taproot.py`
+- **Consumed by:** `src/ecc/ecdsa_scan.py`
 - **References:** SEC 2 v2, RFC 8032, BIP-340
 
 > Status describes the owning mathcore module, which does not exist yet. Elliptic curves are already in production use through the consumers listed here; what is planned is a single owned implementation of curve parameters and verification-only point arithmetic, so those consumers stop each carrying their own.
 
 #### Twisted Edwards curves and Ed25519
-`edwards-curves` — **LOAD-BEARING** · relevance: security · status: planned
+`edwards-curves` — **LOAD-BEARING** · relevance: security · status: implemented
 
 A curve form with a complete addition law, so there is no special case for doubling or for the identity and therefore no branch for an attacker to time. Ed25519 also fixes the nonce deterministically by construction.
 
@@ -119,7 +119,7 @@ A curve form with a complete addition law, so there is no special case for doubl
 - **References:** RFC 8032, Chalkias et al. 2020, Taming the many EdDSAs
 
 #### Bilinear pairings (Weil, Tate, ate)
-`bilinear-pairings` — **LOAD-BEARING** · relevance: analytics · status: planned
+`bilinear-pairings` — **LOAD-BEARING** · relevance: analytics · status: implemented
 
 Makes signature aggregation and constant-size polynomial commitments possible by turning a multiplicative relation in one group into an equality check in a target group.
 
@@ -130,14 +130,13 @@ Makes signature aggregation and constant-size polynomial commitments possible by
 - **References:** IETF draft-irtf-cfrg-pairing-friendly-curves, EIP-4844
 
 #### Lattices and module algebra over polynomial rings
-`lattices-module-algebra` — **LOAD-BEARING** · relevance: security · status: planned
+`lattices-module-algebra` — **LOAD-BEARING** · relevance: security · status: implemented
 
 The hardness base of the standardised post-quantum schemes: arithmetic in Z_q[x]/(x^n+1) with Learning With Errors as the assumption.
 
 - **Used by:** ML-KEM (Kyber), ML-DSA (Dilithium), Falcon, NTRU
 - **Risk if misused:** Sampling error terms from a distribution that is not the intended discrete Gaussian breaks the worst-case-to-average-case reduction, so the scheme has no proof left even though it still interoperates.
 - **Owned by:** `src/mathcore/harmonic/gaussian_lattice.py`
-- **Consumed by:** `src/security/pq_transport.py`
 - **References:** FIPS 203, FIPS 204
 
 > src/security/pq_transport.py is documented in-tree as a placeholder. Registering this entry as 'planned' rather than 'implemented' is the honest state; treating the placeholder as a KEM would be the single most dangerous misreading in this repository.
@@ -174,7 +173,7 @@ A post-quantum hardness candidate whose flagship instance was broken, which is e
 - **References:** Castryck-Decru 2022
 
 #### Lagrange interpolation over a finite field
-`lagrange-interpolation` — **LOAD-BEARING** · relevance: security · status: planned
+`lagrange-interpolation` — **LOAD-BEARING** · relevance: security · status: implemented
 
 A degree-t polynomial is determined by t+1 points and by no fewer, which is precisely the threshold property behind secret sharing and threshold signing.
 
@@ -206,15 +205,17 @@ RSA security is the difficulty of recovering p and q from n = pq. Still present 
 - **References:** RFC 8017, Heninger et al. 2012, Mining Your Ps and Qs
 
 #### Safe primes and prime-order subgroups
-`safe-primes-dh` — **LOAD-BEARING** · relevance: security · status: planned
+`safe-primes-dh` — **LOAD-BEARING** · relevance: security · status: implemented
 
 Choosing p = 2q+1 with q prime removes the small subgroups that would otherwise let an attacker confine a shared secret to a tiny set of values.
 
 - **Used by:** finite-field Diffie-Hellman, DSA, TLS ffdhe groups
 - **Risk if misused:** Unvalidated DH parameters allow a small-subgroup confinement attack in which the shared secret takes one of a handful of values.
 - **Depends on:** `cyclic-groups-dlp`
-- **Consumed by:** `src/mathcore/numbertheory/primality.py`
+- **Owned by:** `src/mathcore/numbertheory/safe_primes.py`
 - **References:** RFC 7919
+
+> Verifies a caller-supplied modulus rather than shipping RFC 7919's named group constants: a 2048-bit constant copied into a file is how this project has shipped a fabricated constant three times, and checking the structure is strictly stronger than trusting the transcription. is_valid_public_value is the half that actually stops the attack -- correct parameters do not prevent a peer from sending an element of order 2. The first draft listed primality.py as a consumer; the dependency runs the other way -- safe_primes imports is_probable_prime -- so that wiring point was a false claim about who is on the hook if primality changes, and is corrected here rather than carried forward.
 
 #### Pseudo-Mersenne and Solinas field primes
 `pseudo-mersenne-primes` — **PERFORMANCE-CRITICAL** · relevance: security · status: implemented
@@ -349,7 +350,7 @@ The second half of the Baillie-PSW primality test. This is the one place where a
 ## Fourier and harmonic analysis
 
 #### Number-theoretic transform
-`ntt` — **PERFORMANCE-CRITICAL** · relevance: security · status: planned
+`ntt` — **PERFORMANCE-CRITICAL** · relevance: security · status: implemented
 
 The FFT carried out over a finite field. It turns polynomial multiplication from quadratic to n log n, which is what makes lattice cryptography and succinct proofs fast enough to deploy.
 
@@ -361,7 +362,7 @@ The FFT carried out over a finite field. It turns polynomial multiplication from
 - **References:** FIPS 203 Algorithm 9
 
 #### Walsh-Hadamard transform (Fourier analysis on the Boolean cube)
-`walsh-hadamard` — **LOAD-BEARING** · status: planned
+`walsh-hadamard` — **LOAD-BEARING** · status: implemented
 
 Defines S-box nonlinearity, correlation immunity and bent functions. It is the measurement that says whether a substitution box resists linear cryptanalysis.
 
@@ -370,7 +371,7 @@ Defines S-box nonlinearity, correlation immunity and bent functions. It is the m
 - **Owned by:** `src/mathcore/harmonic/walsh_hadamard.py`
 
 #### Poisson summation and the lattice smoothing parameter
-`poisson-summation-smoothing` — **LOAD-BEARING** · relevance: security · status: planned
+`poisson-summation-smoothing` — **LOAD-BEARING** · relevance: security · status: implemented
 
 Fourier series on a lattice: it is how the discrete Gaussian is shown to behave like a continuous one above the smoothing parameter, which is the step every lattice security proof depends on.
 
@@ -383,24 +384,24 @@ Fourier series on a lattice: it is how the discrete Gaussian is shown to behave 
 > This is where pi does structural rather than decorative work: the discrete Gaussian is defined as exp(-pi|x|^2/s^2) precisely so it is its own Fourier transform.
 
 #### Quantum Fourier transform and Shor's algorithm
-`quantum-fourier-shor` — **ATTACK SURFACE** · relevance: security · status: planned
+`quantum-fourier-shor` — **ATTACK SURFACE** · relevance: security · status: implemented
 
 Period finding by quantum Fourier transform breaks factoring and discrete logarithms alike. The Fourier transform is simultaneously what builds modern cryptography and what would destroy the currently deployed generation of it.
 
 - **Used by:** the entire post-quantum migration rationale
 - **Risk if misused:** Harvest-now-decrypt-later: traffic and on-chain signatures captured today are decryptable once a cryptographically relevant quantum computer exists. Long-lived secrets need migrating before that date, not after.
 - **Depends on:** `ntt`
+- **Owned by:** `src/mathcore/quantum/shor.py`
 - **References:** Shor 1997, NIST IR 8547
 
 #### Spectral analysis of side channels
-`fft-side-channel` — **ATTACK SURFACE** · relevance: security · status: planned
+`fft-side-channel` — **ATTACK SURFACE** · relevance: security · status: implemented
 
 Power, electromagnetic and timing traces are correlated in the frequency domain; the FFT is what makes differential power analysis tractable over long traces.
 
 - **Used by:** DPA and CPA against hardware wallets, timing analysis of signing code
 - **Risk if misused:** Asserting that a comparison is constant-time without measuring it. The only evidence that matters is a distribution of timings that does not separate by secret value.
 - **Owned by:** `src/mathcore/harmonic/fft_spectral.py`
-- **Consumed by:** `src/security/constant_time.py`
 - **References:** Kocher et al. 1999
 
 #### FFT-based big-integer multiplication
@@ -441,7 +442,6 @@ Proof-of-work block discovery is a memoryless process, so inter-arrival times ar
 - **Used by:** Bitcoin, every Nakamoto-style chain
 - **Risk if misused:** Treating a ten-minute average as a ten-minute guarantee. The exponential tail means an hour-long gap is unremarkable, and a deposit-timing model that assumes otherwise will mis-size positions during confirmation waits.
 - **Owned by:** `src/mathcore/probability/confirmations.py`
-- **Consumed by:** `src/features/derivatives.py`
 - **References:** Nakamoto 2008 section 11
 
 #### Gambler's ruin and double-spend probability
@@ -452,7 +452,6 @@ The random-walk argument that gives the probability an attacker with hash-rate f
 - **Used by:** Bitcoin whitepaper section 11, exchange deposit-crediting policy
 - **Risk if misused:** Using a fixed confirmation count regardless of transfer size and current hash-rate distribution. The required depth is a function of value at risk and attacker share, not a constant.
 - **Owned by:** `src/mathcore/probability/confirmations.py`
-- **Consumed by:** `src/risk/`
 - **References:** Nakamoto 2008 section 11, Rosenfeld 2014
 
 #### Chernoff and Hoeffding bounds
@@ -513,7 +512,7 @@ Proves a committed vector is close to a low-degree polynomial without a trusted 
 ## Geometry, lattices and graphs
 
 #### LLL and BKZ lattice reduction
-`lattice-reduction-lll` — **ATTACK SURFACE** · relevance: security · status: planned
+`lattice-reduction-lll` — **ATTACK SURFACE** · relevance: security · status: implemented
 
 The workhorse of practical lattice attacks. Sets the concrete security of every lattice scheme and, combined with the hidden number problem, recovers ECDSA keys from biased nonces.
 
@@ -523,7 +522,7 @@ The workhorse of practical lattice attacks. Sets the concrete security of every 
 - **References:** Lenstra-Lenstra-Lovasz 1982, Albrecht et al. lattice estimator
 
 #### Hidden number problem and biased-nonce key recovery
-`hidden-number-problem` — **ATTACK SURFACE** · relevance: security · status: planned
+`hidden-number-problem` — **ATTACK SURFACE** · relevance: security · status: implemented
 
 A handful of ECDSA signatures whose nonces share even a few known bits yield the private key by lattice reduction. This is the single most directly relevant attack in this registry for a system that signs.
 
@@ -531,7 +530,6 @@ A handful of ECDSA signatures whose nonces share even a few known bits yield the
 - **Risk if misused:** Any signer whose nonce generation is not RFC 6979 deterministic, or whose RNG is biased, leaks its key over enough signatures. Detection is necessary but the fix is deterministic nonces, not monitoring.
 - **Depends on:** `lattice-reduction-lll`, `elliptic-curves`
 - **Owned by:** `src/mathcore/lattice/hnp.py`
-- **Consumed by:** `src/ecc/ecdsa_scan.py`
 - **References:** Boneh-Venkatesan 1996, RFC 6979, Breitner-Heninger 2019
 
 #### Expander and Ramanujan graphs
@@ -543,7 +541,7 @@ Rapid mixing is what makes a random walk in a supersingular isogeny graph, or a 
 - **Depends on:** `isogenies`
 
 #### Merkle trees and DAGs
-`merkle-trees` — **LOAD-BEARING** · relevance: analytics · status: planned
+`merkle-trees` — **LOAD-BEARING** · relevance: analytics · status: implemented
 
 Logarithmic-size membership proofs against a constant-size commitment. Every SPV proof, state root and content-addressed store is one.
 
@@ -556,7 +554,7 @@ Logarithmic-size membership proofs against a constant-size commitment. Every SPV
 ## Constants
 
 #### Nothing-up-my-sleeve constants
-`nutms-constants` — **PROVENANCE ONLY** · relevance: security · status: planned
+`nutms-constants` — **PROVENANCE ONLY** · relevance: security · status: implemented
 
 Constants derived from a published formula so that no backdoor can hide in them. The value is irrelevant; the auditability is the whole point. MD5 uses sines, SHA-1 uses square roots, SHA-256 uses cube roots of small primes, Blowfish uses the digits of pi, BLAKE uses pi, RC5 uses e and the golden ratio, ARIA uses 1/pi.
 
@@ -566,14 +564,14 @@ Constants derived from a published formula so that no backdoor can hide in them.
 - **References:** FIPS 180-4, RFC 7539, Bernstein et al., How to manipulate curve standards
 
 #### Pi where it is structural rather than decorative
-`pi-structural-uses` — **LOAD-BEARING** · relevance: security · status: planned
+`pi-structural-uses` — **LOAD-BEARING** · relevance: security · status: implemented
 
 In the discrete Gaussian exp(-pi|x|^2/s^2) the pi is not cosmetic: it makes the Gaussian self-dual under the Fourier transform, which is the property Poisson summation needs for the smoothing-parameter argument.
 
 - **Used by:** ML-KEM security analysis, ML-DSA, Falcon
 - **Risk if misused:** Dropping the pi from the Gaussian definition when porting a formula changes the width by a constant factor and silently moves the scheme below its smoothing parameter.
 - **Depends on:** `poisson-summation-smoothing`
-- **Consumed by:** `src/mathcore/harmonic/gaussian_lattice.py`
+- **Owned by:** `src/mathcore/harmonic/gaussian_lattice.py`
 
 #### e and the prime number theorem
 `e-prime-density` — **LOAD-BEARING** · status: not_applicable
@@ -613,7 +611,7 @@ Two equivalent wirings of a linear feedback shift register. The names honour Fib
 ## Protocol primitives
 
 #### BIP-32 hierarchical deterministic key derivation
-`bip32-hd-derivation` — **LOAD-BEARING** · relevance: security · status: planned
+`bip32-hd-derivation` — **LOAD-BEARING** · relevance: security · status: implemented
 
 Derives an unbounded key tree from one seed using HMAC-SHA512 and scalar addition on the curve. It is how a single backed-up seed controls every address a bot uses.
 
@@ -621,11 +619,10 @@ Derives an unbounded key tree from one seed using HMAC-SHA512 and scalar additio
 - **Risk if misused:** An extended public key plus any one non-hardened child private key reveals the parent private key and therefore the whole branch. Use hardened derivation at account level, and never let an xpub and a child key meet.
 - **Depends on:** `elliptic-curves`
 - **Owned by:** `src/mathcore/derivation/bip32.py`
-- **Consumed by:** `src/security/credential_vault.py`
 - **References:** BIP-32, BIP-44, SLIP-0010
 
 #### RFC 6979 deterministic nonce generation
-`rfc6979-deterministic-nonces` — **LOAD-BEARING** · relevance: security · status: planned
+`rfc6979-deterministic-nonces` — **LOAD-BEARING** · relevance: security · status: implemented
 
 Derives the ECDSA nonce deterministically from the key and message, removing the RNG from the signing path entirely and with it the entire biased-nonce attack class.
 
@@ -633,11 +630,10 @@ Derives the ECDSA nonce deterministically from the key and message, removing the
 - **Risk if misused:** This is the fix for the hidden number problem. Any signing path that reintroduces a random nonce reintroduces the entire attack class, however good the RNG is believed to be.
 - **Depends on:** `hidden-number-problem`
 - **Owned by:** `src/mathcore/derivation/nonces.py`
-- **Consumed by:** `src/security/api_signer.py`
 - **References:** RFC 6979, RFC 8032
 
 #### Threshold signatures and secret sharing
-`threshold-signatures` — **LOAD-BEARING** · relevance: security · status: planned
+`threshold-signatures` — **LOAD-BEARING** · relevance: security · status: implemented
 
 Splits signing authority so that no single machine holds a spendable key, which is the only structural defence against a compromised trading host.
 
@@ -645,8 +641,9 @@ Splits signing authority so that no single machine holds a spendable key, which 
 - **Risk if misused:** Naive multi-round threshold Schnorr is vulnerable to concurrent-session attacks (the Wagner ROS attack). Use a scheme with proven concurrent security, not an ad-hoc aggregation.
 - **Depends on:** `lagrange-interpolation`, `elliptic-curves`
 - **Owned by:** `src/mathcore/derivation/threshold.py`
-- **Consumed by:** `src/ecc/schnorr_taproot.py`
 - **References:** RFC 9591 FROST, MuSig2
+
+> Implements the verifiable-sharing half only: Feldman commitments, the group and participant public keys, share verification, Lagrange weights at zero, and dispute evidence. Deliberately not a signer -- see risk_if_misused. The pieces here are individually correct and compose into an ROS-vulnerable scheme, so the boundary is enforced in the module and asserted by a test rather than described in a comment.
 
 #### Merkle-Damgard and sponge constructions
 `hash-constructions` — **LOAD-BEARING** · relevance: security · status: not_applicable
@@ -682,12 +679,13 @@ Produces a pseudorandom output with a proof that it was computed correctly, whic
 - **References:** RFC 9381
 
 #### Grover's algorithm and symmetric key margins
-`grover-hash-margins` — **ATTACK SURFACE** · relevance: security · status: planned
+`grover-hash-margins` — **ATTACK SURFACE** · relevance: security · status: implemented
 
 A quadratic speedup on unstructured search, which halves the effective strength of symmetric keys and hash preimage resistance and is why AES-256 rather than AES-128 is the post-quantum recommendation.
 
 - **Used by:** post-quantum symmetric parameter selection
 - **Risk if misused:** Migrating asymmetric primitives to post-quantum schemes while leaving 128-bit symmetric keys in place leaves the weakest link untouched.
+- **Owned by:** `src/mathcore/quantum/grover.py`
 - **References:** Grover 1996, NIST IR 8547
 
 #### Protocol magic numbers
