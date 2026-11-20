@@ -34,7 +34,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from ..registry import MathRegistry, RegistryError, load_registry
+from ..registry import MathRegistry, RegistryError, default_registry
 
 __all__ = [
     "MULTIPLE_TESTING_CORRECTIONS",
@@ -153,7 +153,7 @@ def assert_not_folklore(
     ``registry`` is injectable for testing; by default the project registry is
     loaded.
     """
-    registry = registry if registry is not None else load_registry()
+    registry = registry if registry is not None else default_registry()
     entry = registry.get(feature_id)  # RegistryError on an unknown id
 
     if entry.verdict != "folklore":
