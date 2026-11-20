@@ -29,6 +29,7 @@ from src.engine.strategy_portfolio import (
 )
 from src.strategies.breakout import BreakoutStrategy
 from src.strategies.registry import StrategyRegistry
+from tests.conftest import settings_double
 
 
 class _Bar:

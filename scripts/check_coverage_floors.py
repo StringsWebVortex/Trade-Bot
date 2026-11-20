@@ -38,11 +38,14 @@ EXCEPTIONS: dict[str, tuple[float, str]] = {}
 
 def _coverage_json() -> dict:
     """Return coverage's JSON report, generated from the existing .coverage."""
+    # check=False: a failure here means "pytest has not run yet", and the
+    # SystemExit below says so. CalledProcessError would not.
     proc = subprocess.run(
         [sys.executable, "-m", "coverage", "json", "-o", "-", "--quiet"],
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,
+        check=False,
     )
     if proc.returncode != 0:
         sys.stderr.write(proc.stderr)
@@ -57,8 +60,35 @@ def _percent(summary: dict) -> float:
     return 100.0 if total == 0 else 100.0 * covered / total
 
 
+def _missing_ranges(entry: dict, cap: int = 24) -> str:
+    """
+    The uncovered lines of one file, as compact ranges.
+
+    The percentage alone says a file is short and not what to write a test
+    for, and the only other source is the job log -- which the CI failure
+    notice exists to avoid reading. This check is the step that fails, so its
+    output is what reaches the notice; it has to carry the lines.
+    """
+    lines = sorted(entry.get("missing_lines") or [])
+    if not lines:
+        return ""
+    groups: list[tuple[int, int]] = []
+    for n in lines:
+        if groups and n == groups[-1][1] + 1:
+            groups[-1] = (groups[-1][0], n)
+        else:
+            groups.append((n, n))
+    shown = [f"{a}" if a == b else f"{a}-{b}" for a, b in groups[:cap]]
+    more = "" if len(groups) <= cap else f", +{len(groups) - cap} more"
+    return ", ".join(shown) + more
+
+
 def main() -> int:
     report = _coverage_json()
+    if not report.get("files"):
+        # Zero measured files would otherwise print "All 0 measured files" and pass.
+        print("coverage report contains no measured files; refusing to pass")
+        return 1
     failures: list[str] = []
     stale: list[str] = []
 
@@ -67,7 +97,9 @@ def main() -> int:
         floor, reason = EXCEPTIONS.get(path, (MIN_PERCENT, ""))
         if pct + 1e-9 < floor:
             note = f" (exception: {reason})" if reason else ""
-            failures.append(f"  {path}: {pct:.2f}% < {floor:.0f}%{note}")
+            missing = _missing_ranges(entry)
+            where = f" -- missing {missing}" if missing else ""
+            failures.append(f"  {path}: {pct:.2f}% < {floor:.0f}%{note}{where}")
         elif path in EXCEPTIONS and pct + 1e-9 >= MIN_PERCENT:
             stale.append(f"  {path}: {pct:.2f}% now clears the {MIN_PERCENT:.0f}% floor")
 

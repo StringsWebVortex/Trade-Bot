@@ -7,6 +7,20 @@ Parses P2TR (Pay-to-Taproot, BIP-341) inputs to identify:
   - Smart-money divergence: when large Taproot signers move against spot
 
 Output fed to 4h and 1W horizons.
+
+post_quantum posture (LAW12):
+  Nothing here is a cryptographic trust boundary. This module reads
+  public chain data and produces a score; it holds no key, signs
+  nothing, establishes no shared secret, and protects no secret of
+  ours. There is therefore nothing in it for a CRQC to break, and no
+  ML-KEM or ML-DSA migration applies.
+
+  A CRQC changes what these signals *mean*, not what this code must
+  protect. BIP-340 Schnorr and MuSig2 are
+  discrete-log schemes and a CRQC breaks both, but this module only
+  parses P2TR spends to identify who is signing. If Bitcoin migrates
+  its signature scheme, the parsing changes because the script format
+  does -- a chain-upgrade follow, not a security migration.
 """
 
 from __future__ import annotations
@@ -76,8 +90,9 @@ def estimate_privacy_routing(clusters: list[list[str]]) -> float:
     Estimate privacy routing score [0, 1].
 
     Higher score = more use of privacy-enhancing Taproot features.
-    Based on: fraction of key-path spends (indistinguishable from single-sig)
-    vs script-path spends (reveals the full Taproot tree).
+    Heuristic: average size of the detected key clusters, saturating at 5.
+    It is NOT a key-path vs script-path fraction, and the clusters are only
+    x-only keys sharing a 4-byte prefix, not proven MuSig2 aggregates.
     """
     if not clusters:
         return 0.0
@@ -147,6 +162,8 @@ def parse_taproot_block(transactions: list[dict]) -> TaprootSpendInfo:
 
     musig2_clusters = detect_musig2_cosigners(all_taproot_inputs)
     privacy = estimate_privacy_routing(musig2_clusters)
+    # No retail-direction source is wired in, so the divergence is a constant 0.0
+    # (neutral); consumers must not treat it as signal.
     divergence = compute_smart_money_divergence(musig2_clusters, retail_direction=0.0)
 
     return TaprootSpendInfo(

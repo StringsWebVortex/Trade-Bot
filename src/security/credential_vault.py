@@ -9,6 +9,27 @@ Derivation path: m/44'/coin_type'/exchange_index'/0/key_index
 Each exchange gets its own derivation path → compromise of one key ≠ all keys.
 
 Requires: cryptography package (already in deps via api_signer.py)
+
+post_quantum posture (LAW12):
+  Derivation is symmetric and already quantum-resistant. See _derive_child:
+  hardened-only derivation means the child key is HMAC-SHA512 over the
+  parent *private* key, and no parent public key is ever needed, so this
+  module performs no secp256k1 point arithmetic -- the one BIP-32 step that
+  would be quantum-fragile is the one hardened derivation removes. Grover
+  against HMAC-SHA512 leaves ~256 bits of security.
+
+  What the derived bytes are used for matters more than how they are
+  derived, and today that use is also symmetric: api_key_for() hands the
+  material to exchange HMAC request signing. No ML-KEM or ML-DSA migration
+  applies while that stays true.
+
+  The condition to re-check: if a derived key is ever used as an elliptic
+  curve private key -- signing a withdrawal, an on-chain transaction, or
+  anything with a public counterpart -- the quantum exposure moves to that
+  key and this note stops holding. The master seed itself is symmetric and
+  is not the concern.
+
+Registry: SECR-003, SECR-007, SECR-009, SECR-010 (config/quality_registry.json).
 """
 
 from __future__ import annotations
@@ -85,7 +106,12 @@ class CredentialVault:
 
         Returns deterministic key material; same inputs → same output.
         """
-        exch_idx = self._EXCHANGE_INDICES.get(exchange.lower(), len(self._EXCHANGE_INDICES))
+        exch_idx = self._EXCHANGE_INDICES.get(exchange.lower())
+        if exch_idx is None:
+            # Unknown exchanges used to share one index and so one key (API-018).
+            raise ValueError(f"unknown exchange {exchange!r}")
+        if not 0 <= key_index < _HARDENED_OFFSET:
+            raise ValueError("key_index out of range")
         coin_type = 0  # 0 = BTC namespace; use per-coin if needed
 
         # m/44'/coin_type'/exchange_index'/0/key_index
