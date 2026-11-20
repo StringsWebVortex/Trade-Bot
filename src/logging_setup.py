@@ -20,6 +20,7 @@ Registry: SECR-001 (config/quality_registry.json).
 from __future__ import annotations
 
 import logging
+import re
 from collections.abc import MutableMapping
 from typing import Any, Final
 
@@ -61,6 +62,49 @@ _SECRET_KEY_NAMES: Final[frozenset[str]] = frozenset(
 
 _REDACTED: Final[str] = "[REDACTED]"
 
+# API-014: a key is secret when its name *contains* one of these, so
+# `binance_api_secret`, `db_passphrase`, `timescale_dsn` and
+# `operator_secret_hash` are caught as well as the exact names above.
+_SECRET_KEY_FRAGMENTS: Final[tuple[str, ...]] = (
+    "api_key",
+    "apikey",
+    "api_secret",
+    "authorization",
+    "credential",
+    "dsn",
+    "passphrase",
+    "passwd",
+    "password",
+    "private_key",
+    "secret",
+    "token",
+)
+_MAX_REDACT_DEPTH: Final[int] = 8
+
+
+def _is_secret_key(key: object) -> bool:
+    if not isinstance(key, str):
+        return False
+    lowered = key.lower()
+    return lowered in _SECRET_KEY_NAMES or any(f in lowered for f in _SECRET_KEY_FRAGMENTS)
+
+
+def _redact_value(value: Any, depth: int = 0) -> Any:
+    """Recursively redact a field value: strings by pattern, mappings by key."""
+    if isinstance(value, str):
+        cleaned, count = redact(value)
+        return cleaned if count else value
+    if depth >= _MAX_REDACT_DEPTH:
+        return value
+    if isinstance(value, dict):
+        return {
+            k: (_REDACTED if _is_secret_key(k) else _redact_value(v, depth + 1))
+            for k, v in value.items()
+        }
+    if isinstance(value, (list, tuple)):
+        return type(value)(_redact_value(v, depth + 1) for v in value)
+    return value
+
 
 def redact_event(_logger: object, _method: str, event_dict: MutableMapping[str, Any]) -> Any:
     """
@@ -68,19 +112,16 @@ def redact_event(_logger: object, _method: str, event_dict: MutableMapping[str, 
 
     Two passes, because the two leaks are different. A field *named* like a
     secret is replaced whole regardless of its value -- the name is the
-    evidence, and a short value is not proof of innocence. Every other string
-    field goes through the shared pattern redactor, which is what catches a
-    token embedded in a rendered exception.
+    evidence, and a short value is not proof of innocence. Every other field
+    is walked (nested mappings and sequences included) and its strings go
+    through the shared pattern redactor, which is what catches a token
+    embedded in a rendered exception.
     """
     for key in list(event_dict):
-        value = event_dict[key]
-        if key.lower() in _SECRET_KEY_NAMES:
+        if _is_secret_key(key):
             event_dict[key] = _REDACTED
             continue
-        if isinstance(value, str):
-            cleaned, count = redact(value)
-            if count:
-                event_dict[key] = cleaned
+        event_dict[key] = _redact_value(event_dict[key])
     return event_dict
 
 
@@ -95,9 +136,43 @@ def _renderer(as_json: bool) -> object:
     return structlog.dev.ConsoleRenderer(colors=False)
 
 
+_URL_SECRET = re.compile(r"(?i)\b(api_key|apikey|token|key)=[^&\s\"']+")
+
+
+class RedactUrlSecretsFilter(logging.Filter):
+    """
+    Strip ``api_key=...``-style query values from stdlib log records.
+
+    uvicorn logs the full request path, query string included, through stdlib
+    loggers that never pass through structlog's redact_event (API-005).
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        try:
+            message = record.getMessage()
+        except Exception:  # noqa: BLE001 - never let a bad record break logging
+            return True
+        redacted = _URL_SECRET.sub(r"\1=[REDACTED]", message)
+        if redacted != message:
+            record.msg, record.args = redacted, ()
+        return True
+
+
+def install_uvicorn_log_redaction() -> None:
+    """Idempotently attach the filter to uvicorn's loggers."""
+    for name in ("uvicorn", "uvicorn.error", "uvicorn.access"):
+        target = logging.getLogger(name)
+        if not any(isinstance(f, RedactUrlSecretsFilter) for f in target.filters):
+            target.addFilter(RedactUrlSecretsFilter())
+        for handler in target.handlers:
+            if not any(isinstance(f, RedactUrlSecretsFilter) for f in handler.filters):
+                handler.addFilter(RedactUrlSecretsFilter())
+
+
 def configure_logging(settings: Settings | None = None) -> None:
     """Configure structlog from settings. Safe to call more than once."""
     cfg = settings if settings is not None else get_settings()
+    install_uvicorn_log_redaction()
 
     structlog.configure(
         processors=[

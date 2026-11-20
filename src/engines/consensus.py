@@ -304,9 +304,11 @@ class TtlManager:
         self._state: str = "low"
 
     def compute(self, entropy_score: float) -> int:
-        if self._state == "low" and entropy_score > _LOW_ENTROPY_THRESHOLD + _HYSTERESIS:
+        # Schmitt trigger: enter "high" above the upper bound, leave it only
+        # below the lower bound; mid-band values keep the current state.
+        if self._state == "low" and entropy_score > _HIGH_ENTROPY_THRESHOLD + _HYSTERESIS:
             self._state = "high"
-        elif self._state == "high" and entropy_score < _HIGH_ENTROPY_THRESHOLD - _HYSTERESIS:
+        elif self._state == "high" and entropy_score < _LOW_ENTROPY_THRESHOLD - _HYSTERESIS:
             self._state = "low"
         return 24 if self._state == "low" else 1
 

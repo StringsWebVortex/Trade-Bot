@@ -52,6 +52,8 @@ from src.features.pipeline import (
 from src.models.trainer import (
     _FEATURE_COLUMNS_ATTR,
     ModelTrainer,
+    bars_per_year,
+    evaluation_returns,
     oos_sharpe_and_drawdown,
 )
 from src.regime.garch import rolling_garch_forecast
@@ -383,6 +385,8 @@ def run_feature_window_backtest(
     challenger_window: int,
     direction_model: XGBClassifier,
     features_cfg: FeatureSettings | None = None,
+    timeframe: str = "15m",
+    oos_start_ms: int | None = None,
 ) -> list[MetricComparison]:
     """
     Recalibrate one of the rolling-window feature parameters (Phase 8
@@ -428,17 +432,26 @@ def run_feature_window_backtest(
     # production-window default -- align both variants to rows valid under
     # BOTH before folding, so champion and challenger see identical bars.
     valid = champion_features[column].notna() & challenger_features[column].notna()
+    # The frozen model has already seen every bar through its artifact training
+    # timestamp. Exclude those bars before any fold is formed (STR-06).
+    if oos_start_ms is not None:
+        valid = valid & (idx > oos_start_ms)
     # list(...) rather than the constant directly: .loc reads a tuple key as a
     # MultiIndex lookup rather than a column selection, so this stays correct
     # whichever sequence type FEATURE_COLUMNS is.
     champion_features = champion_features.loc[valid, list(FEATURE_COLUMNS)]
     challenger_features = challenger_features.loc[valid, list(FEATURE_COLUMNS)]
-    log_ret = baseline.log_returns.reindex(idx).loc[valid].to_numpy(dtype=np.float64)
+    scored = pd.Series(evaluation_returns(baseline), index=idx)
+    log_ret = scored.loc[valid].to_numpy(dtype=np.float64)
 
     champion_pred = _predict_direction_batch(direction_model, champion_features)
     challenger_pred = _predict_direction_batch(direction_model, challenger_features)
 
     folds = _make_folds(len(log_ret), features_cfg.cpcv_n_splits, features_cfg.purge_gap_bars)
+    bpy = bars_per_year(timeframe)
+    periods_per_year = (
+        None if bpy is None else bpy / max(1, int(features_cfg.triple_barrier_max_holding_bars))
+    )
 
     champion_fold_sharpes: list[float] = []
     challenger_fold_sharpes: list[float] = []
@@ -453,8 +466,12 @@ def run_feature_window_backtest(
         fold_champion_pred = champion_pred[start:end]
         fold_challenger_pred = challenger_pred[start:end]
 
-        champion_sharpe, _ = oos_sharpe_and_drawdown(fold_champion_pred, fold_ret)
-        challenger_sharpe, _ = oos_sharpe_and_drawdown(fold_challenger_pred, fold_ret)
+        champion_sharpe, _ = oos_sharpe_and_drawdown(
+            fold_champion_pred, fold_ret, periods_per_year=periods_per_year
+        )
+        challenger_sharpe, _ = oos_sharpe_and_drawdown(
+            fold_challenger_pred, fold_ret, periods_per_year=periods_per_year
+        )
         champion_fold_sharpes.append(champion_sharpe)
         challenger_fold_sharpes.append(challenger_sharpe)
 

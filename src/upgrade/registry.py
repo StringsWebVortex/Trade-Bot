@@ -16,6 +16,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import os
+import re
 from pathlib import Path
 from typing import Any
 
@@ -25,6 +26,8 @@ log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
 _TRACKING_URI = os.environ.get("MLFLOW_TRACKING_URI", "http://127.0.0.1:5000")
 _EXPERIMENT_NAME = os.environ.get("MLFLOW_EXPERIMENT", "crypto-intel-v6")
+_TAG_NAME_RE = re.compile(r"[A-Za-z0-9._/-]+")
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
 _DVC_REMOTE = os.environ.get("DVC_REMOTE", "origin")
 
 
@@ -96,8 +99,11 @@ class ModelRegistry:
 
             try:
                 self._mlflow.pytorch.log_model(model, artifact_path)  # type: ignore[attr-defined]
-            except (ImportError, Exception) as exc:
+            except Exception as exc:
+                # No artifact was stored: returning the run_id would let a caller
+                # register a model that does not exist (MTH-007).
                 log.warning("mlflow_pytorch_log_failed", exc=str(exc))
+                return None
 
             run_id = run.info.run_id
             log.info("mlflow_model_logged", model_name=model_name, run_id=run_id, metrics=metrics)
@@ -194,13 +200,16 @@ class ModelRegistry:
         The tag makes the model checkpoint reproducible from a git commit.
         Returns True if the DVC tag was created successfully.
         """
+        if not _TAG_NAME_RE.fullmatch(tag_name or "") or tag_name.startswith("-"):
+            log.warning("dvc_tag_invalid_name", tag=tag_name)
+            return False
         try:
             import subprocess
 
             cmd = ["dvc", "commit", "--quiet"]
             if artifact_dir:
                 cmd.append(str(artifact_dir))
-            subprocess.run(cmd, check=True, capture_output=True)
+            subprocess.run(cmd, check=True, capture_output=True, cwd=_PROJECT_ROOT)
 
             # Create git tag pointing at this DVC state
             import subprocess as sp
@@ -209,6 +218,7 @@ class ModelRegistry:
                 ["git", "tag", "-a", tag_name, "-m", f"DVC model tag: {tag_name}"],
                 check=True,
                 capture_output=True,
+                cwd=_PROJECT_ROOT,
             )
             log.info("dvc_tag_created", tag=tag_name)
             return True
