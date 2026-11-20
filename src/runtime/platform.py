@@ -2,7 +2,8 @@
 The runtime platform's composition root.
 
 ``build_runtime_platform`` wires one registry, one supervisor set, one change
-manager, one reconciler, one adaptive lifecycle and one decision-trace index
+manager, one reconciler, one adaptive lifecycle (constructed but not yet
+driven by any caller; see ``runtime.adaptive``) and one decision-trace index
 together, with the change audit mirrored onto the event bus and into the
 hash-chained audit trail, and desired state persisted through the storage
 backend when one is given. The API holds exactly one of these; it is the

@@ -95,6 +95,7 @@ def test_fusion_serializes_a_complete_decision() -> None:
     assert rendered["regime_id"] == 2
     assert rendered["model_versions"] == {0: "v-0"}
     assert rendered["freshness_seconds"] == {0: 1.0}
+    assert rendered["calibrated"] is True
 
 
 def test_fusion_rejects_each_unusable_forecast_shape() -> None:
@@ -106,13 +107,10 @@ def test_fusion_rejects_each_unusable_forecast_shape() -> None:
         {"confidence_calibrated": False},
         {"uncertainty_calibrated": False},
         {"prediction_ts": None},
-<<<<<<< HEAD
         {"prediction_ts": float("nan")},
         {"prediction_ts": float("inf")},
         {"prediction_ts": float("-inf")},
         {"prediction_ts": "not-a-timestamp"},
-=======
->>>>>>> origin/main
         {"oos_score": None},
         {"oos_sample_count": 99},
         {"oos_score": float("nan")},

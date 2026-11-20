@@ -21,6 +21,7 @@ class UnifiedHorizonDecision:
     freshness_seconds: dict[int, float]
     abstain_reason: str | None
     regime_id: int | None = None
+    calibrated: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -34,6 +35,7 @@ class UnifiedHorizonDecision:
             "freshness_seconds": dict(self.freshness_seconds),
             "abstain_reason": self.abstain_reason,
             "regime_id": self.regime_id,
+            "calibrated": self.calibrated,
         }
 
 
@@ -80,7 +82,6 @@ def fuse_horizon_predictions(
             or not math.isfinite(float(score))
         ):
             continue
-<<<<<<< HEAD
         try:
             prediction_timestamp = float(pred_ts)
         except (TypeError, ValueError, OverflowError):
@@ -88,9 +89,6 @@ def fuse_horizon_predictions(
         if not math.isfinite(prediction_timestamp):
             continue
         age = now - prediction_timestamp
-=======
-        age = now - float(pred_ts)
->>>>>>> origin/main
         if age < 0 or age > max_age_seconds:
             continue
         score = float(score)
@@ -154,4 +152,5 @@ def fuse_horizon_predictions(
         freshness,
         None,
         regime_id,
+        calibrated=True,
     )

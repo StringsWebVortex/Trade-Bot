@@ -126,6 +126,9 @@ def verify(record_path: Path) -> list[str]:
     bundle = record_path.parent
     for entry in record.get("files") or []:
         name = entry.get("name", "")
+        if not name or Path(name).is_absolute() or ".." in Path(name).parts:
+            problems.append(f"unsafe file name in provenance record: {name!r}")
+            continue
         path = bundle / name
         if not path.exists():
             problems.append(f"described file is missing from the bundle: {name}")

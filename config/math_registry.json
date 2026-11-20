@@ -148,11 +148,6 @@
           "note": "already parses DER signatures and detects r-reuse"
         },
         {
-          "module": "src/ecc/schnorr_taproot.py",
-          "kind": "consumer",
-          "note": "BIP-340 and MuSig2 cosigner detection"
-        },
-        {
           "module": "tests/test_bip32.py",
           "kind": "test"
         },
@@ -278,11 +273,6 @@
           "module": "src/mathcore/harmonic/gaussian_lattice.py",
           "kind": "owner",
           "note": "discrete Gaussian and smoothing-parameter checks"
-        },
-        {
-          "module": "src/security/pq_transport.py",
-          "kind": "consumer",
-          "note": "currently an explicit Kyber-768 placeholder, not a working KEM"
         },
         {
           "module": "tests/test_gaussian_lattice.py",
@@ -1011,11 +1001,6 @@
           "kind": "owner"
         },
         {
-          "module": "src/security/constant_time.py",
-          "kind": "consumer",
-          "note": "existing constant-time comparisons gain an empirical timing-leak test"
-        },
-        {
           "module": "tests/test_harmonic_spectral.py",
           "kind": "test"
         }
@@ -1116,11 +1101,6 @@
           "kind": "owner"
         },
         {
-          "module": "src/features/derivatives.py",
-          "kind": "consumer",
-          "note": "settlement-timing features"
-        },
-        {
           "module": "tests/test_confirmations.py",
           "kind": "test"
         }
@@ -1146,11 +1126,6 @@
         {
           "module": "src/mathcore/probability/confirmations.py",
           "kind": "owner"
-        },
-        {
-          "module": "src/risk/",
-          "kind": "consumer",
-          "note": "settlement risk before a deposit is treated as spendable"
         },
         {
           "module": "tests/test_confirmations.py",
@@ -1354,11 +1329,6 @@
         {
           "module": "src/mathcore/lattice/hnp.py",
           "kind": "owner"
-        },
-        {
-          "module": "src/ecc/ecdsa_scan.py",
-          "kind": "consumer",
-          "note": "existing module detects exact r-reuse; bias detection is the gap this closes"
         },
         {
           "module": "tests/test_hnp.py",
@@ -1573,10 +1543,6 @@
           "note": "watch-only public derivation; private derivation stays out of this process"
         },
         {
-          "module": "src/security/credential_vault.py",
-          "kind": "consumer"
-        },
-        {
           "module": "tests/test_bip32.py",
           "kind": "test"
         }
@@ -1605,11 +1571,6 @@
       "repo_relevance": "security",
       "status": "implemented",
       "wiring": [
-        {
-          "module": "src/security/api_signer.py",
-          "kind": "consumer",
-          "note": "Ed25519 provides the equivalent guarantee by construction"
-        },
         {
           "module": "src/mathcore/derivation/nonces.py",
           "kind": "owner",
@@ -1650,11 +1611,6 @@
         {
           "module": "src/mathcore/derivation/threshold.py",
           "kind": "owner"
-        },
-        {
-          "module": "src/ecc/schnorr_taproot.py",
-          "kind": "consumer",
-          "note": "MuSig2 cosigner detection already present"
         },
         {
           "module": "tests/test_threshold.py",

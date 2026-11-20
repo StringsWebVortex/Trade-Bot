@@ -165,6 +165,10 @@ class TestModelDegradationTracker:
         self.tracker.resolve_last(1)
         self.tracker.resolve_last(0)  # nothing to resolve → noop
 
+        # The second call found nothing open, so the first outcome stands.
+        assert self.tracker._preds[-1].actual_direction == 1
+        assert self.tracker._resolved_count == 1
+
     def test_record_trade_result(self):
         self.tracker.record_trade_result(100.0)
         assert len(self.tracker._trade_pnls) == 1

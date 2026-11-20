@@ -12,6 +12,8 @@ agent can act on. What this would catch:
 * a recorded commit that history no longer contains (a rewritten branch);
 * a push or PR that is not at HEAD being accepted as delivered;
 * a required branch audit that never ran, or did not reconcile.
+
+Decides: SEC-1220
 """
 
 from __future__ import annotations
@@ -127,6 +129,12 @@ def _snapshot(**overrides: object) -> GitSnapshot:
     return replace(snapshot, **overrides)
 
 
+@pytest.fixture(autouse=True)
+def _prfail_verdict_green(monkeypatch):
+    """By default prfail's verdict store reports green for HEAD (AGT-003 tests override it)."""
+    monkeypatch.setattr("src.agent_control.completion.ci_is_green", lambda sha: True)
+
+
 @pytest.fixture
 def git(fake_git, tmp_path: Path):
     return fake_git(
@@ -162,6 +170,14 @@ def test_a_task_meeting_every_predicate_is_complete(git) -> None:
         HEAD,
     )
     assert all(p["detail"] == "ok" for p in report["predicates"])
+
+
+def test_attested_ci_notice_without_a_prfail_verdict_does_not_validate(git, monkeypatch) -> None:
+    """AGT-003: the agent could satisfy the CI validation by attesting to it."""
+    monkeypatch.setattr("src.agent_control.completion.ci_is_green", lambda sha: False)
+    report = _blockers(git)
+    assert not report["complete"]
+    assert any("validation 'ci' has no passing evidence" in r for r in report["blocking_reasons"])
 
 
 @pytest.mark.parametrize(

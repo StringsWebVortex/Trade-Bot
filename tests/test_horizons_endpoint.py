@@ -20,6 +20,14 @@ from src.intel import (
 )
 from src.workers.orchestrator import WorkerResult
 
+_NOW = 1_800_000_000.0
+
+
+@pytest.fixture(autouse=True)
+def _frozen_wall_clock(monkeypatch: pytest.MonkeyPatch) -> None:
+    """horizon_status() reads time.time(); a fixed clock makes ages exact."""
+    monkeypatch.setattr(time, "time", lambda: _NOW)
+
 
 def test_config_declares_ten_horizons():
     # The shipped config/horizons.yaml. If a horizon is added or removed
@@ -134,7 +142,7 @@ def test_status_merges_a_reported_prediction(intel_stub):
     assert first["last_prediction"]["direction"] == 1
     assert first["last_prediction"]["confidence"] == pytest.approx(0.7)
     assert first["last_prediction"]["algo"] == "IOC"
-    assert first["age_seconds"] == pytest.approx(0.0, abs=2.0)
+    assert first["age_seconds"] == pytest.approx(0.0)
 
 
 def test_a_silent_horizon_stays_visible_with_no_prediction(intel_stub):
@@ -159,7 +167,7 @@ def test_age_reflects_staleness(intel_stub):
     first = next(h for h in status if h["id"] == 0)
     # The panel flags anything older than 120s; the value must be real
     # elapsed time, not a fixed placeholder.
-    assert first["age_seconds"] > 120
+    assert first["age_seconds"] == pytest.approx(300.0)
 
 
 def test_status_preserves_a_worker_error(intel_stub):

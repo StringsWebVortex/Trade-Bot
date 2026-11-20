@@ -296,6 +296,7 @@ class RuntimeLoop:
         # is noticed too.
         self._known: set[str] = {r.component_id for r in platform.registry.components()}
         self.passes = 0
+        self._step_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="runtime-loop")
 
     def sync_once(self) -> SyncReport:
         registry = self._platform.registry
@@ -361,7 +362,9 @@ class RuntimeLoop:
                 except Exception as exc:
                     log.error("runtime.slow_refresh_failed", error=f"{type(exc).__name__}: {exc}")
             try:
-                self.step()
+                # API-011: discovery reads pointer files and the reconciler can
+                # reach model loads; one pass must not stall the event loop.
+                await asyncio.get_running_loop().run_in_executor(self._step_executor, self.step)
             except Exception as exc:  # the control plane fails; trading does not
                 log.error("runtime.loop_step_failed", error=f"{type(exc).__name__}: {exc}")
             try:

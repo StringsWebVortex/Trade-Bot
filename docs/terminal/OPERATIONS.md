@@ -99,7 +99,8 @@ tradebot-term token
 ```
 
 `tradebot-term token --rotate` issues a new one; connected browsers must
-re-enter it. The token is kept in `sessionStorage` only. The WebSocket accepts
+re-enter it. The dashboard keeps the token in memory only, so a reload asks for
+it again; it is never written to browser storage. The WebSocket accepts
 loopback connections from the configured origins only.
 
 ## Using the terminal from a shell
