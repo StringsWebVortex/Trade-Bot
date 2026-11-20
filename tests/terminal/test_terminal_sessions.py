@@ -404,7 +404,7 @@ class TestEnvironment:
         assert f"TB_TERMINAL_SESSION_ID={job.id}" in text
         assert "TERM=xterm-256color" in text
         assert "TERM_PROGRAM=tradebot-terminal" in text
-        assert "KEEP_ME=yes" in text
+        assert "KEEP_ME=yes" not in text  # non-allowlisted variables are not inherited
         for gone in ("npm_config_prefix", "npm_lifecycle_event", "INIT_CWD", "ELECTRON_RUN"):
             assert gone not in text
 
@@ -437,3 +437,173 @@ class TestWithoutIntegration:
 def test_signal_names():
     assert signal_name(signal.SIGKILL) == "SIGKILL"
     assert signal_name(200) == "SIG200"
+
+
+class TestRemainingSessionEdges:
+    async def test_initial_write_backpressure_queues_the_entire_input(self, harness):
+        job = await harness.manager.create(argv=["sleep", "30"])
+
+        def blocked(_fd, _data):
+            raise BlockingIOError
+
+        harness.manager._write_fd = blocked
+        harness.manager.write(job.id, b"queued")
+        assert bytes(job.pending_input) == b"queued"
+        assert job.writer_registered
+
+    async def test_output_is_buffered_without_a_listener_and_eof_is_observed(
+        self, harness, monkeypatch
+    ):
+        job = await harness.manager.create(argv=["sleep", "30"])
+        harness.manager._on_output = None
+        monkeypatch.setattr(sessions_module.os, "read", lambda *_args: b"payload")
+        harness.manager._on_readable(job)
+        assert b"payload" in job.buffer.slice(0, job.buffer.end)[0]
+
+        def eof(*_args):
+            raise OSError(5, "pty closed")
+
+        monkeypatch.setattr(sessions_module.os, "read", eof)
+        harness.manager._on_readable(job)
+        assert job.eof is True
+
+    async def test_foreground_refresh_ignores_a_closed_pty(self, harness, monkeypatch):
+        session = await harness.shell()
+
+        def closed(_fd):
+            raise OSError(5, "pty closed")
+
+        monkeypatch.setattr(sessions_module.os, "tcgetpgrp", closed)
+        harness.manager._refresh_foreground(session)
+        assert session.foreground is None
+
+    async def test_start_time_is_unknown_when_procfs_has_no_stat(self, harness, monkeypatch):
+        monkeypatch.setattr(sessions_module.procfs, "read_stat", lambda *_args: None)
+        assert harness.manager._start_time(12345) is None
+
+    async def test_resource_sampling_skips_unowned_and_unreadable_groups(
+        self, harness, monkeypatch
+    ):
+        harness.registry.begin(kind="app", title="without-group")
+        harness.registry.begin(kind="command", title="gone", pgid=12345)
+        monkeypatch.setattr(sessions_module.procfs, "group_usage", lambda *_args: None)
+        harness.manager._sample_usage([], now=1.0)
+
+    async def test_release_removes_a_registered_writer(self, harness):
+        job = await harness.manager.create(argv=["sleep", "30"])
+        harness.manager._queue_input(job, b"pending")
+        assert job.writer_registered
+        harness.manager._release(job)
+        assert job.fd_open is False
+        assert job.writer_registered is False
+        harness.manager._release(job)
+
+    async def test_close_signals_an_active_foreground_group(self, harness):
+        session = await harness.shell()
+        await harness.type(session.id, "sleep 30\r")
+        await wait_sleeping(harness, session)
+        await harness.manager.close(session.id)
+        assert session.id not in {item.id for item in harness.manager.sessions()}
+
+    async def test_close_without_a_session_listener_still_releases_the_session(self, harness):
+        job = await harness.manager.create(argv=["true"])
+        await harness.changes.until(lambda: job.state == "exited")
+        harness.manager._on_session = None
+        await harness.manager.close(job.id)
+        assert job.id not in {item.id for item in harness.manager.sessions()}
+
+    async def test_child_environment_removes_inherited_npm_and_electron_state(self, harness):
+        harness.manager._base_env = {
+            "PATH": "/usr/bin",
+            "npm_lifecycle_event": "test",
+            "npm_config_user_agent": "npm/test",
+            "INIT_CWD": "/repo",
+            "ELECTRON_RUN_AS_NODE": "1",
+            "ELECTRON_NO_ATTACH_CONSOLE": "1",
+        }
+
+        child = harness.manager._child_env("session-id")
+
+        assert "npm_lifecycle_event" not in child
+        assert "npm_config_user_agent" not in child
+        assert "INIT_CWD" not in child
+        assert "ELECTRON_RUN_AS_NODE" not in child
+        assert "ELECTRON_NO_ATTACH_CONSOLE" not in child
+        assert child["TB_TERMINAL_SESSION_ID"] == "session-id"
+
+    async def test_flush_input_discards_a_pty_that_has_closed(self, harness):
+        job = await harness.manager.create(argv=["sleep", "30"])
+        harness.manager._queue_input(job, b"pending")
+
+        def closed(_fd, _data):
+            raise OSError(5, "pty closed")
+
+        harness.manager._write_fd = closed
+        harness.manager._flush_input(job)
+
+        assert bytes(job.pending_input) == b""
+        assert job.writer_registered is False
+
+    async def test_eof_without_a_registered_loop_still_marks_the_session(self, harness):
+        job = await harness.manager.create(argv=["sleep", "30"])
+        loop = harness.manager._loop
+        harness.manager._loop = None
+        try:
+            harness.manager._on_eof(job)
+        finally:
+            harness.manager._loop = loop
+
+        assert job.eof is True
+
+    async def test_foreground_refresh_clears_a_reaped_shell_group(self, harness, monkeypatch):
+        session = await harness.shell()
+        session.foreground = 12345
+        monkeypatch.setattr(sessions_module.os, "tcgetpgrp", lambda _fd: session.pid)
+
+        harness.manager._refresh_foreground(session)
+
+        assert session.foreground is None
+
+    async def test_integration_waits_for_the_command_start_marker(self, harness, monkeypatch):
+        session = await harness.shell()
+        session.integration = True
+        monkeypatch.setattr(sessions_module.os, "tcgetpgrp", lambda _fd: session.pid + 100)
+        monkeypatch.setattr(sessions_module.procfs, "read_cmdline", lambda *_args: ["bash"])
+        monkeypatch.setattr(sessions_module.procfs, "read_cwd", lambda *_args: "/tmp")
+
+        harness.manager._refresh_foreground(session)
+
+        assert session.command_entry is None
+
+    async def test_terminate_uses_process_kill_as_the_final_reap_fallback(
+        self, harness, monkeypatch
+    ):
+        from types import SimpleNamespace
+
+        session = await harness.shell()
+        original_process = session.process
+        original_limits = harness.manager._limits
+
+        class Process:
+            def __init__(self):
+                self.killed = False
+
+            def poll(self):
+                return -9 if self.killed else None
+
+            def kill(self):
+                self.killed = True
+
+        process = Process()
+        session.process = process
+        harness.manager._limits = SimpleNamespace(close_grace_s=0.0)
+        monkeypatch.setattr(sessions_module.procfs, "scan", lambda *_args: [])
+        monkeypatch.setattr(sessions_module.procfs, "session_members", lambda *_args: [])
+        monkeypatch.setattr(sessions_module.os, "tcgetpgrp", lambda _fd: session.pid)
+        monkeypatch.setattr(sessions_module.os, "killpg", lambda *_args: None)
+        try:
+            await harness.manager._terminate(session)
+            assert process.killed is True
+        finally:
+            session.process = original_process
+            harness.manager._limits = original_limits

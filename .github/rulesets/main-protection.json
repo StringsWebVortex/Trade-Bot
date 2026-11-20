@@ -35,18 +35,19 @@
     {
       "type": "pull_request",
       "parameters": {
-        "required_approving_review_count": 0,
+        "required_approving_review_count": 1,
         "dismiss_stale_reviews_on_push": true,
-        "require_code_owner_review": false,
+        "require_code_owner_review": true,
         "require_last_push_approval": false,
         "required_review_thread_resolution": true
       },
       "_why": [
         "Changes reach the default branch through a pull request, so the checks",
         "below actually run before merge.",
-        "required_approving_review_count is 0 because this is a single-maintainer",
-        "repository and a non-zero count would block every merge; raise it when",
-        "there is a second reviewer.",
+        "OPS-004: one approval and code-owner review are required so the",
+        "CODEOWNERS paths (workflows, hooks, risk config) cannot change on a",
+        "green PR alone. A single maintainer cannot approve their own PR, so",
+        "add a second code owner or a bypass actor before applying this.",
         "required_review_thread_resolution leaves no unresolved review thread",
         "behind a merge."
       ]
