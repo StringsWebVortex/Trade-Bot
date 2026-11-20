@@ -28,6 +28,8 @@ post_quantum posture (LAW12):
   anything with a public counterpart -- the quantum exposure moves to that
   key and this note stops holding. The master seed itself is symmetric and
   is not the concern.
+
+Registry: SECR-003, SECR-007, SECR-009, SECR-010 (config/quality_registry.json).
 """
 
 from __future__ import annotations
@@ -104,7 +106,12 @@ class CredentialVault:
 
         Returns deterministic key material; same inputs → same output.
         """
-        exch_idx = self._EXCHANGE_INDICES.get(exchange.lower(), len(self._EXCHANGE_INDICES))
+        exch_idx = self._EXCHANGE_INDICES.get(exchange.lower())
+        if exch_idx is None:
+            # Unknown exchanges used to share one index and so one key (API-018).
+            raise ValueError(f"unknown exchange {exchange!r}")
+        if not 0 <= key_index < _HARDENED_OFFSET:
+            raise ValueError("key_index out of range")
         coin_type = 0  # 0 = BTC namespace; use per-coin if needed
 
         # m/44'/coin_type'/exchange_index'/0/key_index

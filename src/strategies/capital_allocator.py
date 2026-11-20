@@ -157,19 +157,33 @@ def performance_weighted_allocate(
         log.warning("allocator.attribution_snapshot_failed", error=str(exc), exc_info=True)
         return equal_weight_allocate(strategies, enabled_ids)
 
+    # Warm-up and floored shares are already in share units; mature scores are
+    # in Sharpe/Sortino units. They are never summed together: scores are
+    # scaled to split whatever share the others leave over (STR-13).
     raw: dict[str, float] = {}
+    scores: dict[str, float] = {}
     for s in active:
         attr = snapshot.get(s.strategy_id)
         if attr is None or attr.trade_count < _MIN_TRADES_FOR_SHARPE:
             # Warm-up phase - give equal share so new strategies get capital
             raw[s.strategy_id] = equal_share
         else:
-            score = getattr(attr, metric, None) or attr.sharpe
+            # metric is validated above and every one is a StrategyAttribution
+            # field; no `or attr.sharpe` fallback, which swapped in Sharpe for a
+            # genuine 0.0 score.
+            score = getattr(attr, metric)
             if score >= 0.0:
-                raw[s.strategy_id] = score
+                scores[s.strategy_id] = score
             else:
                 # Negative score - floor so the strategy isn't fully excluded
                 raw[s.strategy_id] = _NEG_SHARPE_WEIGHT_FRACTION * equal_share
+    if scores:
+        remaining = max(1.0 - sum(raw.values()), 0.0)
+        score_total = sum(scores.values())
+        for sid, score in scores.items():
+            # All-zero scores carry no edge: weight 0 so an all-zero set
+            # still falls through to the equal-weight fallback below.
+            raw[sid] = remaining * score / score_total if score_total > 0.0 else 0.0
 
     # If all active strategies are in warm-up (all equal_share), the result is
     # identical to equal_weight - no normalization surprise.
@@ -237,7 +251,10 @@ def risk_parity_allocate(
         log.warning("allocator.risk_parity_attribution_failed", error=str(exc), exc_info=True)
         return equal_weight_allocate(strategies, enabled_ids)
 
+    # Warm-up shares are share units, 1/vol is not; scale 1/vol to split the
+    # share the warm-up strategies leave over (STR-13).
     raw: dict[str, float] = {}
+    inv_vols: dict[str, float] = {}
     for s in active:
         pnls = pnl_series.get(s.strategy_id, [])
         attr = snapshot.get(s.strategy_id)
@@ -249,7 +266,12 @@ def risk_parity_allocate(
             mean = sum(pnls) / len(pnls)
             var = sum((x - mean) ** 2 for x in pnls) / len(pnls)
             vol = math.sqrt(var)
-            raw[s.strategy_id] = 1.0 / max(vol, _VOL_FLOOR_USD)
+            inv_vols[s.strategy_id] = 1.0 / max(vol, _VOL_FLOOR_USD)
+    if inv_vols:
+        remaining = max(1.0 - sum(raw.values()), 0.0)
+        inv_total = sum(inv_vols.values())
+        for sid, inv in inv_vols.items():
+            raw[sid] = remaining * inv / inv_total
 
     total_raw = sum(raw.values())
     if total_raw <= 0.0:

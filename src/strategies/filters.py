@@ -105,6 +105,12 @@ def ewm_trend_signal(close: pd.Series, span: int = _EWM_SPAN_TREND) -> float:
     return float(np.clip(raw, -3.0, 3.0))
 
 
+def _validate_direction(direction: int) -> None:
+    """Directions are 1 (long) or -1/0 (short); anything else is a caller bug."""
+    if direction not in (1, 0, -1):
+        raise ValueError(f"direction must be 1, 0 or -1, got {direction!r}")
+
+
 def trend_filter_passes(close: pd.Series, direction: int, span: int = _EWM_SPAN_TREND) -> bool:
     """
     Return True only when the proposed direction agrees with the EWM trend.
@@ -114,6 +120,7 @@ def trend_filter_passes(close: pd.Series, direction: int, span: int = _EWM_SPAN_
     which statistically have negative expectancy in trending instruments.
     """
     signal = ewm_trend_signal(close, span)
+    _validate_direction(direction)
     if direction == 1:  # long
         return signal > 0.0
     else:  # short
@@ -325,6 +332,8 @@ def obv_trend_confirms(
     obv_raw = (np.sign(delta) * volume).fillna(0.0).cumsum()
     obv_slope = float(obv_raw.iloc[-1] - obv_raw.iloc[-window])
 
+    _validate_direction(direction)
+
     if direction == 1:
         return obv_slope > 0
     else:
@@ -385,13 +394,14 @@ def mtf_trend_aligned(
 
     fast_signal : short-timeframe trend signal (e.g. 15m ewm_trend_signal)
     slow_signal : intermediate trend signal (e.g. 4h ewm_trend_signal)
-    direction   : proposed trade direction (1=long, 0=short)
+    direction   : proposed trade direction (1=long; 0 or -1=short, per registry.Signal -1=short)
 
     Returns True when both timeframes agree with the direction.
 
     Schwager: "The best trades are the ones where the primary, secondary,
     and near-term trends are all in the same direction."
     """
+    _validate_direction(direction)
     if direction == 1:
         return fast_signal > 0 and slow_signal > 0
     else:
@@ -499,6 +509,8 @@ def adx_filter_passes(
 
     if adx_val < threshold:
         return False
+
+    _validate_direction(direction)
 
     if direction == 1:  # long
         return plus_di > minus_di
