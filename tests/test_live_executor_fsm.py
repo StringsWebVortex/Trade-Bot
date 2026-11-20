@@ -2,15 +2,29 @@
 Integration tests for LiveExecutor with OrderFSM.
 
 Tests that _place_market_order now uses OrderManager with FSM state tracking.
+
+Decides:
+  - INV-003 — Unknown exchange order state cannot become FILLED without reconciliation
 """
 
 import asyncio
+import uuid
 from unittest.mock import AsyncMock
 
 import pytest
 
 from src.execution.order_fsm import OrderFSM, OrderFSMState, OrderStatus
 from src.execution.order_manager import OrderManager
+
+
+def _test_key() -> str:
+    """Fresh idempotency key per submission.
+
+    Tests exercise order placement, not de-duplication; a unique key keeps
+    each call a distinct intent. Duplicate rejection is covered explicitly in
+    tests/test_idempotency.py.
+    """
+    return f"tb{uuid.uuid4().hex[:30]}"
 
 
 class TestOrderManagerMock:
@@ -23,6 +37,7 @@ class TestOrderManagerMock:
 
         # Mock exchange that returns filled order immediately
         mock_exchange = AsyncMock()
+        mock_exchange.id = "binance"
         mock_exchange.create_market_order = AsyncMock(
             return_value={
                 "id": "12345",
@@ -47,6 +62,7 @@ class TestOrderManagerMock:
             symbol="BTC/USDT",
             side="buy",
             quantity=1.5,
+            idempotency_key=_test_key(),
         )
 
         assert fsm.state.status == OrderStatus.FILLED
@@ -62,6 +78,7 @@ class TestOrderManagerMock:
 
         # Mock exchange: first fetch returns pending, second returns filled
         mock_exchange = AsyncMock()
+        mock_exchange.id = "binance"
         mock_exchange.create_market_order = AsyncMock(
             return_value={
                 "id": "12346",
@@ -86,6 +103,7 @@ class TestOrderManagerMock:
             symbol="BTC/USDT",
             side="buy",
             quantity=1.5,
+            idempotency_key=_test_key(),
         )
 
         assert fsm.state.status == OrderStatus.FILLED
@@ -100,6 +118,7 @@ class TestOrderManagerMock:
 
         # Mock exchange that always returns pending
         mock_exchange = AsyncMock()
+        mock_exchange.id = "binance"
         mock_exchange.create_market_order = AsyncMock(
             return_value={"id": "12347", "status": "open", "filled": 0.0}
         )
@@ -115,6 +134,7 @@ class TestOrderManagerMock:
                 symbol="BTC/USDT",
                 side="buy",
                 quantity=1.5,
+                idempotency_key=_test_key(),
             )
 
     @pytest.mark.asyncio
@@ -125,6 +145,7 @@ class TestOrderManagerMock:
         import ccxt
 
         mock_exchange = AsyncMock()
+        mock_exchange.id = "binance"
         mock_exchange.create_market_order = AsyncMock(
             return_value={"id": "12348", "status": "open", "filled": 0.0}
         )
@@ -149,6 +170,7 @@ class TestOrderManagerMock:
             symbol="BTC/USDT",
             side="buy",
             quantity=1.5,
+            idempotency_key=_test_key(),
         )
 
         # Should recover from network error

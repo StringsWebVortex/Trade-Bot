@@ -9,13 +9,14 @@ proposal can never exceed. Hard risk limits are permanently excluded and
 cannot be registered, regardless of caller intent -- this is enforced in
 code, not just by convention, so a future call site can't accidentally
 open up Kelly sizing or drawdown halts to self-tuning.
+
+Registry: REG-0005 (config/quality_registry.json).
 """
 
 from __future__ import annotations
 
 import threading
 from dataclasses import dataclass, replace
-
 
 # Parameters that must NEVER be self-tunable, per SELF_TUNING_DESIGN.md §3.
 # Match is by dotted "section.field" name as used in src/config.py.
