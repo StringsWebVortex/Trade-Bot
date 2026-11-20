@@ -155,7 +155,9 @@ def test_live_executor_or_none_returns_a_real_live_executor(state):
     assert _live_executor_or_none() is executor
 
 
-def test_acknowledging_recovery_clears_the_block_and_audits_it(state, client):
+def test_acknowledging_recovery_clears_the_block_and_audits_it(
+    state, client, healthy_security_controls
+):
     executor = _FakeLiveExecutor([_discrepancy()])
     with patch("src.api.main._live_executor_or_none", return_value=executor):
         resp = client.post(
@@ -172,7 +174,9 @@ def test_acknowledging_recovery_clears_the_block_and_audits_it(state, client):
     assert kwargs["details"]["discrepancies"][0]["symbol"] == "BTC/USDT"
 
 
-def test_acknowledging_recovery_without_a_live_executor_is_a_conflict(state, client):
+def test_acknowledging_recovery_without_a_live_executor_is_a_conflict(
+    state, client, healthy_security_controls
+):
     resp = client.post(
         "/recovery/acknowledge",
         json={"operator": "alice", "operator_secret": _OP_SECRET},
@@ -503,3 +507,68 @@ def test_lifespan_shutdown_tolerates_an_adapter_without_an_intel_object():
 
     asyncio.run(_run())
     orch.shutdown.assert_awaited_once()
+
+
+# ---------------------------------------------------------------------------
+# /capital-floor/re-authorize
+# ---------------------------------------------------------------------------
+
+
+def test_capital_floor_reauthorization_audits_a_successful_operator_action(
+    state, client, healthy_security_controls
+):
+    state.orchestrator.re_authorize_capital_floor.return_value = True
+
+    resp = client.post(
+        "/capital-floor/re-authorize",
+        json={
+            "timeframe": "15m",
+            "reason": "operator reviewed the drawdown",
+            "operator": "alice",
+            "operator_secret": _OP_SECRET,
+        },
+        headers=_auth(),
+    )
+
+    assert resp.status_code == 200
+    assert resp.json() == {"re_authorized": True, "timeframe": "15m", "operator": "alice"}
+    state.orchestrator.re_authorize_capital_floor.assert_called_once()
+    audit = state.storage.insert_audit_event.await_args.kwargs
+    assert audit["event_type"] == "capital_floor_re_authorized"
+    assert audit["details"]["reason"] == "operator reviewed the drawdown"
+
+
+def test_capital_floor_reauthorization_returns_404_when_no_floor_exists(
+    state, client, healthy_security_controls
+):
+    state.orchestrator.re_authorize_capital_floor.return_value = False
+
+    resp = client.post(
+        "/capital-floor/re-authorize",
+        json={
+            "timeframe": "15m",
+            "reason": "operator reviewed the drawdown",
+            "operator": "alice",
+            "operator_secret": _OP_SECRET,
+        },
+        headers=_auth(),
+    )
+
+    assert resp.status_code == 404
+    state.storage.insert_audit_event.assert_not_awaited()
+
+
+def test_re_enable_rejects_malformed_strategy_ids_before_registry_lookup(
+    state, client, healthy_security_controls
+):
+    manager = MagicMock()
+
+    with patch("src.api.main.get_strategy_kill_switch_manager", return_value=manager):
+        resp = client.post(
+            "/strategies/bad%20identifier/re-enable",
+            json={"operator": "alice", "operator_secret": _OP_SECRET},
+            headers=_auth(),
+        )
+
+    assert resp.status_code == 404
+    manager.is_registered.assert_not_called()

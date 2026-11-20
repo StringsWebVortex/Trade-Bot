@@ -1,5 +1,5 @@
 """
-REL-004 — the halt triggers are machine-enforced, not documented.
+REL-004 — the halt triggers: declared predicates with a deciding test, not yet called by the live loop.
 
 Every condition in this module is one where a human would, if they were
 watching, stop the bot. The problem is the "if they were watching": these
@@ -7,8 +7,14 @@ conditions arrive at 4am, and the ones that matter most are the quietest. A
 position that appeared from nowhere does not raise an exception. Market data
 that stopped updating looks exactly like a calm market.
 
-So each trigger is a predicate over observable state, evaluated on every
-cycle, and the response is not a notification. It is a halt.
+So each trigger is a predicate over observable state, meant to be evaluated
+on every cycle, and the response is not a notification. It is a halt.
+
+**Wiring status (AGT-010): NOT enforced in the live path.** No module under
+src/ calls evaluate(); only tests and scripts/check_static_invariants.py import it.
+The behaviour described here is what the module does *when called*, not a
+claim that the running bot calls it. Live halts today come from the risk
+gates (src/risk/gates.py) and the capital-preservation floor.
 
 Two decisions worth stating:
 
@@ -25,6 +31,7 @@ assume everything is fine.
 
 from __future__ import annotations
 
+import math
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
@@ -68,15 +75,23 @@ MAX_DRAWDOWN_FRACTION: Final[float] = 0.20
 MAX_POSITION_DEVIATION: Final[float] = 1e-6
 
 
+def _num(state: dict[str, Any], key: str) -> float:
+    """AGT-011: a non-finite reading is unevaluable; raising makes the trigger fire."""
+    value = float(state[key])
+    if not math.isfinite(value):
+        raise ValueError(f"{key} is non-finite: {value!r}")
+    return value
+
+
 def _stale_market_data(state: dict[str, Any]) -> bool:
-    return float(state["market_data_age_s"]) > MAX_DATA_STALENESS_S
+    return _num(state, "market_data_age_s") > MAX_DATA_STALENESS_S
 
 
 def _unexpected_position(state: dict[str, Any]) -> bool:
     # Any position the venue reports and the bot does not know about, or
     # vice versa. Not a tolerance question: dust is filtered upstream by the
     # reconciler, so anything arriving here is a real discrepancy.
-    return float(state["position_deviation"]) > MAX_POSITION_DEVIATION
+    return _num(state, "position_deviation") > MAX_POSITION_DEVIATION
 
 
 def _reconciliation_failed(state: dict[str, Any]) -> bool:
@@ -96,7 +111,7 @@ def _authentication_failures(state: dict[str, Any]) -> bool:
 
 
 def _drawdown_breached(state: dict[str, Any]) -> bool:
-    return float(state["drawdown_fraction"]) >= MAX_DRAWDOWN_FRACTION
+    return _num(state, "drawdown_fraction") >= MAX_DRAWDOWN_FRACTION
 
 
 def _audit_log_unwritable(state: dict[str, Any]) -> bool:
@@ -107,7 +122,7 @@ def _clock_desynchronised(state: dict[str, Any]) -> bool:
     # Signed requests carry a timestamp and venues reject stale ones; a
     # desynchronised clock turns every order into a rejection, and every
     # rejection into a retry.
-    return abs(float(state["clock_skew_s"])) > 30.0
+    return abs(_num(state, "clock_skew_s")) > 30.0
 
 
 TRIGGERS: Final[tuple[Trigger, ...]] = (
