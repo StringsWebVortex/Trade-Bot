@@ -18,7 +18,8 @@
 # secret and must not be treated as one.
 set -euo pipefail
 
-IMAGE="timescale/timescaledb:2.17.2-pg17"
+# timescale/timescaledb:2.17.2-pg17, digest-pinned exactly as in ci.yml (OPS-011).
+IMAGE="timescale/timescaledb@sha256:3324f81ca7f84cdc2dc4497863b3798ababa8ce130c5b59d73f0b40e3a34148e"
 CONTAINER="tradebot-timescaledb"
 POSTGRES_USER="tradebot"
 POSTGRES_PASSWORD="tradebot-local"
