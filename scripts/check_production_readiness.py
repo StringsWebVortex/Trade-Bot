@@ -78,11 +78,14 @@ def check_claimed_tests_exist(registry, root: Path) -> list[Blocker]:
     out: list[Blocker] = []
     for entry in registry.entries:
         for verification in entry.verification:
-            if not (root / verification.test).exists():
+            # A pytest node id is a file path followed by ::test_name.
+            # Readiness verifies the file; pytest verifies the node itself.
+            test_path = verification.test.split("::", 1)[0]
+            if not (root / test_path).exists():
                 out.append(
                     Blocker(
                         "test-exists",
-                        f"{entry.id} names {verification.test}, which is not on disk",
+                        f"{entry.id} names {verification.test}, whose file is not on disk",
                     )
                 )
     return out
