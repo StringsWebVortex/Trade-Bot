@@ -10,6 +10,17 @@ hodler_index ∈ [0, 1]:
   1 → all supply has been dormant for ≥ 365 days (aged supply)
 
 supply_shock_proxy = hodler_index > 0.75 → reduce short exposure
+
+post_quantum posture (LAW12):
+  Nothing here is a cryptographic trust boundary. This module reads
+  public chain data and produces a score; it holds no key, signs
+  nothing, establishes no shared secret, and protects no secret of
+  ours. There is therefore nothing in it for a CRQC to break, and no
+  ML-KEM or ML-DSA migration applies.
+
+  A CRQC changes what these signals *mean*, not what this code must
+  protect: UTXO ages are timestamps, and
+  a quantum computer does not make coins older or younger.
 """
 
 from __future__ import annotations
@@ -19,7 +30,6 @@ from datetime import UTC, datetime
 
 import numpy as np
 import structlog
-
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
@@ -31,6 +41,15 @@ class UTXOCurveResult:
     young_supply_pct: float  # fraction of supply aged < 30 days
     aged_supply_pct: float  # fraction of supply aged > 365 days
     mean_age_days: float
+
+
+def _utxo_age_days(utxo: dict, now: float) -> float | None:
+    """Age in days from ``timestamp``, else ``confirmations`` x 600 s, else None."""
+    if utxo.get("timestamp") is not None:
+        return (now - float(utxo["timestamp"])) / 86400.0
+    if utxo.get("confirmations") is not None:
+        return float(utxo["confirmations"]) * 600.0 / 86400.0
+    return None
 
 
 def compute_hodler_index(utxo_set: list[dict]) -> UTXOCurveResult:
@@ -55,11 +74,25 @@ def compute_hodler_index(utxo_set: list[dict]) -> UTXOCurveResult:
         )
 
     now = datetime.now(UTC).timestamp()
-    ages_days = np.array(
-        [(now - float(u.get("timestamp", now))) / 86400.0 for u in utxo_set],
-        dtype=float,
-    )
-    values = np.array([float(u.get("value_btc", u.get("amount", 0.0))) for u in utxo_set])
+    ages: list[float] = []
+    values_list: list[float] = []
+    for u in utxo_set:
+        age = _utxo_age_days(u, now)
+        if age is None:
+            # Unknown age is missing data, not age 0 (MTH-005).
+            continue
+        ages.append(age)
+        values_list.append(float(u.get("value_btc", u.get("amount", 0.0))))
+    if not ages:
+        return UTXOCurveResult(
+            hodler_index=0.0,
+            supply_shock_risk=False,
+            young_supply_pct=0.0,
+            aged_supply_pct=0.0,
+            mean_age_days=0.0,
+        )
+    ages_days = np.array(ages, dtype=float)
+    values = np.array(values_list, dtype=float)
 
     # Clamp negative ages (clock skew)
     ages_days = np.maximum(ages_days, 0.0)
