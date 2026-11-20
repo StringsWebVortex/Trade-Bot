@@ -76,7 +76,8 @@ moves only through the tuning runner's promotion. A shadow model declares
 
 Every write needs a trade-authorizing API key, the `CHANGE_RUNTIME`
 permission, and the operator second factor (`operator`, `operator_secret`,
-SEC-007). `actor_kind` is `human` (default) or `ai`.
+SEC-007). `actor_kind` is optional, `human` or `ai`; who the caller is comes
+from the operator credential, not from the body (see "Operator identity").
 
 | Route | Effect |
 |---|---|
@@ -85,7 +86,7 @@ SEC-007). `actor_kind` is `human` (default) or `ai`.
 | `GET /runtime/dependencies` | edges, start order, cycle, issues |
 | `GET /runtime/changes`, `GET /runtime/changes/{id}` | change records with their audit |
 | `GET /runtime/traces[?limit=]`, `GET /runtime/traces/{trace_id}` | decision traces |
-| `GET /runtime/agent` | Claude session task manifests and the branch-audit ledger (read-only) |
+| `GET /runtime/agent` | Claude session task manifests and the branch-audit ledger; changes nothing, but needs `CHANGE_RUNTIME`, so a read-only key gets 403 (SEC-0015) |
 | `POST /runtime/changes` | request a change: `component_id`, `action`, `reason`, optional `target_version`, `target_implementation`, `target_configuration`, `expected_version` |
 | `POST /runtime/changes/{id}/{approve,execute,promote,rollback,cancel}` | decide an open change |
 | `POST /runtime/components/{id}/{pause,resume,drain,stop,deactivate,quarantine,rollback,start}` | shorthand for a request on one component |
@@ -104,9 +105,39 @@ Classification decides what happens next:
 | `FORBIDDEN` | the table, the capabilities or an unmet dependency refuse it | read the reasons; nothing to approve |
 
 An AI actor can request changes and execute approved ones; it can never
-approve, record a stage result or promote. Whoever holds `OPERATOR_SECRET` is
-treated as the human operator, so that secret must never be given to an
-automated client.
+approve, record a stage result or promote.
+
+### Operator identity (SEC-0016)
+
+Set `OPERATOR_CREDENTIALS` to give every operator their own secret, so the
+name and kind on a change come from the credential and an AI client cannot
+claim to be human. It is a JSON object, one entry per operator:
+
+```
+OPERATOR_CREDENTIALS={"alice": {"kind": "human", "secret_sha256": "<hex>"}, "agent": {"kind": "ai", "secret_sha256": "<hex>"}}
+```
+
+* `secret_sha256` is the SHA-256 of the operator's secret, 64 lowercase hex
+  characters: `s=$(openssl rand -hex 32); printf %s "$s" | sha256sum`. The
+  operator sends `s` as `operator_secret`; the server stores only the hash.
+* The secret alone picks the operator. `operator` in the body must equal that
+  operator's name and `actor_kind`, when sent, must equal its kind, otherwise
+  the call is refused with 403. A wrong secret is 401.
+* A malformed value, two operators sharing one secret, or an `ai` entry whose
+  secret is `OPERATOR_SECRET` makes every runtime write answer 503 until it is
+  fixed.
+* While it is set, `OPERATOR_SECRET` no longer authorises runtime writes. To
+  keep one secret for both, give the human entry the hash of
+  `OPERATOR_SECRET`. The other operator endpoints (`/controls`,
+  `/execution-mode`, venues, ...) still use `OPERATOR_SECRET`, which stays
+  required at startup and must never be given to an automated client.
+* Approval needs a human credential but not a second person: a solo human
+  operator approves their own requests.
+
+Without `OPERATOR_CREDENTIALS` the earlier single-operator model applies:
+whoever holds `OPERATOR_SECRET` is the human operator, the body's `operator`
+is recorded as sent, and `actor_kind: "ai"` can only lower that to an AI
+actor. That secret must never be given to an automated client.
 
 One open change per component; a request carrying `expected_version` is
 refused once the component has moved (stale version).
@@ -276,3 +307,21 @@ The short preflight explicitly requires the 1m first tick; the 15m and 4h loops 
 A second controlled PAPER-mode run against runtime implementation commit `c307752a90837a614cbca725b2ff26b41650a13f` passed with a clean tracked worktree. It used isolated SQLite/model-artifact snapshots, blank exchange and optional-service credentials, loopback port `18181`, `live_orders_enabled=false`, and the unchanged 1,024 MiB critical limit. API bind/API readiness/Runtime Platform readiness were each 14.1 s; all 1m/15m/4h models were ready at 414.0 s; the first healthy 1m tick was 427.2 s; reconciliation passes were 84; peak process-tree RSS was 553.5 MiB; total elapsed was 431.5 s; shutdown exited 0 in 3.4 s without force. The effective XGBoost profile remained 300 estimators/depth 4/one worker and the configured 500/depth 6 values were unchanged.
 
 The preflight passed without a readiness failure or memory-limit breach. Only the 1m first tick was required and observed; the 15m/4h loop tick counters were still zero at the snapshot, so their first ticks are not claimed as verified. One public OKX instruments request exhausted retries without blocking readiness; OKX endpoint health remains unverified. The machine-generated summary also confirmed PAPER mode, no inherited exchange credentials, isolated storage, and live orders disabled.
+
+
+## Full-timeframe PAPER acceptance procedure
+
+The default preflight requires the first `1m` tick because a `15m` or `4h` loop deliberately waits for the next UTC-aligned bar close. To make an acceptance run account for every configured timeframe, run this command on the exact commit under review:
+
+```bash
+python3 scripts/startup_preflight.py \
+  --timeout 1800 \
+  --tick-timeout 15000 \
+  --require-tick 1m \
+  --require-tick 15m \
+  --require-tick 4h
+```
+
+This is an operational PAPER preflight, not a substitute for CI. It blanks exchange and optional-service credentials, disables live orders, snapshots configured storage/model artifacts into a disposable directory, and stops the API gracefully. The JSON report is SHA-bound and explicitly lists `required_timeframes`, `missing_required_timeframes`, each observed `first_tick_s`, API/runtime/model readiness, peak RSS, and shutdown status. A pass requires every requested tick and clean shutdown; a model-ready response alone does not count as a tick. The 4-hour first tick can require waiting for the next UTC-aligned 4-hour boundary after model warm-up, so the extended timeout is intentional. Repeat the command after the first process has fully exited to check clean-restart behavior; retain both reports with their source SHAs. Do not infer a pass from older measurements or a green frontend build.
+
+The Chromium dashboard suite separately exercises visible readiness, populated operational panels, whole-page scrolling, drag/drop persistence, keyboard resize/move, hide/restore navigation across a remount, terminal-session creation/resizing, and process-center inspect/terminate interactions. Its API and terminal provider are deterministic fixtures; it validates browser interactions, not a live API-to-terminal deployment. Backend readiness, process lifecycle, and graceful API shutdown remain covered by their owning Python tests and the isolated PAPER preflight.

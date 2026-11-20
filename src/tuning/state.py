@@ -38,6 +38,10 @@ else:
 
 gate: PromotionGate = PromotionGate()
 
+watchdog: PostPromotionWatchdog = PostPromotionWatchdog(
+    version_store, audit_log, _settings, registry=parameter_registry
+)
+
 # Phase 7: shadow_mode is driven by SelfTuningSettings.shadow_mode (default
 # True). Flipping it to False requires an explicit .env edit + restart --
 # the same ceremony as TRADING_MODE=live -- never a live API toggle.
@@ -50,9 +54,8 @@ runner: TuningRunner = TuningRunner(
     gate,
     shadow_mode=_settings.shadow_mode,
     decision_log_path=_settings.decision_log_path,
+    watchdog=watchdog,
 )
-
-watchdog: PostPromotionWatchdog = PostPromotionWatchdog(version_store, audit_log, _settings)
 
 
 class _PauseState:

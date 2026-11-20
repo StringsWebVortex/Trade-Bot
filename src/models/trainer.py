@@ -226,30 +226,49 @@ def _apply_purge_embargo(
     return group_arr
 
 
+def _contiguous_blocks(test_idx: np.ndarray) -> list[tuple[int, int]]:
+    """Inclusive (start, end) of every run of consecutive indices in `test_idx`."""
+    idx = np.unique(test_idx)
+    if idx.size == 0:
+        return []
+    breaks = np.where(np.diff(idx) > 1)[0]
+    starts = np.concatenate([[idx[0]], idx[breaks + 1]])
+    ends = np.concatenate([idx[breaks], [idx[-1]]])
+    return [(int(a), int(b)) for a, b in zip(starts, ends, strict=True)]
+
+
 def _build_train_indices(
     groups: list[np.ndarray],
     n_splits: int,
     test_group_set: set[int],
-    test_start: int,
-    test_end: int,
+    test_blocks: list[tuple[int, int]],
     purge_gap: int,
     embargo_size: int,
 ) -> np.ndarray | None:
-    """Collect train indices across all non-test groups with purge/embargo applied."""
+    """Collect train indices across all non-test groups with purge/embargo applied.
+
+    INT-004: purge and embargo are applied against EVERY contiguous test block,
+    not against the span from the first test group to the last. With test
+    groups {1, 5} the groups in between border the test blocks on both sides;
+    measuring from the overall min/max left those boundaries unprotected.
+    """
     train_parts: list[np.ndarray] = []
     for g in range(n_splits):
         if g in test_group_set:
             continue
         group_arr = groups[g]
-        group_arr = _apply_purge_embargo(
-            group_arr,
-            int(group_arr.min()),
-            int(group_arr.max()),
-            test_start,
-            test_end,
-            purge_gap,
-            embargo_size,
-        )
+        for block_start, block_end in test_blocks:
+            if len(group_arr) == 0:
+                break
+            group_arr = _apply_purge_embargo(
+                group_arr,
+                int(group_arr.min()),
+                int(group_arr.max()),
+                block_start,
+                block_end,
+                purge_gap,
+                embargo_size,
+            )
         if len(group_arr) > 0:
             train_parts.append(group_arr)
     return np.concatenate(train_parts) if train_parts else None
@@ -313,15 +332,12 @@ def build_cpcv_folds(
     for fold_id, test_group_ids in enumerate(combinations(range(n_splits), n_test_splits)):
         test_group_set = set(test_group_ids)
         test_idx = np.concatenate([groups[g] for g in sorted(test_group_set)])
-        test_start = int(test_idx.min())
-        test_end = int(test_idx.max())
 
         train_idx = _build_train_indices(
             groups,
             n_splits,
             test_group_set,
-            test_start,
-            test_end,
+            _contiguous_blocks(test_idx),
             purge_gap,
             embargo_size,
         )
@@ -343,7 +359,11 @@ def compute_sample_weights(log_returns: pd.Series) -> np.ndarray:
     Weight each sample by the absolute magnitude of its log return.
 
     AFML Ch.10 — samples with larger price moves carry more information
-    and should receive higher weight.  Weights are normalised to sum to 1.
+    and should receive higher weight.  Weights are normalised to mean 1
+    (sum == n) so XGBoost's ``min_child_weight`` (a sum of hessian x weight)
+    keeps its configured scale; normalising to sum 1 would make every node's
+    weighted hessian sum far below ``min_child_weight`` and suppress splits
+    (INT-026).
 
     Zero-return rows receive a small floor weight (1e-4) to avoid
     XGBoost ignoring them entirely.
@@ -351,7 +371,7 @@ def compute_sample_weights(log_returns: pd.Series) -> np.ndarray:
     abs_ret = log_returns.abs().to_numpy(dtype=np.float64)
     floor = np.full_like(abs_ret, 1e-4)
     weights = np.maximum(abs_ret, floor)
-    weights = weights / weights.sum()
+    weights = weights * (len(weights) / weights.sum())
     return weights
 
 
@@ -429,9 +449,62 @@ class TrainingResult:
 # ---------------------------------------------------------------------------
 
 
+_TIMEFRAME_MINUTES_RE = re.compile(r"^(\d+)([mhdw])$")
+_MINUTES_PER_UNIT = {"m": 1, "h": 60, "d": 1440, "w": 10080}
+_MINUTES_PER_YEAR = 365 * 1440
+
+
+def bars_per_year(timeframe: str) -> float | None:
+    """Bars in a year for a timeframe like "15m"/"4h"/"1d"; None if unparseable."""
+    m = _TIMEFRAME_MINUTES_RE.match(timeframe.strip().lower())
+    if m is None or int(m.group(1)) <= 0:
+        return None
+    return _MINUTES_PER_YEAR / (int(m.group(1)) * _MINUTES_PER_UNIT[m.group(2)])
+
+
+def evaluation_returns(fm: FeatureMatrix) -> np.ndarray:
+    """
+    The return a prediction is scored on: the realised FORWARD label return.
+
+    INT-001: ``fm.log_returns`` is the return of the bar that has just closed,
+    concurrent with the features, so scoring a prediction on it credits a move
+    that already happened. A matrix built without ``forward_returns`` falls
+    back to it (hand-built fixtures only) and says so.
+    """
+    fwd = getattr(fm, "forward_returns", None)
+    if fwd is None:
+        log.warning(
+            "trainer.evaluation_returns_concurrent_fallback",
+            reason="FeatureMatrix.forward_returns missing; OOS metrics are NOT leak-free",
+        )
+        return fm.log_returns.to_numpy(dtype=np.float64)
+    return fwd.to_numpy(dtype=np.float64)
+
+
+def collapse_oos_predictions(
+    idx_parts: Sequence[np.ndarray],
+    ret_parts: Sequence[np.ndarray],
+    pred_parts: Sequence[np.ndarray],
+) -> tuple[np.ndarray, np.ndarray]:
+    """
+    One (return, prediction) per UNIQUE test sample, in chronological order.
+
+    INT-005: in CPCV a sample sits in the test set of several folds, so
+    concatenating the folds counts it several times. Duplicated predictions are
+    reduced to a majority vote (ties go long) and the return is taken once.
+    """
+    idx = np.concatenate(idx_parts)
+    ret = np.concatenate(ret_parts)
+    pred = np.concatenate(pred_parts).astype(np.float64)
+    _uniq, first, inv = np.unique(idx, return_index=True, return_inverse=True)
+    votes = np.bincount(inv, weights=pred) / np.bincount(inv)
+    return ret[first], (votes >= 0.5).astype(np.int8)
+
+
 def oos_sharpe_and_drawdown(
     y_pred: np.ndarray,
     log_returns: np.ndarray,
+    periods_per_year: float | None = None,
 ) -> tuple[float, float]:
     """
     Compute OOS Sharpe and maximum drawdown from predicted directions.
@@ -441,8 +514,10 @@ def oos_sharpe_and_drawdown(
       -log_return if predicted short (0)
 
     Returns (annualised_sharpe, max_drawdown_pct).
-    Annualisation uses sqrt(252 * bars_per_day); for simplicity we use
-    sqrt(n_test) as a proportional scaler across folds.
+    With `periods_per_year` the per-sample Sharpe is scaled by its square root,
+    a factor fixed by the timeframe. Without it the legacy sqrt(n) scaling
+    applies, which grows with the sample count and so with any duplicated
+    samples (INT-005); production callers pass the factor.
     """
     direction = np.where(y_pred == 1, 1.0, -1.0)
     strat_ret = direction * log_returns
@@ -459,7 +534,8 @@ def oos_sharpe_and_drawdown(
     if not np.isfinite(sigma) or abs(sigma) < 1e-10:
         sharpe = 0.0
     else:
-        sharpe = (mu / sigma) * np.sqrt(len(strat_ret))
+        scale = len(strat_ret) if periods_per_year is None else periods_per_year
+        sharpe = (mu / sigma) * np.sqrt(scale)
     if not np.isfinite(sharpe):
         sharpe = 0.0
 
@@ -503,6 +579,45 @@ def _build_xgb(cfg: XGBoostSettings, scale_pos_weight: float = 1.0) -> XGBClassi
         scale_pos_weight=scale_pos_weight,
         verbosity=0,
     )
+
+
+def _fit_final_xgb(
+    cfg: XGBoostSettings,
+    x: np.ndarray,
+    y: np.ndarray,
+    weights: np.ndarray,
+    pos_weight: float,
+    purge_gap: int,
+) -> XGBClassifier:
+    """Fit the production model: early-stop on the newest 15%, then refit on all rows.
+
+    INT-025: a purge gap separates the early-stopping slice from the fit slice,
+    and the returned model is re-fit on the FULL dataset (including the newest
+    bars) with the best iteration count found by early stopping.
+    """
+    split = int(len(x) * 0.85)
+    fit_end = max(split - max(int(purge_gap), 0), 1)
+    n_rounds = int(cfg.n_estimators)
+    # A slice with a single class cannot be fitted (XGBoost infers classes from
+    # the slice, so "Invalid classes inferred") nor early-stopped on: meta
+    # labels in particular are heavily skewed. Skip the probe and keep the
+    # configured round count, still refitting on every row.
+    if len(np.unique(y[:fit_end])) == 2 and len(np.unique(y[split:])) == 2:
+        probe = _build_xgb(cfg, scale_pos_weight=pos_weight)
+        probe.fit(
+            x[:fit_end],
+            y[:fit_end],
+            sample_weight=weights[:fit_end],
+            eval_set=[(x[split:], y[split:])],
+            verbose=False,
+        )
+        best_iter = getattr(probe, "best_iteration", None)
+        if best_iter is not None:
+            n_rounds = int(best_iter) + 1
+    final = _build_xgb(cfg, scale_pos_weight=pos_weight)
+    final.set_params(early_stopping_rounds=None, n_estimators=max(n_rounds, 1))
+    final.fit(x, y, sample_weight=weights, verbose=False)
+    return final
 
 
 # ---------------------------------------------------------------------------
@@ -607,6 +722,19 @@ class ModelTrainer:
             "feature_columns": list(columns),
         }
 
+    def _periods_per_year(self) -> float | None:
+        """
+        Independent holding periods per year, for annualising the OOS Sharpe.
+
+        Each sample earns a forward return over up to triple_barrier_max_holding_bars
+        bars, so the number of non-overlapping trades a year is bounded by
+        bars_per_year / max_holding. None (legacy sqrt(n)) for an unparseable timeframe.
+        """
+        bpy = bars_per_year(self._timeframe)
+        if bpy is None:
+            return None
+        return bpy / max(1, int(self._feature_cfg.triple_barrier_max_holding_bars))
+
     def _cpcv_methodology(self) -> str:
         """The validation methodology, in the terms that make it checkable."""
         cfg = self._feature_cfg
@@ -651,7 +779,8 @@ class ModelTrainer:
 
         Labels: 1 = long, 0 = short (triple-barrier outcomes, time-exits excluded).
         CPCV validation computes OOS Sharpe and max drawdown.
-        Final model is re-fit on the full dataset.
+        Final model is re-fit on the full dataset (INT-025: best iteration
+        from a purged early-stopping slice, then refit on all rows).
 
         Parameters
         ----------
@@ -685,7 +814,7 @@ class ModelTrainer:
 
         X = fm.features[_active_cols].to_numpy(dtype=np.float64)
         y = fm.labels.to_numpy(dtype=np.int8)
-        log_ret = fm.log_returns.to_numpy(dtype=np.float64)
+        log_ret = evaluation_returns(fm)
         weights = compute_sample_weights(fm.log_returns)
 
         self._log.info(
@@ -707,7 +836,7 @@ class ModelTrainer:
         )
 
         t0 = time.perf_counter()
-        fold_metrics, all_oos_ret, all_oos_pred = self._run_cpcv(
+        fold_metrics, all_oos_idx, all_oos_ret, all_oos_pred = self._run_cpcv(
             X, y, log_ret, weights, folds, model_name=MODEL_DIRECTION
         )
         elapsed = time.perf_counter() - t0
@@ -738,31 +867,25 @@ class ModelTrainer:
                 elapsed_s=round(elapsed, 2),
             )
 
+        # INT-005: one entry per unique test sample, not one per (fold, sample).
+        uniq_ret, uniq_pred = collapse_oos_predictions(all_oos_idx, all_oos_ret, all_oos_pred)
         oos_sharpe, max_dd = oos_sharpe_and_drawdown(
-            np.concatenate(all_oos_pred), np.concatenate(all_oos_ret)
+            uniq_pred, uniq_ret, periods_per_year=self._periods_per_year()
         )
 
         # Class imbalance correction
         pos_weight = float((y == 0).sum()) / max(float((y == 1).sum()), 1.0)
 
         # Final model on full dataset
-        final_model = _build_xgb(self._xgb_cfg, scale_pos_weight=pos_weight)
-        # Use last 15% as internal eval set for early stopping
-        split = int(len(X) * 0.85)
-        eval_set = [(X[split:], y[split:])]
-        final_model.fit(
-            X[:split],
-            y[:split],
-            sample_weight=weights[:split],
-            eval_set=eval_set,
-            verbose=False,
+        final_model = _fit_final_xgb(
+            self._xgb_cfg, X, y, weights, pos_weight, cpcv_cfg.purge_gap_bars
         )
 
         mean_acc = float(np.mean([f.accuracy for f in fold_metrics]))
         mean_prec = float(np.mean([f.precision for f in fold_metrics]))
         mean_rec = float(np.mean([f.recall for f in fold_metrics]))
         mean_f1 = float(np.mean([f.f1 for f in fold_metrics]))
-        n_trades = sum(f.n_test for f in fold_metrics)
+        n_trades = int(len(uniq_ret))
 
         live_gate = self._check_live_gate(oos_sharpe, max_dd, n_trades)
 
@@ -844,11 +967,8 @@ class ModelTrainer:
         Fit the diversified prediction ensemble (src/intelligence/ensemble_predictor.py)
         alongside the direction/meta-label models.
 
-        Target: fm.log_returns — the same per-bar log-return series already
-        used for CPCV sample weighting and oos_sharpe_and_drawdown() in this
-        module, so the ensemble's regression target matches the convention
-        this trainer already establishes rather than introducing a second,
-        differently-defined "return" semantic.
+        Target: the forward label return (fm.forward_returns), the same series
+        oos_sharpe_and_drawdown() scores on in this module (INT-001/INT-002).
 
         Feature columns: the same coverage-gated active column set used by
         train_direction(), so signal_engine.py can build one feature row
@@ -863,11 +983,15 @@ class ModelTrainer:
         _active_cols = [c for c in _active_cols if c in fm.features.columns]
 
         X = fm.features[_active_cols]
-        y = fm.log_returns
+        # INT-002: the target is the FORWARD label return, not the concurrent
+        # bar return (which the features already contain). Rows are aligned to
+        # fm.features; the holdout that scores the members purges the label
+        # horizon (INT-007).
+        y = pd.Series(evaluation_returns(fm), index=fm.features.index)
 
         self._log.info("trainer.ensemble.start", n_samples=len(X), n_features=len(_active_cols))
         ensemble = EnsemblePredictor()
-        ensemble.fit(X, y)
+        ensemble.fit(X, y, label_horizon=int(self._feature_cfg.triple_barrier_max_holding_bars))
         self._log.info("trainer.ensemble.done", weights=ensemble.weights)
         return ensemble
 
@@ -895,6 +1019,56 @@ class ModelTrainer:
     # Meta-label model
     # ------------------------------------------------------------------
 
+    def _oof_direction_probs(
+        self, x_dir: np.ndarray, y: np.ndarray, weights: np.ndarray
+    ) -> np.ndarray:
+        """
+        Out-of-fold P(long) from purged, embargoed k-fold (CPCV with one test group).
+
+        Each row is predicted by a model that never saw it nor its purge/embargo
+        neighbourhood. Rows in folds too small to build get NaN.
+        """
+        cfg = self._feature_cfg
+        probs = np.full(len(x_dir), np.nan)
+        folds = build_cpcv_folds(
+            n_samples=len(x_dir),
+            n_splits=cfg.cpcv_n_splits,
+            n_test_splits=1,
+            purge_gap=cfg.purge_gap_bars,
+            embargo_pct=cfg.embargo_pct,
+        )
+        for fold in folds:
+            tr, te = fold.train_idx, fold.test_idx
+            if len(np.unique(y[tr])) < 2:
+                continue
+            pos_weight = float((y[tr] == 0).sum()) / max(float((y[tr] == 1).sum()), 1.0)
+            model = _build_xgb(self._xgb_cfg, scale_pos_weight=pos_weight)
+            model.set_params(early_stopping_rounds=None)
+            model.fit(x_dir[tr], y[tr], sample_weight=weights[tr], verbose=False)
+            probs[te] = model.predict_proba(x_dir[te])[:, 1]
+            del model
+        return probs
+
+    def _meta_dataset(
+        self, fm: FeatureMatrix, columns: Sequence[str]
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """
+        (x_meta, meta_y, keep) for the meta-label model, from OOF primary predictions.
+
+        `keep` is the boolean row mask of samples that have an OOF prediction.
+        """
+        x_dir = fm.features[list(columns)].to_numpy(dtype=np.float64)
+        y = fm.labels.to_numpy(dtype=np.int8)
+        oof = self._oof_direction_probs(x_dir, y, compute_sample_weights(fm.log_returns))
+        keep = np.isfinite(oof)
+        probs = oof[keep]
+        meta_y = meta_labels(
+            pd.Series((probs >= 0.5).astype(np.int8), index=fm.labels.index[keep], dtype=np.int8),
+            fm.labels[keep],
+        ).to_numpy(dtype=np.int8)
+        x_meta = np.hstack([x_dir[keep], probs.reshape(-1, 1), np.abs(probs - 0.5).reshape(-1, 1)])
+        return x_meta, meta_y, keep
+
     def train_meta_label(
         self,
         fm: FeatureMatrix,
@@ -916,7 +1090,9 @@ class ModelTrainer:
         Parameters
         ----------
         fm               : FeatureMatrix (same as direction training)
-        direction_model  : fitted direction XGBClassifier
+        direction_model  : fitted direction XGBClassifier. Kept for API
+                           compatibility; the meta features come from
+                           out-of-fold predictions, not from this model (INT-003).
 
         Returns
         -------
@@ -933,23 +1109,13 @@ class ModelTrainer:
         # saved list is the BASE portion only -- predict_meta re-appends the
         # two, exactly as training does.
         self._meta_columns: list[str] = list(_active_cols_meta)
-        x_dir = fm.features[_active_cols_meta].to_numpy(dtype=np.float64)
-        dir_probs = direction_model.predict_proba(x_dir)[:, 1]  # P(long)
-        dir_preds = (dir_probs >= 0.5).astype(np.int8)
-
-        # Meta-labels: 1 when direction model agrees with realized outcome
-        meta_y = meta_labels(
-            pd.Series(dir_preds, index=fm.labels.index, dtype=np.int8),
-            fm.labels,
-        ).to_numpy(dtype=np.int8)
-
-        # Extended feature matrix: primary features + direction signal features
-        confidence = np.abs(dir_probs - 0.5).reshape(-1, 1)
-        p_long = dir_probs.reshape(-1, 1)
-        x_meta = np.hstack([x_dir, p_long, confidence])
-
-        log_ret = fm.log_returns.to_numpy(dtype=np.float64)
-        weights = compute_sample_weights(fm.log_returns)
+        # INT-003: meta features and labels come from OUT-OF-FOLD primary
+        # predictions. `direction_model` was fitted on these same rows, so its
+        # in-sample probabilities are optimistic and the meta model would learn
+        # to bet on a confidence that does not hold out of sample.
+        x_meta, meta_y, keep = self._meta_dataset(fm, _active_cols_meta)
+        log_ret = evaluation_returns(fm)[keep]
+        weights = compute_sample_weights(fm.log_returns[keep])
 
         self._log.info(
             "trainer.meta.start",
@@ -959,16 +1125,21 @@ class ModelTrainer:
         )
 
         cpcv_cfg = self._feature_cfg
-        folds = build_cpcv_folds(
-            n_samples=len(x_meta),
-            n_splits=cpcv_cfg.cpcv_n_splits,
-            n_test_splits=cpcv_cfg.cpcv_n_test_splits,
-            purge_gap=cpcv_cfg.purge_gap_bars,
-            embargo_pct=cpcv_cfg.embargo_pct,
-        )
+        # Too few rows with an out-of-fold prediction for any group to hold one:
+        # no folds, and the empty-fold branch below returns the failed result.
+        if len(x_meta) < cpcv_cfg.cpcv_n_splits:
+            folds: list[CPCVFold] = []
+        else:
+            folds = build_cpcv_folds(
+                n_samples=len(x_meta),
+                n_splits=cpcv_cfg.cpcv_n_splits,
+                n_test_splits=cpcv_cfg.cpcv_n_test_splits,
+                purge_gap=cpcv_cfg.purge_gap_bars,
+                embargo_pct=cpcv_cfg.embargo_pct,
+            )
 
         t0 = time.perf_counter()
-        fold_metrics, all_oos_ret, all_oos_pred = self._run_cpcv(
+        fold_metrics, all_oos_idx, all_oos_ret, all_oos_pred = self._run_cpcv(
             x_meta, meta_y, log_ret, weights, folds, model_name=MODEL_META_LABEL
         )
         elapsed = time.perf_counter() - t0
@@ -999,27 +1170,22 @@ class ModelTrainer:
                 elapsed_s=round(elapsed, 2),
             )
 
+        # INT-005: one entry per unique test sample, not one per (fold, sample).
+        uniq_ret, uniq_pred = collapse_oos_predictions(all_oos_idx, all_oos_ret, all_oos_pred)
         oos_sharpe, max_dd = oos_sharpe_and_drawdown(
-            np.concatenate(all_oos_pred), np.concatenate(all_oos_ret)
+            uniq_pred, uniq_ret, periods_per_year=self._periods_per_year()
         )
 
         pos_weight = float((meta_y == 0).sum()) / max(float((meta_y == 1).sum()), 1.0)
-        final_model = _build_xgb(self._xgb_cfg, scale_pos_weight=pos_weight)
-        split = int(len(x_meta) * 0.85)
-        eval_set = [(x_meta[split:], meta_y[split:])]
-        final_model.fit(
-            x_meta[:split],
-            meta_y[:split],
-            sample_weight=weights[:split],
-            eval_set=eval_set,
-            verbose=False,
+        final_model = _fit_final_xgb(
+            self._xgb_cfg, x_meta, meta_y, weights, pos_weight, cpcv_cfg.purge_gap_bars
         )
 
         mean_acc = float(np.mean([f.accuracy for f in fold_metrics]))
         mean_prec = float(np.mean([f.precision for f in fold_metrics]))
         mean_rec = float(np.mean([f.recall for f in fold_metrics]))
         mean_f1 = float(np.mean([f.f1 for f in fold_metrics]))
-        n_trades = sum(f.n_test for f in fold_metrics)
+        n_trades = int(len(uniq_ret))
 
         live_gate = self._check_live_gate(oos_sharpe, max_dd, n_trades)
 
@@ -1262,6 +1428,14 @@ class ModelTrainer:
         return dir_path, meta_path
 
     @staticmethod
+    def direction_model_path(model_dir: str | Path, symbol: str, timeframe: str) -> Path:
+        """Where the direction model artifact lives for this symbol/timeframe."""
+        _validate_timeframe(timeframe)
+        return Path(model_dir) / _DIRECTION_FILENAME.format(
+            symbol=symbol.replace("/", "_"), timeframe=timeframe
+        )
+
+    @staticmethod
     def load_direction(
         model_dir: str | Path,
         symbol: str,
@@ -1353,18 +1527,9 @@ class ModelTrainer:
                 return None
 
             direction_model = self.load_direction(model_root, self._symbol, self._timeframe)
-            direction_probabilities = direction_model.predict_proba(x_direction)[:, 1]
-            direction_predictions = (direction_probabilities >= 0.5).astype(np.int8)
-            meta_y = meta_labels(
-                pd.Series(direction_predictions, index=fm.labels.index, dtype=np.int8), fm.labels
-            ).to_numpy(dtype=np.int8)
-            x_meta = np.hstack(
-                [
-                    x_direction,
-                    direction_probabilities.reshape(-1, 1),
-                    np.abs(direction_probabilities - 0.5).reshape(-1, 1),
-                ]
-            )
+            # INT-003: same out-of-fold construction as train_meta_label, so
+            # the data hash compared below is the one training recorded.
+            x_meta, meta_y, _keep = self._meta_dataset(fm, active_columns)
             meta_columns = [*active_columns, "p_long", "confidence"]
             if not self._cached_provenance_matches(
                 meta_provenance,
@@ -1490,13 +1655,16 @@ class ModelTrainer:
         weights: np.ndarray,
         folds: list[CPCVFold],
         model_name: str,
-    ) -> tuple[list[FoldMetrics], list[np.ndarray], list[np.ndarray]]:
+    ) -> tuple[list[FoldMetrics], list[np.ndarray], list[np.ndarray], list[np.ndarray]]:
         """
         Execute CPCV cross-validation.
 
-        Returns (fold_metrics, oos_returns_per_fold, oos_preds_per_fold).
+        Returns (fold_metrics, test_idx_per_fold, oos_returns_per_fold,
+        oos_preds_per_fold). The indices let callers de-duplicate samples that
+        sit in several folds' test sets (INT-005).
         """
         fold_metrics: list[FoldMetrics] = []
+        all_oos_idx: list[np.ndarray] = []
         all_oos_ret: list[np.ndarray] = []
         all_oos_pred: list[np.ndarray] = []
         skipped_folds = 0
@@ -1560,7 +1728,9 @@ class ModelTrainer:
             prec = float(precision_score(y_true, y_pred, zero_division=0))
             rec = float(recall_score(y_true, y_pred, zero_division=0))
             f1 = float(f1_score(y_true, y_pred, zero_division=0))
-            fold_sharpe, _ = oos_sharpe_and_drawdown(y_pred, log_ret[te])
+            fold_sharpe, _ = oos_sharpe_and_drawdown(
+                y_pred, log_ret[te], periods_per_year=self._periods_per_year()
+            )
 
             fold_metrics.append(
                 FoldMetrics(
@@ -1573,6 +1743,7 @@ class ModelTrainer:
                     sharpe=fold_sharpe,
                 )
             )
+            all_oos_idx.append(te)
             all_oos_ret.append(log_ret[te])
             all_oos_pred.append(y_pred)
 
@@ -1602,9 +1773,9 @@ class ModelTrainer:
                 action="live_gate_forced_fail — label imbalance too severe for reliable CPCV",
             )
             # Return empty metrics so caller's empty-fold guard fires live_gate=False
-            return [], [], []
+            return [], [], [], []
 
-        return fold_metrics, all_oos_ret, all_oos_pred
+        return fold_metrics, all_oos_idx, all_oos_ret, all_oos_pred
 
     def _check_live_gate(
         self,

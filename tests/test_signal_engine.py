@@ -6,6 +6,7 @@ through every major branch.
 
 Decides:
   - REG-0005 — A test's result never depends on which tests ran before it
+  - REG-1714 — the ensemble receives the realised closed-bar return window
 """
 
 from __future__ import annotations
@@ -147,6 +148,7 @@ _TICK = {
 
 def _fm(n=120, cols=5):
     fm = MagicMock(spec=FeatureMatrix)
+    fm.features_all = None
     # Use real FEATURE_COLUMNS so history_df passes the >=3 column guard in
     # signal_engine (enabling regime detection in tests). Extra synthetic cols
     # appended to reach the requested `cols` count.
@@ -227,16 +229,24 @@ class TestSkipPaths:
 
     @pytest.mark.asyncio
     async def test_last_bar_not_closed(self):
+        """EXR-003: a forming last bar is sliced off, not a reason to skip the tick."""
         e = _make_engine()
         open_bars = _make_bars(n=320, closed=False)
+        seen: list[int] = []
 
         async def _fake_lb():
             return open_bars
 
+        def _capture(bars):
+            seen.append(len(bars))
+            assert bars.index[-1] == open_bars.index[-2]
+            raise RuntimeError("stop here")
+
         e._load_bars = _fake_lb
-        r = await e.tick(**_TICK)
-        assert r.tradeable is False
-        assert r.skip_reason == "last_bar_not_yet_closed"
+        with patch("src.engine.signal_engine.build_feature_matrix", _capture):
+            r = await e.tick(**_TICK)
+        assert r.skip_reason == "feature_matrix_failed"
+        assert seen == [319]
 
     @pytest.mark.asyncio
     async def test_feature_matrix_exception(self):
@@ -703,9 +713,10 @@ class TestEnsembleBlend:
             "filters_failed": [],
             "details": {"hurst": 0.5},
         }
+        bars = _make_bars(n=320)
 
         async def _lb():
-            return _make_bars(n=320)
+            return bars
 
         e._load_bars = _lb
         mock_risk = RiskSettings(ensemble_blend_weight=0.5)
@@ -733,6 +744,11 @@ class TestEnsembleBlend:
         assert r.p_long > 0.55
         assert r.direction == 1
         mock_ensemble.predict_row.assert_called_once()
+        # REG-1714: the sequence members get every realised closed-bar log
+        # return, ending at the last closed bar, not the feature row.
+        passed = mock_ensemble.predict_row.call_args.kwargs["recent_returns"]
+        closes = bars["close"].to_numpy(dtype=float)
+        np.testing.assert_allclose(np.asarray(passed), np.log(closes[1:] / closes[:-1]))
 
     @pytest.mark.asyncio
     async def test_bearish_ensemble_can_flip_direction(self):
@@ -1375,6 +1391,7 @@ class TestTask010FundingRateWiring:
 
         e._load_bars = _lb
         empty_fm = MagicMock(spec=FeatureMatrix)
+        empty_fm.features_all = None
         empty_fm.features = pd.DataFrame()
         with patch("src.engine.signal_engine.build_feature_matrix", return_value=empty_fm):
             r = await e.tick(**_TICK)
@@ -1871,6 +1888,7 @@ class TestGARCHVolWiring:
 
         # Feature matrix without garch_vol_forecast column
         fm_no_garch = MagicMock(spec=FeatureMatrix)
+        fm_no_garch.features_all = None
         fm_no_garch.features = pd.DataFrame(
             np.random.rand(120, 5), columns=[f"col_{i}" for i in range(5)]
         )
