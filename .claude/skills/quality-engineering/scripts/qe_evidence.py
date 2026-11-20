@@ -20,8 +20,8 @@ except ImportError:  # A missing validator must never produce a green audit.
 DEFAULT_REGISTRY = "config/quality_registry.json"
 DEFAULT_SCHEMA = "config/quality_registry.schema.json"
 _TEST_PATH = re.compile(
-    r"^(tests/[A-Za-z0-9_/]+\\.py(::[A-Za-z0-9_:]+)?|"
-    r"frontend/src/[A-Za-z0-9_./-]+\\.test\\.jsx?)$"
+    r"^(tests/[A-Za-z0-9_/]+\.py(::[A-Za-z0-9_:]+)?|"
+    r"frontend/src/[A-Za-z0-9_./-]+\.test\.jsx?)$"
 )
 
 
