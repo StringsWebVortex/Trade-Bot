@@ -13,6 +13,8 @@ Authority:
   - Domain Prior: validate signals out-of-sample; in-sample metrics alone
     are not sufficient — extended here to "in-sample allocation choices
     are not sufficient without an out-of-crisis stress check"
+
+Registry: RES-007 (config/quality_registry.json).
 """
 
 from __future__ import annotations
@@ -24,6 +26,8 @@ from dataclasses import dataclass
 # with actual historical OHLCV-derived return series fetched via the
 # existing providers; these are stand-ins for known drawdown magnitudes
 # so the simulator has a concrete numeric input to run against.
+# NOTE (STR-24): only the scenario NAMES drive run_all_known_scenarios; the
+# caller supplies the return series, so these values are illustrative.
 KNOWN_CRISIS_SCENARIOS: dict[str, list[float]] = {
     "2018_crypto_winter": [-0.12, -0.08, -0.15, -0.05, -0.10, -0.07, -0.09],
     "2020_covid_crash": [-0.30, -0.05, 0.10, -0.08, 0.05, -0.03, 0.07],
