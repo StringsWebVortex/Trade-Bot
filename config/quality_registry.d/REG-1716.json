@@ -1,0 +1,23 @@
+{
+  "id": "REG-1716",
+  "kind": "regression",
+  "title": "An open loss counts against the daily-drawdown halt",
+  "statement": "The orchestrator tick passes stricter_daily_pnl(realised, equity - daily_start) to the signal engine, so check_daily_drawdown halts new entries when either today's realised PnL or today's marked equity change breaches the threshold. A non-finite input yields NaN, which the gate treats as a halt.",
+  "criticality": "high",
+  "subsystem": "risk",
+  "status": "verified",
+  "source": "OPS-2026-10-28",
+  "failure_mode": "The 2% daily halt was fed one symbol's realised PnL only, so an unrealised intraday loss of any size never tripped it until the position closed, while the denominator was the whole book's daily-start equity. The gate tests passed realised figures directly and no test drove the tick with an open loss; the deciding test now ticks with equity 3% under the daily start and nothing realised.",
+  "owning_modules": [
+    "src/risk/gates.py",
+    "src/engine/orchestrator.py"
+  ],
+  "verification": [
+    {
+      "test": "tests/test_daily_drawdown_open_loss.py",
+      "test_type": "regression"
+    }
+  ],
+  "depends_on": [],
+  "notes": "Audit EXR-029, option 2 (stricter of realised and marked; never looser than before). layer: test-suite"
+}
