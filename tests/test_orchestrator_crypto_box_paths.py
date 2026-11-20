@@ -11,19 +11,19 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from test_orchestrator_coverage import _make_executor, _make_orch, _make_storage
 
 from src.config import Timeframe
 from src.engine.signal_engine import SignalResult
 from src.engines.signal_gate import TradeSignal
 from src.risk.kelly import KellyResult
+from tests.test_orchestrator_coverage import _make_executor, _make_orch, _make_storage
 
 
 def _kelly(adjusted: float = 0.04) -> KellyResult:
     return KellyResult(
         kelly_fraction=0.05,
         adjusted_fraction=adjusted,
-        capital_usd=10_000.0,
+        capital_usd=10_500.0,
         entry_price=42_000.0,
         quantity=0.01,
         notional_usd=420.0,
@@ -106,7 +106,9 @@ class TestCryptoBoxAugmentation:
 
         submitted = orch._executor.submit_signal.await_args.kwargs
         kelly = submitted.get("kelly_result") or orch._executor.submit_signal.await_args.args[0]
-        assert kelly.adjusted_fraction == pytest.approx(0.02)  # 0.04 * 0.5
+        assert kelly.adjusted_fraction == pytest.approx(
+            0.02, abs=1e-6
+        )  # 0.04 * 0.5; exchange quantity is floored
 
     @pytest.mark.asyncio
     async def test_a_neutral_crypto_box_direction_still_scales(self):
@@ -115,7 +117,9 @@ class TestCryptoBoxAugmentation:
         await _run_tick(orch)
 
         kelly = orch._executor.submit_signal.await_args.kwargs["kelly_result"]
-        assert kelly.adjusted_fraction == pytest.approx(0.01)
+        assert kelly.adjusted_fraction == pytest.approx(
+            0.01, abs=1e-6
+        )  # exchange quantity is floored
 
     @pytest.mark.asyncio
     async def test_a_conflicting_direction_halves_the_size(self):
@@ -124,7 +128,9 @@ class TestCryptoBoxAugmentation:
         await _run_tick(orch)
 
         kelly = orch._executor.submit_signal.await_args.kwargs["kelly_result"]
-        assert kelly.adjusted_fraction == pytest.approx(0.02)  # halved, not 0.9x
+        assert kelly.adjusted_fraction == pytest.approx(
+            0.02, abs=1e-6
+        )  # halved, not 0.9x; quantity is floored
 
     @pytest.mark.asyncio
     async def test_the_multiplier_can_never_raise_the_kelly_fraction(self):

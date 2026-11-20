@@ -27,7 +27,16 @@ This will:
 3. Run a walk-forward backtest (train 300 candles → test next 50 → roll forward)
 4. Report **accuracy, total return after real fees, max drawdown, and Sharpe** — not just accuracy alone
 
-## The real results (already run, reproducible)
+## Results
+
+The numbers from earlier runs are withdrawn. They were produced before the
+fixes below, which correct look-ahead leakage in the training window, overlapping
+P&L compounding, a wrong annualisation factor, time-unordered calibration folds,
+fabricated labels on the final rows, and the still-forming candle returned by
+both fetchers. Re-run `python3 backtest.py` to get current figures, and treat
+them as the only valid results.
+
+Earlier runs, for reference only (not valid):
 
 **v1 — flat all-in trades, uncalibrated probability:**
 ```
