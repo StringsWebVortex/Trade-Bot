@@ -17,6 +17,7 @@ Authority:
 
 from __future__ import annotations
 
+import threading
 import time
 from typing import Any, Final
 
@@ -25,12 +26,10 @@ import structlog
 
 from src.intelligence.providers.base import ExchangeIntelligenceProvider
 
-
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
 _COINGECKO_GLOBAL_URL: Final[str] = "https://api.coingecko.com/api/v3/global"
 _CACHE_TTL_S: Final[int] = 900  # 15-min cache; data updates ~1/min but stale is fine
-_STABLECOIN_COINS: Final[tuple[str, ...]] = ("tether", "usd-coin", "dai", "frax", "usdd")
 # BTC dominance z-score window (approximate: stored as last N fetches, 15-min cadence)
 _BTC_DOM_WINDOW: Final[int] = 96  # 96 x 15min = 24h rolling window for z-score
 _CONFIDENCE_PENALTY: Final[float] = 0.05
@@ -57,6 +56,8 @@ class CoinGeckoIntelligenceProvider(ExchangeIntelligenceProvider):
         self._cache: dict[str, tuple[float, Any]] = {}
         # Rolling BTC dominance history for z-score computation
         self._btc_dom_history: list[float] = []
+        # INT-022: history grows once per cache window, not once per call.
+        self._btc_dom_hist_ts: float | None = None
         self._log = log.bind(component="coingecko_intelligence")
 
     @property
@@ -93,7 +94,13 @@ class CoinGeckoIntelligenceProvider(ExchangeIntelligenceProvider):
 
                 # BTC dominance z-score
                 btc_dom_pct = float(mkt_cap_pct.get("btc", 0.0))
-                self._btc_dom_history.append(btc_dom_pct)
+                now_m = time.monotonic()
+                if (
+                    self._btc_dom_hist_ts is None
+                    or now_m - self._btc_dom_hist_ts >= self._cache_ttl
+                ):
+                    self._btc_dom_history.append(btc_dom_pct)
+                    self._btc_dom_hist_ts = now_m
                 if len(self._btc_dom_history) > _BTC_DOM_WINDOW:
                     self._btc_dom_history = self._btc_dom_history[-_BTC_DOM_WINDOW:]
                 if len(self._btc_dom_history) >= 4:
@@ -156,16 +163,18 @@ class CoinGeckoIntelligenceProvider(ExchangeIntelligenceProvider):
             return cached
 
         timeout = aiohttp.ClientTimeout(total=8.0)
-        async with aiohttp.ClientSession(timeout=timeout) as session:
-            async with session.get(
+        async with (
+            aiohttp.ClientSession(timeout=timeout) as session,
+            session.get(
                 _COINGECKO_GLOBAL_URL,
                 headers={"Accept": "application/json"},
-            ) as resp:
-                resp.raise_for_status()
-                body = await resp.json()
-                data: dict = body.get("data", {})
-                self._set_cache(cache_key, data)
-                return data
+            ) as resp,
+        ):
+            resp.raise_for_status()
+            body = await resp.json()
+            data: dict = body.get("data", {})
+            self._set_cache(cache_key, data)
+            return data
 
 
 # ---------------------------------------------------------------------------
@@ -173,11 +182,14 @@ class CoinGeckoIntelligenceProvider(ExchangeIntelligenceProvider):
 # ---------------------------------------------------------------------------
 
 _provider: CoinGeckoIntelligenceProvider | None = None
+_provider_lock = threading.Lock()
 
 
 def get_coingecko_intelligence_provider() -> CoinGeckoIntelligenceProvider:
     """Return the module-level CoinGeckoIntelligenceProvider singleton."""
     global _provider
-    if _provider is None:
-        _provider = CoinGeckoIntelligenceProvider()
-    return _provider
+    # Locked, not a bare check-then-assign -- see binance_provider for why.
+    with _provider_lock:
+        if _provider is None:
+            _provider = CoinGeckoIntelligenceProvider()
+        return _provider

@@ -153,6 +153,8 @@ class TestLearnOnline:
         engine = _engine(trainer)
         engine._learn_online(_matrix(_TS, [1.0, -1.0, 1.0]))  # must not raise
 
+        trainer.learn_direction.assert_called_once()
+
     def test_records_the_fitted_column_order(self) -> None:
         trainer = MagicMock()
         engine = _engine(trainer)
@@ -239,6 +241,8 @@ class TestPersistence:
         orch._log = MagicMock()
         orch._engines = {"15m": MagicMock(_online_trainer=None)}
         orch._persist_online_trainers()  # must not raise
+
+        orch._log.warning.assert_not_called()
 
 
 class TestPLongRecording:
