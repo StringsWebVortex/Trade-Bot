@@ -29,16 +29,16 @@ duckdb>=2.0.0,<3.0
 pymongo>=4.18.2,<5.0
 # Pins the CA bundle pymongo verifies Atlas against; a bare CI runner's
 # system trust store cannot verify the Atlas chain (opaque SSL handshake error).
-certifi>=2026.7.22
+certifi>=2026.10.23
 
 # --- exchange / market data -------------------------------------------------
 # <4.5.65: every ccxt from 4.5.65 to the latest (4.5.85) pins
-# certifi==2026.6.17 exactly, which cannot satisfy the certifi>=2026.7.22
+# certifi==2026.6.17 exactly, which cannot satisfy the certifi>=2026.10.23
 # floor above, and 4.5.65 through 4.5.84 also pin urllib3==2.7.0, which
 # pip-audit flags (SEC-0006). 4.5.85 does move to urllib3==2.8.0, but its
 # certifi pin still leaves no common solution, so the whole range is
 # uninstallable, not just the urllib3 part of it. Lift the cap once a ccxt
-# release allows certifi>=2026.7.22 and urllib3>=2.8.0 -- both, not either.
+# release allows certifi>=2026.10.23 and urllib3>=2.8.0 -- both, not either.
 ccxt>=4.3,<4.5.65
 
 # --- numerics and modelling -------------------------------------------------

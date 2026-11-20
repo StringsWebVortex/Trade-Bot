@@ -12,7 +12,8 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from required_import import require
+
+from tests.required_import import require
 
 _MISSING = "tradebot_reg1611_no_such_module"
 _TESTS = Path(__file__).resolve().parent
