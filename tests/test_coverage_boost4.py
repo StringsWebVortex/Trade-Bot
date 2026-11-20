@@ -187,7 +187,7 @@ class TestEnsemblePredictor:
 
     def test_predict_returns_ensemble_prediction(self):
         ep = EnsemblePredictor()
-        X, y = _make_X(), _make_y()
+        X, y = _make_X(120), _make_y(120)
         ep.fit(X, y)
         result = ep.predict(X.head(1))
         assert isinstance(result, EnsemblePrediction)
@@ -202,7 +202,7 @@ class TestEnsemblePredictor:
 
     def test_predict_with_member_exception_excludes_that_member(self):
         ep = EnsemblePredictor()
-        ep.fit(_make_X(), _make_y())
+        ep.fit(_make_X(120), _make_y(120))
         ep.models["xgboost"].predict_with_uncertainty = MagicMock(side_effect=RuntimeError("fail"))
         result = ep.predict(_make_X(1))
         assert isinstance(result, EnsemblePrediction)
