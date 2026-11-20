@@ -1,0 +1,111 @@
+{
+  "name": "main: all checks green",
+  "target": "branch",
+  "enforcement": "active",
+  "_comment": [
+    "Repository ruleset, version-controlled so the merge policy is reviewable",
+    "as a diff rather than living only in a settings page nobody can audit.",
+    "Apply with: python3 scripts/apply_repo_ruleset.py",
+    "",
+    "Rulesets are repository-scoped: this applies to every push and every pull",
+    "request targeting the branches in `conditions`, on every branch, not to",
+    "one PR. Anything committed to the repo (workflows, JSON schemas, the",
+    "coverage gate in pyproject.toml, .claude hooks) is already repo-scoped",
+    "once it is on the default branch -- files do not need a ruleset to apply",
+    "everywhere. What needs one is BLOCKING: refusing a merge when a check is",
+    "not green. That is a GitHub setting, not a file, which is why this exists.",
+    "",
+    "Underscore-prefixed keys are stripped before the payload is sent."
+  ],
+  "conditions": {
+    "ref_name": {
+      "include": ["~DEFAULT_BRANCH"],
+      "exclude": []
+    }
+  },
+  "rules": [
+    {
+      "type": "deletion",
+      "_why": "The default branch must not be deletable."
+    },
+    {
+      "type": "non_fast_forward",
+      "_why": "No force-pushes to the default branch: they rewrite history other checkouts depend on."
+    },
+    {
+      "type": "pull_request",
+      "parameters": {
+        "required_approving_review_count": 1,
+        "dismiss_stale_reviews_on_push": true,
+        "require_code_owner_review": true,
+        "require_last_push_approval": false,
+        "required_review_thread_resolution": true
+      },
+      "_why": [
+        "Changes reach the default branch through a pull request, so the checks",
+        "below actually run before merge.",
+        "OPS-004: one approval and code-owner review are required so the",
+        "CODEOWNERS paths (workflows, hooks, risk config) cannot change on a",
+        "green PR alone. A single maintainer cannot approve their own PR, so",
+        "add a second code owner or a bypass actor before applying this.",
+        "required_review_thread_resolution leaves no unresolved review thread",
+        "behind a merge."
+      ]
+    },
+    {
+      "type": "required_status_checks",
+      "parameters": {
+        "strict_required_status_checks_policy": false,
+        "do_not_enforce_on_create": false,
+        "required_status_checks": [
+          { "context": "CI gate (all jobs green)" },
+          { "context": "Security gate (all jobs green)" },
+          { "context": "CodeQL gate (all jobs green)" },
+          { "context": "Workflow lint gate (all jobs green)" }
+        ]
+      },
+      "_why": [
+        "These are the GATE checks, not the individual jobs. Requiring a job",
+        "directly reintroduces the hole this is meant to close: a job skipped by",
+        "an `if:`, or never reached because an earlier job failed, posts no check",
+        "at all, and a required check that never reports is satisfied by being",
+        "absent. Each gate depends on every job in its workflow and runs with",
+        "`if: always()`, so it reports on every run and fails on any non-success.",
+        "",
+        "strict_required_status_checks_policy is false because the merge queue",
+        "below gives the same guarantee without asking anyone to update a",
+        "branch: every entry is tested on top of the current base, plus the",
+        "entries ahead of it, before it lands.",
+        "",
+        "'Cloud review gate (all jobs green)' is deliberately NOT required.",
+        "CLAUDE.md and docs/CLOUD_REVIEW.md both state the cloud review is",
+        "advisory and never approves or merges; requiring it would turn an",
+        "advisory bot into a merge blocker and would block on infrastructure",
+        "problems (a missing MONGODB_URI, an Atlas outage) that say nothing",
+        "about the change under review. Its gate job still runs, so its state is",
+        "always visible. Add the context here if that changes."
+      ]
+    },
+    {
+      "type": "merge_queue",
+      "parameters": {
+        "check_response_timeout_minutes": 60,
+        "grouping_strategy": "ALLGREEN",
+        "max_entries_to_build": 1,
+        "max_entries_to_merge": 1,
+        "merge_method": "SQUASH",
+        "min_entries_to_merge": 1,
+        "min_entries_to_merge_wait_minutes": 0
+      },
+      "_why": [
+        "One pull request at a time, squash-merged: each entry is built on top",
+        "of main alone, so a failure names exactly one pull request and the",
+        "next one starts as soon as it lands. An entry that fails leaves the",
+        "queue and stays out until a person looks at it -- nothing re-queues it",
+        "automatically (GOV-037).",
+        "check_response_timeout_minutes 60 covers the CI test shards with room",
+        "to spare. Every required gate workflow triggers on merge_group."
+      ]
+    }
+  ]
+}

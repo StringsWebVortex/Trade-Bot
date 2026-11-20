@@ -1,7 +1,7 @@
 """
 Auto-tuning scheduler -- the "explicit startup step" referenced by
 src/tuning/bootstrap.py's module docstring, and the automated counterpart
-to scripts/run_tuning_attempt.py (which remains the manual entrypoint;
+to the manual tuning entrypoint that the config purge (#144) removed;
 this module reuses the exact same process-wide singletons from
 src/tuning/state.py so both paths share one audit trail / version store).
 
@@ -21,12 +21,21 @@ true. Every safety rail from the original design stays in force:
 
 `hmm.entropy_threshold` / `hmm.entropy_scalar_floor` (Phase 4),
 `risk.slippage_impact_coeff_bps` (Phase 8 item 2), the five
-`features.*_window` parameters (Phase 8 item 3), and the eight
-`xgboost.*` hyperparameters (Phase 8 item 4) each have a working backtest
-harness (run_entropy_threshold_backtest / run_slippage_coeff_backtest /
-run_feature_window_backtest / run_xgboost_hyperparam_backtest
+`features.*_window` parameters (Phase 8 item 3), the eight
+`xgboost.*` hyperparameters (Phase 8 item 4), and `risk.ensemble_blend_weight`
+each have a working backtest harness (run_entropy_threshold_backtest /
+run_slippage_coeff_backtest / run_feature_window_backtest /
+run_xgboost_hyperparam_backtest / run_ensemble_blend_backtest
 respectively). Any other registered parameter with no evaluate_fn is
 intentionally left unscheduled here.
+
+`risk.ensemble_blend_weight` additionally requires closed trades where
+EnsemblePredictor was actually blended in at signal time (nonzero blend
+weight while a fitted predictor was injected into SignalEngine) -- on a
+deployment where blending has never been enabled,
+ensemble_blend_samples_from_trades() returns an empty list every cycle and
+that attempt is skipped cleanly, same as the feature-window harness's
+missing-model case.
 
 The feature-window harness additionally requires a previously trained,
 saved direction model (ModelTrainer.load_direction) -- on a fresh
@@ -54,14 +63,17 @@ import pandas as pd
 import structlog
 from xgboost import XGBClassifier
 
-from src.config import Settings
+from src.config import TIMEFRAME_SECONDS, Settings, Timeframe
 from src.data.storage import AnyStorageBackend
 from src.features.pipeline import build_feature_matrix
 from src.models.trainer import ModelTrainer
 from src.tuning.backtest_harness import (
     XGBOOST_INT_FIELDS,
+    EnsembleBlendSample,
     SlippageFillSample,
     TradeSample,
+    ensemble_blend_samples_from_trades,
+    run_ensemble_blend_backtest,
     run_entropy_threshold_backtest,
     run_feature_window_backtest,
     run_slippage_coeff_backtest,
@@ -84,7 +96,6 @@ from src.tuning.redteam_scheduler import RedTeamScheduler
 from src.tuning.registry import TunableParameter
 from src.tuning.state import parameter_registry, pause_state, runner, version_store
 
-
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
 _MIN_SAMPLES = 30  # below this, CPCV folds would be too thin to mean anything
@@ -104,6 +115,18 @@ def _shannon_entropy(p_ranging: float, p_trending: float, p_volatile: float) -> 
         return 0.0
     raw = -sum(p * math.log(p) for p in probs)
     return max(0.0, min(1.0, raw / max_entropy))
+
+
+def bars_per_day(timeframe: str) -> float:
+    """Bars per 24h for a ``<n><m|h|d|w>`` timeframe string such as ``15m``."""
+    unit_seconds = {"m": 60, "h": 3600, "d": 86400, "w": 604800}
+    try:
+        seconds = int(timeframe[:-1]) * unit_seconds[timeframe[-1]]
+    except (ValueError, KeyError, IndexError):
+        raise ValueError(f"unrecognised timeframe {timeframe!r}") from None
+    if seconds <= 0:
+        raise ValueError(f"unrecognised timeframe {timeframe!r}")
+    return 86400.0 / seconds
 
 
 class AutoTuningScheduler:
@@ -132,6 +155,8 @@ class AutoTuningScheduler:
         # the first cycle -- whether reached via _loop() or a direct
         # _attempt_all() call in tests -- always attempts them once.
         self._xgboost_cycle_interval = max(1, xgboost_cycle_interval)
+        # E-09 walk-forward retrain: runs every N cycles (default 48h at 1h/cycle)
+        self._e09_retrain_interval = 48
         self._cycle_count = 0
         self._task: asyncio.Task[None] | None = None
         self._stopped = False
@@ -152,15 +177,13 @@ class AutoTuningScheduler:
             register_hmm_entropy_scalar_floor(parameter_registry, self._settings, version_store)
         if not parameter_registry.is_registered("risk.slippage_impact_coeff_bps"):
             register_slippage_impact_coeff(parameter_registry, self._settings, version_store)
-        # Registered but not yet auto-scheduled below (no evaluate_fn / backtest
-        # harness exists for it) -- see register_ensemble_blend_weight()'s own
-        # docstring for why, and the module docstring's "intentionally left
-        # unscheduled" note.
         if not parameter_registry.is_registered("risk.ensemble_blend_weight"):
             register_ensemble_blend_weight(parameter_registry, self._settings, version_store)
-        # Same "unscheduled" state as ensemble_blend_weight: visible via
-        # /self-tuning/status but not auto-cycled until a vol-targeting
-        # backtest harness exists (see register_garch_vol_threshold docstring).
+        # Not auto-scheduled below: visible via /self-tuning/status but not
+        # auto-cycled until a vol-targeting backtest harness exists (see
+        # register_garch_vol_threshold docstring). ensemble_blend_weight used
+        # to share this state; it now has run_ensemble_blend_backtest and is
+        # scheduled with the rest.
         if not parameter_registry.is_registered("risk.garch_vol_threshold"):
             register_garch_vol_threshold(parameter_registry, self._settings, version_store)
         for field_name in FEATURE_WINDOW_FIELDS:
@@ -199,6 +222,7 @@ class AutoTuningScheduler:
                     # matching _attempt_all()'s own doc comment and the
                     # direct-_attempt_all() test path.
                     await self._attempt_all()
+                    await self._maybe_retrain_e09()
                     self._cycle_count += 1
                     self._check_redteam_due()
             except Exception as exc:
@@ -344,6 +368,45 @@ class AutoTuningScheduler:
                     exc_info=True,
                 )
 
+        ensemble_samples = await self._build_ensemble_blend_samples()
+        if len(ensemble_samples) < _MIN_SAMPLES:
+            log.info(
+                "tuning.scheduler_insufficient_ensemble_samples", n_samples=len(ensemble_samples)
+            )
+        else:
+
+            def evaluate_ensemble_blend(
+                _param: TunableParameter, proposal: Proposal
+            ) -> list[MetricComparison]:
+                return run_ensemble_blend_backtest(
+                    ensemble_samples,
+                    champion_weight=proposal.champion_value,
+                    challenger_weight=proposal.challenger_value,
+                    features_cfg=self._settings.features,
+                )
+
+            try:
+                result = runner.attempt(
+                    "risk.ensemble_blend_weight",
+                    evaluate_ensemble_blend,
+                    primary_metric="oos_sharpe",
+                    closed_trade_count=closed_trade_count,
+                )
+                log.info(
+                    "tuning.scheduler_attempt",
+                    param="risk.ensemble_blend_weight",
+                    attempted=result.attempted,
+                    accepted=result.accepted,
+                    promoted=result.promoted,
+                    reasons=result.reasons,
+                )
+            except Exception as exc:
+                log.error(
+                    "tuning.scheduler_attempt_error",
+                    param="risk.ensemble_blend_weight",
+                    error=str(exc),
+                )
+
         bars_df = await self._build_feature_bars_df()
         if bars_df is None or len(bars_df) < _MIN_FEATURE_BARS:
             log.info(
@@ -355,6 +418,9 @@ class AutoTuningScheduler:
             if direction_model is None:
                 log.info("tuning.scheduler_no_direction_model")
             else:
+                # The artifact's modification time bounds the latest bar the
+                # frozen model could have seen during training (STR-06).
+                oos_start_ms = self._direction_model_trained_at_ms()
                 for field_name in FEATURE_WINDOW_FIELDS:
                     param_name = f"features.{field_name}"
 
@@ -370,20 +436,18 @@ class AutoTuningScheduler:
                             challenger_window=max(2, round(proposal.challenger_value)),
                             direction_model=direction_model,
                             features_cfg=self._settings.features,
+                            timeframe=self._timeframe,
+                            oos_start_ms=oos_start_ms,
                         )
 
                     try:
-                        # closed_trade_count is deliberately NOT passed here.
-                        # min_trades_between_attempts is a "has enough new
-                        # evidence accumulated" guard, and for this group the
-                        # evidence is bar history, not trades -- these
-                        # parameters are evaluated by a bar-driven backtest.
-                        # Gating them on trade flow would stall bar-driven
-                        # tuning through any quiet period, and would repeat the
-                        # cross-group coupling the note at the top of
-                        # _attempt_all() exists to prevent.
+                        # Feature-window tuning is bar-driven: use the current
+                        # bar count for its own cadence guard, not trade flow.
                         result = runner.attempt(
-                            param_name, evaluate_feature_window, primary_metric="oos_sharpe"
+                            param_name,
+                            evaluate_feature_window,
+                            primary_metric="oos_sharpe",
+                            bar_count=self._bar_evidence_count(bars_df),
                         )
                         log.info(
                             "tuning.scheduler_attempt",
@@ -474,6 +538,41 @@ class AutoTuningScheduler:
                                 exc_info=True,
                             )
 
+    async def _maybe_retrain_e09(self) -> None:
+        """Trigger E-09 walk-forward retrain every _e09_retrain_interval cycles (CRYPTO_BOX only)."""
+        import os
+
+        if self._cycle_count % self._e09_retrain_interval != 0:
+            return
+        if os.environ.get("CRYPTO_BOX", "").lower() not in ("1", "true", "yes"):
+            return
+        try:
+            from src.tuning.engine_backtest import retrain_e09_walkforward
+
+            df = await self._build_feature_bars_df()
+            if df is None or len(df) < 230:
+                log.info("e09_retrain_skipped", reason="insufficient_bars")
+                return
+            n = await retrain_e09_walkforward(df, self._symbol)
+            log.info("e09_retrain_complete", n_samples=n)
+        except Exception as exc:
+            log.error("e09_retrain_failed", error=str(exc), exc_info=True)
+
+    def _direction_model_trained_at_ms(self) -> int:
+        """Return the saved direction artifact's modification time in Unix ms.
+
+        The feature-window backtest reuses this frozen model, so its OOS
+        sample must start strictly after the artifact could have been
+        produced. Use the same canonical path as ModelTrainer.load_direction
+        rather than reconstructing the filename here. A missing artifact is
+        an error: silently returning no cutoff would reintroduce in-sample
+        scoring.
+        """
+        path = ModelTrainer.direction_model_path(
+            self._settings.storage.model_dir, self._symbol, self._timeframe
+        )
+        return path.stat().st_mtime_ns // 1_000_000
+
     def _load_direction_model(self) -> XGBClassifier | None:
         try:
             return ModelTrainer.load_direction(
@@ -501,6 +600,25 @@ class AutoTuningScheduler:
             },
             index=[b.ts for b in bars],
         )
+
+    def _bar_evidence_count(self, bars_df: pd.DataFrame) -> int | None:
+        """Return a monotonic bar ordinal, not the bounded fetch-window length.
+
+        `_build_feature_bars_df` fetches only the latest 5,000 bars, so
+        `len(bars_df)` stops increasing once that window is full and would
+        permanently block the second bar-driven tuning attempt. The latest
+        Unix-ms bar timestamp divided by the timeframe duration gives a
+        monotonically advancing ordinal independent of the rolling window.
+        """
+        try:
+            timeframe = Timeframe(self._timeframe)
+            interval_ms = TIMEFRAME_SECONDS[timeframe] * 1_000
+            latest_ts_ms = int(max(bars_df.index))
+        except (KeyError, TypeError, ValueError, OverflowError):
+            return None
+        if interval_ms <= 0:
+            return None
+        return latest_ts_ms // interval_ms
 
     async def _closed_trade_count(self) -> int | None:
         """
@@ -542,7 +660,11 @@ class AutoTuningScheduler:
             if reference_price <= 0.0:
                 continue
             history = bars[:-1] if len(bars) > 1 else bars
-            adv_20d = sum(b.volume for b in history) / len(history)
+            # Mean per-bar volume x bars per day = average *daily* volume, the
+            # unit the Almgren-Chriss coefficient is defined against (STR-14).
+            adv_20d = (sum(b.volume for b in history) / len(history)) * bars_per_day(
+                self._timeframe
+            )
             if adv_20d <= 0.0:
                 continue
             samples.append(
@@ -557,6 +679,14 @@ class AutoTuningScheduler:
             )
         samples.reverse()
         return samples
+
+    async def _build_ensemble_blend_samples(self) -> list[EnsembleBlendSample]:
+        trades = await self._storage.fetch_trades(
+            symbol=self._symbol,
+            trading_mode=self._settings.trading_mode.value,
+            limit=1000,
+        )
+        return ensemble_blend_samples_from_trades(trades)
 
     async def _build_trade_samples(self) -> list[TradeSample]:
         trades = await self._storage.fetch_trades(

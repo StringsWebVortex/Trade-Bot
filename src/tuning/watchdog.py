@@ -14,16 +14,39 @@ proposals for a cooldown period -- this is the mechanism that makes
 
 from __future__ import annotations
 
+import contextlib
 import threading
 import time
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
+from typing import Protocol
 
 from src.config import SelfTuningSettings
-from src.risk.performance_drift import PerformanceBaseline, PerformanceDriftDetector
 from src.tuning.audit import TuningAuditLog, TuningEventType
-from src.tuning.store import VersionedConfigStore
+from src.tuning.registry import ParameterRegistry, UnknownParameterError
+from src.tuning.store import NoPriorVersionError, VersionedConfigStore
+
+
+class DriftSignal(Protocol):
+    drifted: bool
+    reason: str
+    metric: str
+    live_value: float
+    baseline_value: float
+
+
+class DriftDetector(Protocol):
+    def record_trade_outcome(
+        self,
+        pnl_usd: float,
+        predicted_prob: float,
+        actual_direction: int,
+        current_equity: float,
+        starting_equity: float,
+    ) -> None: ...
+
+    def check_drift(self) -> DriftSignal: ...
 
 
 class WatchdogOutcome(StrEnum):
@@ -36,7 +59,7 @@ class WatchdogOutcome(StrEnum):
 
 @dataclass
 class _ProbationState:
-    detector: PerformanceDriftDetector
+    detector: DriftDetector
     # Monotonic, not a calendar instant. This lives in memory alongside a
     # live PerformanceDriftDetector, so it never survives a restart and is
     # only ever read as an elapsed duration by the rollback check below. On
@@ -52,7 +75,12 @@ class PostPromotionWatchdog:
         store: VersionedConfigStore,
         audit_log: TuningAuditLog,
         settings: SelfTuningSettings,
+        registry: ParameterRegistry | None = None,
     ) -> None:
+        # The registry is what live_overrides reads. Without it a rollback
+        # only appends to the version store and the rolled-back (bad) value
+        # keeps driving live trading until restart (STR-04).
+        self._registry = registry
         self._store = store
         self._audit_log = audit_log
         self._settings = settings
@@ -60,13 +88,32 @@ class PostPromotionWatchdog:
         self._probations: dict[str, _ProbationState] = {}
         self._locked_until: dict[str, datetime] = {}
 
-    def start_probation(self, param_name: str, baseline: PerformanceBaseline) -> None:
-        """Call immediately after a promotion (TuningEventType.PROMOTED)."""
+    def start_probation(self, param_name: str, detector: DriftDetector) -> None:
+        """
+        Call immediately after a promotion (TuningEventType.PROMOTED).
+
+        The detector is constructed by the caller (in the risk layer) and
+        injected — watchdog lives in the analytics layer and must not import
+        risk-layer machinery. Structural typing via `DriftDetector` keeps the
+        contract explicit while removing the package-level upward edge.
+        """
         with self._lock:
             self._probations[param_name] = _ProbationState(
-                detector=PerformanceDriftDetector(baseline),
+                detector=detector,
                 started_at=time.monotonic(),
             )
+
+    def _restore_registry(self, param_name: str, value: float) -> None:
+        if self._registry is None:
+            return
+        # not registered here: nothing live reads it
+        with contextlib.suppress(UnknownParameterError):
+            self._registry.update_current(param_name, value)
+
+    def probation_params(self) -> list[str]:
+        """Names currently in probation (for feeding closed-trade outcomes)."""
+        with self._lock:
+            return list(self._probations)
 
     def is_locked(self, param_name: str) -> bool:
         with self._lock:
@@ -110,11 +157,23 @@ class PostPromotionWatchdog:
 
             drift = state.detector.check_drift()
             if drift.drifted:
-                self._store.rollback(param_name)
+                # Exhausting the safe history is not a reason to leave the
+                # parameter in probation: letting the exception escape here
+                # skipped the audit record and the lockout, so the next trade
+                # re-detected the same drift and raised again forever. Clear
+                # and lock out either way -- staying at the current value with
+                # no further attempts is the safe end state.
+                try:
+                    restored = self._store.rollback(param_name)
+                    rolled_back = True
+                    self._restore_registry(param_name, restored.value)
+                except NoPriorVersionError:
+                    rolled_back = False
                 self._audit_log.record(
                     param_name,
-                    TuningEventType.ROLLED_BACK,
+                    TuningEventType.ROLLED_BACK if rolled_back else TuningEventType.PAUSED,
                     {
+                        "rolled_back": rolled_back,
                         "reason": drift.reason,
                         "metric": drift.metric,
                         "live_value": drift.live_value,
