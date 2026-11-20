@@ -1,5 +1,6 @@
 import { usePolling } from '../../hooks/useApi';
 import { fmt } from '../../utils/format';
+import { ActionButton } from '../Controls';
 
 export function StrategiesPanel({ action }) {
   const attribution = usePolling('/strategies/attribution', 30000);
@@ -115,13 +116,14 @@ export function StrategiesPanel({ action }) {
                         <td>{c.max_drawdown != null ? `${fmt(c.max_drawdown, 2)}%` : '—'}</td>
                         <td>
                           {(c.status === 'killed' || c.killed) && (
-                            <button
+                            <ActionButton
                               className="btn btn-green"
                               style={{ padding: '2px 8px', fontSize: 9 }}
-                              onClick={() => action(`/strategies/${encodeURIComponent(c.id || c.strategy_id || c.name)}/re-enable`, 'POST', {})}
+                              confirmMessage={`Re-enable strategy ${c.id || c.strategy_id || c.name}?`}
+                              onAction={() => action(`/strategies/${encodeURIComponent(c.id || c.strategy_id || c.name)}/re-enable`, 'POST', {})}
                             >
                               Re-enable
-                            </button>
+                            </ActionButton>
                           )}
                         </td>
                       </tr>
