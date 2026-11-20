@@ -35,7 +35,6 @@ unreachable or unkeyed — never blocks the core trading loop.
 | On-chain (paid) | Glassnode, CryptoQuant | Optional; CryptoQuant funding-rate falls back to Binance perp if unset |
 | Market cap / dominance | CoinGecko | Free |
 | Ensemble | `src/intelligence/ensemble_predictor.py`, `probabilistic.py` | Combines provider signals, probabilistic calibration |
-| Causal weighting | `src/intelligence/causal_inference.py` | **Experimental, not wired** — blocked on API key provisioning (DECISION_LOG GAP-015) |
 
 `GET /intelligence/coverage` and `GET /intelligence/providers` report live
 provider health and field coverage.
@@ -154,6 +153,8 @@ fills, reconnects, and exchange-side rejections.
 | GET | /strategies/attribution | Per-strategy P&L attribution (lifetime counts/P&L; risk ratios over a bounded recent window) |
 | GET | /strategies/allocation | Performance-weighted capital allocation |
 | GET | /strategies/gauntlet | Promotion-gauntlet status per strategy candidate |
+| GET | /venues | Per-venue market-data state, account-access state and credential presence (never values) |
+| POST | /venues/{venue}/connect \| /reconnect \| /disconnect \| /verify | Per-venue connection control (requires OPERATOR_SECRET and the trade-authorizing role) |
 
 All endpoints require `X-API-Key` header. A key set in `API_READONLY_KEY`
 authenticates the same way but is refused with `403` on the four mutating
@@ -197,7 +198,7 @@ src/
     client.py               Aggregator entrypoint used by the feature pipeline
     providers/               Exchange providers: binance, okx, coingecko, blockchain.info
     onchain/                 On-chain providers: arkham, dune, coinglass, defillama, cryptoquant
-    ensemble_predictor.py, causal_inference.py, probabilistic.py, calibration.py, risk_quantification.py
+    ensemble_predictor.py, probabilistic.py, calibration.py, risk_quantification.py
   regime/
     detector.py             GaussianHMM fit / predict / persist
   models/
@@ -354,13 +355,71 @@ npm run electron:dev     # dev mode: vite + electron together
 npm run electron:build   # packaged build via electron-builder
 ```
 
+### 6a. Integrated terminal and process center
+
+The dashboard's Terminal and Processes panes are served by a per-user
+terminal service on this machine; `npm run desktop:install` installs it and
+the `tradebot-term` CLI. See
+[docs/terminal/OPERATIONS.md](docs/terminal/OPERATIONS.md) for install, usage,
+CLI attach, troubleshooting, upgrade and uninstall, and
+[docs/terminal/ARCHITECTURE.md](docs/terminal/ARCHITECTURE.md) for the design.
+
+### 7. Claude Code on the web (cloud sessions)
+
+Cloud sessions provision themselves: `.claude/hooks/session-start.sh` runs as a
+`SessionStart` hook (registered in `.claude/settings.json`) and builds a `.venv`,
+installs `requirements.txt` + `requirements-dev.txt`, runs `npm install` in
+`frontend/`, and exports `PATH`/`PYTHONPATH` plus throwaway paper-trading
+settings through `$CLAUDE_ENV_FILE`.
+
+The hook exits immediately unless `CLAUDE_CODE_REMOTE=true`, so local
+checkouts keep whatever environment you manage yourself. To exercise it:
+
+```bash
+CLAUDE_CODE_REMOTE=true CLAUDE_PROJECT_DIR=$PWD CLAUDE_ENV_FILE=/tmp/env.sh \
+  ./.claude/hooks/session-start.sh
+```
+
+It installs into a virtualenv rather than the system interpreter because the
+container image ships distro-managed `cryptography` and `pip` without RECORD
+files, which makes an in-place upgrade fail. `requirements-optional.txt` is
+left out on purpose — the heavy ML extras are imported lazily and their suites
+self-skip, exactly as in CI.
+
+#### What a cloud session cannot do until the environment is configured
+
+The hook prints a preflight summary at startup. Two capabilities depend on the
+cloud environment's own settings, not on anything in this repo:
+
+| Capability | Requires | Without it |
+|---|---|---|
+| `kg_cli.py`, `rag_cli.py`, `review/retrieval.py` | `MONGODB_URI` in the environment's variables | Both CLIs raise `MONGODB_URI not set` |
+| Embedding (`all-MiniLM-L6-v2`, so all of RAG) | `huggingface.co` allowed by the environment's network policy | The download fails with a proxy `403` |
+
+`MONGODB_URI` is configured in two independent places, and setting one does not
+set the other:
+
+- **GitHub Actions secret** — used by `.github/workflows/rag-ingest.yml` to
+  ingest documents into Atlas. The former cloud review workflow was removed
+  (GOV-036), so nothing in CI runs `review/` any more.
+- **Cloud environment variable** — what an interactive cloud session reads.
+  Set this if you want `kg_cli.py` / `rag_cli.py` usable in a web session.
+
+Neither is needed for the test suite, the linter, or the frontend build: those
+run fully offline, which is why CI is green without them.
+
 ## Tests
 
 ```bash
 uv run pytest tests/ -x -q
 ```
 
-- Global coverage gate: **95%** (`--cov-fail-under=95`, enforced in `pyproject.toml`)
+This command is for humans running tests on their own machine. It is not the
+agent path: Claude sessions in this repository do not run tests locally, and
+GitHub Actions (`ci.yml`) is the sole execution path for test, lint and gate
+results (see `CLAUDE.md` section 14).
+
+- Global coverage gate: **99%** (`--cov-fail-under=99`, enforced in `pyproject.toml`; `fail_under = 99`)
 - Per-file floors (stricter, safety-critical paths — `scripts/check_coverage_floors.py`): `src/execution/live.py` 75%, `paper.py`/`order_fsm.py`/`order_manager.py` 70%, `src/engine/orchestrator.py` 60%, `signal_engine.py` 65%, `src/risk/gates.py` 70%, `cognitive_engine.py` 65%, `kelly.py` 70%, `src/diagnostics/runtime_monitor.py` 50%
 - `tests/test_timescale_storage.py` requires a reachable TimescaleDB (`scripts/timescaledb.sh up` locally; a service container in CI) — self-skips otherwise
 
@@ -386,18 +445,16 @@ Set `TRADING_MODE=live` in `.env` — the only way to unlock live trading.
 - Ruff — lint + format (replaces black/flake8/isort)
 - mypy — type checking
 - bandit, semgrep, CodeQL — SAST
-- detect-secrets — baseline-gated secret scanning (`.secrets.baseline`)
 - crypto-architect — architectural-law gate over `src/` (`scripts/arch_gate.sh`,
   baseline `config/arch_baseline.json`); see
   [docs/ARCHITECTURE_GOVERNANCE.md](docs/ARCHITECTURE_GOVERNANCE.md)
 - pip-audit — dependency CVE scanning
 - pytest-cov — coverage gate (95% global + per-file floors)
-- GitHub Actions workflows: `ci.yml` (lint/type/test + frontend build),
-  `security.yml` (Bandit/Semgrep/TruffleHog/pip-audit), `codeql.yml`,
-  `mutation-testing.yml`, `auto-fix.yml` / `auto-debug.yml` (automated
-  lint-fix and failure triage), `claude-code-review.yml`,
-  `dependabot-auto-merge.yml`, `release.yml`; `ci.yml` also runs the
-  `architecture` governance job (SARIF → code scanning)
+- GitHub Actions workflows in `.github/workflows/`: `ci.yml` (lint/type/test,
+  frontend build, architecture governance), `security.yml` (Bandit, Semgrep,
+  TruffleHog, pip-audit), `codeql.yml`, `workflow-lint.yml`,
+  `nightly-quality.yml`, `ci-diagnostics.yml`, `pr-auto-update.yml`,
+  `rag-ingest.yml`, `deploy.yml`, `release.yml`
 - Pre-commit hooks: `.pre-commit-config.yaml`
 
 ## References

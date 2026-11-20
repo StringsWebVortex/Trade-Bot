@@ -3,19 +3,25 @@ Comprehensive coverage tests for src/engine/orchestrator.py.
 
 Coverage target: 10% → 70%+. Every major code path exercised with mocked
 external dependencies — no real network, DB, or model I/O.
+
+
+Decides:
+  - REG-0028 — regression coverage for the recorded behavior.
+  - REG-1060 — Drift accuracy uses the real entry P(long); unknown is skipped
 """
 
 from __future__ import annotations
 
 import asyncio
+import time
 from contextlib import contextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from conftest import settings_double
 from src.config import Timeframe, TradingMode
 from src.data.storage import BarRecord
+from tests.conftest import settings_double
 
 
 def _make_bars(n: int = 350) -> list[BarRecord]:
@@ -49,6 +55,7 @@ def _make_storage():
     s.earliest_equity_ts = AsyncMock(return_value=None)
     s.insert_bar = AsyncMock(return_value=None)
     s.fetch_bars = AsyncMock(return_value=_make_bars())  # ≥300 rows for trainer
+    s.latest_bar_ts = AsyncMock(return_value=None)
     s.initialize = AsyncMock(return_value=None)
     s.close = AsyncMock(return_value=None)
     return s
@@ -57,6 +64,7 @@ def _make_storage():
 def _make_fetcher():
     f = AsyncMock()
     f.bootstrap_history = AsyncMock(return_value=100)
+    f.gap_fill = AsyncMock(return_value=0)
     # A bare AsyncMock child returns a coroutine from .get(), which the
     # precision loader feeds straight to float(). Give it a real mapping.
     f.fetch_symbol_precision = AsyncMock(return_value={})
@@ -69,7 +77,14 @@ def _make_executor():
     e.initialize = AsyncMock(return_value=None)
     e.get_daily_pnl = AsyncMock(return_value=0.0)
     e.get_consecutive_losses = AsyncMock(return_value=0)
+    # AbstractExecutor.open_positions() is synchronous; do not leave it as an
+    # auto-created AsyncMock coroutine in Prometheus/readiness tests.
+    e.open_positions = MagicMock(return_value=[])
+    e.open_positions_safe = AsyncMock(return_value=[])
     e.equity_usd = 1000.0
+    # Synchronous on AbstractExecutor (EXR-018): an AsyncMock coroutine
+    # here would be created every tick and never awaited.
+    e.close_approval_window = MagicMock(return_value=None)
     e.starting_equity_usd = 1000.0
     e.shutdown = AsyncMock(return_value=None)
     return e
@@ -153,6 +168,11 @@ class TestOrchestratorInit:
             cfg.starting_capital_usd = 1000.0
             mock_cfg.return_value = cfg
             orch = Orchestrator(storage, fetcher)
+        # Pin the double explicitly. get_settings() is read at use time now
+        # (GOV-028), so constructing inside the patch no longer freezes the
+        # fake onto the instance -- the with-block exits and later reads see
+        # the real settings. The pin says what the test always meant.
+        orch._cfg = cfg
         assert orch._symbol == "BTC/USDT"
         assert orch._running is False
         assert orch._executor is None
@@ -172,6 +192,11 @@ class TestOrchestratorInit:
             cfg.starting_capital_usd = 500.0
             mock_cfg.return_value = cfg
             orch = Orchestrator(storage, fetcher)
+        # Pin the double explicitly. get_settings() is read at use time now
+        # (GOV-028), so constructing inside the patch no longer freezes the
+        # fake onto the instance -- the with-block exits and later reads see
+        # the real settings. The pin says what the test always meant.
+        orch._cfg = cfg
         assert isinstance(orch._stop_event, asyncio.Event)
         assert not orch._stop_event.is_set()
 
@@ -198,6 +223,11 @@ def _make_orch(storage=None, fetcher=None):
         cfg.storage.model_dir = "/tmp/models"
         mock_cfg.return_value = cfg
         orch = Orchestrator(storage, fetcher)
+        # Pin the double explicitly. get_settings() is read at use time now
+        # (GOV-028), so constructing inside the patch no longer freezes the
+        # fake onto the instance -- the with-block exits and later reads see
+        # the real settings. The pin says what the test always meant.
+        orch._cfg = cfg
     return orch
 
 
@@ -207,6 +237,60 @@ def _make_orch(storage=None, fetcher=None):
 
 
 class TestOrchestratorStartup:
+    @pytest.mark.asyncio
+    async def test_timeframe_loop_registers_tick_health_when_loop_starts(self):
+        orch = _make_orch()
+        orch._running = False
+        monitor = MagicMock()
+        with patch("src.engine.orchestrator.get_monitor", return_value=monitor):
+            await orch._timeframe_loop(Timeframe.INTRADAY)
+        monitor.register_tick_source.assert_called_once()
+        assert monitor.register_tick_source.call_args.args[0] == Timeframe.INTRADAY.value
+
+    @pytest.mark.asyncio
+    async def test_prepare_history_reuses_sufficient_recent_cache(self):
+        import time
+
+        storage = _make_storage()
+        recent_ts = int(time.time() * 1000) - 120_000
+        storage.latest_bar_ts.return_value = recent_ts
+        fetcher = _make_fetcher()
+        orch = _make_orch(storage, fetcher)
+
+        refreshed = await orch._prepare_history(Timeframe.INTRADAY)
+
+        assert refreshed == 0
+        fetcher.gap_fill.assert_awaited_once_with("BTC/USDT", Timeframe.INTRADAY)
+        fetcher.bootstrap_history.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_prepare_history_bootstraps_when_cache_is_insufficient(self):
+        storage = _make_storage()
+        storage.fetch_bars.return_value = _make_bars(299)
+        storage.latest_bar_ts.return_value = int(time.time() * 1000) - 60_000
+        fetcher = _make_fetcher()
+        orch = _make_orch(storage, fetcher)
+
+        result = await orch._prepare_history(Timeframe.INTRADAY)
+
+        assert result == 100
+        fetcher.bootstrap_history.assert_awaited_once_with("BTC/USDT", Timeframe.INTRADAY)
+        fetcher.gap_fill.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_prepare_history_falls_back_when_refresh_remains_stale(self):
+        storage = _make_storage()
+        stale_ts = int(time.time() * 1000) - 2 * 86_400_000
+        storage.latest_bar_ts.side_effect = [stale_ts, stale_ts]
+        fetcher = _make_fetcher()
+        orch = _make_orch(storage, fetcher)
+
+        result = await orch._prepare_history(Timeframe.INTRADAY)
+
+        assert result == 100
+        fetcher.gap_fill.assert_awaited_once_with("BTC/USDT", Timeframe.INTRADAY)
+        fetcher.bootstrap_history.assert_awaited_once_with("BTC/USDT", Timeframe.INTRADAY)
+
     @pytest.mark.asyncio
     async def test_startup_paper_creates_executor(self):
         storage = _make_storage()
@@ -262,16 +346,17 @@ class TestOrchestratorStartup:
             captured_kwargs.update(kwargs)
             return MagicMock()
 
-        with _orch_patches() as (_, __, ___):
-            with (
-                patch(
-                    "src.engine.orchestrator.ModelTrainer.load_ensemble",
-                    side_effect=FileNotFoundError("no ensemble yet"),
-                ),
-                patch("src.engine.orchestrator.SignalEngine", side_effect=_capture_signal_engine),
-            ):
-                await orch.startup()
+        with (
+            _orch_patches() as (_, __, ___),
+            patch(
+                "src.engine.orchestrator.ModelTrainer.load_ensemble",
+                side_effect=FileNotFoundError("no ensemble yet"),
+            ),
+            patch("src.engine.orchestrator.SignalEngine", side_effect=_capture_signal_engine),
+        ):
+            await orch.startup()
         assert captured_kwargs["ensemble"] is None
+        assert "ensemble unavailable" in orch._model_detail[Timeframe.INTRADAY.value]
 
     @pytest.mark.asyncio
     async def test_startup_ensemble_load_error_logs_and_falls_back_to_none(self):
@@ -286,15 +371,15 @@ class TestOrchestratorStartup:
             captured_kwargs.update(kwargs)
             return MagicMock()
 
-        with _orch_patches() as (_, __, ___):
-            with (
-                patch(
-                    "src.engine.orchestrator.ModelTrainer.load_ensemble",
-                    side_effect=RuntimeError("integrity check FAILED"),
-                ),
-                patch("src.engine.orchestrator.SignalEngine", side_effect=_capture_signal_engine),
-            ):
-                await orch.startup()
+        with (
+            _orch_patches() as (_, __, ___),
+            patch(
+                "src.engine.orchestrator.ModelTrainer.load_ensemble",
+                side_effect=RuntimeError("integrity check FAILED"),
+            ),
+            patch("src.engine.orchestrator.SignalEngine", side_effect=_capture_signal_engine),
+        ):
+            await orch.startup()
         assert captured_kwargs["ensemble"] is None
 
 
@@ -671,6 +756,11 @@ class TestOrchestratorTrainModels:
             cfg.storage.model_dir = "/tmp/models"
             mock_cfg.return_value = cfg
             orch = Orchestrator(storage, fetcher)
+        # Pin the double explicitly. get_settings() is read at use time now
+        # (GOV-028), so constructing inside the patch no longer freezes the
+        # fake onto the instance -- the with-block exits and later reads see
+        # the real settings. The pin says what the test always meant.
+        orch._cfg = cfg
         return orch
 
     @pytest.mark.asyncio
@@ -704,6 +794,45 @@ class TestOrchestratorTrainModels:
 
         assert Timeframe.INTRADAY.value in orch._trainers
         assert Timeframe.INTRADAY.value in orch._detectors
+
+    @pytest.mark.asyncio
+    async def test_train_models_reuses_provenance_valid_cache_without_direction_meta_refit(self):
+        orch = self._orch_for_train()
+        orch._engines = {}
+        fm = MagicMock()
+        fm.features = MagicMock()
+        dir_result = MagicMock()
+        dir_result.live_gate_pass = True
+        dir_result.oos_sharpe = 1.5
+        dir_result.model = MagicMock()
+        dir_result.to_metrics_record = MagicMock(return_value=MagicMock())
+        meta_result = MagicMock()
+        meta_result.live_gate_pass = True
+        meta_result.oos_sharpe = 1.2
+        meta_result.model = MagicMock()
+        meta_result.to_metrics_record = MagicMock(return_value=MagicMock())
+        trainer = MagicMock()
+        trainer.load_compatible_cached_models.return_value = (dir_result, meta_result)
+        trainer.cached_model_version = "2026-10-10T00:00:00+00:00"
+        trainer.train_ensemble.return_value = MagicMock()
+        detector = MagicMock()
+        detector.fit = MagicMock()
+        detector.save = MagicMock()
+        orch._attach_intelligence_features = AsyncMock()
+
+        with (
+            patch("src.engine.orchestrator.build_feature_matrix", return_value=fm),
+            patch("src.engine.orchestrator.ModelTrainer", return_value=trainer),
+            patch("src.engine.orchestrator.RegimeDetector", return_value=detector),
+        ):
+            await orch._train_models(Timeframe.INTRADAY)
+
+        trainer.train_direction.assert_not_called()
+        trainer.train_meta_label.assert_not_called()
+        trainer.save.assert_not_called()
+        trainer.train_ensemble.assert_called_once_with(fm)
+        trainer.save_ensemble.assert_called_once()
+        assert orch._storage.insert_model_metrics.await_count == 2
 
     @pytest.mark.asyncio
     async def test_train_models_stores_error_on_xgb_failure(self):
@@ -763,6 +892,11 @@ class TestSleepUntilNextBar:
             cfg.storage.model_dir = "/tmp/models"
             mock_cfg.return_value = cfg
             orch = Orchestrator(storage, fetcher)
+        # Pin the double explicitly. get_settings() is read at use time now
+        # (GOV-028), so constructing inside the patch no longer freezes the
+        # fake onto the instance -- the with-block exits and later reads see
+        # the real settings. The pin says what the test always meant.
+        orch._cfg = cfg
         return orch
 
     @pytest.mark.asyncio
@@ -799,6 +933,11 @@ class TestMidnightResetLoop:
             cfg.storage.model_dir = "/tmp/models"
             mock_cfg.return_value = cfg
             orch = Orchestrator(storage, fetcher)
+        # Pin the double explicitly. get_settings() is read at use time now
+        # (GOV-028), so constructing inside the patch no longer freezes the
+        # fake onto the instance -- the with-block exits and later reads see
+        # the real settings. The pin says what the test always meant.
+        orch._cfg = cfg
         return orch
 
     @pytest.mark.asyncio
@@ -895,6 +1034,11 @@ class TestPositionMonitorLoop:
             cfg.risk.position_monitor_interval_s = 5
             mock_cfg.return_value = cfg
             orch = Orchestrator(storage, fetcher)
+        # Pin the double explicitly. get_settings() is read at use time now
+        # (GOV-028), so constructing inside the patch no longer freezes the
+        # fake onto the instance -- the with-block exits and later reads see
+        # the real settings. The pin says what the test always meant.
+        orch._cfg = cfg
         return orch
 
     @pytest.mark.asyncio
@@ -1044,6 +1188,11 @@ class TestTickCorrelationFallback:
             cfg.storage.model_dir = "/tmp/models"
             mock_cfg.return_value = cfg
             orch = Orchestrator(storage, fetcher)
+        # Pin the double explicitly. get_settings() is read at use time now
+        # (GOV-028), so constructing inside the patch no longer freezes the
+        # fake onto the instance -- the with-block exits and later reads see
+        # the real settings. The pin says what the test always meant.
+        orch._cfg = cfg
         return orch
 
     def _make_orch_live(self):
@@ -1065,6 +1214,11 @@ class TestTickCorrelationFallback:
             cfg.storage.model_dir = "/tmp/models"
             mock_cfg.return_value = cfg
             orch = Orchestrator(storage, fetcher)
+        # Pin the double explicitly. get_settings() is read at use time now
+        # (GOV-028), so constructing inside the patch no longer freezes the
+        # fake onto the instance -- the with-block exits and later reads see
+        # the real settings. The pin says what the test always meant.
+        orch._cfg = cfg
         return orch
 
     @pytest.mark.asyncio
@@ -1182,6 +1336,7 @@ class TestTickCorrelationFallback:
     async def test_tick_drift_blocks_tradeable_signal(self):
         """Performance drift gate skips execution even when signal is tradeable."""
         orch = self._make_orch()
+        orch._cfg.trading_mode = TradingMode.LIVE  # drift halt is live-only (EXR-004)
         executor = _make_executor()
         executor.open_positions_safe = AsyncMock(return_value=[])
         orch._executor = executor
@@ -1218,9 +1373,57 @@ class TestTickCorrelationFallback:
         executor.submit_signal.assert_not_called()
 
     @pytest.mark.asyncio
+    async def test_tick_drift_does_not_block_paper_signal(self):
+        """EXR-004: live mode's paper-only secondary timeframe must not drift-halt."""
+        orch = self._make_orch()
+        # The global mode is LIVE, but this non-primary timeframe is paper-only.
+        orch._cfg.trading_mode = TradingMode.LIVE
+        orch._primary_tf = Timeframe.SCALPING
+        executor = _make_executor()
+        executor.open_positions_safe = AsyncMock(return_value=[])
+        orch._non_primary_executor = executor
+        orch._executor = _make_executor()
+
+        signal = MagicMock()
+        signal.tradeable = True
+        signal.regime = None
+        signal.p_long = 0.8
+        signal.p_bet = 0.8
+        signal.direction = 1
+        signal.kelly_result = MagicMock()
+        signal.kelly_result.entry_price = 65_000.0
+        signal.ensemble_point_estimate = None
+        executor.submit_signal = AsyncMock(return_value=("paper-trade", "opened"))
+        engine = AsyncMock()
+        engine.tick = AsyncMock(return_value=signal)
+        orch._engines[Timeframe.INTRADAY.value] = engine
+
+        tracker = MagicMock()
+        tracker.correlation_scalar = MagicMock(return_value=1.0)
+        tracker.push_bar_returns = MagicMock()
+
+        with (
+            patch("src.engine.orchestrator.get_portfolio_correlation", return_value=tracker),
+            patch(
+                "src.engine.orchestrator.compute_win_loss_stats", return_value=(0, 0.0, 0.0, 0.0)
+            ),
+            patch("src.engine.orchestrator.update_metrics"),
+            patch.object(
+                orch._drift_adapter,
+                "check_drift",
+                return_value={"drifted": True, "metric": "sharpe", "reason": "below floor"},
+            ) as chk,
+        ):
+            await orch._tick(Timeframe.INTRADAY)
+
+        chk.assert_not_called()
+        executor.submit_signal.assert_awaited_once()
+
+    @pytest.mark.asyncio
     async def test_drift_triggers_retrain_task(self):
         """Drift detection must schedule an immediate retrain task (not just block)."""
         orch = self._make_orch()
+        orch._cfg.trading_mode = TradingMode.LIVE  # drift halt is live-only (EXR-004)
         executor = _make_executor()
         executor.open_positions_safe = AsyncMock(return_value=[])
         orch._executor = executor
@@ -1273,6 +1476,7 @@ class TestTickCorrelationFallback:
         """Overlap guard: a still-running retrain task must not be duplicated
         by a second drift trigger on the same timeframe."""
         orch = self._make_orch()
+        orch._cfg.trading_mode = TradingMode.LIVE  # drift halt is live-only (EXR-004)
         executor = _make_executor()
         executor.open_positions_safe = AsyncMock(return_value=[])
         orch._executor = executor
@@ -1331,6 +1535,7 @@ class TestTickCorrelationFallback:
         task by the time this (now-finished) task's done-callback fires,
         the callback must not delete the newer task's registration."""
         orch = self._make_orch()
+        orch._cfg.trading_mode = TradingMode.LIVE  # drift halt is live-only (EXR-004)
         executor = _make_executor()
         executor.open_positions_safe = AsyncMock(return_value=[])
         orch._executor = executor
@@ -1384,6 +1589,7 @@ class TestTickCorrelationFallback:
         """A failed drift-triggered retrain's done-callback must record the
         error and clear the (now-finished) task slot."""
         orch = self._make_orch()
+        orch._cfg.trading_mode = TradingMode.LIVE  # drift halt is live-only (EXR-004)
         executor = _make_executor()
         executor.open_positions_safe = AsyncMock(return_value=[])
         orch._executor = executor

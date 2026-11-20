@@ -47,17 +47,30 @@ def run_claude(
     cmd = ["claude", "-p", prompt, "--model", model, "--output-format", "json"]
     if allowed_tools:
         cmd += ["--allowedTools", allowed_tools]
-    if max_turns:
-        cmd += ["--max-turns", str(max_turns)]
     if json_schema:
+        # --json-schema drives structured output through an internal
+        # tool-use round-trip the CLI manages itself. Capping --max-turns
+        # here truncates that round-trip before it completes (exit 1,
+        # stdout left as the raw in-progress event array) -- so let it
+        # run to its own completion instead of bounding it.
         cmd += ["--json-schema", json.dumps(json_schema)]
-    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+    elif max_turns:
+        cmd += ["--max-turns", str(max_turns)]
+    # check=False: the returncode is inspected below and turned into a
+    # ClaudeCLIError carrying stderr, which check=True would discard.
+    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, check=False)
     if proc.returncode != 0:
         raise ClaudeCLIError(f"claude -p failed (exit {proc.returncode}): {proc.stderr[:500]}")
     try:
         payload = json.loads(proc.stdout)
     except json.JSONDecodeError as exc:
         raise ClaudeCLIError(f"Could not parse claude output as JSON: {proc.stdout[:500]}") from exc
+    # --output-format json returns a single result object for a plain
+    # text turn, but a JSON array of the full event stream (final result
+    # last) whenever a tool call happened -- which --json-schema always
+    # triggers via its internal structured-output tool.
+    if isinstance(payload, list):
+        payload = payload[-1] if payload else {}
     return {
         "result": payload.get("result", ""),
         "structured_output": payload.get("structured_output"),

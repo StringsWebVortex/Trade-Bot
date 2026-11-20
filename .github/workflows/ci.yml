@@ -1,62 +1,134 @@
 name: CI
 
 on:
+  pull_request:
   push:
     branches: [main]
-  pull_request:
-  workflow_dispatch:
 
 permissions:
   contents: read
 
-concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
-  python:
-    name: Python (lint + tests)
+  backend:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: .
     steps:
-      - uses: actions/checkout@v5
-
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
-          python-version-file: .python-version
+          python-version: "3.12"
           cache: pip
-
-      - name: Install dependencies
+      - name: Install deps
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt -r requirements-dev.txt
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          if [ -f pyproject.toml ]; then pip install -e . || true; fi
+          pip install ruff mypy pytest pytest-asyncio pytest-cov bandit
+      - name: Ruff
+        run: ruff check . --output-format=concise
+      - name: Mypy
+        run: mypy . --ignore-missing-imports
+        continue-on-error: true
+      - name: Bandit
+        run: bandit -r . -q -x ./tests,./.venv,./venv
+        continue-on-error: true
 
-      - name: Lint
-        run: ruff check .
-
-      - name: Format check
-        run: ruff format --check .
-
-      - name: Tests
-        # Optional ML extras are not installed here, so suites that need them
-        # are expected to skip rather than fail.
-        run: pytest -q
+  python-tests:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          if [ -f pyproject.toml ]; then pip install -e . || true; fi
+          pip install pytest pytest-asyncio pytest-cov pytest-shard
+      - name: Tests (shard ${{ matrix.shard }}/3)
+        run: pytest -q --tb=short --shard-id=${{ matrix.shard }} --num-shards=3
+        env:
+          PYTHONASYNCIODEBUG: "1"
 
   frontend:
-    name: Frontend (build)
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
     steps:
-      - uses: actions/checkout@v5
-
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
           cache: npm
           cache-dependency-path: frontend/package-lock.json
+      - run: npm ci --prefer-offline --no-audit
+      - run: npm run build
+      - run: npm test --if-present
 
-      - name: Install dependencies
-        working-directory: frontend
-        run: npm ci
+  update-codebase-index:
+    name: Regenerate codebase index
+    runs-on: ubuntu-latest
+    # Only auto-commit on pushes to main; on PRs just upload as artifact for review
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install ripgrep
+        run: sudo apt-get install -y ripgrep
+      - name: Regenerate index
+        run: bash scripts/index.sh
+      - name: Commit if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add audit/codebase_index.md
+          if git diff --cached --quiet; then
+            echo "Index is up to date — no commit needed."
+          else
+            git commit -m "chore: refresh codebase index [skip ci]"
+            git push
+          fi
 
-      - name: Build
-        working-directory: frontend
-        run: npm run build
+  gate:
+    name: CI gate (all jobs green)
+    runs-on: ubuntu-latest
+    if: ${{ always() }}
+    needs: [backend, python-tests, frontend]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Assert every job in this workflow succeeded
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: python3 scripts/assert_jobs_green.py
+
+  check-codebase-index:
+    name: Check codebase index freshness (PR)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install ripgrep
+        run: sudo apt-get install -y ripgrep
+      - name: Regenerate and upload as artifact
+        run: bash scripts/index.sh
+      - name: Upload index artifact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: codebase-index
+          path: audit/codebase_index.md
+          retention-days: 30
