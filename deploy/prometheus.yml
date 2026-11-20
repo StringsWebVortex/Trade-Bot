@@ -1,0 +1,31 @@
+# Prometheus scrape config for Trade-Bot.
+#
+# `/metrics` on the API is gated by the `X-API-Key` header -- give Prometheus
+# a read-only key (API_READONLY_KEY, see src/api/access_control.py) in the
+# file mounted at /etc/prometheus/tradebot.key. `http_headers` (Prometheus
+# 2.55 and later) sends it on every scrape; a scrape without it gets 403, so
+# /metrics, equity values included, is never served unauthenticated (audit
+# OPS-013). Documented in docs/ops/RUNBOOK.md § Metrics.
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    app: tradebot
+
+rule_files:
+  - alerts.yml
+
+scrape_configs:
+  - job_name: tradebot-api
+    metrics_path: /metrics
+    scheme: http
+    static_configs:
+      - targets: ["tradebot-api:8000"]
+    http_headers:
+      X-API-Key:
+        files: [/etc/prometheus/tradebot.key]
+
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
