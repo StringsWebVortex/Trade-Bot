@@ -18,6 +18,7 @@ Authority:
 
 from __future__ import annotations
 
+import threading
 import time
 from typing import Any, Final
 
@@ -25,7 +26,6 @@ import aiohttp
 import structlog
 
 from src.intelligence.providers.base import ExchangeIntelligenceProvider
-
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
@@ -57,6 +57,8 @@ class BlockchainIntelligenceProvider(ExchangeIntelligenceProvider):
         # Rolling history for momentum computation
         self._hashrate_history: list[float] = []
         self._tx_history: list[float] = []
+        # INT-022: histories grow once per cache window, not once per call.
+        self._hist_ts: float | None = None
         self._log = log.bind(component="blockchain_intelligence")
 
     @property
@@ -94,10 +96,13 @@ class BlockchainIntelligenceProvider(ExchangeIntelligenceProvider):
                 n_txs = float(stats.get("n_tx", 0.0) or 0.0)
 
                 # Accumulate rolling histories
-                if hash_rate > 0:
-                    self._hashrate_history.append(hash_rate)
-                if n_txs > 0:
-                    self._tx_history.append(n_txs)
+                now_m = time.monotonic()
+                if self._hist_ts is None or now_m - self._hist_ts >= self._cache_ttl:
+                    self._hist_ts = now_m
+                    if hash_rate > 0:
+                        self._hashrate_history.append(hash_rate)
+                    if n_txs > 0:
+                        self._tx_history.append(n_txs)
 
                 # Trim to window
                 self._hashrate_history = self._hashrate_history[-_HASHRATE_WINDOW:]
@@ -149,15 +154,17 @@ class BlockchainIntelligenceProvider(ExchangeIntelligenceProvider):
             return cached
 
         timeout = aiohttp.ClientTimeout(total=8.0)
-        async with aiohttp.ClientSession(timeout=timeout) as session:
-            async with session.get(
+        async with (
+            aiohttp.ClientSession(timeout=timeout) as session,
+            session.get(
                 _BLOCKCHAIN_STATS_URL,
                 headers={"Accept": "application/json"},
-            ) as resp:
-                resp.raise_for_status()
-                data: dict = await resp.json()
-                self._set_cache(cache_key, data)
-                return data
+            ) as resp,
+        ):
+            resp.raise_for_status()
+            data: dict = await resp.json()
+            self._set_cache(cache_key, data)
+            return data
 
     @staticmethod
     def _zscore(history: list[float]) -> float:
@@ -178,11 +185,14 @@ class BlockchainIntelligenceProvider(ExchangeIntelligenceProvider):
 # ---------------------------------------------------------------------------
 
 _provider: BlockchainIntelligenceProvider | None = None
+_provider_lock = threading.Lock()
 
 
 def get_blockchain_intelligence_provider() -> BlockchainIntelligenceProvider:
     """Return the module-level BlockchainIntelligenceProvider singleton."""
     global _provider
-    if _provider is None:
-        _provider = BlockchainIntelligenceProvider()
-    return _provider
+    # Locked, not a bare check-then-assign -- see binance_provider for why.
+    with _provider_lock:
+        if _provider is None:
+            _provider = BlockchainIntelligenceProvider()
+        return _provider

@@ -12,6 +12,9 @@ Renaming is not an option -- these names are the ``RISK_*`` / ``FEATURES_*``
 reset deployed configuration to defaults. So the units are pinned here
 instead: a future edit that flips one has to flip this test too, in a diff
 that says so.
+
+Decides:
+  - DATA-004 — Money arithmetic uses a declared exact representation
 """
 
 from __future__ import annotations
@@ -19,7 +22,6 @@ from __future__ import annotations
 import pytest
 
 from src.config import FeatureSettings, RiskSettings, SelfTuningSettings
-
 
 # Fields whose value is a FRACTION of 1 despite the _pct suffix.
 _FRACTION_FIELDS = [

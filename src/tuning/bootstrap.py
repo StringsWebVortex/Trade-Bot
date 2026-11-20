@@ -27,7 +27,6 @@ from src.config import Settings, get_settings
 from src.tuning.registry import ParameterRegistry, TunableParameter
 from src.tuning.store import VersionedConfigStore
 
-
 _DEFAULT_BOUND_WINDOW_PCT = 0.20
 
 
@@ -138,10 +137,11 @@ def register_ensemble_blend_weight(
     themselves rather than via an operator-configured default.
 
     Evaluated by backtest_harness.run_ensemble_blend_backtest against
-    realized OOS trade outcomes where both p_long and the ensemble's
-    point_estimate were logged at signal time (AuditRecord / the
-    trades.ensemble_point_estimate column -- see
-    src/data/storage.py's update_trade_ensemble_fields).
+    realized OOS trade outcomes where both inputs to the blend were logged
+    at signal time -- the trades.pre_blend_p_long and trades.ensemble_p_long
+    columns (src/data/storage.py's TradeRecord). Both inputs are stored
+    rather than the blended result because the blended value alone cannot be
+    inverted back to its inputs.
     """
     settings = settings or get_settings()
     default = settings.risk.ensemble_blend_weight
@@ -153,7 +153,7 @@ def register_ensemble_blend_weight(
         floor=floor,
         ceiling=ceiling,
         current=current,
-        eval_strategy="ensemble_prediction_accuracy",
+        eval_strategy="ensemble_calibration",
     )
     registry.register(param)
     return param

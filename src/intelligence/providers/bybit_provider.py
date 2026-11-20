@@ -42,14 +42,18 @@ from __future__ import annotations
 
 import asyncio
 import statistics
+import threading
 import time
 from typing import Any, Final
 
 import ccxt.async_support as ccxt
 import structlog
 
-from src.intelligence.providers.base import ExchangeIntelligenceProvider
-
+from src.intelligence.providers.base import (
+    ExchangeIntelligenceProvider,
+    exchange_stress_score,
+    tickers_are_synchronous,
+)
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
@@ -59,10 +63,6 @@ _FR_HISTORY_PERIODS: Final[int] = 90
 _OI_HISTORY_HOURS: Final[int] = 25
 # Recent-trades window for taker-flow ratio
 _TRADES_LIMIT: Final[int] = 200
-# Stress score weights (must sum to 1.0)
-_W_BASIS: Final[float] = 0.35
-_W_FR_Z: Final[float] = 0.40
-_W_OI: Final[float] = 0.25
 # Confidence handling
 _CONFIDENCE_PENALTY: Final[float] = 0.05
 _MISSING_PAID_FIELDS: Final[int] = 8
@@ -240,7 +240,7 @@ class BybitIntelligenceProvider(ExchangeIntelligenceProvider):
 
         rates = [r["fundingRate"] for r in history if r.get("fundingRate") is not None]
         if len(rates) < 2:
-            return {"rate_pct": rates[-1] if rates else 0.0, "zscore": 0.0}
+            return {"rate_pct": rates[-1] * 100.0 if rates else 0.0, "zscore": 0.0}
 
         current = rates[-1]
         mu = statistics.mean(rates)
@@ -299,7 +299,25 @@ class BybitIntelligenceProvider(ExchangeIntelligenceProvider):
         if not spot_last or not perp_last or spot_last <= 0:
             return 0.0
 
+        if not tickers_are_synchronous(spot_ticker, perp_ticker):
+            log.warning(
+                "bybit.basis_tickers_out_of_sync",
+                spot_ts=spot_ticker.get("timestamp"),
+                perp_ts=perp_ticker.get("timestamp"),
+                action="basis suppressed — a stale leg reports the move it missed",
+            )
+            return 0.0
+
         basis_bps = ((perp_last - spot_last) / spot_last) * 10_000.0
+        if abs(basis_bps) > 500.0:
+            # Saturating silently makes a broken feed indistinguishable from
+            # a genuine dislocation, and both arrive downstream as 500.
+            log.warning(
+                "bybit.basis_clamped",
+                raw_bps=round(basis_bps, 1),
+                spot_last=spot_last,
+                perp_last=perp_last,
+            )
         basis_bps = max(-500.0, min(500.0, basis_bps))
         self._set_cache(cache_key, basis_bps)
         return basis_bps
@@ -333,18 +351,8 @@ class BybitIntelligenceProvider(ExchangeIntelligenceProvider):
         self._set_cache(cache_key, ratio)
         return ratio
 
-    @staticmethod
-    def _compute_stress_score(
-        basis_bps: float,
-        funding_zscore: float,
-        oi_change_pct: float,
-    ) -> float:
-        """Exchange stress composite [0, 1]. Identical formula to Binance/OKX providers."""
-        basis_stress = min(abs(basis_bps) / 100.0, 1.0)
-        funding_stress = min(abs(funding_zscore) / 3.0, 1.0)
-        oi_stress = min(max(-oi_change_pct, 0.0) / 5.0, 1.0)
-        score = _W_BASIS * basis_stress + _W_FR_Z * funding_stress + _W_OI * oi_stress
-        return round(min(max(score, 0.0), 1.0), 4)
+    # Shared formula (base.exchange_stress_score); kept as a class attribute for callers.
+    _compute_stress_score = staticmethod(exchange_stress_score)
 
 
 # ---------------------------------------------------------------------------
@@ -352,6 +360,7 @@ class BybitIntelligenceProvider(ExchangeIntelligenceProvider):
 # ---------------------------------------------------------------------------
 
 _provider: BybitIntelligenceProvider | None = None
+_provider_lock = threading.Lock()
 
 
 def get_bybit_intelligence_provider(
@@ -364,9 +373,23 @@ def get_bybit_intelligence_provider(
     The symbol/perp_symbol arguments are only used on first call.
     """
     global _provider
-    if _provider is None:
-        _provider = BybitIntelligenceProvider(
-            symbol=symbol,
-            perp_symbol=perp_symbol,
-        )
-    return _provider
+    # Locked, not a bare check-then-assign: the two steps have a constructor
+    # between them, so two callers arriving together could both find it unset
+    # and both build a provider -- each with its own ccxt client and rate-limit
+    # budget, against an exchange that counts them as one. Same shape as
+    # get_allocation_controller() in src/tuning/meta_allocator.py.
+    with _provider_lock:
+        if _provider is None:
+            _provider = BybitIntelligenceProvider(
+                symbol=symbol,
+                perp_symbol=perp_symbol,
+            )
+            _provider._singleton_key = (symbol, perp_symbol)
+        # INT-021: the singleton is bound to the first (symbol, perp_symbol);
+        # serving a different symbol from it would return the wrong market's data.
+        if getattr(_provider, "_singleton_key", (symbol, perp_symbol)) != (symbol, perp_symbol):
+            raise ValueError(
+                f"singleton already bound to {_provider._singleton_key}; "
+                f"refusing to serve {(symbol, perp_symbol)}"
+            )
+        return _provider
