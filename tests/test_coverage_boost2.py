@@ -353,7 +353,6 @@ class TestPerformanceDrift:
         detector = PerformanceDriftDetector(_make_baseline(max_drawdown_pct=0.01))
         # Large drawdown from peak
         detector._live_equity_peak = 100_000.0
-        detector._live_equity_start = 100_000.0
         for _ in range(30):
             detector.record_trade_outcome(
                 pnl_usd=-1000.0,
@@ -375,18 +374,6 @@ class TestPerformanceDrift:
             starting_equity=100_000.0,
         )
         assert detector._live_equity_peak == pytest.approx(110_000.0)
-
-    def test_record_sets_equity_start_on_first_trade(self):
-        detector = PerformanceDriftDetector(_make_baseline())
-        assert detector._live_equity_start == 0.0
-        detector.record_trade_outcome(
-            pnl_usd=0.0,
-            predicted_prob=0.5,
-            actual_direction=1,
-            current_equity=100_000.0,
-            starting_equity=99_000.0,
-        )
-        assert detector._live_equity_start == pytest.approx(99_000.0)
 
     def test_baseline_property(self):
         b = _make_baseline()

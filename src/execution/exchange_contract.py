@@ -27,6 +27,8 @@ the contract does not recognise produces one whose status is `UNKNOWN` and
 whose `problems` say why. Returning a value rather than raising is deliberate
 — the caller polling an order needs to distinguish "keep waiting" from "stop
 and reconcile", and an exception collapses both into one.
+
+Registry: EXEC-003, EXEC-004, INV-003, RES-008 (config/quality_registry.json).
 """
 
 from __future__ import annotations
@@ -36,7 +38,36 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any
 
+from common.command_schema import redact
 from src.execution.order_fsm import OrderStatus
+
+#: Longest venue-supplied value echoed into a rejection reason. A venue field
+#: is attacker-influenceable in the general case, and a rejection message is
+#: the handler most likely to echo whatever it was given straight into a log.
+_ECHO_LIMIT: int = 12
+
+
+def _safe_echo(value: object) -> str:
+    """
+    Render a venue-supplied value for a log line, redacted and truncated.
+
+    SECR-001: a malformed input is exactly when a handler echoes what it was
+    given, so the one place this project prints raw venue strings runs them
+    through the same secret masking `common.shell_exec` uses on command
+    output, then truncates hard.
+
+    The truncation is the load-bearing half, not the masking. `redact` is
+    defence in depth by its own docstring -- a secret in a format no pattern
+    describes passes through it -- whereas twelve characters cannot be a
+    credential whatever format it is in. Twelve is enough to recognise a new
+    venue status in a log and correlate it with the venue's documentation,
+    which is the only reason to echo the value at all.
+    """
+    text = str(value)
+    masked, _ = redact(text)
+    if len(masked) > _ECHO_LIMIT:
+        masked = masked[:_ECHO_LIMIT] + "…"
+    return masked
 
 
 class ExchangeOrderStatus(StrEnum):
@@ -154,8 +185,8 @@ class OrderUpdate:
         if not self.problems:
             return ""
         return (
-            f"exchange response for {self.order_id or '<no id>'} needs reconciliation: "
-            + "; ".join(self.problems)
+            f"exchange response for {_safe_echo(self.order_id) or '<no id>'} needs "
+            "reconciliation: " + "; ".join(self.problems)
         )
 
 
@@ -230,7 +261,7 @@ def parse_order(
 
     status, raw_status = normalise_status(response.get("status"))
     if status is ExchangeOrderStatus.UNKNOWN:
-        problems.append(f"unrecognised status {raw_status!r}")
+        problems.append(f"unrecognised status {_safe_echo(raw_status)!r}")
 
     # An *absent* id is not a problem: the caller fetched this order by id
     # and already knows which one it asked about. A *mismatched* id is --
@@ -238,19 +269,34 @@ def parse_order(
     # wrong fill. The same reasoning applies to the symbol below.
     order_id = str(response.get("id") or "")
     if expected_order_id and order_id and order_id != expected_order_id:
-        problems.append(f"order id mismatch: expected {expected_order_id!r}, got {order_id!r}")
+        problems.append(
+            f"order id mismatch: expected {_safe_echo(expected_order_id)!r}, "
+            f"got {_safe_echo(order_id)!r}"
+        )
 
     symbol = str(response.get("symbol") or "")
     if expected_symbol and symbol and symbol != expected_symbol:
         # A response for a different instrument is not a malformed field, it
         # is the wrong order -- and booking its fill against this one would be
         # a position in the wrong asset.
-        problems.append(f"symbol mismatch: expected {expected_symbol!r}, got {symbol!r}")
+        problems.append(
+            f"symbol mismatch: expected {_safe_echo(expected_symbol)!r}, got {_safe_echo(symbol)!r}"
+        )
 
     filled_qty = _coerce_positive(response.get("filled"))
-    average_price = _coerce_positive(
-        response.get("average") if response.get("average") is not None else response.get("price")
-    )
+    # ``price`` is the REQUEST price on a limit order, not what traded, so it is
+    # never a fill-price fallback (EXR-024). A missing average is derived from
+    # cost / filled; if that is unusable too, the terminal-fill check below
+    # flags the order for reconciliation.
+    if response.get("average") is not None:
+        average_price = _coerce_positive(response.get("average"))
+    else:
+        cost = _coerce_positive(response.get("cost"))
+        average_price = (
+            _coerce_positive(cost / filled_qty)
+            if cost is not None and filled_qty is not None
+            else None
+        )
     remaining_qty = _coerce_non_negative(response.get("remaining"))
 
     if status in TERMINAL_FILLED:
