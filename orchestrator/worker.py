@@ -2,10 +2,12 @@
 (the `result` field) ever leaves this module -- raw tool transcripts,
 intermediate reasoning, and any file contents the worker read are discarded
 here, never forwarded to the coordinator."""
+
 from __future__ import annotations
 
 from common.claude_cli import run_claude
-from .config import WORKER_MODEL, MAX_WORKER_TURNS, WORKER_ALLOWED_TOOLS
+
+from .config import MAX_WORKER_TURNS, WORKER_ALLOWED_TOOLS, WORKER_MODEL
 
 _DIGEST_HINT = (
     "Do the task below. Reply with a SHORT digest only (a few sentences or a "

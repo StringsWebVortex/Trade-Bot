@@ -12,15 +12,17 @@ Context/token discipline enforced here:
   4. Subtasks run concurrently (threads), bounded by MAX_SUBTASKS, so wall
      time doesn't scale linearly with subtask count.
 """
+
 from __future__ import annotations
 
 import json
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+from .config import MAX_CONCURRENT_WORKERS
 from .planner import plan
-from .worker import execute
 from .synthesizer import synthesize
+from .worker import execute
 
 
 def run(task: str) -> dict:
@@ -28,10 +30,18 @@ def run(task: str) -> dict:
 
     digests: list[dict] = []
     total_cost = 0.0
-    with ThreadPoolExecutor(max_workers=max(len(subtasks), 1)) as pool:
+    workers = max(1, min(len(subtasks), MAX_CONCURRENT_WORKERS))
+    with ThreadPoolExecutor(max_workers=workers) as pool:
         futures = {pool.submit(execute, st): st for st in subtasks}
         for fut in as_completed(futures):
-            d = fut.result()
+            try:
+                d = fut.result()
+            except Exception as exc:  # one failed worker must not discard the others
+                d = {
+                    "subtask": futures[fut],
+                    "digest": f"ERROR: worker failed ({type(exc).__name__}: {exc})",
+                    "cost_usd": 0.0,
+                }
             digests.append(d)
             total_cost += d["cost_usd"]
 
@@ -45,7 +55,7 @@ def run(task: str) -> dict:
         "answer": final["result"],
         "usage_estimate_usd": round(total_cost, 4),
         "note": "Estimate only -- billed against your Pro/Max usage limits, "
-                "not metered API dollars.",
+        "not metered API dollars.",
     }
 
 

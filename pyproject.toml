@@ -1,0 +1,107 @@
+# Regenerated after the config purge (#144). Tool configuration only -- the
+# dependency lists live in requirements*.txt, which CI installs directly.
+
+[project]
+name = "trade-bot"
+version = "1.0.0"
+description = "Async algorithmic crypto trading bot with an intelligence layer"
+requires-python = ">=3.11,<3.12"
+readme = "README.md"
+license = { text = "MIT" }
+dynamic = ["dependencies", "optional-dependencies"]
+
+[tool.setuptools.dynamic]
+dependencies = { file = ["requirements.txt"] }
+optional-dependencies.dev = { file = ["requirements-dev.txt"] }
+optional-dependencies.extras = { file = ["requirements-optional.txt"] }
+
+[tool.setuptools.packages.find]
+include = ["src*", "kg*", "rag_mongo*", "orchestrator*", "common*", "tools*", "review*"]
+
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+# Tests import as `from src.<pkg> ...`, so the repo root must be importable.
+pythonpath = ["."]
+asyncio_mode = "auto"
+# Pinned rather than left to default: pytest-asyncio deprecates the unset
+# value, and an implicit fixture loop scope is how a fixture ends up
+# holding a loop a later test has already closed.
+asyncio_default_fixture_loop_scope = "function"
+addopts = "-ra --strict-markers --strict-config --cov --cov-branch --cov-report=term-missing --cov-fail-under=99"
+# REG-1707: an exception raised where nobody can catch it (a transport's
+# __del__ after its event loop closed, say) fails the test that leaked it,
+# instead of printing "Event loop is closed" under a passing run.
+filterwarnings = [
+    "error::DeprecationWarning:src.*",
+    "error::pytest.PytestUnraisableExceptionWarning",
+]
+
+[tool.coverage.run]
+branch = true
+# Every first-party package in the repo -- deliberately not "." so the gate
+# can't be satisfied by leaving a whole package unmeasured. crypto-predictor
+# is excluded to match its existing standalone-sub-project status (see
+# requirements-optional.txt and tool.ruff.extend-exclude).
+source = ["src", "kg", "rag_mongo", "orchestrator", "common", "tools", "review"]
+
+[tool.coverage.report]
+fail_under = 99
+# Two decimal places, so fail_under is compared against the real number.
+# At the default precision of 0, coverage rounds before the comparison and
+# 98.97% passes a gate that says 99 -- pytest-cov even prints "FAIL Required
+# test coverage of 99% not reached" while exiting 0.
+precision = 2
+show_missing = true
+skip_covered = false
+exclude_also = [
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError",
+    "pragma: no cover",
+]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+extend-exclude = ["frontend", "crypto-predictor"]
+
+[tool.ruff.lint]
+# The dedicated cleanup pass the previous comment here asked for: UP, B, SIM
+# and I are now on, with the tree brought up to them. B is the one that earns
+# its place -- B905 caught zip() silently truncating an embedding batch.
+# The two trailing codes are listed individually rather than pulling in their
+# whole families: RUF001-003 flag every non-ASCII character and the comments
+# here use arrows and em-dashes throughout, and PLW is mostly style. RUF059
+# catches an unpacked value nobody reads; PLW1510 catches a subprocess whose
+# failure nobody looks at.
+select = ["E", "F", "W", "ASYNC", "I", "UP", "B", "SIM", "RUF059", "PLW1510"]
+ignore = [
+    "E501",  # line length is the formatter's job, not the linter's
+    # Combining nested `with` statements onto one line makes the long
+    # patch stacks in the tests harder to read, not easier, and the
+    # formatter then wraps them into a shape neither rule wants.
+    "SIM117",
+    # A ternary is not always clearer than the if/else it replaces; the two
+    # sites this flags read better as blocks.
+    "SIM108",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["B011"]
+# FastAPI's whole dependency-injection design is a call in an argument
+# default; B008 is not applicable to a router module.
+"src/api/main.py" = ["B008"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.mypy]
+# scripts/__init__.py (added alongside this config) makes mypy treat all scripts
+# as "scripts.<name>" modules, eliminating the duplicate-module errors that mypy
+# would otherwise raise for scripts/agent_control.py and scripts/ci_diagnostics.py.
+# crypto-predictor/ is a standalone sub-project; exclude it entirely.
+exclude = ["^crypto-predictor/"]

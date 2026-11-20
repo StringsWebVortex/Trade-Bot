@@ -17,7 +17,6 @@ import structlog
 
 from src.engines.schema import EngineOutput
 
-
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
 _ENGINE_ID = "E-10"
@@ -161,7 +160,10 @@ class E10Supply:
                 engine_id=_ENGINE_ID,
                 symbol=symbol,
                 timestamp_utc=datetime.now(UTC),
-                predicted_price=fair_value,
+                # The S2F level is not a price forecast (STR-01): consensus
+                # averages predicted_price, so emit spot and keep the level
+                # in metadata only.
+                predicted_price=spot,
                 confidence=confidence,
                 direction=direction,
                 horizon_hours=self._horizon,
