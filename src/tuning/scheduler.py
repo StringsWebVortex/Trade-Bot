@@ -63,7 +63,7 @@ import pandas as pd
 import structlog
 from xgboost import XGBClassifier
 
-from src.config import Settings
+from src.config import TIMEFRAME_SECONDS, Settings, Timeframe
 from src.data.storage import AnyStorageBackend
 from src.features.pipeline import build_feature_matrix
 from src.models.trainer import ModelTrainer
@@ -418,6 +418,9 @@ class AutoTuningScheduler:
             if direction_model is None:
                 log.info("tuning.scheduler_no_direction_model")
             else:
+                # The artifact's modification time bounds the latest bar the
+                # frozen model could have seen during training (STR-06).
+                oos_start_ms = self._direction_model_trained_at_ms()
                 for field_name in FEATURE_WINDOW_FIELDS:
                     param_name = f"features.{field_name}"
 
@@ -433,20 +436,18 @@ class AutoTuningScheduler:
                             challenger_window=max(2, round(proposal.challenger_value)),
                             direction_model=direction_model,
                             features_cfg=self._settings.features,
+                            timeframe=self._timeframe,
+                            oos_start_ms=oos_start_ms,
                         )
 
                     try:
-                        # closed_trade_count is deliberately NOT passed here.
-                        # min_trades_between_attempts is a "has enough new
-                        # evidence accumulated" guard, and for this group the
-                        # evidence is bar history, not trades -- these
-                        # parameters are evaluated by a bar-driven backtest.
-                        # Gating them on trade flow would stall bar-driven
-                        # tuning through any quiet period, and would repeat the
-                        # cross-group coupling the note at the top of
-                        # _attempt_all() exists to prevent.
+                        # Feature-window tuning is bar-driven: use the current
+                        # bar count for its own cadence guard, not trade flow.
                         result = runner.attempt(
-                            param_name, evaluate_feature_window, primary_metric="oos_sharpe"
+                            param_name,
+                            evaluate_feature_window,
+                            primary_metric="oos_sharpe",
+                            bar_count=self._bar_evidence_count(bars_df),
                         )
                         log.info(
                             "tuning.scheduler_attempt",
@@ -557,6 +558,21 @@ class AutoTuningScheduler:
         except Exception as exc:
             log.error("e09_retrain_failed", error=str(exc), exc_info=True)
 
+    def _direction_model_trained_at_ms(self) -> int:
+        """Return the saved direction artifact's modification time in Unix ms.
+
+        The feature-window backtest reuses this frozen model, so its OOS
+        sample must start strictly after the artifact could have been
+        produced. Use the same canonical path as ModelTrainer.load_direction
+        rather than reconstructing the filename here. A missing artifact is
+        an error: silently returning no cutoff would reintroduce in-sample
+        scoring.
+        """
+        path = ModelTrainer.direction_model_path(
+            self._settings.storage.model_dir, self._symbol, self._timeframe
+        )
+        return path.stat().st_mtime_ns // 1_000_000
+
     def _load_direction_model(self) -> XGBClassifier | None:
         try:
             return ModelTrainer.load_direction(
@@ -584,6 +600,25 @@ class AutoTuningScheduler:
             },
             index=[b.ts for b in bars],
         )
+
+    def _bar_evidence_count(self, bars_df: pd.DataFrame) -> int | None:
+        """Return a monotonic bar ordinal, not the bounded fetch-window length.
+
+        `_build_feature_bars_df` fetches only the latest 5,000 bars, so
+        `len(bars_df)` stops increasing once that window is full and would
+        permanently block the second bar-driven tuning attempt. The latest
+        Unix-ms bar timestamp divided by the timeframe duration gives a
+        monotonically advancing ordinal independent of the rolling window.
+        """
+        try:
+            timeframe = Timeframe(self._timeframe)
+            interval_ms = TIMEFRAME_SECONDS[timeframe] * 1_000
+            latest_ts_ms = int(max(bars_df.index))
+        except (KeyError, TypeError, ValueError, OverflowError):
+            return None
+        if interval_ms <= 0:
+            return None
+        return latest_ts_ms // interval_ms
 
     async def _closed_trade_count(self) -> int | None:
         """

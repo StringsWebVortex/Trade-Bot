@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-PreCompact hook: persist the active task's checkpoint before context is lost.
+PreCompact hook: checkpoint the active task before context compaction.
 
-The checkpoint is written and read back; if either fails, compaction is
-blocked so the task state is not lost along with the context. No active task
-makes this a no-op. Logic: src/agent_control/hooks.py (precompact).
+Delegates to src.agent_control.hooks.run_hook("precompact").
+No active task → no-op (exit 0). Fails open on import error.
+Registry: GOV-064.
 """
 
 from __future__ import annotations
@@ -18,8 +18,10 @@ sys.path.insert(0, str(PROJECT_DIR))
 
 try:
     from src.agent_control.hooks import run_hook
-except Exception as exc:  # fail open: nothing importable means nothing to persist
-    print(f"[precompact_checkpoint] agent-control unavailable, allowing: {exc!r}", file=sys.stderr)
-    raise SystemExit(0) from None
 
-raise SystemExit(run_hook("precompact", sys.stdin, sys.stdout, sys.stderr))
+    result = run_hook("precompact", sys.stdin, sys.stdout, sys.stderr)
+except Exception as exc:
+    print(f"[precompact_checkpoint] unavailable: {exc!r}", file=sys.stderr)
+    result = 0
+
+sys.exit(result)

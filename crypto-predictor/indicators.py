@@ -1,6 +1,9 @@
 """
 Technical indicator library. Every function is a pure transform of past
-OHLCV data only — no look-ahead. Formulas match ARCHITECTURE.md section 2.3.
+OHLCV data only — no look-ahead. RSI and ATR use simple-moving-average
+smoothing (a variant, not Wilder's EWM), so values differ from exchange and
+TA-lib RSI. ARCHITECTURE.md names these indicators but gives no formulas.
+Division by a zero denominator yields NaN or a defined limit, never +/-inf.
 """
 
 import numpy as np
@@ -29,7 +32,16 @@ def rsi(close: pd.Series, n: int = 14) -> pd.Series:
     avg_gain = gain.rolling(n).mean()
     avg_loss = loss.rolling(n).mean()
     rs = avg_gain / avg_loss.replace(0, np.nan)
-    return 100 - (100 / (1 + rs))
+    out = 100 - (100 / (1 + rs))
+    # A window with no losses is RSI 100, and a flat window is neutral 50.
+    # Leaving these as NaN dropped strong-trend bars from the sample.
+    out = out.mask((avg_loss == 0) & (avg_gain > 0), 100.0)
+    return out.mask((avg_loss == 0) & (avg_gain == 0), 50.0)
+
+
+def _finite(s: pd.Series) -> pd.Series:
+    # dropna() does not remove +/-inf, and inf would reach the model.
+    return s.replace([np.inf, -np.inf], np.nan)
 
 
 def bollinger_bands(close: pd.Series, n: int = 20, k: float = 2.0):
@@ -75,16 +87,16 @@ def build_feature_matrix(df: pd.DataFrame) -> pd.DataFrame:
     feats["macd_hist"] = macd_hist
     feats["rsi_14"] = rsi(df["close"])
     bb_up, bb_mid, bb_low = bollinger_bands(df["close"])
-    feats["bb_width"] = (bb_up - bb_low) / bb_mid
-    feats["bb_pctb"] = (df["close"] - bb_low) / (bb_up - bb_low)
+    feats["bb_width"] = _finite((bb_up - bb_low) / bb_mid)
+    feats["bb_pctb"] = _finite((df["close"] - bb_low) / (bb_up - bb_low))
     feats["atr_14"] = atr(df["high"], df["low"], df["close"])
     feats["obv"] = obv(df["close"], df["volume"])
-    feats["obv_pct_change"] = feats["obv"].pct_change()
+    feats["obv_pct_change"] = _finite(feats["obv"].pct_change())
     feats["returns_1"] = df["close"].pct_change(1)
     feats["returns_5"] = df["close"].pct_change(5)
-    feats["volume_zscore"] = (df["volume"] - df["volume"].rolling(20).mean()) / df[
-        "volume"
-    ].rolling(20).std()
+    feats["volume_zscore"] = _finite(
+        (df["volume"] - df["volume"].rolling(20).mean()) / df["volume"].rolling(20).std()
+    )
     return feats
 
 

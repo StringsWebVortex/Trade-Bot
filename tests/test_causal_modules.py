@@ -9,6 +9,16 @@ import pytest
 # ─── Granger ──────────────────────────────────────────────────────────────────
 
 
+@pytest.fixture(autouse=True)
+def _seeded_global_rng():
+    # Seed the global NumPy RNG for each test and restore it afterwards, so
+    # failures reproduce and no seed leaks into later tests.
+    state = np.random.get_state()
+    np.random.seed(12345)
+    yield
+    np.random.set_state(state)
+
+
 class TestGrangerCausalityDetector:
     def test_initial_state(self) -> None:
         from src.causal.granger import GrangerCausalityDetector

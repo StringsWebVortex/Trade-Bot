@@ -3,6 +3,8 @@ Coverage for src/models/trainer.py — Debt-005.
 
 Targets predict_direction, predict_meta, TrainingResult, and
 compute_win_loss_stats without running expensive training loops.
+
+Decides: REG-1354
 """
 
 from __future__ import annotations
@@ -600,12 +602,12 @@ class TestBuildCPCVFolds:
 
 
 class TestComputeSampleWeights:
-    def test_weights_sum_to_one(self):
+    def test_weights_mean_one(self):
         from src.models.trainer import compute_sample_weights
 
         returns = pd.Series([0.01, -0.02, 0.005, 0.0, 0.03])
         weights = compute_sample_weights(returns)
-        assert abs(weights.sum() - 1.0) < 1e-9
+        assert abs(weights.mean() - 1.0) < 1e-9
 
     def test_zero_return_gets_floor_weight(self):
         from src.models.trainer import compute_sample_weights
@@ -884,9 +886,20 @@ class TestTrainDirection:
 
 
 class TestTrainMetaLabel:
-    def test_full_run_returns_training_result(self):
+    def test_full_run_returns_training_result(self, monkeypatch):
         trainer = _fast_trainer()
         fm = _feature_matrix(n=400)
+        # A meta-label model needs both "bet" and "skip" examples. The
+        # synthetic direction fixture can be perfectly classified by the
+        # first-stage model for this seed, so make the meta-label target
+        # deterministic and balanced to exercise the full training path.
+        monkeypatch.setattr(
+            "src.models.trainer.meta_labels",
+            lambda predictions, labels: pd.Series(
+                np.tile(np.array([0, 1], dtype=np.int8), len(labels) // 2 + 1)[: len(labels)],
+                index=labels.index,
+            ),
+        )
         dir_result = trainer.train_direction(fm)
         meta_result = trainer.train_meta_label(fm, dir_result.model)
         assert isinstance(meta_result, TrainingResult)
@@ -1124,29 +1137,6 @@ def test_cached_models_rejected_when_timestamp_or_current_live_gate_is_invalid()
 
 
 def test_cached_models_rejected_when_the_current_live_gate_fails():
-    trainer = _fast_trainer()
-    fm = _feature_matrix(n=400)
-    direction_provenance = _cache_provenance(trainer, "direction", list(FEATURES), oos_sharpe=-10.0)
-    meta_provenance = _cache_provenance(trainer, "meta_label", [*FEATURES, "p_long", "confidence"])
-    direction_model = MagicMock()
-    direction_model.predict_proba.return_value = np.tile([0.25, 0.75], (len(fm.features), 1))
-    with (
-        patch(
-            "src.models.trainer.read_provenance",
-            side_effect=[direction_provenance, meta_provenance],
-        ),
-        patch("src.models.trainer.read_manifest", return_value={"sha256": "a" * 64}),
-        patch("src.models.trainer.code_commit", return_value="test-commit"),
-        patch("src.models.trainer.library_versions", return_value={"xgboost": "test-version"}),
-        patch("src.models.trainer.hash_training_data", return_value="matching-data"),
-        patch("src.models.trainer.hash_feature_schema", return_value="matching-schema"),
-        patch.object(ModelTrainer, "load_direction", return_value=direction_model),
-        patch.object(ModelTrainer, "load_meta", return_value=MagicMock()),
-    ):
-        assert trainer.load_compatible_cached_models(fm, "/tmp/cache") is None
-
-
-def test_cached_models_rejected_when_current_live_gate_fails():
     trainer = _fast_trainer()
     fm = _feature_matrix(n=400)
     direction_provenance = _cache_provenance(trainer, "direction", list(FEATURES), oos_sharpe=-10.0)

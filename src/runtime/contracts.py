@@ -28,6 +28,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import StrEnum
+from types import MappingProxyType
 from typing import Any
 
 
@@ -160,7 +161,9 @@ def _table() -> dict[tuple[LifecycleState | None, LifecycleAction], LifecycleSta
     return t
 
 
-TRANSITIONS: Mapping[tuple[LifecycleState | None, LifecycleAction], LifecycleState] = _table()
+TRANSITIONS: Mapping[tuple[LifecycleState | None, LifecycleAction], LifecycleState] = (
+    MappingProxyType(_table())
+)
 
 # Targets a desired state may name. Transient and bookkeeping states
 # (DISCOVERED, VALIDATED, INITIALIZED, FAILED) are outcomes, not requests.

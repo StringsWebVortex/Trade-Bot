@@ -60,7 +60,7 @@ describe('StartupBanner', () => {
       <StartupBanner report={null} problem={{ ...apiProblem(401), detail: 'Invalid API key' }} />,
     );
     const alert = screen.getByRole('alert').textContent;
-    expect(alert).toContain('VITE_API_KEY');
+    expect(alert).toContain('VITE_API_READONLY_KEY');
     expect(alert).toContain('(Invalid API key)');
   });
 });

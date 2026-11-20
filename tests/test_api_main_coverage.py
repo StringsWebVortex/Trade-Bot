@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import collections
+import json
 import os
 import time
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -961,22 +962,18 @@ def test_websocket_rejects_bad_key(mock_state):
 
 
 def test_websocket_full_tick_cycle(mock_state):
-    from src.api.auth import verify_ws_key
+    from src.api.access_control import Role
 
     async def _allow_ws(ws):
-        return None
+        return Role.TRADE_AUTHORIZING
 
     with patch("src.api.main.verify_ws_key", side_effect=_allow_ws):
         client = _get_client()
-        try:
-            with client.websocket_connect("/ws") as ws:
-                msg = ws.receive_text()
-                assert "tick" in msg
-        except Exception:
-            # Environment-dependent WS timing; the important part for
-            # coverage is that the handler body executed at least once.
-            pass
-    assert verify_ws_key is not None  # sanity: import didn't fail
+        with client.websocket_connect("/ws") as ws:
+            # The cold-start snapshot is sent on connect, before any heartbeat.
+            msg = json.loads(ws.receive_text())
+    assert msg["type"] == "tick"
+    assert msg["equity_usd"] == 100_000.0
 
 
 def _fake_ws():
@@ -1079,6 +1076,8 @@ def test_a_failing_beat_does_not_kill_the_heartbeat_loop(mock_state):
 
 
 def test_websocket_capacity_rejected(mock_state):
+    from starlette.websockets import WebSocketDisconnect
+
     async def _allow_ws(ws):
         return None
 
@@ -1090,11 +1089,10 @@ def test_websocket_capacity_rejected(mock_state):
         patch("src.api.main.AppState.add_ws_client", side_effect=_add_full),
     ):
         client = _get_client()
-        try:
+        with pytest.raises(WebSocketDisconnect) as exc_info:
             with client.websocket_connect("/ws"):
                 pass
-        except Exception:
-            pass
+    assert exc_info.value.code == 4429
 
 
 # ---------------------------------------------------------------------------
@@ -1181,7 +1179,7 @@ def test_performance_drift_exception(mock_state):
     client = _get_client()
     resp = client.get("/performance-drift", headers={"x-api-key": _API_KEY})
     assert resp.status_code == 200
-    assert resp.json() == {"error": "drift boom"}
+    assert resp.json() == {"error": "Internal error."}
 
 
 # ---------------------------------------------------------------------------
@@ -1205,7 +1203,7 @@ def test_intelligence_coverage_exception(mock_state):
     client = _get_client()
     resp = client.get("/intelligence/coverage", headers={"x-api-key": _API_KEY})
     assert resp.status_code == 200
-    assert resp.json() == {"error": "cov boom"}
+    assert resp.json() == {"error": "Internal error."}
 
 
 # ---------------------------------------------------------------------------

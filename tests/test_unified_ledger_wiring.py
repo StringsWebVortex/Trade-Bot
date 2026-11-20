@@ -11,10 +11,10 @@ from __future__ import annotations
 from unittest.mock import MagicMock, patch
 
 import pytest
-from conftest import settings_double
 
 from src.config import Timeframe, TradingMode
 from src.execution.unified_ledger import UnifiedLedger, VenuePosition
+from tests.conftest import settings_double
 
 
 def _pos(symbol: str, direction: str, quantity: float, price: float, notional: float):

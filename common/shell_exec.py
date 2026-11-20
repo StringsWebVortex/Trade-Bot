@@ -420,11 +420,14 @@ def run(declaration: dict[str, Any], timeout: int = 120) -> dict[str, Any]:
                 continue
             break
 
+        # DOC-001: mask secrets in the whole output before any filter or cap
+        # can cut a multi-line secret (a PEM block) in half and leave its
+        # tail unmatched by the redaction patterns.
+        if redact_on:
+            raw, redactions = redact(raw, redact_extra)
         filtered = _filter(raw, filter_mode, filter_expr)
         capped, truncated = _cap(filtered, max_lines)
         capped, bytes_truncated = _cap_bytes(capped, max_bytes)
-        if redact_on:
-            capped, redactions = redact(capped, redact_extra)
 
         # on_empty guard
         if on_empty == "error" and not capped.strip():

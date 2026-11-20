@@ -41,7 +41,7 @@ Never strip the check in a proxy instead; the scrape carries equity values.
 Scrape config: [deploy/prometheus.yml](../prometheus.yml).
 Alert rules: [deploy/alerts.yml](../alerts.yml).
 
-Exposed metrics live in [src/api/metrics.py](../../src/api/metrics.py) —
+Exposed metrics are defined in [src/diagnostics/metrics.py](../../src/diagnostics/metrics.py) —
 `tradebot_signal_score`, `tradebot_equity_usd`, `tradebot_kelly_fraction`,
 `tradebot_gate_{pass,block}_total`, `tradebot_tick_duration_seconds`, etc.
 

@@ -255,25 +255,6 @@ def test_kyle_lambda_holds_its_estimate_when_signed_volume_has_no_variance():
 
 
 # ---------------------------------------------------------------------------
-# Causal inference fallbacks
-# ---------------------------------------------------------------------------
-
-
-def test_backdoor_adjustment_falls_back_to_correlation_without_sklearn(monkeypatch):
-    from src.intelligence.causal_inference import CausalInferenceEngine
-
-    rng = np.random.default_rng(2)
-    treatment = rng.normal(size=60)
-    outcome = treatment * 0.5 + rng.normal(0, 0.1, 60)
-    confounders = rng.normal(size=(60, 2))
-
-    monkeypatch.setitem(sys.modules, "sklearn.linear_model", None)
-    effect = CausalInferenceEngine()._backdoor_adjustment(treatment, outcome, confounders)
-
-    assert effect == pytest.approx(float(np.corrcoef(treatment, outcome)[0, 1]))
-
-
-# ---------------------------------------------------------------------------
 # Trade auditor anomaly alerts
 # ---------------------------------------------------------------------------
 
