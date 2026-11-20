@@ -97,7 +97,8 @@ def next_id(taken: dict[str, str], prefix: str) -> str:
 
 def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="qe_new_requirement")
-    p.add_argument("--id", required=True)
+    p.add_argument("--id")
+    p.add_argument("--prefix", help="ID prefix (e.g. REG-); auto-allocates the next ID")
     p.add_argument("--title", required=True)
     p.add_argument("--statement", required=True)
     p.add_argument("--criticality", required=True)
@@ -117,6 +118,10 @@ def main(argv: list[str]) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
 
+    if not args.id and not args.prefix:
+        print("[error] one of --id or --prefix is required", file=sys.stderr)
+        return 1
+
     # Validate test type if provided.
     if args.test_type and args.test_type not in _VALID_TEST_TYPES:
         print(
@@ -125,29 +130,59 @@ def main(argv: list[str]) -> int:
         )
         return 1
 
+    # Validate status transitions.
+    status = args.status
+    if status == "accepted_gap":
+        print("[error] accepted_gap must be written by hand — a claim about evidence cannot be generated", file=sys.stderr)
+        return 1
+    if status == "verified" and not args.test:
+        print("[error] claim about evidence: verified status requires at least one --test", file=sys.stderr)
+        return 1
+    if status == "planned" and args.test:
+        print("[error] planned status must not name a test; add the test when you mark it verified", file=sys.stderr)
+        return 1
+    if status == "planned" and not args.planned_in:
+        print("[error] planned status requires --planned-in naming the PR that will add the test", file=sys.stderr)
+        return 1
+
     # Load registry.
     try:
         registry = json.loads(REGISTRY_PATH.read_text(encoding="utf-8"))
     except (FileNotFoundError, json.JSONDecodeError):
         registry = {"entries": []}
 
-    # Check if ID is already taken anywhere.
     taken = taken_ids(registry, local_only=args.local_only)
-    if args.id in taken and taken[args.id] != "the working tree":
-        raise SystemExit(
-            f"Entry {args.id!r} already exists on {taken[args.id]} — "
-            "choose a different ID."
-        )
+
+    # Resolve ID.
+    if args.prefix:
+        entry_id = next_id(taken, args.prefix)
+    else:
+        entry_id = args.id
+        if entry_id in taken and taken[entry_id] != "the working tree":
+            raise SystemExit(
+                f"Entry {entry_id!r} already exists on {taken[entry_id]} — "
+                "choose a different ID."
+            )
+
+    # Derive kind from prefix.
+    if entry_id.startswith("REG-"):
+        kind = "regression"
+    elif entry_id.startswith("INV-"):
+        kind = "invariant"
+    elif entry_id.startswith("SEC-"):
+        kind = "security_regression"
+    else:
+        kind = "requirement"
 
     # Build entry.
     entry: dict = {
-        "id": args.id,
-        "kind": "regression" if args.id.startswith("REG-") else "requirement",
+        "id": entry_id,
+        "kind": kind,
         "title": args.title,
         "statement": args.statement,
         "criticality": args.criticality,
         "subsystem": args.subsystem,
-        "status": args.status,
+        "status": status,
         "source": args.source,
         "failure_mode": args.failure_mode,
     }
@@ -159,14 +194,14 @@ def main(argv: list[str]) -> int:
         ]
 
     if args.dry_run:
-        print(f"[dry-run] would write {args.id}")
+        print(json.dumps(entry, indent=2))
         return 0
 
     # Write to overlay directory.
     OVERLAY_DIR.mkdir(parents=True, exist_ok=True)
-    out = OVERLAY_DIR / f"{args.id}.json"
+    out = OVERLAY_DIR / f"{entry_id}.json"
     out.write_text(json.dumps(entry, indent=2), encoding="utf-8")
-    print(f"[ok  ] added {args.id}")
+    print(f"[ok  ] added {entry_id}")
     return 0
 
 

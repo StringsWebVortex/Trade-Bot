@@ -1,13 +1,26 @@
 """Quality-registry gate: detects ID collisions across concurrent branches."""
 from __future__ import annotations
 
+import argparse
 import json
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
 import qe_registry_refs as refs
 
 _REPO = Path(__file__).resolve().parents[4]
+_SKILL = Path(__file__).resolve().parents[1]
+_CONFIG_PATH = _SKILL / "qe.config.json"
+
+_GATE_REGISTRY: dict[str, "GateFn"] = {}
+
+
+def _register(gate_id: str):
+    def decorator(fn):
+        _GATE_REGISTRY[gate_id] = fn
+        return fn
+    return decorator
 
 
 @dataclass
@@ -27,6 +40,7 @@ def _read_registry_entries(registry_path: str) -> list[dict]:
         return []
 
 
+@_register("gate-registry-collision")
 def gate_registry_id_collision(config: dict) -> GateResult:
     """
     Check for ID collisions between the working tree and live branches.
@@ -106,3 +120,106 @@ def gate_registry_id_collision(config: dict) -> GateResult:
         )
 
     return GateResult(passed=True, detail="no id collisions detected")
+
+
+def _load_config() -> dict:
+    try:
+        return json.loads(_CONFIG_PATH.read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {"gates": [], "never": [], "registry": {}}
+
+
+def _validate_plan(plan: dict) -> tuple[bool, str]:
+    """Return (ok, reason). ok=True means the plan passes."""
+    verification = plan.get("verification", [])
+    if not verification:
+        return False, "plan has no verification entries — every change needs at least one test that decides it"
+
+    change_class = plan.get("change_class", "")
+    if change_class == "defect_fix":
+        requirements = plan.get("requirements", [])
+        has_new_regression = any(
+            r.get("new", False) and str(r.get("id", "")).startswith("REG-")
+            for r in requirements
+        )
+        if not has_new_regression:
+            return False, "defect_fix requires a new REG- registry entry so the fix is never silently reverted"
+
+    return True, ""
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(prog="qe_gate")
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument("--list", action="store_true", help="List all gate IDs and exit 0")
+    group.add_argument("--json", dest="json_output", action="store_true", help="Run all gates; output JSON")
+    group.add_argument("--only", metavar="ID", help="Run one gate by ID; exit 2 if unknown")
+    group.add_argument("--plan", metavar="PATH", help="Validate a change plan JSON file")
+    args = parser.parse_args(argv)
+
+    config = _load_config()
+
+    if args.list:
+        for gate in config.get("gates", []):
+            print(gate["id"])
+        return 0
+
+    if args.plan:
+        try:
+            plan = json.loads(Path(args.plan).read_text(encoding="utf-8"))
+        except (FileNotFoundError, json.JSONDecodeError) as exc:
+            print(f"[error] cannot read plan: {exc}", file=sys.stderr)
+            return 2
+        ok, reason = _validate_plan(plan)
+        if not ok:
+            print(f"[refused] {reason}", file=sys.stderr)
+            return 1
+        print("[ok] plan passes")
+        return 0
+
+    if args.only:
+        gate_id = args.only
+        gate_def = next((g for g in config.get("gates", []) if g["id"] == gate_id), None)
+        if gate_def is None:
+            print(f"[error] unknown gate {gate_id!r}", file=sys.stderr)
+            return 2
+        fn = _GATE_REGISTRY.get(gate_id)
+        if fn is None:
+            print(f"[skip] no runner for {gate_id!r}")
+            return 0
+        result = fn(config)
+        if not result.passed:
+            for finding in result.findings:
+                print(f"  {finding}")
+            return 1 if result.blocking else 0
+        return 0
+
+    # Default: --json (run all gates)
+    results = []
+    for gate_def in config.get("gates", []):
+        gid = gate_def["id"]
+        fn = _GATE_REGISTRY.get(gid)
+        if fn is None:
+            results.append({"id": gid, "blocking": gate_def.get("blocking", False), "passed": True, "skipped": True})
+            continue
+        gr = fn(config)
+        results.append({
+            "id": gid,
+            "blocking": gate_def.get("blocking", False),
+            "passed": gr.passed,
+            "skipped": False,
+            "detail": gr.detail,
+            "findings": gr.findings,
+        })
+
+    payload = {"results": results}
+    if args.json_output:
+        print(json.dumps(payload, indent=2))
+    return 0
+
+
+# Alias for type hints in _register decorator
+GateFn = type(gate_registry_id_collision)
+
+if __name__ == "__main__":
+    sys.exit(main())
