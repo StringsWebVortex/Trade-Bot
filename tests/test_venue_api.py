@@ -7,6 +7,10 @@ hold that surface: the reason a venue is down survives all the way to the
 response (an operator has to tell a network fault from a 451 eligibility
 block), and reconnecting carries the same second factor as every other control
 on the trading path.
+
+Decides:
+  - GOV-026 — One write endpoint, and not a second way in
+  - GOV-027 — A control change is pushed, not waited for
 """
 
 from __future__ import annotations
@@ -49,23 +53,48 @@ class _FakeOrchestrator:
         self._fetcher = fetcher
 
 
+class _FakeStorage:
+    def __init__(self) -> None:
+        self.audit: list[dict[str, Any]] = []
+
+    async def insert_audit_event(self, **event: Any) -> None:
+        self.audit.append(event)
+
+
 @pytest.fixture()
 def api_client(monkeypatch):
-    os.environ["API_SECRET_KEY"] = "test-key-" + "a" * 32  # pragma: allowlist secret
-    os.environ["OPERATOR_SECRET"] = _TEST_SECRET
+    api_key = "test-key-" + "a" * 32  # pragma: allowlist secret
+    monkeypatch.setenv("API_SECRET_KEY", api_key)
+    monkeypatch.setenv("OPERATOR_SECRET", _TEST_SECRET)
 
     from fastapi.testclient import TestClient
 
     from src.api import main as api_main
+    from src.api.fail_closed import CONTROL_HEALTH, SecurityControl, mark_all_healthy
+
+    previous_health = {control: CONTROL_HEALTH.status(control) for control in SecurityControl}
+    CONTROL_HEALTH.reset()
+    mark_all_healthy(CONTROL_HEALTH)
 
     fetcher = _FakeFetcher()
     api_main._state.ready = True
     monkeypatch.setattr(api_main, "require_orchestrator", lambda: _FakeOrchestrator(fetcher))
+    # Reconnecting is audited (VEN-001); a store of this test's own keeps the
+    # result independent of whatever another module left on the shared state.
+    monkeypatch.setattr(api_main._state, "storage", _FakeStorage(), raising=False)
 
     client = TestClient(api_main.app)
-    client.headers.update({"x-api-key": os.environ["API_SECRET_KEY"]})
+    client.headers.update({"x-api-key": api_key})
     client.fetcher = fetcher  # type: ignore[attr-defined]
-    return client
+    try:
+        yield client
+    finally:
+        CONTROL_HEALTH.reset()
+        for control, status in previous_health.items():
+            if status.healthy:
+                CONTROL_HEALTH.mark_healthy(control)
+            else:
+                CONTROL_HEALTH.mark_degraded(control, status.reason)
 
 
 class TestVenueStatusIsReadable:

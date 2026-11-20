@@ -6,6 +6,10 @@ passes when it should not is worse than no gate, because it is trusted. The
 second is the wiring: a gate that silently stops covering a job -- because
 someone added a job and did not add it to `needs:` -- fails open, and nothing
 about the green check would show it.
+
+Decides:
+  - GOV-003 — Mutation testing runs nightly on the critical subsystems
+  - GOV-008 — main is protected and every required check must be green
 """
 
 from __future__ import annotations
@@ -147,7 +151,7 @@ class TestMalformedInputIsNeverAPass:
 class TestStaleAllowance:
     def test_unused_allowance_is_reported(self):
         result = run_gate({"a": {"result": "success"}}, allow_skipped="gone")
-        assert result.returncode == 0
+        assert result.returncode == 2
         assert "gone" in result.stdout
         assert "stale allowance" in result.stdout
 

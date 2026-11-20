@@ -1,0 +1,26 @@
+{
+  "id": "SEC-0014",
+  "kind": "security_regression",
+  "title": "Terminal output cannot forge shell-integration command entries or exit codes",
+  "statement": "Each terminal session mints a random nonce, passes it only to its bash integration (which moves it into a readonly shell variable and unsets the environment variable before ~/.bashrc runs), and the session's marker scanner accepts only OSC 133 E, C and D sequences that carry that nonce. Any other 133 sequence in the output, including the nonce-less form, is ignored. Jobs get no nonce, so their output never announces an integration.",
+  "criticality": "low",
+  "subsystem": "terminal",
+  "status": "verified",
+  "source": "OPS-2026-10-28",
+  "failure_mode": "The scanner accepted any ESC ] 133;E/C/D sequence in PTY output, so cat of a crafted file or a printf created process-center entries such as 'rm -rf /' with invented exit codes, and could close a real command early as unknown. The marker tests only checked that well-formed markers parse; nothing fed the scanner markers the shell did not print. The deciding test now prints forged markers from a real integrated shell and asserts no entry and the real exit status.",
+  "owning_modules": [
+    "src/terminal/markers.py",
+    "src/terminal/shell_integration.py",
+    "src/terminal/sessions.py"
+  ],
+  "verification": [
+    {
+      "test": "tests/terminal/test_terminal_marker_nonce.py",
+      "test_type": "regression"
+    }
+  ],
+  "depends_on": [
+    "TERM-002"
+  ],
+  "notes": "Audit AGT-024. Residual: a stream that replays this session's own raw output (e.g. cat of a saved transcript of the same session) can replay a valid nonce; a fresh nonce per session bounds it to that session. layer: test-suite"
+}
