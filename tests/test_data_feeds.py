@@ -169,12 +169,10 @@ def test_consumer_aiter_returns_self():
     assert consumer.__aiter__() is consumer
 
 
-async def test_consumer_anext_without_consumer_raises_stop_async_iteration():
+async def test_consumer_anext_without_consumer_requires_context_manager():
     consumer = RedpandaConsumer("topic")
-    with patch("src.data.feeds.asyncio.sleep", new=AsyncMock()) as mock_sleep:
-        with pytest.raises(StopAsyncIteration):
-            await consumer.__anext__()
-    mock_sleep.assert_awaited_once_with(1)
+    with pytest.raises(RuntimeError, match="async with"):
+        await consumer.__anext__()
 
 
 async def test_consumer_anext_returns_message_value():

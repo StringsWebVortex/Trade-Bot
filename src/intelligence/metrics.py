@@ -167,7 +167,9 @@ class IntelligenceAnalyzer:
             # unbounded raw_whale_ratio instead (e.g. a ratio=50 whale
             # spike propagated as 50 rather than being clamped to 1).
             # Clamp and normalize: ratio > 3 = bullish (+1), < 0.33 = bearish (-1).
-            whale_ratio = float(np.clip(np.log(raw_whale_ratio + 0.01) / np.log(3), -1, 1))
+            whale_ratio = float(
+                np.clip(np.log(max(raw_whale_ratio, 0.0) + 0.01) / np.log(3), -1, 1)
+            )
         except Exception as e:
             log.warning("whale_ratio_compute_failed", error=str(e), exc_info=True)
             whale_ratio = 0.0
