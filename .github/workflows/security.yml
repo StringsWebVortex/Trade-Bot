@@ -1,228 +1,490 @@
-name: Security Audit
+# Registry: GOV-014 (config/quality_registry.json).
+name: Security
 
-# Multi-tool security pipeline:
-#  1. bandit      — Python security linter (OWASP / CWE patterns)
-#  2. semgrep     — semantic pattern scanner (SQL injection, hardcoded secrets,
-#                   async pitfalls, trading-specific patterns)
-#  3. pip-audit   — CVE scan of all Python dependencies
-#  4. npm audit   — CVE scan of all frontend dependencies
-#  5. trufflehog  — git history secret leak scan
+# Regenerated after the config purge. The pre-purge tree gated every PR on
+# Bandit, pip-audit, npm audit, TruffleHog and Semgrep; the purge deleted those
+# workflows and the config-set regeneration rebuilt only ci.yml and codeql.yml,
+# so secret scanning and dependency CVE scanning silently stopped running.
 #
-# SARIF results uploaded to GitHub Security tab automatically.
-# HIGH/CRITICAL findings auto-create labeled GitHub issues.
+# Semgrep is deliberately not reinstated here: its rulesets are fetched from
+# the semgrep.dev registry at scan time, which makes the job fail closed on a
+# registry outage. CodeQL (codeql.yml) already provides semantic SAST for
+# python, javascript and javascript-typescript, so the coverage is not lost.
 
 on:
+  # The merge queue builds a temporary ref containing this pull request on top
+  # of main and every entry queued ahead of it, and runs the required checks
+  # against that. Without this trigger those checks never report on the queue
+  # ref, the entry waits for a result that cannot arrive, and the queue jams
+  # permanently -- which is worse than having no queue at all.
+  merge_group:
   push:
-    branches: [main, dev]
-  pull_request:
     branches: [main]
-  # REMOVED 2026-08-16 by owner request: the daily 04:00 UTC cron burned a run
-  # every night and pushed a Vulner-Fix.md commit unattended. Run it on demand.
+  pull_request:
+    # `ready_for_review` is not one of the default activity types. Without it
+    # the queue reveals a parked entry and no run starts: the promotion is
+    # real, the checks never report, and the entry sits at the front of the
+    # line forever. tests/test_pr_queue.py asserts every gating workflow
+    # lists it (REG-0006).
+    types: [opened, synchronize, reopened, ready_for_review]
+  schedule:
+    # Dependency advisories land against code that has not changed, so a scan
+    # that only runs on push would go stale on a quiet week.
+    - cron: "17 5 * * 1"
   workflow_dispatch:
 
 permissions:
-  security-events: write
   contents: read
-  issues: write
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   bandit:
-    name: Bandit — Python security lint
-    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
+    name: Bandit (Python SAST)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
-          python-version: "3.11"
+          python-version-file: .python-version
           cache: pip
 
-      - name: Install bandit
-        run: pip install bandit[sarif]==1.7.8
+      - name: Install Bandit
+        run: python -m pip install --upgrade pip bandit
 
-      - name: Run bandit
-        run: |
-          bandit -r src/ \
-            --severity-level medium \
-            --confidence-level medium \
-            -f sarif \
-            -o bandit.sarif \
-            --exit-zero
-
-      - name: Upload SARIF
-        uses: github/codeql-action/upload-sarif@v4
-        if: always()
-        with:
-          sarif_file: bandit.sarif
-          category: bandit
-
-  semgrep:
-    name: Semgrep — semantic security scan
-    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
-    container:
-      image: returntocorp/semgrep:latest
-
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Run semgrep
-        run: |
-          semgrep ci \
-            --config "p/python" \
-            --config "p/security-audit" \
-            --config "p/owasp-top-ten" \
-            --config "p/secrets" \
-            --config "p/asyncio" \
-            --sarif \
-            --output semgrep.sarif \
-            --error \
-            || true
-
-      - name: Upload SARIF
-        uses: github/codeql-action/upload-sarif@v4
-        if: always()
-        with:
-          sarif_file: semgrep.sarif
-          category: semgrep
+      - name: Scan
+        # -ll fails on MEDIUM severity and above. The tree currently reports 30
+        # LOW findings and zero at MEDIUM+, so this gate is meaningful rather
+        # than pre-broken: it blocks a real regression without needing a
+        # baseline file that everyone learns to regenerate.
+        run: bandit -q -r src kg rag_mongo orchestrator common tools review -ll
 
   pip-audit:
-    name: pip-audit — Python CVE scan
-    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
+    name: pip-audit (Python CVE scan)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
-          python-version: "3.11"
+          python-version-file: .python-version
           cache: pip
 
-      - name: Install dependencies + pip-audit
-        run: |
-          pip install pip-audit==2.7.3
-          pip install -e ".[dev]" -r requirements-dev.txt || true
+      - name: Install pip-audit
+        run: python -m pip install --upgrade pip pip-audit
 
-      - name: Run pip-audit
-        id: audit
-        run: |
-          pip-audit \
-            --strict \
-            --format json \
-            --output pip-audit.json \
-            || echo "AUDIT_FAILED=true" >> $GITHUB_ENV
+      - name: Audit runtime dependencies
+        run: pip-audit -r requirements.txt --progress-spinner off
 
-      - name: Print human-readable summary
-        run: pip-audit --strict || true
+      - name: Audit dev dependencies
+        run: pip-audit -r requirements-dev.txt --progress-spinner off
 
-      - name: Upload audit report
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: pip-audit-report
-          path: pip-audit.json
-          retention-days: 30
-
-      - name: Open issue on new CVEs
-        if: env.AUDIT_FAILED == 'true' && github.ref == 'refs/heads/main'
-        uses: actions/github-script@v9
-        with:
-          script: |
-            const fs = require('fs');
-            const report = JSON.parse(fs.readFileSync('pip-audit.json', 'utf8'));
-            const vulns = (report.dependencies || []).flatMap(d =>
-              (d.vulns || []).map(v => `${d.name}@${d.version}: ${v.id} — ${v.description.slice(0,120)}`)
-            );
-            if (vulns.length === 0) return;
-            const title = `[Security] pip-audit found ${vulns.length} CVE(s) — ${new Date().toISOString().split('T')[0]}`;
-            const body = [
-              '## Python Dependency CVEs',
-              '**Source:** pip-audit (daily scan)',
-              '',
-              '| Package | CVE | Description |',
-              '|---------|-----|-------------|',
-              ...vulns.map(v => `| ${v} |`),
-              '',
-              '**Action required:** `pip-audit --fix` or pin patched versions in `requirements.in`',
-            ].join('\n');
-            await github.rest.issues.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              title,
-              body,
-              labels: ['security', 'dependencies', 'auto-generated'],
-            });
-
-      - name: Write CVEs to Vulner-Fix.md
-        if: env.AUDIT_FAILED == 'true'
-        run: |
-          python - <<'PYEOF'
-          import json, subprocess, os
-          if not os.path.exists("pip-audit.json"):
-              exit(0)
-          report = json.load(open("pip-audit.json"))
-          for dep in report.get("dependencies", []):
-              for vuln in dep.get("vulns", []):
-                  subprocess.run([
-                      "python", "scripts/vulner_fix_append.py",
-                      "--severity", "HIGH",
-                      "--tool", "pip-audit",
-                      "--file", f"{dep['name']}@{dep['version']}",
-                      "--summary", f"{vuln['id']}: {vuln.get('description','')[:120]}",
-                      "--fix", f"Upgrade {dep['name']} to patched version. Run: pip-audit --fix",
-                      "--status", "Open",
-                  ], check=False)
-          PYEOF
-
-      # REMOVED 2026-08-16 by owner request: this committed and pushed
-      # Vulner-Fix.md unattended. The findings are uploaded as an artifact
-      # instead, so the audit still reports without writing to the repo.
-      - name: Upload Vulner-Fix findings
-        if: env.AUDIT_FAILED == 'true'
-        uses: actions/upload-artifact@v7
-        with:
-          name: vulner-fix-${{ github.run_id }}
-          path: Vulner-Fix.md
-          if-no-files-found: ignore
+      # requirements-optional.txt is not audited. pip-audit resolves a manifest
+      # by dry-run installing it, and the optional extras pull the full CUDA
+      # torch/transformers stack -- minutes of download for packages that no
+      # CI job installs. The two manifests above are exactly what ci.yml
+      # installs, so they are what can actually reach a runner.
 
   npm-audit:
-    name: npm audit — Frontend CVE scan
-    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
+    name: npm audit (frontend CVE scan)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: "20"
+          node-version: 22
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
-      - name: npm ci
+      - name: Build an auditable copy of the dependency tree
         working-directory: frontend
-        run: npm ci --prefer-offline
+        # The audit endpoint rejects this project's lockfile outright:
+        #
+        #   400 Bad Request - Invalid package tree, run npm install to
+        #   rebuild your package-lock.json
+        #
+        # The lockfile is not malformed and rebuilding it changes nothing.
+        # @tailwindcss/oxide-wasm32-wasi declares bundleDependencies, so its
+        # six children are marked inBundle and carry no `resolved` or
+        # `integrity` -- they ship inside the parent tarball, which is how npm
+        # records a bundled dependency. The endpoint cannot resolve them.
+        #
+        # Two things this went through first, so nobody repeats them:
+        #   * `npm ci` before auditing does not help. npm derives the audit
+        #     tree from the lockfile whether or not node_modules exists.
+        #   * --omit=optional clears the error and drops 106 packages, 12 of
+        #     which do install on linux-x64 (sharp's libvips binaries,
+        #     rolldown, lightningcss, tailwind's oxide). Losing CVE coverage
+        #     on code that ships is worse than the bug.
+        #
+        # So the bundled subtree is removed from a *copy* -- and, critically,
+        # so is the reference to it in @tailwindcss/oxide's
+        # optionalDependencies. Removing the packages while leaving the edge
+        # pointing at them is what made an earlier attempt at this pass once
+        # and then fail: npm resolves the edge, finds nothing, and calls the
+        # tree invalid.
+        run: |
+          mkdir -p "$RUNNER_TEMP/audit"
+          cp package.json package-lock.json "$RUNNER_TEMP/audit/"
+          node - "$RUNNER_TEMP/audit/package-lock.json" <<'NODE'
+          const fs = require("fs");
+          const path = process.argv[2];
+          const lock = JSON.parse(fs.readFileSync(path, "utf8"));
 
-      - name: npm audit
-        working-directory: frontend
-        run: npm audit --audit-level=high --json > npm-audit.json || echo "NPM_AUDIT_FAILED=true" >> $GITHUB_ENV
+          const bundlers = Object.entries(lock.packages).filter(
+            ([, meta]) => meta.bundleDependencies
+          );
 
-      - name: Upload audit report
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: npm-audit-report
-          path: frontend/npm-audit.json
-          retention-days: 30
+          // Guard, not decoration: a future dependency that bundles children
+          // would hit the same 400, and silently dropping it would shrink the
+          // scan without anyone noticing. Anything unexpected fails here.
+          const unexpected = bundlers.filter(
+            ([name, meta]) =>
+              name !== "node_modules/@tailwindcss/oxide-wasm32-wasi" || !meta.optional
+          );
+          if (unexpected.length) {
+            console.error(
+              "::error::unexpected bundleDependencies, review before auditing: " +
+                unexpected.map(([n]) => n).join(", ")
+            );
+            process.exit(1);
+          }
 
-  trufflehog:
-    name: TruffleHog — git secret scan
-    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
+          const before = Object.keys(lock.packages).length;
+          // Only the bundler's own name. Its bundled children are nested
+          // inside it and were never resolvable from anywhere else, so no
+          // surviving edge points at them -- while their bare names (tslib,
+          // @emnapi/runtime) are also ordinary top-level packages that
+          // eleven other dependencies legitimately depend on. Pruning by
+          // child name severed those.
+          const removedNames = new Set(
+            bundlers.map(([name]) => name.replace(/^node_modules\//, ""))
+          );
+          for (const [name] of bundlers) {
+            for (const key of Object.keys(lock.packages)) {
+              if (key === name || key.startsWith(name + "/")) {
+                delete lock.packages[key];
+              }
+            }
+          }
+
+          // Prune edges pointing at what was just removed. Leaving them is
+          // what makes npm call the tree invalid.
+          let prunedEdges = 0;
+          const EDGE_FIELDS = [
+            "dependencies",
+            "optionalDependencies",
+            "peerDependencies",
+            "devDependencies",
+          ];
+          for (const meta of Object.values(lock.packages)) {
+            for (const field of EDGE_FIELDS) {
+              const edges = meta[field];
+              if (!edges) continue;
+              for (const dep of Object.keys(edges)) {
+                if (removedNames.has(dep)) {
+                  delete edges[dep];
+                  prunedEdges++;
+                }
+              }
+              if (Object.keys(edges).length === 0) delete meta[field];
+            }
+          }
+
+          const remaining = Object.keys(lock.packages).length;
+          console.log(
+            `removed ${before - remaining} bundled entries and ${prunedEdges} dangling edges; ` +
+              `${remaining} remain auditable`
+          );
+
+          fs.writeFileSync(path, JSON.stringify(lock, null, 2) + "\n");
+          NODE
+
+      - name: Audit
+        working-directory: ${{ runner.temp }}/audit
+        # --audit-level=high blocks high and critical only. Moderate advisories
+        # in a build-time-only dependency tree are noise that would train
+        # everyone to ignore this job.
+        #
+        # `npm audit` exits 1 for three unrelated things, and this job used to
+        # report all of them as if the frontend had vulnerabilities:
+        #
+        #   1. high/critical advisories found -> a real verdict; delegated to
+        #                                        scripts/npm_audit_verdict.py,
+        #                                        which fails it unless no fix
+        #                                        for it exists at all
+        #   2. registry unreachable           -> retried, then a warning:
+        #                                        a finding fails this job,
+        #                                        being unable to ask does not,
+        #                                        except on schedule/dispatch
+        #   3. a rejected tree                -> no scan ran, so passing
+        #                                        would be a lie
+        #
+        # npm writes "audit endpoint returned an error" for (2) and (3) and
+        # nothing like it for (1), which is what separates a verdict from a
+        # non-scan.
+        #
+        # Each attempt is bounded, and two of them rather than three. The
+        # audit endpoint is being retired and has been slow all day: a
+        # successful call takes seconds, a struggling one has taken up to six
+        # minutes, and unbounded attempts held every PR in the queue for
+        # twenty. 300s is comfortably above the observed success latency and
+        # caps the job at ten minutes.
+        run: |
+          for attempt in 1 2; do
+            # `| tee` would make the pipeline status tee's own 0, so the
+            # audit result has to be read before anything else runs.
+            set +e
+            timeout 300 npm audit --audit-level=high > audit.log 2>&1
+            status=$?
+            set -e
+            cat audit.log
+
+            if [ "$status" -eq 0 ]; then
+              exit 0
+            fi
+
+            if [ "$status" -eq 124 ]; then
+              echo "npm audit attempt ${attempt}: timed out after 300s, retrying."
+              sleep $((attempt * 15))
+              continue
+            fi
+
+            if ! grep -q "audit endpoint returned an error" audit.log; then
+              # A real verdict: high or critical advisories exist. Whether that
+              # ought to fail is not the same question as whether it exists, and
+              # only the JSON report can answer the second one.
+              #
+              # npm reports `fixAvailable: false` when no published version of a
+              # package escapes the advisory -- there is no floor, no ceiling, no
+              # `overrides` entry and no `npm audit fix --force` that clears it.
+              # http-cache-semantics 4.2.0 (CVE-2026-93748) is exactly that, and
+              # it is reached only through electron-builder's build-time download
+              # chain. Failing on it blocked every pull request in the repository
+              # with no change available to any of them.
+              #
+              # So the finding is still reported, one `::warning::` per advisory,
+              # and stops blocking only while no fix exists. The exemption is not
+              # standing: when a fixed release appears, `fixAvailable` stops being
+              # false and this fails again, naming the package, until the bump
+              # lands. A critical finding blocks either way (CLAUDE.md section 17
+              # does not let a critical requirement be an accepted gap).
+              #
+              # One extra registry call, and only on the path that already found
+              # something. If it cannot be made, or its output cannot be read,
+              # npm_audit_verdict.py exits 2 and this fails: being unable to ask
+              # is not a pass, the same rule the branch below already follows.
+              set +e
+              timeout 300 npm audit --json --audit-level=high > audit.json 2> audit-json.log
+              json_status=$?
+              set -e
+
+              if [ "$json_status" -eq 0 ]; then
+                echo "npm audit reported nothing at high or critical."
+                exit 0
+              fi
+
+              cat audit-json.log
+              set +e
+              python3 "$GITHUB_WORKSPACE/scripts/npm_audit_verdict.py" audit.json
+              verdict=$?
+              set -e
+              exit "$verdict"
+            fi
+
+            if grep -q "Invalid package tree" audit.log; then
+              echo "::error::The audit endpoint rejected the tree even after the bundled subtree and its dangling edges were removed, so no CVE scan ran. See the comment on the previous step."
+              exit 1
+            fi
+
+            echo "npm audit attempt ${attempt}: registry unreachable, retrying."
+            sleep $((attempt * 15))
+          done
+
+          # Warning, not error. A finding fails this job; being unable to ask
+          # does not. The endpoint npm uses here is being retired and has
+          # been alternately instant, 503, and hanging past 300s within the
+          # same hour -- failing every PR in the repository on that is the
+          # exact "fails closed on someone else's registry outage" problem
+          # this file's header gives as the reason Semgrep is not reinstated.
+          #
+          # This is not a coverage gap: .github/dependabot.yml watches
+          # /frontend for npm advisories independently of this job and opens
+          # PRs for them, so an outage here delays a duplicate check rather
+          # than removing the only one.
+          #
+          # The weekly schedule and a manual dispatch block no pull request,
+          # so there the outage fails the run (REG-1601, audit OPS-012).
+          # Otherwise a quiet week of outages would leave the scan green
+          # without it ever having run.
+          if [ "$GITHUB_EVENT_NAME" = "schedule" ] || [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            echo "::error::npm audit could not reach the registry after 2 attempts on a ${GITHUB_EVENT_NAME} run -- no CVE scan ran."
+            exit 1
+          fi
+          echo "::warning::npm audit could not reach the registry after 2 attempts -- no CVE scan ran this time. Dependabot still watches /frontend independently."
+
+  secrets:
+    name: TruffleHog (secret scan)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: TruffleHog scan
-        uses: trufflesecurity/trufflehog@main
+      - name: Install TruffleHog
+        # Pinned rather than floating: a scanner that silently changes its
+        # detector set between runs turns a red build into a mystery.
+        #
+        # The version pin alone does not make the download trustworthy. A
+        # release asset is mutable -- it can be replaced in place on the
+        # release, and a redirect or proxy can serve something else entirely --
+        # and this tarball is unpacked and executed on a runner that has just
+        # checked out the repository. So the pin names *which* artifact, and
+        # the digest below is what makes it that artifact.
+        env:
+          TRUFFLEHOG_VERSION: 3.90.10
+          TRUFFLEHOG_SHA256: 32d349aea9b5b6644bb9a8ab8cb44314ce5912d730a16b1466511fc6c69a7ffc
+        run: |
+          curl -sSfL \
+            "https://github.com/trufflesecurity/trufflehog/releases/download/v${TRUFFLEHOG_VERSION}/trufflehog_${TRUFFLEHOG_VERSION}_linux_amd64.tar.gz" \
+            -o trufflehog.tar.gz
+
+          # Verified before the archive is unpacked, not after: `tar x` on an
+          # untrusted archive is itself the thing being guarded against.
+          echo "${TRUFFLEHOG_SHA256}  trufflehog.tar.gz" | sha256sum --check --strict
+
+          tar xzf trufflehog.tar.gz trufflehog
+          ./trufflehog --version
+
+      - name: Scan
+        # --only-verified: report a credential only when it authenticates
+        # against its provider. Unverified matches are overwhelmingly high-
+        # entropy strings that are not secrets, and a gate that cries wolf gets
+        # switched off. A filesystem scan of the checkout is used rather than a
+        # base..head diff so the job cannot pass by scanning an empty range.
+        run: ./trufflehog filesystem . --only-verified --no-update --fail
+
+  # ---------------------------------------------------------------------
+  # All-green gate.
+  #
+  # Branch protection requires checks by name, so a job that never runs --
+  # skipped by an `if:`, or never reached because an earlier job failed --
+  # satisfies a required check by being absent. This job depends on every
+  # other job here and fails unless each one reported success, so "all
+  # green" becomes a single check that cannot be satisfied by absence.
+  #
+  # `if: always()` is load-bearing: without it the gate is itself skipped
+  # the moment any dependency fails, and a skipped gate blocks nothing.
+  # ---------------------------------------------------------------------
+  supply-chain:
+    name: Supply-chain posture (SUP-001..SUP-007)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
-          path: ./
-          base: ${{ github.event.repository.default_branch }}
-          head: HEAD
-          extra_args: --only-verified --json
+          python-version-file: .python-version
+
+      - name: Install PyYAML
+        run: python -m pip install --upgrade pip pyyaml
+
+      # Least privilege, SHA pinning, fork-secret isolation, dependency
+      # surveillance, and "a bot cannot publish". Every one of these is a
+      # property of the configuration and invisible at runtime, which is why
+      # it is a check rather than a convention.
+      - name: Check the supply-chain posture
+        run: python3 scripts/check_supply_chain.py
+
+  dependency-review:
+    name: Dependency review (new CVEs in this diff)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [pip-audit, npm-audit]
+    # A PR gets GitHub's diff review where the repository is eligible. This
+    # private personal repository is not, so its fallback ties this check to
+    # successful full-tree audits below. On non-PR events there is no diff.
+    if: ${{ always() && github.event_name == 'pull_request' }}
+    steps:
+      - name: GitHub Dependency Review
+        if: ${{ github.repository_visibility == 'public' || vars.DEPENDENCY_REVIEW_ENABLED == 'true' }}
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          fail-on-severity: high
+          comment-summary-in-pr: on-failure
+
+      - name: Private repository audit fallback
+        if: ${{ github.repository_visibility != 'public' && vars.DEPENDENCY_REVIEW_ENABLED != 'true' }}
+        env:
+          PIP_AUDIT_RESULT: ${{ needs.pip-audit.result }}
+          NPM_AUDIT_RESULT: ${{ needs.npm-audit.result }}
+        run: |
+          if [ "$PIP_AUDIT_RESULT" != "success" ] || [ "$NPM_AUDIT_RESULT" != "success" ]; then
+            echo "::error::Dependency audit fallback requires both pip-audit and npm audit to pass."
+            echo "pip-audit: $PIP_AUDIT_RESULT; npm-audit: $NPM_AUDIT_RESULT"
+            exit 1
+          fi
+          echo "::notice::GitHub Dependency Review is unavailable for this private repository. Full Python and npm dependency audits passed; these scan the complete dependency trees rather than only the PR diff."
+
+  container:
+    name: Container build and scan (SUP-006)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Built, not just linted. A Dockerfile that describes a hardened image
+      # and does not build is a posture nobody is actually running.
+      - name: Build the image
+        run: docker build -t trade-bot:ci .
+
+      - name: Assert the image does not run as root
+        run: |
+          user=$(docker image inspect trade-bot:ci --format '{{.Config.User}}')
+          test "$user" = "10001:10001" || {
+            echo "::error::image runs as '${user:-root}', expected 10001:10001"
+            exit 1
+          }
+
+      - name: Assert the application cannot modify its own code
+        # Read-only, no capabilities, no privilege escalation -- the runtime
+        # posture the image is written for. If a future change needs to write
+        # under /app, it fails here rather than in production.
+        run: |
+          docker run --rm --read-only --cap-drop=ALL \
+            --security-opt=no-new-privileges \
+            --entrypoint sh trade-bot:ci -c 'touch /app/src/.probe' \
+            && { echo "::error::the running user can write to /app"; exit 1; } \
+            || echo "ok: /app is not writable by the application user"
+
+      - name: Scan the image for known vulnerabilities
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: trade-bot:ci
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+
+  gate:
+    name: Security gate (all jobs green)
+    runs-on: ubuntu-latest
+    if: ${{ always() }}
+    needs: [bandit, pip-audit, npm-audit, secrets, supply-chain, dependency-review, container]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Assert every job in this workflow succeeded
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+          # dependency-review has no pull-request diff on push/schedule, so it
+          # skips there. Every PR runs either GitHub's diff review or the
+          # private-repository fallback that requires both full-tree audits
+          # above to succeed. This allowance accepts only non-PR skips.
+          ALLOW_SKIPPED: dependency-review
+        run: python3 scripts/assert_jobs_green.py

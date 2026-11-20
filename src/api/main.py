@@ -1,25 +1,46 @@
 """
-Restore src/api/main.py to its pre-instrumentation state.
-This file overwrites the current main.py on the default branch to remove
-imports and calls that installed diagnostics instrumentation.
-"""
+FastAPI dashboard API.
 
-# NOTE: This file content was restored to the repo's previous state.
-# The original content is preserved; instrumentation was moved to a
-# separate diagnostics branch as requested.
+Security: ALL endpoints require X-API-Key header matching API_SECRET_KEY env var.
+The mutating endpoints additionally require the trade-authorizing role — see
+requires() and src/api/access_control.py. With only API_SECRET_KEY configured
+every valid key holds that role, so the gates are inert until the optional
+API_READONLY_KEY is set.
+
+Endpoints (illustrative, not exhaustive; /openapi.json lists every route):
+  GET  /health                     — system health + storage counts
+  GET  /status                     — equity, positions, regime, execution mode
+  GET  /trades                     — paginated trade history
+  GET  /equity                     — equity curve for charting
+  GET  /regime/{timeframe}         — latest regime snapshot
+  GET  /approvals                  — pending approval requests
+  POST /approvals/{id}/resolve     — approve or reject a pending trade
+  POST /execution-mode             — switch AUTOMATIC/RESTRICTED/MANUAL at runtime
+  GET  /strategies/gauntlet        — promotion-gauntlet status per candidate
+  GET  /debug/reconcile            — in-memory book vs persisted open trades
+  WS   /ws                         — live push of equity + positions + signals
+
+WebSocket push format (JSON):
+  { "type": "tick", "equity_usd": ..., "positions": [...], "regime": {...} }
+  { "type": "approval", "request": {...} }
+  { "type": "trade", "trade": {...} }
+
+Registry: API-001, API-003, API-005, API-009, REL-005 (config/quality_registry.json).
+"""
 
 from __future__ import annotations
 
 import asyncio
 import collections
-import hmac  # SCAN3-003: moved from inline import inside set_execution_mode()
 import json
 import os
 import re
 import time
 from collections.abc import AsyncIterator, Callable, Iterable
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
+from functools import lru_cache
 from typing import Annotated, Any, cast
 
 import structlog
@@ -34,28 +55,88 @@ from fastapi import (
     WebSocketDisconnect,
 )
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, field_validator
 
-from src.api.access_control import Permission, Role, require_permission
-from src.api.auth import verify_api_key, verify_ws_key
-from src.api.metrics import metrics_output
+from common.command_schema import redact
+from src.api import runtime_control
+from src.api.access_control import Permission, Role, require_permission, role_has_permission
+from src.api.auth import WS_SUBPROTOCOL, verify_api_key, verify_ws_key
+from src.api.control_surface import ControlWriteError, apply_control, build_control_surface
+from src.api.error_hygiene import GENERIC_ERROR_DETAIL, install_error_handlers
+from src.api.fail_closed import (
+    CONTROL_HEALTH,
+    UNAVAILABLE_DETAIL,
+    SecurityControl,
+    SecurityControlUnavailable,
+    mark_all_healthy,
+)
 from src.api.middleware import validate_cors_config
-from src.config import ExecutionMode, Timeframe, get_settings, runtime_config
-from src.data.fetcher import open_fetcher
+from src.api.object_refs import (
+    NOT_FOUND_DETAIL,
+    ObjectRefError,
+    not_found_response,
+    validate_object_id,
+)
+from src.api.operator_secret import (
+    MIN_SECRET_LENGTH,
+    OperatorSecretError,
+    verify_operator_secret,
+)
+from src.api.readiness import readiness_report
+from src.api.runtime_control import (
+    OperatorFactor,
+    RuntimeActionBody,
+    RuntimeChangeBody,
+    RuntimeControlError,
+    RuntimeDecisionBody,
+    RuntimeDesiredBody,
+)
+from src.api.security_headers import SecurityHeadersMiddleware
+from src.api.ws_guard import WSFrameError, WSFrameGuard
+from src.config import (
+    EXCHANGE_BINANCE,
+    EXCHANGE_OKX,
+    ExecutionMode,
+    Timeframe,
+    get_settings,
+    runtime_config,
+)
+from src.data.fetcher import VenueDisconnectRefused, open_fetcher
 from src.data.storage import AnyStorageBackend, TradeRecord, create_storage_backend
 from src.diagnostics.attribution import get_attribution_tracker
 from src.diagnostics.audit_trail import get_audit_trail
 from src.diagnostics.disaster_recovery import PositionSnapshot, is_state_consistent, reconcile
+from src.diagnostics.metrics import metrics_output, observe_ws_publish_lag
 from src.engine.orchestrator import Orchestrator
+from src.eventbus import TOPICS, Subscription, get_event_bus
 from src.execution.base import AbstractExecutor
+from src.execution.mode_persistence import load_execution_mode, save_execution_mode
 from src.execution.unified_ledger import get_unified_ledger
+from src.logging_setup import configure_logging
 from src.risk.strategy_kill_switch import (
     GauntletNotPassedError,
     get_strategy_kill_switch_manager,
 )
+from src.runtime.adapters import SELF_TUNING, safe_name
+from src.runtime.contracts import ComponentType, LifecycleState, make_component_id
+from src.runtime.platform import (
+    TRACE_TOPICS,
+    RuntimePlatform,
+    build_runtime_platform,
+)
+from src.runtime.production import (
+    ProductionSources,
+    RuntimeLoop,
+    UpgradeListing,
+    production_controllers,
+    production_discoveries,
+)
 from src.strategies.bootstrap import register_default_strategies
 from src.strategies.capital_allocator import performance_weighted_allocate
 from src.strategies.registry import get_default_registry
+from src.terminal.config import TerminalConfig, TerminalConfigError
+from src.terminal.jobs import JobReporter
 from src.tuning.audit import TuningEventType
 from src.tuning.meta_allocator import get_allocation_controller
 from src.tuning.promotion_gauntlet import (
@@ -66,9 +147,17 @@ from src.tuning.promotion_gauntlet import (
 from src.tuning.scheduler import AutoTuningScheduler
 from src.tuning.state import (
     audit_log as tuning_audit_log,
+)
+from src.tuning.state import (
     parameter_registry as tuning_registry,
+)
+from src.tuning.state import (
     pause_state as tuning_pause_state,
+)
+from src.tuning.state import (
     version_store as tuning_version_store,
+)
+from src.tuning.state import (
     watchdog as tuning_watchdog,
 )
 from src.tuning.store import NoPriorVersionError, NoVersionsError
@@ -76,7 +165,6 @@ from src.tuning.stress_simulator import (
     KNOWN_CRISIS_SCENARIOS,
     run_all_known_scenarios,
 )
-
 
 # H-13: UUID format regex — prevents timing oracle via huge string hash and DoS
 _UUID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", re.I)
@@ -97,17 +185,54 @@ def _validate_operator(v: str) -> str:
     return v
 
 
+def _terminal_job_reporter() -> JobReporter:
+    """
+    The process center's view of this API's long operations (TERM-007).
+
+    Best effort and local only: see src/terminal/jobs.py. A terminal
+    configuration that does not parse disables reporting; it never stops the
+    API from starting.
+    """
+    try:
+        socket_path = TerminalConfig.from_env().socket_path
+    except TerminalConfigError as exc:
+        log.warning("api.terminal_jobs_disabled", error=str(exc))
+        return JobReporter(None)
+    return JobReporter(socket_path)
+
+
+_job_reporter = _terminal_job_reporter()
+
+
+def _job_error(exc: BaseException) -> str:
+    text, _count = redact(f"{type(exc).__name__}: {exc}")
+    return text[:1024]
+
+
 # ---------------------------------------------------------------------------
 # Application state — shared across requests
 # ---------------------------------------------------------------------------
+
+
+# Topics a read-only key never receives. See AppState.permitted_topics.
+# "runtime" carries change requests -- actors, reasons, approvals -- which are
+# control-plane information, like the approval queue.
+_OPERATOR_ONLY_TOPICS: frozenset[str] = frozenset({"approval", "runtime"})
 
 
 class AppState:
     storage: AnyStorageBackend
     orchestrator: Orchestrator | None
     intel_adapter: Any | None  # IntelligenceAdapter (crypto-intel-v6); None when disabled
-    ready: bool  # True only after orchestrator.startup() completes
+    # True once the lifespan has finished starting the API (see readiness.py);
+    # the model warm-up runs on after it, in the orchestrator task.
+    ready: bool
+    stopping: bool  # set as shutdown begins, so /readyz stops answering ready
     _MAX_WS_CLIENTS: int = 50
+    # Bumped only on a breaking change to the frame shape, so a dashboard
+    # served from a stale cache can refuse to misread a newer server rather
+    # than silently rendering fields that have moved.
+    _WS_PROTOCOL_VERSION: int = 1
     _MODE_CHANGE_LIMIT: int = 3
     _MODE_CHANGE_WINDOW_S: float = 3600.0
     _ENDPOINT_LIMIT: int = 60
@@ -115,8 +240,22 @@ class AppState:
 
     def __init__(self) -> None:
         self.ready = False
+        self.stopping = False
         self.intel_adapter = None
         self.orchestrator: Orchestrator | None = None  # set in lifespan after startup()
+        # The runtime platform (src/runtime): the control plane's one registry
+        # and change manager. Set in lifespan; None until then.
+        self.runtime: RuntimePlatform | None = None
+        # Its continuous discovery/reconcile loop and the MLflow listing it
+        # refreshes; set with the platform.
+        self.runtime_loop: RuntimeLoop | None = None
+        self.runtime_upgrades: UpgradeListing | None = None
+        # What the runtime platform discovers beyond the orchestrator: the
+        # self-tuning scheduler (None unless enabled), crypto-intel (None
+        # unless INTEL_ENABLED) and the API's own long-running tasks.
+        self.tuning_scheduler: AutoTuningScheduler | None = None
+        self.crypto_intel: Any | None = None
+        self.background_tasks: list[asyncio.Task[Any]] = []
         # SCAN3-013: bounded set + lock replaces plain list — prevents TOCTOU race
         # on concurrent WS connects that could exceed _MAX_WS_CLIENTS.
         self._ws_clients: set[WebSocket] = set()
@@ -128,6 +267,22 @@ class AppState:
             maxlen=self._MODE_CHANGE_LIMIT
         )
         self._endpoint_hits: dict[str, collections.deque[float]] = {}
+        # What each connection has asked for, and what its key entitles it to.
+        # Keyed by socket because the subscription is a property of the
+        # connection, not of the client's identity: the same key may hold two
+        # tabs open showing different panels.
+        self._ws_topics: dict[WebSocket, frozenset[str]] = {}
+        self._ws_roles: dict[WebSocket, Role] = {}
+        # Frame sequence, server-wide rather than per connection.
+        #
+        # Per-connection numbering was the obvious first instinct and it is
+        # wrong here: it forces a distinct payload per client, which is
+        # exactly the O(clients) serialization this broadcaster exists to
+        # delete. One counter for the whole stream keeps a single json.dumps
+        # serving every client, and a client still detects loss the same way
+        # -- by watching for a gap in the numbers it receives. It just cannot
+        # assume its first frame is number one.
+        self._seq = 0
 
     @property
     def ws_clients(self) -> set[WebSocket]:
@@ -152,8 +307,131 @@ class AppState:
         """Remove a WS client from the tracked set."""
         async with self._ws_lock:
             self._ws_clients.discard(ws)
+            self._ws_topics.pop(ws, None)
+            self._ws_roles.pop(ws, None)
 
-    def check_endpoint_rate_limit(self, endpoint: str, client_ip: str = "") -> None:
+    async def set_ws_topics(self, ws: WebSocket, topics: frozenset[str]) -> None:
+        """Record what this connection wants, already filtered by role."""
+        async with self._ws_lock:
+            self._ws_topics[ws] = topics
+
+    def permitted_topics(self, role: Role) -> frozenset[str]:
+        """
+        Topics a key of this role may receive.
+
+        SEC: an approval frame carries a pending trade -- symbol, direction,
+        size -- awaiting an operator decision. A read-only key is issued so
+        something can watch the system without being able to act on it, and
+        handing it the queue of decisions being made is neither read-only in
+        spirit nor needed by anything a read-only client legitimately renders.
+        """
+        if role == Role.READ_ONLY:
+            return TOPICS - _OPERATOR_ONLY_TOPICS
+        return TOPICS
+
+    # API-010: a peer that cannot take a frame within this long is dropped, so
+    # one stalled socket cannot hold the fan-out (and every other dashboard).
+    _WS_SEND_TIMEOUT_S: float = 5.0
+
+    async def _send_one(self, client: WebSocket, message: str) -> bool:
+        try:
+            await asyncio.wait_for(client.send_text(message), timeout=self._WS_SEND_TIMEOUT_S)
+        except Exception:
+            return False
+        return True
+
+    async def broadcast(
+        self,
+        payload: dict[str, Any],
+        topic: str | None = None,
+        *,
+        operator_only_fields: tuple[str, ...] = (),
+    ) -> int:
+        """
+        Push one message to every connected dashboard. Returns how many got it.
+
+        The single write path for all three producers -- the shared heartbeat,
+        the event fan-out, and out-of-band control writes. Serializing once
+        here and sending the same string to every client is the whole reason
+        the per-connection loops went away: that version did one storage read
+        and one json.dumps per client per beat to produce identical bytes.
+
+        A send is never allowed to fail the caller: an operator write has
+        already been applied by the time this runs, and a dashboard that has
+        gone away is not a reason to report the write as failed. Failures drop
+        the client instead.
+
+        This awaits each client in turn, so it must never be called from a
+        producer on the trading path -- that would put a slow socket in front
+        of an order, which is exactly what src/eventbus exists to prevent.
+        Producers publish to the bus; only the fan-out task calls this.
+
+        The set is snapshotted under the lock before sending. Iterating it
+        directly would mutate-during-iteration the moment a send fails and the
+        client is discarded.
+        """
+        async with self._ws_lock:
+            if topic is None:
+                clients = list(self._ws_clients)
+            else:
+                # Filtered by recipient, still serialized once below. Doing it
+                # the other way -- a payload per client -- is exactly the
+                # O(clients) work the per-connection loops were deleted for,
+                # and it would come straight back the moment subscriptions
+                # existed. A hidden panel costs zero bytes; it does not cost
+                # an extra json.dumps.
+                clients = [
+                    ws for ws in self._ws_clients if topic in self._ws_topics.get(ws, frozenset())
+                ]
+
+        # Envelope, stamped once for everybody. Additive: every field the
+        # existing dashboard reads is still at the top level, so a client that
+        # predates the envelope keeps working while PR 4 is written.
+        #
+        # ts_ms is only defaulted here. When a frame carries a producer's own
+        # timestamp it arrives already set, and overwriting it would report
+        # zero lag no matter how starved the transport was -- which is the one
+        # measurement this is for.
+        self._seq += 1
+        payload = {
+            "v": self._WS_PROTOCOL_VERSION,
+            "seq": self._seq,
+            "ts_ms": int(time.time() * 1000),
+            **payload,
+        }
+
+        message = json.dumps(payload)
+        # API-006: fields only an operator-capable key may see are stripped for
+        # the rest -- two serializations in total, not one per client.
+        restricted_message = (
+            json.dumps({k: v for k, v in payload.items() if k not in operator_only_fields})
+            if operator_only_fields
+            else message
+        )
+        # API-010: sends run concurrently, each bounded by a timeout.
+        outbound = [
+            message
+            if role_has_permission(
+                self._ws_roles.get(client, Role.READ_ONLY), Permission.APPROVE_TRADE
+            )
+            else restricted_message
+            for client in clients
+        ]
+        results = await asyncio.gather(
+            *(self._send_one(c, m) for c, m in zip(clients, outbound, strict=True))
+        )
+        delivered = sum(1 for ok in results if ok)
+        dead: list[WebSocket] = [c for c, ok in zip(clients, results, strict=True) if not ok]
+
+        for client in dead:
+            await self.remove_ws_client(client)
+        if dead:
+            log.info("api.ws_broadcast_dropped", dropped=len(dead), delivered=delivered)
+        return delivered
+
+    def check_endpoint_rate_limit(
+        self, endpoint: str, client_ip: str = "", *, limit: int | None = None
+    ) -> None:
         """
         Raise HTTP 429 if endpoint has been called too many times per minute.
 
@@ -161,7 +439,9 @@ class AppState:
         rate budget for all other clients.
         M-12: prune stale IP entries to prevent unbounded dict growth under
         rotating-IP attacks.
+        API-015: ``limit`` lowers the per-minute budget for an expensive endpoint.
         """
+        max_hits = self._ENDPOINT_LIMIT if limit is None else min(limit, self._ENDPOINT_LIMIT)
         key = f"{endpoint}:{client_ip}"
         now = time.monotonic()
         # M-12: prune expired entries before adding a new one
@@ -176,10 +456,10 @@ class AppState:
         # Evict timestamps outside the window (O(1) per pop from left)
         while dq and now - dq[0] >= self._ENDPOINT_WINDOW_S:
             dq.popleft()
-        if len(dq) >= self._ENDPOINT_LIMIT:
+        if len(dq) >= max_hits:
             raise HTTPException(
                 status_code=429,
-                detail=f"Rate limit exceeded for {endpoint} ({self._ENDPOINT_LIMIT}/min).",
+                detail=f"Rate limit exceeded for {endpoint} ({max_hits}/min).",
             )
         dq.append(now)
 
@@ -210,9 +490,145 @@ _state = AppState()
 # ---------------------------------------------------------------------------
 
 
+async def _release_after_failed_startup(
+    orchestrator: Orchestrator | None, storage: AnyStorageBackend
+) -> None:
+    """
+    Release what a startup that failed part-way leaves open, before the error
+    propagates: the orchestrator's monitor task and executor and training
+    threads (Orchestrator.shutdown), when it got that far, then the storage
+    connection. Each step is best-effort; a failure is logged and never
+    replaces the startup error.
+    """
+    if orchestrator is not None:
+        try:
+            await orchestrator.shutdown()
+        except Exception as exc:
+            log.warning("api.startup_cleanup_failed", resource="orchestrator", error=str(exc))
+    try:
+        await storage.close()
+    except Exception as exc:
+        log.warning("api.startup_cleanup_failed", resource="storage", error=str(exc))
+
+
+class _StartupGuard:
+    """Own partial lifespan resources until startup yields successfully.
+
+    Any failure before or during serving must close subscriptions and cancel
+    tasks as well as the fetcher, orchestrator and storage. The previous guard
+    only closed the last two, so an exception after background-task creation
+    could leave consumers running against closed storage.
+    """
+
+    def __init__(self, storage: AnyStorageBackend) -> None:
+        self.storage = storage
+        self.orchestrator: Orchestrator | None = None
+        self.runtime_stop: asyncio.Event | None = None
+        self.ws_subscription: Any | None = None
+        self.trace_subscription: Any | None = None
+        self.ws_tasks: list[asyncio.Task[Any]] = []
+        self.orch_task: asyncio.Task[Any] | None = None
+        self.fetcher_task: asyncio.Task[Any] | None = None
+        self.tuning_scheduler: Any | None = None
+
+    async def __aenter__(self) -> _StartupGuard:
+        return self
+
+    async def __aexit__(self, exc_type: Any, exc: Any, tb: Any) -> bool:
+        if exc_type is not None:
+            await self._cleanup()
+        return False
+
+    async def _cleanup(self) -> None:
+        _state.ready = False
+        _state.stopping = True
+        if self.runtime_stop is not None:
+            self.runtime_stop.set()
+        for subscription in (self.ws_subscription, self.trace_subscription):
+            if subscription is not None:
+                try:
+                    subscription.close()
+                except Exception as exc:
+                    log.warning(
+                        "api.startup_cleanup_failed", resource="subscription", error=str(exc)
+                    )
+
+        if self.fetcher_task is not None and not self.fetcher_task.done():
+            self.fetcher_task.cancel()
+        if self.fetcher_task is not None:
+            await asyncio.gather(self.fetcher_task, return_exceptions=True)
+        for task in self.ws_tasks:
+            if not task.done():
+                task.cancel()
+        if self.ws_tasks:
+            await asyncio.gather(*self.ws_tasks, return_exceptions=True)
+
+        if _state.runtime_upgrades is not None:
+            try:
+                _state.runtime_upgrades.close()
+            except Exception as exc:
+                log.warning(
+                    "api.startup_cleanup_failed", resource="runtime_upgrades", error=str(exc)
+                )
+            _state.runtime_upgrades = None
+        if _state.runtime is not None:
+            try:
+                await _state.runtime.flush()
+            except Exception as exc:
+                log.warning("api.startup_cleanup_failed", resource="runtime_flush", error=str(exc))
+
+        if self.tuning_scheduler is not None:
+            try:
+                self.tuning_scheduler.stop()
+            except Exception as exc:
+                log.warning(
+                    "api.startup_cleanup_failed", resource="tuning_scheduler", error=str(exc)
+                )
+            _state.tuning_scheduler = None
+        if _state.intel_adapter is not None:
+            try:
+                intel_obj = getattr(_state.intel_adapter, "_intel", None)
+                if intel_obj is not None:
+                    intel_obj.close()
+            except Exception as exc:
+                log.warning("api.startup_cleanup_failed", resource="crypto_intel", error=str(exc))
+            _state.intel_adapter = None
+            _state.crypto_intel = None
+
+        if self.orchestrator is not None:
+            try:
+                self.orchestrator.stop()
+            except Exception as exc:
+                log.warning(
+                    "api.startup_cleanup_failed", resource="orchestrator_stop", error=str(exc)
+                )
+        if self.orch_task is not None:
+            if not self.orch_task.done():
+                try:
+                    await asyncio.wait_for(self.orch_task, timeout=10.0)
+                except TimeoutError:
+                    self.orch_task.cancel()
+                except Exception as exc:
+                    log.warning(
+                        "api.startup_cleanup_failed", resource="orchestrator_task", error=str(exc)
+                    )
+            await asyncio.gather(self.orch_task, return_exceptions=True)
+        await _release_after_failed_startup(self.orchestrator, self.storage)
+        _state.background_tasks = []
+        _state.runtime = None
+        _state.runtime_loop = None
+        _state.runtime_upgrades = None
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Initialize all subsystems on startup, clean up on shutdown."""
+    # First, so the startup failures below are formatted and filtered the way
+    # the operator configured. Idempotent -- src/api/__main__ calls it too,
+    # and uvicorn --reload runs this in a fresh process each time.
+    configure_logging()
+    _state.stopping = False
+
     # Fail fast on auth misconfiguration before accepting connections
     api_key = os.environ.get("API_SECRET_KEY", "").strip()
     if not api_key:
@@ -226,13 +642,18 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             "OPERATOR_SECRET is not set. Set a strong random value in .env. "
             "Generate with: openssl rand -hex 32"
         )
+    if len(op_secret) < MIN_SECRET_LENGTH:
+        raise RuntimeError(
+            f"OPERATOR_SECRET must be at least {MIN_SECRET_LENGTH} characters. "
+            "Generate with: openssl rand -hex 32"
+        )
 
     cfg = get_settings()
 
     # SCAN3-012: validate_cors_config moved inside lifespan so misconfiguration
     # raises at startup time, not at import time (which caused confusing traces
     # in test suites and deployment tooling that imports the module for route inspection).
-    validate_cors_config(cfg.api.cors_origins, allow_credentials=True)
+    validate_cors_config(cfg.api.cors_origins, allow_credentials=False)
     # Security: warn loudly if binding outside loopback without TLS proxy
     if cfg.api.host not in ("127.0.0.1", "::1", "localhost"):
         has_tls = bool(os.environ.get("HTTPS_CERT", "").strip())
@@ -254,23 +675,42 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     # GAP-006: backend chosen by STORAGE_BACKEND (sqlite | timescale)
     _state.storage = create_storage_backend()
-    await _state.storage.initialize()
+    try:
+        await _state.storage.initialize()
+    except Exception:
+        await _release_after_failed_startup(None, _state.storage)
+        raise
 
-    async with open_fetcher(_state.storage) as fetcher:
-        _state.orchestrator = Orchestrator(_state.storage, fetcher)
+    guard = _StartupGuard(_state.storage)
+    async with guard, open_fetcher(_state.storage, initialize=False) as fetcher:
+        # Venue discovery can take a minute of retries on a network outage.
+        # Start it as a tracked task; the API can bind and report `starting`
+        # while the orchestrator waits for the actual result. The context
+        # manager still owns and closes the fetcher at lifespan exit.
+        fetcher_init_task = asyncio.create_task(fetcher.initialize(), name="venue_initialization")
+        guard.fetcher_task = fetcher_init_task
+        _state.orchestrator = guard.orchestrator = Orchestrator(_state.storage, fetcher)
         try:
-            await _state.orchestrator.startup()
+            await _state.orchestrator.startup(
+                defer_warm_up=True, fetcher_init_task=fetcher_init_task
+            )
         except Exception as exc:
-            # NEW-003: ensure fetcher connections are closed even when startup fails
             log.critical("api.startup_failed", error=str(exc), exc_info=True)
-            try:
-                await fetcher.close()
-            except Exception as close_exc:
-                log.warning(
-                    "api.fetcher_close_failed_on_startup_error", error=str(close_exc), exc_info=True
-                )
             raise
-        _state.ready = True  # NEW-001: mark ready only after full startup
+        # API-008: the security controls are declared up only here, after
+        # startup has actually got past building them. Before this line the
+        # registry is empty and every trading endpoint refuses -- which is
+        # the correct answer during a partial start, not a bootstrap wart.
+        mark_all_healthy()
+
+        # EXEC-005: restore a halt an operator left in place before this
+        # process existed. Read after startup rather than at import so a
+        # corrupt file closes trading on a running server instead of
+        # preventing it from starting at all.
+        restored = load_execution_mode(await runtime_config.get_execution_mode())
+        if restored is not await runtime_config.get_execution_mode():
+            await runtime_config.set_execution_mode(restored)
+            log.warning("api.execution_mode_restored", mode=restored.value)
 
         # crypto-intel-v6: start IntelligenceAdapter when INTEL_ENABLED=true
         if os.environ.get("INTEL_ENABLED", "false").lower() == "true":
@@ -281,11 +721,44 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                 _intel = CryptoIntelligence()
                 _intel.start()
                 _state.intel_adapter = IntelligenceAdapter(_intel, _state.storage)
+                _state.crypto_intel = _intel
+                _state.orchestrator.set_intelligence_adapter(_state.intel_adapter)
                 log.info("api.crypto_intel_v6_started")
             except Exception as _exc:
                 log.warning("api.crypto_intel_v6_start_failed", exc=str(_exc))
 
-        orch_task = asyncio.create_task(_state.orchestrator.run(), name="orchestrator")
+        # The two push paths, owned here rather than by a connection so that
+        # their cost is paid once for the server instead of once per client.
+        # The subscription is taken before the task starts: subscribing inside
+        # the task would drop every event published between task creation and
+        # its first scheduling slice.
+        ws_subscription = guard.ws_subscription = get_event_bus().subscribe(TOPICS)
+        # The runtime platform, and the decision-trace index fed from its own
+        # subscription (it can fall behind and drop; it can never slow a
+        # producer -- INV-032). Started before the orchestrator's first tick:
+        # its first reconcile pass re-applies what an operator left in place
+        # before a restart (a strategy quarantine, a self-tuning pause), so no
+        # tick runs without it.
+        trace_subscription = guard.trace_subscription = get_event_bus().subscribe(TRACE_TOPICS)
+        _state.runtime = await start_runtime_platform()
+        orch_task = guard.orch_task = asyncio.create_task(
+            _state.orchestrator.run(), name="orchestrator"
+        )
+        ws_tasks = guard.ws_tasks
+        ws_tasks.append(asyncio.create_task(_heartbeat_loop(), name="ws_heartbeat"))
+        ws_tasks.append(asyncio.create_task(_event_fanout_loop(ws_subscription), name="ws_fanout"))
+        runtime_stop = guard.runtime_stop = asyncio.Event()
+        if _state.runtime is not None:
+            ws_tasks.append(
+                asyncio.create_task(
+                    _state.runtime.traces.consume(trace_subscription), name="decision_traces"
+                )
+            )
+        if _state.runtime_loop is not None:
+            ws_tasks.append(
+                asyncio.create_task(_state.runtime_loop.run(runtime_stop), name="runtime_loop")
+            )
+        _state.background_tasks = [orch_task, *ws_tasks]
 
         # Self-tuning autostart: off by default (SelfTuningSettings.enabled
         # is the master kill switch — see src/config.py). When an operator
@@ -301,12 +774,46 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                 timeframe=cfg.primary_timeframe.value,
             )
             tuning_scheduler.start()
+            _state.tuning_scheduler = tuning_scheduler
+            guard.tuning_scheduler = tuning_scheduler
 
+        # NEW-001: ready only after the whole start -- the runtime platform
+        # has restored desired state and reconciled once, and the tasks are
+        # running. The models still warm up behind it (GET /readyz).
+        _state.ready = True
         log.info("api.startup_complete", trading_mode=cfg.trading_mode.value)
-        yield
+        try:
+            yield
+        finally:
+            _state.stopping = True
+            # `finally`, not a plain shutdown path: a lifespan unwound by an
+            # exception used to leave this subscription registered on the
+            # process-wide bus with its waiters parked on a loop that was
+            # about to close. The bus survives that now, but the leak is the
+            # defect -- nothing is reading this queue once we are here.
+            #
+            # Close the subscription before cancelling, so the fan-out loop's
+            # `async for` ends on its own rather than being torn out of an
+            # await.
+            runtime_stop.set()
+            ws_subscription.close()
+            trace_subscription.close()
+            for task in ws_tasks:
+                task.cancel()
+            await asyncio.gather(*ws_tasks, return_exceptions=True)
+
+        if _state.runtime_upgrades is not None:
+            _state.runtime_upgrades.close()
+        if _state.runtime is not None:
+            # Intents and change audit queued since the loop's last pass.
+            try:
+                await _state.runtime.flush()
+            except Exception as exc:
+                log.error("api.runtime_final_flush_failed", error=str(exc))
 
         if tuning_scheduler is not None:
             tuning_scheduler.stop()
+            _state.tuning_scheduler = None
         if _state.intel_adapter is not None:
             try:
                 intel_obj = getattr(_state.intel_adapter, "_intel", None)
@@ -319,7 +826,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             await asyncio.wait_for(orch_task, timeout=10.0)
         except TimeoutError:
             orch_task.cancel()
+        if not fetcher_init_task.done():
+            fetcher_init_task.cancel()
+        await asyncio.gather(fetcher_init_task, return_exceptions=True)
         await _state.orchestrator.shutdown()
+        await _job_reporter.aclose()
         await _state.storage.close()
         log.info("api.shutdown_complete")
 
@@ -336,16 +847,3230 @@ app = FastAPI(
 
 cfg = get_settings()
 
+# API-007. Added before CORS so it is the *outermost* middleware and therefore
+# the last to touch the response: a header set here survives whatever the
+# inner layers did, including an error response CORS generated on its own.
+app.add_middleware(SecurityHeadersMiddleware)
+
 # SCAN3-012: CORS validation moved inside lifespan() — no longer runs at import time.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cfg.api.cors_origins,
-    allow_credentials=True,
+    allow_credentials=False,  # auth is header-based (X-API-Key); no cookies (API-024)
     # M-06: restrict to actual HTTP methods used — GET and POST only
     allow_methods=["GET", "POST"],
     allow_headers=["x-api-key", "content-type"],
 )
 
+# API-009. Registered on the app rather than wrapped around each endpoint:
+# the leaks worth worrying about come from the paths nobody wrote a handler
+# for, so the interception has to be the framework's last resort, not ours.
+install_error_handlers(app, log)
+
 # ---------------------------------------------------------------------------
 # Auth dependency — sole authentication mechanism for all endpoints
 # ---------------------------------------------------------------------------
+
+
+def api_key_header(x_api_key: str | None = Header(default=None, alias="x-api-key")) -> None:
+    """FastAPI dependency — validates X-API-Key header on every request."""
+    verify_api_key(x_api_key)
+
+
+def resolve_role(x_api_key: str | None = Header(default=None, alias="x-api-key")) -> Role:
+    """
+    FastAPI dependency — authenticate and return the caller's role.
+
+    A named module-level function, not a closure inside requires(), so that
+    it is a single stable key in app.dependency_overrides. A per-permission
+    closure would be a different object for every route and could not be
+    overridden in tests at all.
+    """
+    return verify_api_key(x_api_key)
+
+
+def requires(permission: Permission) -> Callable[..., None]:
+    """
+    Build a FastAPI dependency enforcing *permission* for the calling key.
+
+    Layered on top of resolve_role rather than replacing authentication:
+    this only decides what an already-authenticated key may do. In a
+    single-key deployment every valid key resolves to
+    Role.TRADE_AUTHORIZING, so these dependencies are a no-op until a
+    read-only key is actually configured — they can restrict an endpoint,
+    never open one.
+
+    403, not 401: the caller authenticated correctly and is being denied on
+    authority, and conflating the two would tell a read-only holder their
+    key was wrong.
+    """
+
+    def _dependency(role: Role = Depends(resolve_role)) -> None:
+        try:
+            require_permission(role, permission)
+        except PermissionError as exc:
+            log.warning(
+                "api.permission_denied",
+                role=role.value,
+                permission=permission.value,
+            )
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+
+    return _dependency
+
+
+def require_healthy_security_controls() -> None:
+    """
+    API-008 — refuse a trading operation unless every control is known good.
+
+    503, not 403: the caller did nothing wrong and the condition is expected
+    to clear, so the correct semantics are "unavailable, retry" rather than
+    "denied, don't bother". The detail names no control (see fail_closed).
+    """
+    try:
+        CONTROL_HEALTH.assert_trading_allowed()
+    except SecurityControlUnavailable as exc:
+        log.error("api.security_control_degraded", degraded=sorted(c.value for c in exc.degraded))
+        raise HTTPException(status_code=503, detail=UNAVAILABLE_DETAIL) from exc
+
+
+async def _audit_event(storage: Any, **event: Any) -> Any:
+    """
+    API-008 -- write an audit event and report the audit control's health.
+
+    A failed write closes every trading endpoint (AUDIT_LOGGING degraded)
+    until a later write succeeds; the failure itself still propagates, so the
+    caller that needed the audit trail does not proceed without it.
+    """
+    try:
+        result = await storage.insert_audit_event(**event)
+    except Exception as exc:
+        CONTROL_HEALTH.mark_degraded(SecurityControl.AUDIT_LOGGING, type(exc).__name__)
+        raise
+    CONTROL_HEALTH.mark_healthy(SecurityControl.AUDIT_LOGGING)
+    return result
+
+
+def require_ready() -> None:
+    """Raises HTTP 503 if orchestrator is still starting (NEW-001)."""
+    if not _state.ready:
+        raise HTTPException(status_code=503, detail="Server starting up. Retry shortly.")
+
+
+def require_orchestrator() -> Orchestrator:
+    """Return the running orchestrator, or raise HTTP 503.
+
+    require_ready() checks `_state.ready`, which lifespan sets after
+    assigning `_state.orchestrator` -- so routes depending on it reached
+    for `_state.orchestrator` behind a bare
+    `assert ... is not None  # guaranteed by require_ready`. The invariant
+    holds, but `python -O` strips asserts, and an assert is the wrong tool
+    for a condition whose documented answer is a 503 rather than a crash.
+
+    Several routes here already write the check out by hand; this is that,
+    in one place, returning the value so callers stop re-reading a global
+    they have just narrowed.
+    """
+    orchestrator = _state.orchestrator
+    if orchestrator is None:
+        raise HTTPException(status_code=503, detail="Server starting up. Retry shortly.")
+    return orchestrator
+
+
+# ---------------------------------------------------------------------------
+# Request / response models
+# ---------------------------------------------------------------------------
+
+
+class ResolveApprovalRequest(BaseModel):
+    approved: bool
+    operator: str = Field(..., min_length=1, max_length=64)
+    # SEC-007: operator_secret required — same second-factor pattern as /execution-mode
+    # so the approval audit trail can be trusted (operator field is server-verified, not
+    # free text from any API-key holder).
+    operator_secret: str = Field(
+        ...,
+        min_length=1,
+        description="Must match OPERATOR_SECRET env var to authorise approval resolution",
+    )
+
+    @field_validator("operator")
+    @classmethod
+    def validate_operator(cls, v: str) -> str:
+        return _validate_operator(v)
+
+
+class SetExecutionModeRequest(BaseModel):
+    mode: str
+    operator: str = Field(..., min_length=1, max_length=64)
+    operator_secret: str = Field(
+        ...,
+        min_length=1,
+        description="Must match OPERATOR_SECRET env var to authorise mode escalation",
+    )
+
+    @field_validator("operator")
+    @classmethod
+    def validate_operator(cls, v: str) -> str:
+        return _validate_operator(v)
+
+
+class SetRiskControlsRequest(BaseModel):
+    """
+    GAP-013 -- runtime toggle/update for automated position-exit controls.
+
+    All fields except operator/operator_secret are optional; only the
+    fields actually supplied are changed (None = leave unchanged), letting
+    the frontend toggle just stop_loss_enabled without resending every
+    other value.
+    """
+
+    stop_loss_enabled: bool | None = None
+    stop_loss_pct: float | None = Field(default=None, ge=0.1, le=50.0)
+    take_profit_enabled: bool | None = None
+    take_profit_pct: float | None = Field(default=None, ge=0.1, le=200.0)
+    max_holding_period_s: float | None = Field(default=None, ge=60.0)
+    trailing_stop_enabled: bool | None = None
+    trailing_stop_pct: float | None = Field(
+        default=None,
+        ge=0.1,
+        le=50.0,
+        description="Trailing stop: close when PnL drops this pct from its per-position peak",
+    )
+    operator: str = Field(..., min_length=1, max_length=64)
+    operator_secret: str = Field(
+        ...,
+        min_length=1,
+        description="Must match OPERATOR_SECRET env var to authorise a risk-control change",
+    )
+
+    @field_validator("operator")
+    @classmethod
+    def validate_operator(cls, v: str) -> str:
+        return _validate_operator(v)
+
+
+class SelfTuningPauseRequest(BaseModel):
+    """Phase 6 -- runtime, no-restart pause switch for the self-tuning
+    subsystem. Independent of the .env-level SELF_TUNING_ENABLED kill
+    switch (that one requires a restart; this one is for an operator who
+    needs to pause immediately without a deploy)."""
+
+    operator: str = Field(..., min_length=1, max_length=64)
+    operator_secret: str = Field(
+        ...,
+        min_length=1,
+        description="Must match OPERATOR_SECRET env var to authorise pause/resume",
+    )
+
+    @field_validator("operator")
+    @classmethod
+    def validate_operator(cls, v: str) -> str:
+        return _validate_operator(v)
+
+
+class RetrainRequest(BaseModel):
+    """
+    Operator-triggered model retrain for one timeframe.
+
+    Operator-secret gated: a retrain replaces the artifact the live signal
+    path loads, so it is a change to what trades, not a read.
+    """
+
+    timeframe: str = Field(..., min_length=1, max_length=16)
+    operator: str = Field(..., min_length=1, max_length=64)
+    operator_secret: str = Field(..., min_length=1)
+
+    @field_validator("operator")
+    @classmethod
+    def validate_operator(cls, v: str) -> str:
+        return _validate_operator(v)
+
+
+class BackfillRequest(BaseModel):
+    """
+    Operator-triggered historical bar fetch.
+
+    Not operator-secret gated: backfill only appends bars to storage and
+    cannot open, close or resize a position. It is rate-limited instead,
+    because it does spend exchange API quota.
+    """
+
+    timeframe: str = Field(..., min_length=1, max_length=16)
+    lookback_days: int = Field(default=180, ge=1, le=1825)
+
+
+class CapitalFloorReAuthorizeRequest(BaseModel):
+    """
+    Clear a capital-preservation halt.
+
+    The floor halts permanently and never auto-clears (unlike the daily
+    drawdown halt), so this is the only path back to trading. Gated on the
+    operator secret and requires a written reason — the reason lands in the
+    audit trail, which is the record of why trading resumed.
+    """
+
+    timeframe: str = Field(..., min_length=1, max_length=16)
+    reason: str = Field(..., min_length=8, max_length=500)
+    operator: str = Field(..., min_length=1, max_length=64)
+    operator_secret: str = Field(..., min_length=1)
+
+    @field_validator("operator")
+    @classmethod
+    def validate_operator(cls, v: str) -> str:
+        return _validate_operator(v)
+
+
+class RecoveryAcknowledgeRequest(BaseModel):
+    """
+    v8 -- clear the startup-reconciliation block on the live executor.
+
+    Operator-secret gated because acknowledging means asserting the book is
+    now understood; nothing else in the system can establish that, and a
+    wrong assertion lets the executor size against a book it does not know.
+    """
+
+    operator: str = Field(..., min_length=1, max_length=64)
+    operator_secret: str = Field(
+        ...,
+        min_length=1,
+        description="Must match OPERATOR_SECRET env var to authorise the acknowledgement",
+    )
+
+    @field_validator("operator")
+    @classmethod
+    def validate_operator(cls, v: str) -> str:
+        return _validate_operator(v)
+
+
+class StrategyReEnableRequest(BaseModel):
+    """
+    v6 — reinstate a kill-switched strategy.
+
+    force skips the promotion gauntlet. It exists because AttributionTracker
+    is in-memory: a restart wipes the track record, so a healthy strategy can
+    legitimately look like it has none. It is not a convenience flag — the
+    override is logged and reported as an override, never as a pass.
+    """
+
+    operator: str = Field(..., min_length=1, max_length=64)
+    operator_secret: str = Field(
+        ...,
+        min_length=1,
+        description="Must match OPERATOR_SECRET env var to authorise the re-enable",
+    )
+    force: bool = Field(default=False)
+
+    @field_validator("operator")
+    @classmethod
+    def validate_operator(cls, v: str) -> str:
+        return _validate_operator(v)
+
+
+class SelfTuningRollbackRequest(BaseModel):
+    """Phase 6 -- manual forced revert of a tuned parameter to its
+    previous version, bypassing the watchdog's own drift detection
+    (e.g. an operator noticing a problem before automated drift
+    detection would have)."""
+
+    operator: str = Field(..., min_length=1, max_length=64)
+    operator_secret: str = Field(
+        ...,
+        min_length=1,
+        description="Must match OPERATOR_SECRET env var to authorise a manual rollback",
+    )
+
+    @field_validator("operator")
+    @classmethod
+    def validate_operator(cls, v: str) -> str:
+        return _validate_operator(v)
+
+
+def _verify_operator_secret(operator_secret: str, operator: str, endpoint: str) -> None:
+    try:
+        verify_operator_secret(operator_secret)
+    except OperatorSecretError as exc:
+        if exc.status != 503:
+            log.warning(f"api.{endpoint}_bad_operator_secret", operator=operator, status=exc.status)
+        raise HTTPException(status_code=exc.status, detail=exc.detail) from exc
+
+
+# ---------------------------------------------------------------------------
+# REST endpoints — all require API key
+# ---------------------------------------------------------------------------
+
+
+@app.get("/livez", dependencies=[Depends(api_key_header)])
+async def livez() -> dict[str, str]:
+    """
+    Liveness: the process is serving. Constant on purpose -- it touches no
+    storage and no subsystem, so it stays truthful while those are starting
+    or failing (that is GET /readyz's job).
+    """
+    return {"status": "alive"}
+
+
+@app.get("/readyz", dependencies=[Depends(api_key_header)])
+async def readyz() -> JSONResponse:
+    """
+    Readiness, layer by layer (src/api/readiness.py): 200 only when the API,
+    the runtime platform, every timeframe's model and the trading loops are
+    up; otherwise 503 with the same body saying what is missing and why.
+    """
+    orchestrator = _state.orchestrator
+    runtime_loop = _state.runtime_loop
+    report = readiness_report(
+        api_ready=_state.ready,
+        stopping=_state.stopping,
+        runtime_ready=_state.runtime is not None,
+        reconcile_passes=None if runtime_loop is None else runtime_loop.passes,
+        orchestrator=None if orchestrator is None else orchestrator.readiness(),
+        trading_mode=get_settings().trading_mode.value,
+    )
+    return JSONResponse(report, status_code=200 if report["ready"] else 503)
+
+
+@app.get("/health", dependencies=[Depends(api_key_header)])
+async def health() -> dict[str, Any]:
+    """System health check — storage row counts, uptime."""
+    counts = await _state.storage.health_check()
+    return {
+        "status": "ok",
+        "storage": counts,
+        "trading_mode": get_settings().trading_mode.value,
+        "execution_mode": (await runtime_config.get_execution_mode()).value,
+        "timestamp": datetime.now(tz=UTC).isoformat(),
+    }
+
+
+@app.get("/metrics", dependencies=[Depends(api_key_header)])
+async def prometheus_metrics() -> Any:
+    """Prometheus text format metrics for Grafana scraping — TASK-007."""
+    from fastapi.responses import Response
+
+    body, content_type = metrics_output()
+    return Response(content=body, media_type=content_type)
+
+
+@app.get("/status", dependencies=[Depends(api_key_header), Depends(require_ready)])
+async def status(role: Role = Depends(resolve_role)) -> dict[str, Any]:
+    """Current equity, open positions, regime, execution mode."""
+    from src.diagnostics.signal_debugger import get_degradation_tracker
+
+    orchestrator = require_orchestrator()
+    executor = cast(AbstractExecutor, orchestrator._executor)
+    cfg = get_settings()
+
+    equity_usd = executor.equity_usd if executor else 0.0
+    cash_usd = executor.cash_usd if executor else 0.0
+    # H-10: use lock-safe variants to prevent RuntimeError from dict mutation
+    # during concurrent close_position() in the event loop.
+    positions = await executor.open_positions_safe() if executor else []
+    approvals = await executor.pending_approvals_safe() if executor else []
+
+    regime_snap = await _state.storage.latest_regime(
+        cfg.primary_symbol, cfg.primary_timeframe.value
+    )
+    regime_dict: dict[str, Any] = {}
+    if regime_snap is not None:
+        regime_dict = {
+            "state": regime_snap.regime_state,
+            "prob_ranging": regime_snap.prob_ranging,
+            "prob_trending": regime_snap.prob_trending,
+            "prob_volatile": regime_snap.prob_volatile,
+        }
+
+    # v4 shadow-mode promotion: a retrained bundle under evaluation is not
+    # trading, so it is reported per timeframe rather than folded into the
+    # single model view above. Absent key = nothing under evaluation.
+    # Reported best-effort: /status is the operator's view of everything else
+    # on this page, and a failed read of an advisory evaluation must not take
+    # equity and open positions down with it.
+    shadow_models: dict[str, Any] = {}
+    try:
+        for tf_value, engine in _state.orchestrator._engines.items():
+            shadow = await engine.shadow_status()
+            if shadow is not None:
+                shadow_models[tf_value] = shadow
+    except Exception as exc:  # pragma: no cover - defensive
+        log.warning("api.shadow_status_failed", error=str(exc), exc_info=True)
+
+    return {
+        "equity_usd": round(equity_usd, 2),
+        "cash_usd": round(cash_usd, 2),
+        "starting_capital_usd": cfg.starting_capital_usd,
+        "open_positions": positions,
+        # API-006: the queue is withheld from a read-only key (as on /ws).
+        "pending_approvals": (
+            approvals if role_has_permission(role, Permission.APPROVE_TRADE) else []
+        ),
+        "regime": regime_dict,
+        "predictions": get_degradation_tracker(cfg.primary_timeframe.value).prediction_stats(),
+        "degradation_report": get_degradation_tracker(
+            cfg.primary_timeframe.value
+        ).check_degradation(),
+        "trading_mode": cfg.trading_mode.value,
+        "execution_mode": (await runtime_config.get_execution_mode()).value,
+        "primary_symbol": cfg.primary_symbol,
+        "primary_timeframe": cfg.primary_timeframe.value,
+        "shadow_models": shadow_models,
+        # H-08: truncate error strings — full tracebacks may leak internal paths/filenames
+        "last_retrain_errors": {
+            tf: str(err)[:200] for tf, err in orchestrator._last_retrain_error.items()
+        },
+        "timestamp": datetime.now(tz=UTC).isoformat(),
+    }
+
+
+@app.get("/trades", dependencies=[Depends(api_key_header)])
+async def trades(
+    symbol: Annotated[str | None, Query()] = None,
+    limit: Annotated[int, Query(ge=1, le=1000)] = 100,
+    offset: Annotated[int, Query(ge=0, le=10000)] = 0,
+) -> dict[str, Any]:
+    """Paginated trade history — offset and limit applied in SQL, not Python."""
+    cfg = get_settings()
+    req_symbol = symbol or cfg.primary_symbol
+    # H-03: validate_symbol raises ValueError — convert to HTTP 400 so the
+    # client sees a clear error instead of a 500 internal server error.
+    try:
+        await _state.storage.validate_symbol(req_symbol)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    records = await _state.storage.fetch_trades(
+        symbol=req_symbol,
+        trading_mode=cfg.trading_mode.value,
+        limit=limit,
+        offset=offset,
+    )
+    return {
+        "trades": [
+            {
+                "id": t.id,
+                "symbol": t.symbol,
+                "timeframe": t.timeframe,
+                "direction": "long" if t.direction == 1 else "short",
+                "entry_price": t.entry_price,
+                "exit_price": t.exit_price,
+                "quantity": t.quantity,
+                "notional_usd": round(t.notional_usd, 2),
+                "pnl_usd": round(t.pnl_usd, 4) if t.pnl_usd is not None else None,
+                "pnl_pct": round(t.pnl_pct * 100, 3) if t.pnl_pct is not None else None,
+                "fee_usd": round(t.fee_usd, 4),
+                "kelly_fraction": round(t.kelly_fraction, 4),
+                "regime_at_entry": t.regime_at_entry,
+                "meta_label_prob": round(t.meta_label_prob, 4),
+                "exit_reason": t.exit_reason,
+                "approved_by": t.approved_by,
+                "entry_ts": t.entry_ts,
+                "exit_ts": t.exit_ts,
+            }
+            for t in records
+        ],
+        "total": len(records),
+        "limit": limit,
+        "offset": offset,
+    }
+
+
+@app.get("/missed-trades", dependencies=[Depends(api_key_header)])
+async def missed_trades(
+    symbol: Annotated[str | None, Query()] = None,
+    limit: Annotated[int, Query(ge=1, le=500)] = 50,
+) -> dict[str, Any]:
+    """UI-001: tradeable signals that never opened a position — gate
+    rejection, approval denial/timeout, or a drift block."""
+    cfg = get_settings()
+    req_symbol = symbol or cfg.primary_symbol
+    try:
+        await _state.storage.validate_symbol(req_symbol)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    records = await _state.storage.fetch_missed_trades(symbol=req_symbol, limit=limit)
+    return {
+        "missed_trades": [
+            {
+                "id": m.id,
+                "symbol": m.symbol,
+                "timeframe": m.timeframe,
+                "direction": "long" if m.direction == 1 else "short",
+                "reason": m.reason,
+                "kelly_fraction": round(m.kelly_fraction, 4),
+                "meta_label_prob": round(m.meta_label_prob, 4),
+                "raw_signal": round(m.raw_signal, 4) if m.raw_signal is not None else None,
+                "regime_at_entry": m.regime_at_entry,
+                "notional_usd": round(m.notional_usd, 2),
+                "ts": m.ts,
+            }
+            for m in records
+        ],
+        "total": len(records),
+        "limit": limit,
+    }
+
+
+@app.get("/equity", dependencies=[Depends(api_key_header)])
+async def equity_curve(
+    limit: Annotated[int, Query(ge=1, le=10000)] = 1440,
+) -> dict[str, Any]:
+    """Equity curve data for charting."""
+    cfg = get_settings()
+    records = await _state.storage.fetch_equity_curve(
+        trading_mode=cfg.trading_mode.value,
+        limit=limit,
+    )
+    return {
+        "curve": [
+            {
+                "ts": r.ts,
+                "equity_usd": round(r.equity_usd, 2),
+                "cash_usd": round(r.cash_usd, 2),
+                "unrealized_pnl": round(r.unrealized_pnl, 4),
+                "daily_pnl_usd": round(r.daily_pnl_usd, 4),
+                "daily_pnl_pct": round(r.daily_pnl_pct, 4),
+                "drawdown_pct": round(r.drawdown_pct, 4),
+            }
+            for r in records
+        ]
+    }
+
+
+@app.get(
+    "/regime/{timeframe}",
+    dependencies=[Depends(api_key_header)],
+    responses={
+        404: {"description": "No regime data for timeframe"},
+        400: {"description": "Invalid timeframe value"},
+    },
+)
+async def regime(timeframe: str) -> dict[str, Any]:
+    """Latest regime snapshot for a timeframe."""
+    # SCAN3-004: Timeframe imported at module level — inline import removed
+    valid_timeframes = {tf.value for tf in Timeframe}
+    if timeframe not in valid_timeframes:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid timeframe {timeframe!r}. Must be one of: {sorted(valid_timeframes)}",
+        )
+    cfg = get_settings()
+    snap = await _state.storage.latest_regime(cfg.primary_symbol, timeframe)
+    if snap is None:
+        raise HTTPException(status_code=404, detail=f"No regime data for timeframe={timeframe}")
+    return {
+        "symbol": snap.symbol,
+        "timeframe": snap.timeframe,
+        "ts": snap.ts,
+        "regime_state": snap.regime_state,
+        "regime_name": ["ranging", "trending", "volatile"][snap.regime_state],
+        "prob_ranging": round(snap.prob_ranging, 4),
+        "prob_trending": round(snap.prob_trending, 4),
+        "prob_volatile": round(snap.prob_volatile, 4),
+        "changepoint_probability": round(snap.changepoint_probability, 4),
+        "agreement_score": round(snap.agreement_score, 4),
+    }
+
+
+@lru_cache(maxsize=1)
+def _get_crypto_box_adapter() -> Any:
+    """Return a cached CryptoBoxSignalAdapter singleton (avoids re-init on every request).
+
+    lru_cache rather than a module global guarded by `global`: the read of the
+    global and the assignment to it were two separate steps, so two requests
+    arriving together could both find it unset and both construct an adapter,
+    with the second silently replacing the first. This is also the idiom
+    get_settings() in src/config.py already uses for a process-wide singleton,
+    and it gives tests cache_clear() instead of reaching for the global.
+    """
+    from src.engine.crypto_box_adapter import CryptoBoxSignalAdapter
+
+    return CryptoBoxSignalAdapter()
+
+
+@app.get("/crypto-box/status", dependencies=[Depends(api_key_header)])
+async def crypto_box_status() -> dict[str, Any]:
+    """Crypto-Box 18-engine ensemble status and latest provider cache snapshot."""
+    from src.data.provider_cache import get_provider_cache
+
+    adapter = _get_crypto_box_adapter()
+    cache = get_provider_cache()
+    sentiment = cache.get_sentiment()
+    macro = cache.get_macro()
+    return {
+        "enabled": adapter.enabled,
+        "sentiment": sentiment,
+        "macro": {k: round(v, 4) if isinstance(v, float) else v for k, v in (macro or {}).items()},
+        "orderbook_symbols": [
+            k.removeprefix("orderbook_") for k in cache._data if k.startswith("orderbook_")
+        ],
+        "options_symbols": [
+            k.removeprefix("options_") for k in cache._data if k.startswith("options_")
+        ],
+    }
+
+
+@app.get(
+    "/approvals",
+    dependencies=[
+        Depends(api_key_header),
+        Depends(requires(Permission.APPROVE_TRADE)),
+        Depends(require_ready),
+    ],
+)
+async def approvals() -> dict[str, Any]:
+    """All pending approval requests."""
+    orchestrator = require_orchestrator()
+    executor = cast(AbstractExecutor, orchestrator._executor)
+    if executor is None:
+        return {"approvals": []}
+    return {"approvals": executor.pending_approvals()}
+
+
+@app.post(
+    "/approvals/{request_id}/resolve",
+    dependencies=[
+        Depends(requires(Permission.APPROVE_TRADE)),
+        Depends(require_healthy_security_controls),
+        Depends(require_ready),
+    ],
+    responses={
+        503: {"description": "Executor not initialized"},
+        404: {"description": "Approval request not found or already resolved"},
+    },
+)
+async def resolve_approval(
+    request_id: str,
+    body: ResolveApprovalRequest,
+    request: Request,
+) -> dict[str, Any]:
+    """Approve or reject a pending trade."""
+    # H-02: pass client IP so rate limit is per-IP, not global
+    _state.check_endpoint_rate_limit(
+        "resolve_approval", request.client.host if request.client else ""
+    )
+    # SEC-007: verify operator_secret (same second-factor pattern as /execution-mode)
+    # The approval endpoint is the human-in-the-loop gate before a live trade executes;
+    # without this check any holder of the API key can approve with any operator name,
+    # undermining both the audit trail and the intent of the approval workflow.
+    _verify_operator_secret(body.operator_secret, body.operator, "resolve_approval")
+    # H-13: validate UUID format before dict lookup — prevents timing oracle and DoS
+    if not _UUID_RE.match(request_id):
+        raise HTTPException(status_code=400, detail="Invalid request_id format.")
+    orchestrator = require_orchestrator()
+    executor = cast(AbstractExecutor, orchestrator._executor)
+    if executor is None:
+        raise HTTPException(status_code=503, detail="Executor not initialized")
+
+    found = await executor.resolve_approval(
+        request_id=request_id,
+        approved=body.approved,
+        operator=body.operator,
+    )
+    if not found:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Approval request {request_id!r} not found or already resolved",
+        )
+    return {"resolved": True, "approved": body.approved, "operator": body.operator}
+
+
+async def _change_execution_mode(new_mode: ExecutionMode, operator: str) -> None:
+    """
+    The one way to change the execution mode: rate limit, apply, persist, audit.
+
+    API-002: /execution-mode and /controls/execution_mode both come through
+    here, so neither can skip the 3-per-hour limit, the EXEC-005 persistence
+    or the audit event the other enforces.
+    """
+    _state.check_mode_change_rate_limit()
+
+    old_mode = (await runtime_config.get_execution_mode()).value
+    await runtime_config.set_execution_mode(new_mode)  # SCAN2-015: async — no event loop block
+
+    # EXEC-005: durability. Persisted *before* the audit write, so the only
+    # inconsistent window is "halted but unaudited" rather than "audited but
+    # trading". A failed write raises and the endpoint 500s -- an operator
+    # who is told the halt failed retries; one who is told it succeeded and
+    # finds the bot trading after a restart has no reason to.
+    save_execution_mode(new_mode)
+
+    await _audit_event(
+        _state.storage,
+        event_type="execution_mode_change",
+        operator=operator,
+        details={"old_mode": old_mode, "new_mode": new_mode.value},
+    )
+
+    log.info(
+        "api.execution_mode_changed",
+        new_mode=new_mode.value,
+        old_mode=old_mode,
+        operator=operator,
+    )
+
+
+@app.post(
+    "/execution-mode",
+    dependencies=[
+        Depends(requires(Permission.CHANGE_EXECUTION_MODE)),
+        Depends(require_healthy_security_controls),
+    ],
+    responses={
+        400: {"description": "Invalid execution mode"},
+        401: {"description": "Invalid operator secret"},
+        429: {"description": "Rate limit exceeded"},
+    },
+)
+async def set_execution_mode(body: SetExecutionModeRequest, request: Request) -> dict[str, Any]:
+    """
+    Switch execution mode at runtime.
+
+    Requires:
+      - Valid X-API-Key header
+      - operator_secret matching OPERATOR_SECRET env var
+      - Max 3 mode changes per hour
+    """
+    # API-007: the endpoint rate limit runs BEFORE the secret is checked, so
+    # wrong guesses are bounded per IP as well as by the global lockout.
+    _state.check_endpoint_rate_limit(
+        "execution_mode", request.client.host if request.client else ""
+    )
+    _verify_operator_secret(body.operator_secret, body.operator, "execution_mode")
+
+    try:
+        new_mode = ExecutionMode(body.mode.lower())
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid mode {body.mode!r}. Must be one of: automatic, restricted, manual",
+        ) from exc
+
+    await _change_execution_mode(new_mode, body.operator)
+    return {"execution_mode": new_mode.value, "operator": body.operator}
+
+
+@app.get("/risk-controls", dependencies=[Depends(api_key_header), Depends(require_ready)])
+async def get_risk_controls() -> dict[str, Any]:
+    """
+    GAP-013 -- read current automated position-exit control state
+    (stop-loss / take-profit toggles + thresholds, max holding period).
+
+    Read-only, no operator_secret required -- matches the rest of the
+    read-only GET endpoints (api_key_header is sufficient).
+    """
+    controls = await runtime_config.get_risk_controls()
+    return {"risk_controls": controls}
+
+
+@app.post(
+    "/risk-controls",
+    dependencies=[
+        Depends(requires(Permission.CHANGE_EXECUTION_MODE)),
+        Depends(require_healthy_security_controls),
+        Depends(require_ready),
+    ],
+    responses={
+        400: {"description": "Invalid risk-control value"},
+        401: {"description": "Invalid operator secret"},
+        429: {"description": "Rate limit exceeded"},
+    },
+)
+async def set_risk_controls(body: SetRiskControlsRequest, request: Request) -> dict[str, Any]:
+    """
+    Toggle/update automated position-exit controls at runtime.
+
+    Requires:
+      - Valid X-API-Key header
+      - operator_secret matching OPERATOR_SECRET env var (same second
+        factor as POST /execution-mode -- enabling/disabling a position's
+        only automated exit path is just as consequential as switching
+        execution mode, so it gets the same protection, closing the
+        asymmetry flagged in SEC-007 for this specific control surface).
+      - Standard per-endpoint rate limit (60/min, keyed by client IP)
+
+    At least one of the optional fields must be supplied, or this is a
+    no-op that still returns the current (unchanged) state.
+    """
+    _state.check_endpoint_rate_limit(
+        "set_risk_controls", request.client.host if request.client else ""
+    )
+
+    _verify_operator_secret(body.operator_secret, body.operator, "risk_controls")
+
+    old_controls = await runtime_config.get_risk_controls()
+    new_controls = await runtime_config.set_risk_controls(
+        stop_loss_enabled=body.stop_loss_enabled,
+        stop_loss_pct=body.stop_loss_pct,
+        take_profit_enabled=body.take_profit_enabled,
+        take_profit_pct=body.take_profit_pct,
+        max_holding_period_s=body.max_holding_period_s,
+        trailing_stop_enabled=body.trailing_stop_enabled,
+        trailing_stop_pct=body.trailing_stop_pct,
+    )
+
+    await _audit_event(
+        _state.storage,
+        event_type="risk_controls_change",
+        operator=body.operator,
+        details={"old": old_controls, "new": new_controls},
+    )
+
+    log.info(
+        "api.risk_controls_changed",
+        old=old_controls,
+        new=new_controls,
+        operator=body.operator,
+    )
+    return {"risk_controls": new_controls, "operator": body.operator}
+
+
+@app.get(
+    "/model-metrics",
+    dependencies=[Depends(api_key_header)],
+    responses={400: {"description": "Invalid timeframe value"}},
+)
+async def model_metrics(timeframe: str | None = None) -> dict[str, Any]:
+    """Latest OOS metrics for direction and meta-label models."""
+    cfg = get_settings()
+    tf = timeframe or cfg.primary_timeframe.value
+    # UI-006: same validation as /regime/{timeframe} — an unchecked timeframe
+    # string previously reached storage.latest_model_metrics/live_gate_passes
+    # unvalidated, inconsistent with every other timeframe-taking endpoint.
+    valid_timeframes = {t.value for t in Timeframe}
+    if tf not in valid_timeframes:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid timeframe {tf!r}. Must be one of: {sorted(valid_timeframes)}",
+        )
+    dir_m = await _state.storage.latest_model_metrics("direction", tf)
+    meta_m = await _state.storage.latest_model_metrics("meta_label", tf)
+
+    def _fmt(m: Any) -> dict[str, Any] | None:
+        if m is None:
+            return None
+        return {
+            "model_name": m.model_name,
+            "timeframe": m.timeframe,
+            "version": m.version,
+            "oos_sharpe": round(m.oos_sharpe, 4),
+            "max_drawdown": round(m.max_drawdown, 4),
+            "n_trades": m.n_trades,
+            "accuracy": round(m.accuracy, 4),
+            "f1_score": round(m.f1_score, 4),
+            "live_gate_pass": m.live_gate_pass,
+        }
+
+    return {
+        "timeframe": tf,
+        "direction": _fmt(dir_m),
+        "meta_label": _fmt(meta_m),
+        "live_gate_passes": await _state.storage.live_gate_passes(tf),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Self-tuning operator API (Phase 6) — see docs/SELF_TUNING_IMPLEMENTATION_PLAN.md
+#
+# Read-only status matches the api_key_header-only pattern used elsewhere
+# for GET endpoints. Pause/resume/rollback follow the /risk-controls
+# pattern: operator_secret required (same second factor as execution-mode
+# changes), rate-limited, audited.
+# ---------------------------------------------------------------------------
+
+
+@app.get("/self-tuning/status", dependencies=[Depends(api_key_header)])
+async def self_tuning_status() -> dict[str, Any]:
+    """
+    Registry state, current champion values, and probation status for
+    every registered self-tuning parameter, plus recent audit history.
+    """
+    cfg = get_settings().self_tuning
+    paused = await tuning_pause_state.is_paused()
+
+    params: list[dict[str, Any]] = []
+    for param in tuning_registry.list_all():
+        current_version = None
+        if tuning_version_store.has_versions(param.name):
+            v = tuning_version_store.current(param.name)
+            current_version = {
+                "value": v.value,
+                "version": v.version,
+                "timestamp": v.timestamp,
+                "promoted_by": v.promoted_by,
+                "is_rollback": v.is_rollback,
+            }
+        recent_events = [
+            {"event_type": e.event_type.value, "timestamp": e.timestamp, "details": e.details}
+            for e in tuning_audit_log.read_for_param(param.name)[-10:]
+        ]
+        params.append(
+            {
+                "name": param.name,
+                "description": param.description,
+                "floor": param.floor,
+                "ceiling": param.ceiling,
+                "registered_current": param.current,
+                "current_version": current_version,
+                "probation_status": tuning_watchdog.probation_status(param.name).value,
+                "recent_events": recent_events,
+            }
+        )
+
+    return {
+        "enabled": cfg.enabled,
+        "shadow_mode": cfg.shadow_mode,
+        "paused": paused,
+        "parameters": params,
+    }
+
+
+@app.post(
+    "/self-tuning/pause",
+    dependencies=[
+        Depends(requires(Permission.CHANGE_EXECUTION_MODE)),
+        Depends(require_healthy_security_controls),
+        Depends(require_ready),
+    ],
+    responses={
+        401: {"description": "Invalid operator secret"},
+        429: {"description": "Rate limit exceeded"},
+    },
+)
+async def self_tuning_pause(body: SelfTuningPauseRequest, request: Request) -> dict[str, Any]:
+    """Runtime pause, no restart required. Blocks new attempt() calls at
+    the caller level (this flag is advisory to callers of TuningRunner.attempt,
+    e.g. AutoTuningScheduler and any future caller, not enforced
+    inside TuningRunner itself -- see src/tuning/state.py)."""
+    _state.check_endpoint_rate_limit(
+        "self_tuning_pause", request.client.host if request.client else ""
+    )
+    _verify_operator_secret(body.operator_secret, body.operator, "self_tuning_pause")
+    await tuning_pause_state.set_paused(True)
+    tuning_audit_log.record("__global__", TuningEventType.PAUSED, {"operator": body.operator})
+    _note_runtime_intent(
+        _SELF_TUNING_COMPONENT, LifecycleState.PAUSED, body.operator, "/self-tuning/pause"
+    )
+    log.info("api.self_tuning_paused", operator=body.operator)
+    return {"paused": True, "operator": body.operator}
+
+
+@app.post(
+    "/self-tuning/resume",
+    dependencies=[
+        Depends(requires(Permission.CHANGE_EXECUTION_MODE)),
+        Depends(require_healthy_security_controls),
+        Depends(require_ready),
+    ],
+    responses={
+        401: {"description": "Invalid operator secret"},
+        429: {"description": "Rate limit exceeded"},
+    },
+)
+async def self_tuning_resume(body: SelfTuningPauseRequest, request: Request) -> dict[str, Any]:
+    _state.check_endpoint_rate_limit(
+        "self_tuning_resume", request.client.host if request.client else ""
+    )
+    _verify_operator_secret(body.operator_secret, body.operator, "self_tuning_resume")
+    await tuning_pause_state.set_paused(False)
+    tuning_audit_log.record("__global__", TuningEventType.RESUMED, {"operator": body.operator})
+    _note_runtime_intent(
+        _SELF_TUNING_COMPONENT, LifecycleState.ACTIVE, body.operator, "/self-tuning/resume"
+    )
+    log.info("api.self_tuning_resumed", operator=body.operator)
+    return {"paused": False, "operator": body.operator}
+
+
+@app.post(
+    "/self-tuning/rollback/{param_name}",
+    dependencies=[
+        Depends(requires(Permission.CHANGE_EXECUTION_MODE)),
+        Depends(require_healthy_security_controls),
+        Depends(require_ready),
+    ],
+    responses={
+        401: {"description": "Invalid operator secret"},
+        404: {"description": "Parameter has no version history"},
+        429: {"description": "Rate limit exceeded"},
+    },
+)
+async def self_tuning_rollback(
+    param_name: str, body: SelfTuningRollbackRequest, request: Request
+) -> dict[str, Any]:
+    """Manual forced revert to the previous promoted version."""
+    _state.check_endpoint_rate_limit(
+        "self_tuning_rollback", request.client.host if request.client else ""
+    )
+    _verify_operator_secret(body.operator_secret, body.operator, "self_tuning_rollback")
+
+    try:
+        reverted = tuning_version_store.rollback(param_name)
+    except (NoVersionsError, NoPriorVersionError) as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    tuning_audit_log.record(
+        param_name,
+        TuningEventType.ROLLED_BACK,
+        {"operator": body.operator, "reverted_to_value": reverted.value, "manual": True},
+    )
+    log.info(
+        "api.self_tuning_manual_rollback",
+        param=param_name,
+        value=reverted.value,
+        operator=body.operator,
+    )
+    return {"param_name": param_name, "reverted_value": reverted.value, "operator": body.operator}
+
+
+# ---------------------------------------------------------------------------
+# WebSocket — live push (auth required)
+# ---------------------------------------------------------------------------
+
+
+async def _build_tick_snapshot() -> dict[str, Any] | None:
+    """
+    The full status snapshot, built **once** per heartbeat for all clients.
+
+    This used to run per connection, inside each client's own loop. With
+    _MAX_WS_CLIENTS at 50 that was 50 storage reads and 50 json.dumps calls
+    per heartbeat to produce 50 copies of identical bytes -- work that grew
+    with the number of people watching, which is precisely backwards for a
+    dashboard whose whole job is to be watchable.
+
+    Returns None while the server is still starting, which the caller treats
+    as "skip this beat" rather than an error.
+    """
+    if _state.orchestrator is None:
+        return None
+    executor = cast(AbstractExecutor, _state.orchestrator._executor)
+    if executor is None:
+        return None
+
+    cfg = get_settings()
+    bus = get_event_bus()
+
+    payload: dict[str, Any] = {
+        "type": "tick",
+        "topic": "tick",
+        "equity_usd": round(executor.equity_usd, 2),
+        "cash_usd": round(executor.cash_usd, 2),
+        # Use lock-safe variants to prevent RuntimeError from dict mutation
+        # during concurrent position open/close (VUL-035)
+        "positions": await executor.open_positions_safe(),
+        "pending_approvals": await executor.pending_approvals_safe(),
+        "trading_mode": cfg.trading_mode.value,
+        "execution_mode": (await runtime_config.get_execution_mode()).value,
+        "timestamp": datetime.now(tz=UTC).isoformat(),
+        # A starved client has to be visible rather than inferred. Without
+        # this the dashboard looks identical whether the bus is keeping up or
+        # quietly discarding the oldest half of every burst.
+        "dropped": bus.total_dropped,
+    }
+
+    snap = await _state.storage.latest_regime(cfg.primary_symbol, cfg.primary_timeframe.value)
+    if snap is not None:
+        payload["regime"] = {
+            "state": snap.regime_state,
+            "name": ["ranging", "trending", "volatile"][snap.regime_state],
+            "prob_ranging": round(snap.prob_ranging, 4),
+            "prob_trending": round(snap.prob_trending, 4),
+            "prob_volatile": round(snap.prob_volatile, 4),
+        }
+    return payload
+
+
+async def _heartbeat_loop() -> None:
+    """
+    One timer for the whole server, not one per client.
+
+    The heartbeat survives the move to an event bus, but its job has changed.
+    It is no longer the transport -- events arrive on their own -- it is the
+    resync anchor and the liveness signal: a full snapshot a reconnecting
+    client can align to, and proof to an idle dashboard that the socket is
+    alive rather than merely quiet.
+    """
+    while True:
+        try:
+            # Re-read per beat rather than once at startup. The per-connection
+            # loops this replaced picked the value up whenever a client
+            # reconnected; hoisting it out of the loop would quietly make the
+            # heartbeat the one setting a restart is required to change.
+            await asyncio.sleep(get_settings().api.ws_heartbeat_s)
+            if not _state.ws_clients:
+                continue  # Nobody is watching; do not pay for the snapshot.
+            payload = await _build_tick_snapshot()
+            if payload is not None:
+                await _state.broadcast(payload, operator_only_fields=("pending_approvals",))
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:  # pragma: no cover - loop must outlive a bad beat
+            log.error("api.ws_heartbeat_error", error=str(exc), exc_info=True)
+
+
+async def _event_fanout_loop(subscription: Subscription) -> None:
+    """
+    Drain the event bus and push each event the moment it arrives.
+
+    This is the half that actually removes the latency floor. The heartbeat
+    can only ever be as fast as its period; this is bounded by how quickly the
+    producer calls publish().
+
+    Nothing here can reach back into the producer: the subscription's buffer
+    drops its own oldest events when this loop falls behind, so a slow or
+    wedged websocket costs frames on this socket and nothing else.
+    """
+    async for event in subscription:
+        try:
+            if not _state.ws_clients:
+                continue
+            await _state.broadcast(
+                {
+                    "type": "event",
+                    "topic": event.topic,
+                    # The producer's clock, deliberately. Re-stamping here
+                    # would measure the age of this line of code.
+                    "ts_ms": event.ts_ms,
+                    "data": event.data,
+                    # Additive: the id and correlation context (trace_id,
+                    # order_key, change_id, ...) bound where it was published.
+                    "event_id": event.event_id,
+                    "context": dict(event.context),
+                },
+                topic=event.topic,
+            )
+            # After the send, not before: the interval that matters includes
+            # the writes, because broadcast() awaits each client in turn and a
+            # single slow peer is exactly the starvation worth alerting on.
+            # mono_ns, not the ts_ms above -- the frame needs a wall clock the
+            # browser can compare against, the histogram needs a duration.
+            observe_ws_publish_lag(event.topic, event.mono_ns)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:  # pragma: no cover
+            log.error("api.ws_fanout_error", topic=event.topic, error=str(exc))
+
+
+@app.websocket("/ws")
+async def websocket_endpoint(ws: WebSocket) -> None:
+    """
+    Live WebSocket feed — requires X-Api-Key header on upgrade.
+
+    The connection no longer owns a timer. It registers itself, sends one
+    snapshot so the panels are populated immediately rather than after a
+    heartbeat of blankness, and then does nothing but read: the shared
+    _heartbeat_loop and _event_fanout_loop push to every client.
+
+    Max concurrent clients: _MAX_WS_CLIENTS (default 50, set on AppState).
+    """
+    # C-02: Auth before any state mutation — prevents slot leak if auth raises
+    # after add_ws_client succeeds but before accept().
+    #
+    # The Role is kept, not discarded. verify_ws_key's own docstring says it
+    # is "what callers must consult before honouring anything a client sends
+    # back over the socket", and until there was an inbound command there was
+    # nothing to consult it for. Now there is.
+    role = await verify_ws_key(ws)
+
+    # Capacity check — only after auth passes
+    added = await _state.add_ws_client(ws)
+    if not added:
+        await ws.close(code=4429)
+        log.warning("api.ws_rejected_limit", limit=_state._MAX_WS_CLIENTS)
+        return
+
+    # Echo only the non-secret subprotocol so the browser accepts the handshake
+    # and the key-bearing one is never reflected.
+    offered = [o.strip() for o in ws.headers.get("sec-websocket-protocol", "").split(",")]
+    await ws.accept(subprotocol=WS_SUBPROTOCOL if WS_SUBPROTOCOL in offered else None)
+    # Subscribed to everything the key permits until the client narrows it.
+    # Defaulting to nothing would mean a dashboard that never sends a
+    # subscribe -- including the one shipped before this existed -- goes
+    # silent on upgrade, which is a worse failure than sending too much.
+    _state._ws_roles[ws] = role
+    await _state.set_ws_topics(ws, _state.permitted_topics(role))
+    log.info("api.ws_connected", client=str(ws.client), role=role.value)
+
+    # API-005: the socket is push-only, so anything arriving on it is
+    # unsolicited. Reading it is not optional -- an unread receive buffer is
+    # a memory sink a client controls, and never reading also means a client
+    # that starts sending commands after someone adds a handler would have
+    # been trusted by default. Every frame goes through the guard.
+    reader = asyncio.create_task(_guarded_ws_reader(ws))
+
+    try:
+        # Cold start. Without this a client that connects just after a beat
+        # renders empty panels for most of a heartbeat, which reads as a
+        # broken dashboard rather than a young one.
+        snapshot = await _build_tick_snapshot()
+        if snapshot is not None:
+            if not role_has_permission(role, Permission.APPROVE_TRADE):
+                # API-006: the approval queue is operator-only on every path.
+                snapshot = {k: v for k, v in snapshot.items() if k != "pending_approvals"}
+            await ws.send_text(json.dumps(snapshot))
+
+        # Nothing else to do on this task. The shared loops do the pushing;
+        # this simply parks until the peer goes away, which is what keeps the
+        # connection (and its guard) alive.
+        #
+        # The reader absorbs WebSocketDisconnect itself and returns, so a
+        # normal hangup arrives here as an ordinary completion rather than the
+        # exception below -- which is why the disconnect is logged on this
+        # path and not only in the handler.
+        await reader
+        log.info("api.ws_disconnected", client=str(ws.client))
+
+    except WebSocketDisconnect:
+        log.info("api.ws_disconnected", client=str(ws.client))
+    except Exception as exc:
+        log.error("api.ws_error", error=str(exc), exc_info=True)
+    finally:
+        reader.cancel()
+        # SCAN3-013: thread-safe removal via locked method
+        await _state.remove_ws_client(ws)
+
+
+async def _handle_ws_command(ws: WebSocket, raw: str) -> None:
+    """
+    Honour `{"op": "subscribe", "topics": [...]}`; ignore anything else.
+
+    Runs only on frames that have already passed WSFrameGuard, so this is
+    parsing a payload the transport has vouched for -- not validating an
+    untrusted one from scratch.
+
+    An unknown topic is refused explicitly rather than dropped. Silently
+    accepting one produces a panel that renders nothing with no error
+    anywhere, which is the failure mode hardest to diagnose from the outside;
+    the client gets told which names it got wrong.
+
+    A topic the connection's key is not entitled to is *also* refused rather
+    than quietly filtered, for the same reason -- but the entitlement itself
+    is enforced by intersecting with permitted_topics below, so a client that
+    lies about its role still receives nothing extra.
+    """
+    try:
+        msg = json.loads(raw)
+    except (ValueError, TypeError):
+        return
+    if not isinstance(msg, dict) or msg.get("op") != "subscribe":
+        return
+
+    requested = msg.get("topics")
+    if not isinstance(requested, list) or not all(isinstance(t, str) for t in requested):
+        await _send_ws_error(ws, "topics must be a list of strings")
+        return
+
+    wanted = frozenset(requested)
+    unknown = wanted - TOPICS
+    if unknown:
+        await _send_ws_error(ws, f"unknown topic(s): {', '.join(sorted(unknown))}")
+        return
+
+    role = _state._ws_roles.get(ws, Role.READ_ONLY)
+    permitted = _state.permitted_topics(role)
+    refused = wanted - permitted
+    granted = wanted & permitted
+
+    await _state.set_ws_topics(ws, granted)
+    if refused:
+        log.warning(
+            "api.ws_subscribe_refused",
+            role=role.value,
+            refused=sorted(refused),
+        )
+        await _send_ws_error(ws, f"not permitted for this key: {', '.join(sorted(refused))}")
+    log.info("api.ws_subscribed", topics=sorted(granted))
+
+
+async def _send_ws_error(ws: WebSocket, detail: str) -> None:
+    """
+    Tell the client its subscription was wrong, without closing the socket.
+
+    Deliberately different from the frame guard's close-on-violation: a
+    malformed subscribe is a client bug, not a prober, and dropping the
+    connection would take the working panels down with the broken one.
+    """
+    try:
+        await ws.send_text(json.dumps({"type": "error", "op": "subscribe", "detail": detail}))
+    except Exception:  # pragma: no cover - peer already gone
+        log.info("api.ws_error_send_failed")
+
+
+async def _guarded_ws_reader(ws: WebSocket) -> None:
+    """
+    Drain and validate inbound frames for one connection (API-005).
+
+    One guard per socket, created here so it cannot be shared: a shared
+    budget lets one client exhaust another's, and shared nonces make two
+    honest clients collide.
+
+    A violation closes the connection rather than replying with an error.
+    Replying tells a prober which check it tripped, and a client sending
+    frames a push-only endpoint never asked for has already demonstrated it
+    is not the client this endpoint is for.
+    """
+    guard = WSFrameGuard()
+    try:
+        while True:
+            raw = await ws.receive_text()
+            try:
+                guard.check(raw)
+            except WSFrameError as exc:
+                log.warning("api.ws_frame_rejected", reason=exc.reason, code=exc.close_code)
+                await ws.close(code=exc.close_code)
+                return
+            # The one inbound command this endpoint honours. Everything else
+            # that survives the guard is still not actionable and is ignored.
+            await _handle_ws_command(ws, raw)
+    except (WebSocketDisconnect, asyncio.CancelledError):
+        return
+    except Exception as exc:  # pragma: no cover - transport-level failures
+        log.warning("api.ws_reader_error", error=type(exc).__name__)
+
+
+# ---------------------------------------------------------------------------
+# Debug / diagnostics endpoints  (Patch C)
+# ---------------------------------------------------------------------------
+
+
+@app.get("/debug/health", dependencies=[Depends(api_key_header)])
+async def debug_health() -> dict[str, Any]:
+    """Runtime monitor snapshot — probes, alerts, memory, tick-stall status."""
+    from src.diagnostics.runtime_monitor import get_monitor
+
+    snap = get_monitor().get_snapshot()
+    return (
+        snap.to_dict() if snap else {"overall": "monitor_not_started", "probes": [], "alerts": []}
+    )
+
+
+@app.get("/debug/audit", dependencies=[Depends(api_key_header)])
+async def debug_audit(
+    limit: Annotated[int, Query(ge=1, le=500)] = 50,
+) -> dict[str, Any]:
+    """Trade decision audit — last N tick decisions with features, probabilities, gate chain, outcome."""
+    from src.diagnostics.trade_auditor import get_auditor
+
+    aud = get_auditor()
+    return {
+        "summary": aud.summary(),
+        "anomalies": aud.anomaly_scan(),
+        "recent": [r.to_dict() for r in aud.recent(limit)],
+    }
+
+
+@app.get("/audit/integrity", tags=["monitoring"], dependencies=[Depends(api_key_header)])
+async def audit_chain_integrity(
+    limit: Annotated[int, Query(ge=1, le=500)] = 50,
+) -> dict[str, Any]:
+    """
+    Verify the hash-chained audit trail and return its tail.
+
+    src/diagnostics/audit_trail.py hash-chains every entry to the previous
+    one so tampering with history is detectable. SignalEngine writes to it on
+    every tick, and until this endpoint existed nothing ever verified the
+    chain or read it back — the hashing cost was paid on every tick and the
+    guarantee it buys was never collected. A tamper-evident log nobody checks
+    is not tamper-evident.
+
+    Distinct from /debug/audit, which reads TradeAuditor: that is a
+    human-readable decision log with no integrity guarantee, and the two are
+    different modules despite the similar name.
+
+    Reports rather than halts. A broken chain means a bug or tampering, and
+    which of those it is cannot be decided here — but it is logged at
+    critical so it cannot pass unnoticed while an operator is not looking at
+    the dashboard.
+
+    Returns
+    -------
+    {
+        "intact": bool,
+        "first_broken_sequence": int | None,   # None when intact
+        "entry_count": int,
+        "recent": [{sequence, ts_ms, event_type, reason_code, entry_hash}, ...],
+    }
+    """
+    trail = get_audit_trail()
+    intact, first_broken = trail.verify_chain_integrity()
+    entries = trail.entries()
+    if not intact:
+        log.critical(
+            "api.audit_chain_broken",
+            first_broken_sequence=first_broken,
+            entry_count=len(entries),
+        )
+    return {
+        "intact": intact,
+        "first_broken_sequence": first_broken,
+        "entry_count": len(entries),
+        # entry_count is the RETAINED window, which is bounded. Reporting it
+        # alone would let a caller read "intact over 100k entries" as "intact
+        # over all history" once eviction has begun — different claims.
+        "total_recorded": trail.total_recorded(),
+        "evicted_count": trail.evicted_count(),
+        "recent": [
+            {
+                "sequence": e.sequence,
+                "ts_ms": e.ts_ms,
+                "event_type": e.event_type,
+                "reason_code": e.reason_code,
+                "entry_hash": e.entry_hash,
+            }
+            for e in entries[-limit:]
+        ],
+    }
+
+
+@app.get("/debug/drift", dependencies=[Depends(api_key_header)])
+async def debug_drift() -> dict[str, Any]:
+    """Feature drift (KS test vs training baseline) + model degradation report."""
+    from src.diagnostics.signal_debugger import get_degradation_tracker, get_drift_monitor
+
+    drift_records = get_drift_monitor().check_all()
+    return {
+        "feature_drift": [
+            {
+                "feature": r.feature,
+                "ks_statistic": r.ks_statistic,
+                "drifted": r.drifted,
+                "train_mean": r.train_mean,
+                "live_mean": r.live_mean,
+                "train_std": r.train_std,
+                "live_std": r.live_std,
+            }
+            for r in drift_records
+        ],
+        "drifted_features": [r.feature for r in drift_records if r.drifted],
+        "model_degradation": get_degradation_tracker(
+            get_settings().primary_timeframe.value
+        ).check_degradation(),
+    }
+
+
+_RECONCILE_PAGE = 500
+_RECONCILE_MAX_PAGES = 20
+
+
+async def _fetch_all_open_trades(trading_mode: str) -> tuple[list[TradeRecord], bool]:
+    """
+    Page through every open trade. Returns (trades, truncated).
+
+    A single capped query would silently drop open positions past the cap and
+    then report them as discrepancies — a reconciliation that invents
+    differences is worse than none. The page bound keeps a runaway table from
+    turning this endpoint into an unbounded read; hitting it is reported as
+    `truncated` rather than passed off as a complete comparison.
+    """
+    trades: list[TradeRecord] = []
+    for page in range(_RECONCILE_MAX_PAGES):
+        batch = await _state.storage.fetch_trades(
+            trading_mode=trading_mode,
+            limit=_RECONCILE_PAGE,
+            offset=page * _RECONCILE_PAGE,
+            open_only=True,
+        )
+        trades.extend(batch)
+        if len(batch) < _RECONCILE_PAGE:
+            return trades, False
+    log.warning("api.reconcile_truncated", page_limit=_RECONCILE_MAX_PAGES, fetched=len(trades))
+    return trades, True
+
+
+def _net_by_symbol(pairs: Iterable[tuple[str, float]]) -> list[PositionSnapshot]:
+    """Collapse (symbol, signed_qty) pairs into one net snapshot per symbol."""
+    netted: dict[str, float] = {}
+    for symbol, quantity in pairs:
+        netted[symbol] = netted.get(symbol, 0.0) + quantity
+    return [PositionSnapshot(symbol=s, quantity=q) for s, q in sorted(netted.items())]
+
+
+@app.get(
+    "/debug/reconcile",
+    dependencies=[Depends(api_key_header), Depends(require_ready)],
+)
+async def debug_reconcile() -> dict[str, Any]:
+    """
+    Reconcile the in-memory book against the persisted open-trade table.
+
+    This is the crash-recovery check: the trade table is what survives a
+    restart, so a position present in one side and not the other means the
+    process died between placing an order and recording its exit, or was
+    restarted without its book. Read-only — it reports discrepancies and
+    never closes, reopens, or rewrites anything.
+
+    Scope: the durable record is the reference here, not exchange truth. A
+    fill that happened while the process was down is invisible to both
+    sides and needs a venue query to detect.
+
+    Returns
+    -------
+    {
+        "consistent": bool,
+        "truncated": bool,          # True if the open-trade scan hit its page bound
+        "local_position_count": int,
+        "reference_position_count": int,
+        "discrepancies": [{symbol, discrepancy_type, local_quantity,
+                           reference_quantity}, ...],
+    }
+    """
+    orchestrator = require_orchestrator()
+    executor = cast(AbstractExecutor, orchestrator._executor)
+    cfg = get_settings()
+
+    local_positions = await executor.open_positions_safe()
+    local = _net_by_symbol(
+        (
+            str(p["symbol"]),
+            float(cast(float, p["quantity"])) * (1.0 if p["direction"] == "long" else -1.0),
+        )
+        for p in local_positions
+    )
+
+    open_trades, truncated = await _fetch_all_open_trades(cfg.trading_mode.value)
+    reference = _net_by_symbol(
+        (t.symbol, t.quantity * (1.0 if t.direction == 1 else -1.0)) for t in open_trades
+    )
+
+    discrepancies = reconcile(local, reference)
+    if discrepancies:
+        log.warning(
+            "api.reconcile_discrepancies",
+            count=len(discrepancies),
+            symbols=[d.symbol for d in discrepancies],
+        )
+    return {
+        "consistent": is_state_consistent(discrepancies),
+        "truncated": truncated,
+        "local_position_count": len(local_positions),
+        "reference_position_count": len(open_trades),
+        "discrepancies": [
+            {
+                "symbol": d.symbol,
+                "discrepancy_type": d.discrepancy_type.value,
+                "local_quantity": d.local_quantity,
+                "reference_quantity": d.reference_quantity,
+            }
+            for d in discrepancies
+        ],
+    }
+
+
+_SELFTEST_LIMIT_PER_MIN = 2
+_SELFTEST_EXECUTOR = ThreadPoolExecutor(max_workers=1, thread_name_prefix="selftest")
+_SELFTEST_GATE = asyncio.Lock()
+
+
+@app.post(
+    "/debug/selftest",
+    dependencies=[Depends(api_key_header)],
+    responses={429: {"description": "Rate limit exceeded"}},
+)
+async def debug_selftest(request: Request) -> dict[str, Any]:
+    """
+    On-demand pipeline self-test — synthetic round-trip through the feature
+    pipeline.
+
+    Rate limited, unlike the other read-only diagnostics, because it is not
+    a read: it generates 800 synthetic bars and runs the full feature build
+    (fractional differentiation, GARCH, every rolling statistic) on a shared
+    executor. Every other mutating POST here is governed -- this one was the
+    exception, and it is the CPU-expensive one, so any valid key could have
+    kept the box busy building throwaway matrices while the live tick loop
+    waited for a thread.
+
+    Deliberately NOT role-gated: it changes no trading state, so a read-only
+    key running a diagnostic is legitimate. The cost is the problem, and a
+    rate limit is the control that matches it.
+    """
+    from src.features.selftest import run_pipeline_selftest
+
+    # API-015: a low per-IP limit, and a single in-flight run (whoever asks)
+    # on a dedicated worker, so the default executor the trading path uses is
+    # never occupied and many client addresses cannot multiply the CPU cost.
+    _state.check_endpoint_rate_limit(
+        "debug_selftest",
+        request.client.host if request.client else "",
+        limit=_SELFTEST_LIMIT_PER_MIN,
+    )
+    if _SELFTEST_GATE.locked():
+        raise HTTPException(status_code=429, detail="A self-test is already running.")
+    async with _SELFTEST_GATE:
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(_SELFTEST_EXECUTOR, run_pipeline_selftest)
+
+
+@app.get("/orders/{order_id}/status", tags=["execution"], dependencies=[Depends(api_key_header)])
+async def get_order_status(
+    order_id: str,
+) -> dict[str, Any]:
+    """
+    Get order FSM state for reconciliation.
+
+    Useful for debugging unconfirmed orders or recovering from network
+    failures. Returns the order's state machine snapshot including:
+      - Current status (PENDING, FILLING, FILLED, etc.)
+      - Filled quantity and average fill price
+      - Retry count and last error
+      - Exchange response snapshot
+
+    Parameters
+    ----------
+    order_id : Exchange order ID
+
+    Returns
+    -------
+    Order FSM state snapshot (serialized)
+    """
+    # BUGFIX (found during audit, 2026-06-25): this previously read
+    # runtime_config.executor, which does not exist on RuntimeConfig --
+    # every other endpoint in this file accesses the live executor via
+    # _state.orchestrator._executor (see /status, /model-metrics,
+    # /debug/health for the same pattern). Also: LiveExecutor previously
+    # discarded its OrderFSM state as a local variable once
+    # _place_market_order() returned, so get_order_fsm_state() didn't exist
+    # either -- added a bounded in-memory registry (see
+    # _ORDER_FSM_REGISTRY_MAX_SIZE in live.py) so this endpoint can actually
+    # serve real reconciliation data instead of always falling through to
+    # the "not available" branch below.
+    # API-002: validate the identifier before it reaches the registry lookup,
+    # and answer a malformed one exactly as an unknown one is answered. The
+    # registry is a dict keyed by exchange order id; an identifier allowed to
+    # carry separators or a null byte is one refactor away from being a path.
+    try:
+        validate_object_id(order_id)
+    except ObjectRefError as exc:
+        log.warning("api.order_status_bad_identifier", reason=exc.reason)
+        return not_found_response()
+
+    if _state.orchestrator is None:
+        return {"error": "Orchestrator not initialised."}
+    executor = cast(AbstractExecutor, _state.orchestrator._executor)
+    if not hasattr(executor, "get_order_fsm_state"):
+        # PaperExecutor never places real exchange orders, so it has no
+        # order FSM to report -- this is the expected, correct response
+        # in paper trading mode, not an error.
+        return {"error": "Order FSM reconciliation is only available in live trading mode."}
+    try:
+        state = await executor.get_order_fsm_state(order_id)
+    except Exception as exc:
+        # UI-006: log the real exception server-side; never echo raw
+        # exception text back to the (authenticated but untrusted) caller —
+        # it can leak internal state/stack details for no operational benefit.
+        log.warning(
+            "api.order_status_lookup_failed", order_id=order_id, error=str(exc), exc_info=True
+        )
+        return {"error": "Failed to look up order status."}
+    if state is None:
+        # API-002: one body for "aged out", "predates this process" and
+        # "never existed". The distinction was useful to an operator and is
+        # exactly the oracle an enumerator wants, so it lives in the log.
+        log.info("api.order_status_not_found")
+        return not_found_response()
+    return state.to_dict()
+
+
+@app.get("/ledger", tags=["monitoring"], dependencies=[Depends(api_key_header)])
+async def get_unified_ledger_snapshot() -> dict[str, Any]:
+    """
+    Cross-venue book (v3 unified ledger).
+
+    Read-only view of src/execution/unified_ledger.py, republished by the
+    orchestrator each tick. Paper fills are carried under their own "paper"
+    venue and are never netted against live exchange exposure.
+
+    Returns
+    -------
+    {
+        "venues": [{venue, symbol, quantity, entry_price, margin_used_usd}, ...],
+        "by_symbol": {symbol: {net_exposure, gross_exposure, venues}, ...},
+        "total_margin_used_usd": float,
+    }
+    """
+    ledger = get_unified_ledger()
+    positions = ledger.all_positions
+    symbols = sorted({p.symbol for p in positions})
+    return {
+        "venues": [
+            {
+                "venue": p.venue,
+                "symbol": p.symbol,
+                "quantity": p.quantity,
+                "entry_price": round(p.entry_price, 4),
+                "margin_used_usd": round(p.margin_used_usd, 2),
+            }
+            for p in positions
+        ],
+        "by_symbol": {
+            symbol: {
+                "net_exposure": ledger.net_exposure(symbol),
+                "gross_exposure": ledger.gross_exposure(symbol),
+                "venues": ledger.venues_holding(symbol),
+            }
+            for symbol in symbols
+        },
+        "total_margin_used_usd": round(ledger.total_margin_used_usd(), 2),
+    }
+
+
+def _live_executor_or_none() -> Any:
+    """The live executor, or None when the process is paper-only/not ready."""
+    from src.execution.live import LiveExecutor
+
+    orchestrator = _state.orchestrator
+    if orchestrator is None:
+        return None
+    executor = orchestrator._executor
+    return executor if isinstance(executor, LiveExecutor) else None
+
+
+@app.get("/recovery/status", tags=["execution"], dependencies=[Depends(api_key_header)])
+async def recovery_status() -> dict[str, Any]:
+    """
+    Startup reconciliation state (v8 disaster recovery).
+
+    `blocked` true means the live executor found local state disagreeing with
+    exchange truth on startup and is refusing to open new positions until an
+    operator acknowledges. Exits are never blocked.
+
+    A paper-only process reports `applicable: false` — reconciliation is a
+    live-execution concern, and reporting "clean" there would imply a check
+    that never ran.
+    """
+    executor = _live_executor_or_none()
+    if executor is None:
+        return {"applicable": False, "blocked": False, "discrepancies": []}
+    discrepancies = executor.recovery_discrepancies
+    return {
+        "applicable": True,
+        "blocked": bool(discrepancies),
+        "discrepancies": [
+            {
+                "symbol": d.symbol,
+                "type": d.discrepancy_type.value,
+                "local_quantity": d.local_quantity,
+                "exchange_quantity": d.reference_quantity,
+            }
+            for d in discrepancies
+        ],
+    }
+
+
+@app.post(
+    "/recovery/acknowledge",
+    tags=["execution"],
+    dependencies=[
+        Depends(requires(Permission.CHANGE_EXECUTION_MODE)),
+        Depends(require_healthy_security_controls),
+        Depends(require_ready),
+    ],
+    responses={
+        401: {"description": "Invalid operator secret"},
+        409: {"description": "No live executor to acknowledge"},
+        429: {"description": "Rate limit exceeded"},
+    },
+)
+async def recovery_acknowledge(
+    body: RecoveryAcknowledgeRequest, request: Request
+) -> dict[str, Any]:
+    """
+    Clear the startup-reconciliation block after an operator resolves it.
+
+    409 when there is no live executor: silently reporting success would tell
+    an operator a block was lifted that never existed.
+    """
+    _state.check_endpoint_rate_limit(
+        "recovery_acknowledge", request.client.host if request.client else ""
+    )
+    _verify_operator_secret(body.operator_secret, body.operator, "recovery_acknowledge")
+
+    executor = _live_executor_or_none()
+    if executor is None:
+        raise HTTPException(status_code=409, detail="No live executor is running.")
+
+    discrepancies = executor.recovery_discrepancies
+    cleared = executor.acknowledge_recovery(body.operator)
+    await _audit_event(
+        _state.storage,
+        event_type="recovery_acknowledged",
+        operator=body.operator,
+        details={
+            "cleared": cleared,
+            "discrepancies": [
+                {
+                    "symbol": d.symbol,
+                    "type": d.discrepancy_type.value,
+                    "local_quantity": d.local_quantity,
+                    "exchange_quantity": d.reference_quantity,
+                }
+                for d in discrepancies
+            ],
+        },
+    )
+    log.warning("api.recovery_acknowledged", operator=body.operator, cleared=cleared)
+    return {"cleared": cleared, "blocked": False, "operator": body.operator}
+
+
+def _parse_timeframe_or_400(value: str) -> Timeframe:
+    """Shared validation for the operator endpoints that take a timeframe."""
+    try:
+        return Timeframe(value)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid timeframe {value!r}. Must be one of: "
+            f"{sorted(tf.value for tf in Timeframe)}",
+        ) from exc
+
+
+@app.get(
+    "/models/status",
+    tags=["models"],
+    dependencies=[Depends(api_key_header), Depends(require_ready)],
+)
+async def models_status() -> dict[str, Any]:
+    """
+    Per-timeframe training state plus on-disk artifact counts.
+
+    The artifact count is the same filename heuristic
+    scripts/check_model_artifacts.py uses; it says an artifact exists, not
+    that it loads or passes the live gate.
+    """
+    orchestrator = require_orchestrator()
+    cfg = get_settings()
+    model_dir = cfg.storage.model_dir
+
+    status = orchestrator.retrain_status()
+    for tf_value, entry in status.items():
+        if model_dir.is_dir():
+            entry["artifact_count"] = sum(
+                1 for p in model_dir.rglob(f"*{tf_value}*") if p.is_file()
+            )
+        else:
+            entry["artifact_count"] = 0
+
+    return {"timeframes": status}
+
+
+@app.post(
+    "/models/retrain",
+    tags=["models"],
+    dependencies=[
+        Depends(requires(Permission.CHANGE_EXECUTION_MODE)),
+        Depends(require_healthy_security_controls),
+        Depends(require_ready),
+    ],
+    responses={
+        400: {"description": "Invalid timeframe"},
+        401: {"description": "Invalid operator secret"},
+        409: {"description": "A retrain is already running for that timeframe"},
+        429: {"description": "Rate limit exceeded"},
+    },
+)
+async def trigger_retrain(body: RetrainRequest, request: Request) -> dict[str, Any]:
+    """Start an out-of-band retrain. 409 when one is already in flight."""
+    _state.check_endpoint_rate_limit(
+        "trigger_retrain", request.client.host if request.client else ""
+    )
+    _verify_operator_secret(body.operator_secret, body.operator, "trigger_retrain")
+
+    tf = _parse_timeframe_or_400(body.timeframe)
+    orchestrator = require_orchestrator()
+    outcome = orchestrator.request_retrain(tf)
+
+    if outcome == "already_running":
+        raise HTTPException(
+            status_code=409,
+            detail=f"A retrain is already running for timeframe={tf.value}.",
+        )
+
+    await _audit_event(
+        _state.storage,
+        event_type="manual_retrain_started",
+        operator=body.operator,
+        details={"timeframe": tf.value},
+    )
+    log.info("api.manual_retrain_started", timeframe=tf.value, operator=body.operator)
+    _report_retrain(orchestrator, tf, body.operator)
+    return {"status": outcome, "timeframe": tf.value, "operator": body.operator}
+
+
+def _report_retrain(orchestrator: Orchestrator, tf: Timeframe, operator: str) -> None:
+    """Follow a manual retrain into the process center (best effort)."""
+    task = orchestrator.retrain_task(tf)
+    if task is None:
+        return
+    job = _job_reporter.begin(f"model retrain {tf.value}", detail=f"started by {operator}")
+
+    def _finished(done: asyncio.Task[Any]) -> None:
+        if done.cancelled():
+            _job_reporter.end(job, ok=False, error="cancelled")
+        elif done.exception() is not None:
+            error = cast(BaseException, done.exception())
+            _job_reporter.end(job, ok=False, error=_job_error(error))
+        else:
+            _job_reporter.end(job, ok=True)
+
+    task.add_done_callback(_finished)
+
+
+@app.post(
+    "/backfill",
+    tags=["data"],
+    dependencies=[
+        Depends(requires(Permission.CHANGE_EXECUTION_MODE)),
+        Depends(require_healthy_security_controls),
+        Depends(require_ready),
+    ],
+    responses={
+        400: {"description": "Invalid timeframe"},
+        429: {"description": "Rate limit exceeded"},
+    },
+)
+async def trigger_backfill(body: BackfillRequest, request: Request) -> dict[str, Any]:
+    """
+    Fetch historical bars for one timeframe and report how many were written.
+
+    Awaited, not backgrounded: the bar count is the only useful answer, and
+    reporting "started" would leave the dashboard unable to tell a
+    successful fetch from a silent exchange error.
+    """
+    _state.check_endpoint_rate_limit(
+        "trigger_backfill", request.client.host if request.client else ""
+    )
+    tf = _parse_timeframe_or_400(body.timeframe)
+    orchestrator = require_orchestrator()
+
+    job = _job_reporter.begin(f"backfill {tf.value}", detail=f"lookback_days={body.lookback_days}")
+    try:
+        written = await orchestrator.request_backfill(tf, body.lookback_days)
+    except Exception as exc:
+        _job_reporter.end(job, ok=False, error=_job_error(exc))
+        raise
+    _job_reporter.output(job, f"bars_written={written}\n")
+    _job_reporter.end(job, ok=True)
+    log.info("api.manual_backfill_done", timeframe=tf.value, bars_written=written)
+    return {
+        "timeframe": tf.value,
+        "lookback_days": body.lookback_days,
+        "bars_written": written,
+    }
+
+
+@app.get("/horizons", tags=["intelligence"], dependencies=[Depends(api_key_header)])
+async def horizons() -> dict[str, Any]:
+    """
+    The crypto-intel-v6 horizon term structure (config/horizons.yaml).
+
+    Deliberately NOT gated on require_ready or on the intel engine being
+    running. The declared horizons are a real fact about the deployment
+    even when INTEL_ENABLED is false, and answering 404 there would make
+    "intelligence is switched off" indistinguishable from "this build has
+    no horizons" in the dashboard.
+
+    When the engine is off, `enabled` is false and every entry carries a
+    null `last_prediction`; the labels, models and schedules still come
+    from the config file.
+    """
+    adapter = _state.intel_adapter
+    intel = getattr(adapter, "_intel", None) if adapter is not None else None
+
+    if intel is None:
+        # Report the term structure from config alone — no engine needed.
+        from src.intel import sorted_horizon_entries
+
+        entries = sorted_horizon_entries()
+        for entry in entries:
+            entry["status"] = "DISABLED"
+            entry["model_status"] = "DISABLED"
+            entry["error"] = "INTEL_ENABLED is false or startup did not complete"
+        return {
+            "enabled": False,
+            "symbol": None,
+            "last_update_ts": None,
+            "horizons": entries,
+        }
+
+    return {
+        "enabled": True,
+        "symbol": intel.last_horizon_symbol,
+        "last_update_ts": intel.last_horizon_ts,
+        "horizons": intel.horizon_status(),
+        "decision": intel.last_decision,
+        "learning": intel.learning_status,
+        "scheduler": intel.worker_pool.health_snapshot(),
+    }
+
+
+@app.get(
+    "/capital-floor",
+    tags=["risk"],
+    dependencies=[Depends(api_key_header), Depends(require_ready)],
+)
+async def capital_floor() -> dict[str, Any]:
+    """Capital-preservation halt state for every timeframe."""
+    orchestrator = require_orchestrator()
+    return {"floors": orchestrator.capital_floor_status()}
+
+
+@app.post(
+    "/capital-floor/re-authorize",
+    tags=["risk"],
+    dependencies=[
+        Depends(requires(Permission.CHANGE_EXECUTION_MODE)),
+        Depends(require_healthy_security_controls),
+        Depends(require_ready),
+    ],
+    responses={
+        400: {"description": "Invalid timeframe"},
+        401: {"description": "Invalid operator secret"},
+        404: {"description": "No engine or floor for that timeframe"},
+        429: {"description": "Rate limit exceeded"},
+    },
+)
+async def capital_floor_re_authorize(
+    body: CapitalFloorReAuthorizeRequest, request: Request
+) -> dict[str, Any]:
+    """
+    Resume trading after a capital-preservation halt.
+
+    This is the deliberate out-of-band step the floor's design requires:
+    nothing in the system can decide on its own that the cause of a 30%
+    drawdown has been understood.
+    """
+    _state.check_endpoint_rate_limit(
+        "capital_floor_re_authorize", request.client.host if request.client else ""
+    )
+    _verify_operator_secret(body.operator_secret, body.operator, "capital_floor_re_authorize")
+
+    tf = _parse_timeframe_or_400(body.timeframe)
+    orchestrator = require_orchestrator()
+    at_ms = int(time.time() * 1000)
+
+    cleared = orchestrator.re_authorize_capital_floor(
+        timeframe=tf.value,
+        authorized_by=body.operator,
+        reason=body.reason,
+        at_ms=at_ms,
+    )
+    if not cleared:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No capital-preservation floor for timeframe={tf.value}.",
+        )
+
+    await _audit_event(
+        _state.storage,
+        event_type="capital_floor_re_authorized",
+        operator=body.operator,
+        details={"timeframe": tf.value, "reason": body.reason, "at_ms": at_ms},
+    )
+    log.warning(
+        "api.capital_floor_re_authorized",
+        timeframe=tf.value,
+        operator=body.operator,
+    )
+    return {"re_authorized": True, "timeframe": tf.value, "operator": body.operator}
+
+
+@app.get("/strategies/attribution", tags=["monitoring"], dependencies=[Depends(api_key_header)])
+async def get_strategy_attribution() -> dict[str, Any]:
+    """
+    Per-strategy P&L attribution (v2 multi-strategy portfolio engine).
+
+    Read-only. Sourced from the in-memory AttributionTracker, populated as
+    the orchestrator tags closed trades with the originating strategy_id
+    from the strategy registry (src/strategies/registry.py).
+
+    Returns
+    -------
+    {
+        "strategies": {strategy_id: {trade_count, total_pnl_usd, win_rate,
+                                      sharpe, sortino, calmar,
+                                      max_drawdown_usd}, ...},
+        "fill_count": int,
+    }
+    """
+    tracker = get_attribution_tracker()
+    snapshot = tracker.snapshot()
+    return {
+        "strategies": {sid: attr.to_dict() for sid, attr in snapshot.items()},
+        "fill_count": tracker.fill_count(),
+    }
+
+
+@app.get(
+    "/strategies/gauntlet",
+    tags=["monitoring"],
+    dependencies=[Depends(api_key_header), Depends(require_ready)],
+)
+async def get_strategy_gauntlet() -> dict[str, Any]:
+    """
+    Promotion-gauntlet status for every strategy with realized fills (v6).
+
+    Read-only and advisory: it reports which candidates *would* clear the
+    bar for live capital, and names the criteria each one still fails.
+    Nothing is promoted here — auto-discovery never auto-promotes, so
+    acting on this stays an explicit operator step.
+
+    Returns
+    -------
+    {
+        "criteria": {min_trades, min_days_running, min_sharpe, max_drawdown_pct},
+        "equity_usd": float,          # drawdown denominator used
+        "candidates": {strategy_id: {passed, failed_criteria, trade_count,
+                                     days_running, realized_sharpe,
+                                     realized_max_drawdown_pct}, ...},
+    }
+    """
+    orchestrator = require_orchestrator()
+    tracker = get_attribution_tracker()
+    criteria = GauntletCriteria()
+    executor = cast(AbstractExecutor, orchestrator._executor)
+    equity_usd = float(executor.equity_usd) if executor else 0.0
+
+    candidates: dict[str, Any] = {}
+    for strategy_id in tracker.snapshot():
+        observation = observation_from_fills(
+            strategy_id,
+            tracker.fills_for(strategy_id),
+            equity_usd,
+            first_entry_ms=tracker.first_entry_ts_for(strategy_id),
+            lifetime_trade_count=tracker.lifetime_trade_count(strategy_id),
+        )
+        result = evaluate_gauntlet(observation, criteria)
+        candidates[strategy_id] = {
+            "passed": result.passed,
+            "failed_criteria": list(result.failed_criteria),
+            "trade_count": observation.trade_count,
+            "days_running": round(observation.days_running, 3),
+            "realized_sharpe": round(observation.realized_sharpe, 4),
+            "realized_max_drawdown_pct": round(observation.realized_max_drawdown_pct, 4),
+        }
+
+    return {
+        "criteria": {
+            "min_trades": criteria.min_trades,
+            "min_days_running": criteria.min_days_running,
+            "min_sharpe": criteria.min_sharpe,
+            "max_drawdown_pct": criteria.max_drawdown_pct,
+        },
+        "equity_usd": equity_usd,
+        "candidates": candidates,
+    }
+
+
+@app.get("/strategies/allocation", tags=["monitoring"], dependencies=[Depends(api_key_header)])
+async def get_strategy_allocation() -> dict[str, Any]:
+    """
+    Current performance-weighted capital allocation across registered strategies.
+
+    Uses live Sharpe attribution data to compute Sharpe-weighted fractional
+    allocations. Strategies with < 30 fills receive equal-weight share (warm-up
+    fallback). Read-only — reading this endpoint never advances the allocation.
+
+    `target_allocations` is what the allocator would pick from attribution as
+    it stands right now. `allocations` is what the book is actually running:
+    the orchestrator's rebalance loop moves it toward the target by at most
+    `max_shift_per_step` per rebalance, so the two differ whenever the target
+    has recently moved. Before the first rebalance (or with no orchestrator
+    running) there is no incumbent allocation and the two are identical.
+
+    Returns
+    -------
+    {
+        "allocations": {strategy_id: float, ...},   # fractions summing to <= 1.0
+        "target_allocations": {strategy_id: float, ...},
+        "max_shift_per_step": float,
+        "method": str,                              # "performance_weighted" or "equal_weight"
+        "fill_count": int,                          # total fills tracked
+    }
+    """
+    registry = get_default_registry()
+    strategies = list(registry.all())
+    controller = get_allocation_controller(
+        get_settings().strategy_portfolio.max_allocation_shift_per_step
+    )
+    if not strategies:
+        return {
+            "allocations": {},
+            "target_allocations": {},
+            "max_shift_per_step": controller.max_shift_per_step,
+            "method": "equal_weight",
+            "fill_count": 0,
+        }
+    # Kill-switched strategies are excluded, which the allocator turns into a
+    # 0.0 share — previously every registered strategy was passed as enabled
+    # unconditionally, so a strategy the kill switch had disabled for drift
+    # still showed a full allocation.
+    enabled_ids = get_strategy_kill_switch_manager().enabled_ids(s.strategy_id for s in strategies)
+    result = performance_weighted_allocate(tuple(strategies), enabled_ids)
+    tracker = get_attribution_tracker()
+    return {
+        "allocations": controller.applied() or result.fractions,
+        "target_allocations": result.fractions,
+        "max_shift_per_step": controller.max_shift_per_step,
+        "method": result.method,
+        "fill_count": tracker.fill_count(),
+    }
+
+
+@app.post(
+    "/strategies/{strategy_id}/re-enable",
+    tags=["monitoring"],
+    dependencies=[
+        Depends(requires(Permission.CHANGE_EXECUTION_MODE)),
+        Depends(require_healthy_security_controls),
+        Depends(require_ready),
+    ],
+    responses={
+        401: {"description": "Invalid operator secret"},
+        404: {"description": "No kill switch registered for this strategy"},
+        409: {"description": "Strategy has not passed the promotion gauntlet"},
+        429: {"description": "Rate limit exceeded"},
+    },
+)
+async def re_enable_strategy(
+    strategy_id: str, body: StrategyReEnableRequest, request: Request
+) -> dict[str, Any]:
+    """
+    Reinstate a strategy the kill switch disabled for drift (v2/v6).
+
+    Until this existed there was no path back: a strategy auto-disabled for
+    drift stayed disabled for the life of the process. The re-enable runs the
+    v6 promotion gauntlet against the strategy's own attributed track record,
+    so reinstatement clears the same bar as initial promotion.
+
+    409, not 400: the request is well-formed and the operator is authorised —
+    the strategy's record is what does not qualify yet.
+    """
+    _state.check_endpoint_rate_limit(
+        "re_enable_strategy", request.client.host if request.client else ""
+    )
+    _verify_operator_secret(body.operator_secret, body.operator, "re_enable_strategy")
+
+    # API-002: the identifier is caller-supplied and was reaching both a
+    # registry lookup and the 404 body. Validated before the lookup, and the
+    # 404 no longer quotes it -- a message that echoes its input is a
+    # reflection point, and one that distinguishes "unregistered" from
+    # "malformed" is an enumeration oracle.
+    try:
+        validate_object_id(strategy_id)
+    except ObjectRefError as exc:
+        log.warning("api.re_enable_bad_identifier", reason=exc.reason)
+        raise HTTPException(status_code=404, detail=NOT_FOUND_DETAIL) from exc
+
+    manager = get_strategy_kill_switch_manager()
+    if not manager.is_registered(strategy_id):
+        raise HTTPException(status_code=404, detail=NOT_FOUND_DETAIL)
+
+    try:
+        manager.re_enable(strategy_id, force=body.force)
+    except GauntletNotPassedError as exc:
+        log.warning(
+            "api.re_enable_rejected",
+            strategy_id=strategy_id,
+            operator=body.operator,
+            failed_criteria=list(exc.failed_criteria),
+        )
+        raise HTTPException(
+            status_code=409,
+            detail={"reason": str(exc), "failed_criteria": list(exc.failed_criteria)},
+        ) from exc
+
+    _note_runtime_intent(
+        make_component_id(ComponentType.STRATEGY, safe_name(strategy_id)),
+        LifecycleState.ACTIVE,
+        body.operator,
+        "re-enabled through the promotion gauntlet" + (" (forced)" if body.force else ""),
+    )
+    await _audit_event(
+        _state.storage,
+        event_type="strategy_re_enabled",
+        operator=body.operator,
+        details={"strategy_id": strategy_id, "forced": body.force},
+    )
+    log.warning(
+        "api.strategy_re_enabled",
+        strategy_id=strategy_id,
+        operator=body.operator,
+        forced=body.force,
+    )
+    return {"strategy_id": strategy_id, "enabled": True, "forced": body.force}
+
+
+@app.get("/strategies/portfolio", tags=["monitoring"], dependencies=[Depends(api_key_header)])
+async def get_strategy_portfolio(timeframe: str | None = None) -> dict[str, Any]:
+    """
+    What every registered strategy actually said on its last evaluation.
+
+    /strategies/allocation answers "how is capital split?"; this answers the
+    question that had no answer at all before the portfolio runner existed:
+    "was each strategy even asked, and what did it reply?".
+
+    Each verdict carries a status that distinguishes the cases that used to
+    be indistinguishable:
+
+      signal        — polled, voted directionally
+      flat          — polled, no directional opinion
+      regime_gated  — polled, returned regime_fit == 0 (a hard "not here")
+      abstained     — never polled: no context could be built from live data
+      disabled      — kill-switched out of the enabled set
+      error         — raised; recorded here, never raised into the trade path
+
+    A standing `abstained` with reason `no_context_builder` is the honest
+    report that a registered family has no data feed in this process yet —
+    it is a wiring gap to close, not a broken strategy.
+
+    The reported `direction` is 0 whenever `conflict` is true: a portfolio
+    whose members disagree has no direction worth acting on, and reporting
+    the narrow winner would hide the disagreement. `raw_direction` keeps the
+    pre-gate winner for diagnosis.
+
+    Alongside the full evaluation each timeframe carries:
+
+      peer             — the same poll with the incumbent excluded, which is
+                         what "does the rest of the book agree?" actually
+                         means. Including signal_engine_v1 would let the
+                         incumbent confirm itself.
+      agreement_scalar — the shrink-only size ceiling in (0, 1] implied by
+                         the peer view of the incumbent's direction. 1.0
+                         means no reduction; agreement is never worth more
+                         than that, because a correlated cluster of
+                         strategies must not bid its own size up.
+
+    Read-only and advisory: this reports the portfolio's opinion and the
+    ceiling it implies. Orders are still routed only by the signal engine
+    through Kelly and the risk gates, and `agreement_scalar` is reported
+    rather than applied — folding it into sizing means re-running the
+    exchange min-amount/min-cost filters against the shrunk quantity, which
+    is a separate change to the sizing tail.
+
+    Query parameters
+    ----------------
+    timeframe : restrict to one timeframe (e.g. "15m"). Omitted returns every
+                timeframe keyed by its value.
+    """
+    orch = _state.orchestrator
+    if orch is None:
+        return {"evaluations": {}, "reason": "orchestrator_not_started"}
+    if timeframe is not None:
+        timeframe = _parse_timeframe_or_400(timeframe).value
+    payload = orch.portfolio_evaluation(timeframe)
+    if timeframe is not None:
+        return {"timeframe": timeframe, "evaluation": payload}
+    return {"evaluations": payload}
+
+
+@app.get("/strategies/stress-test", tags=["monitoring"], dependencies=[Depends(api_key_header)])
+async def get_allocation_stress_test() -> dict[str, Any]:
+    """
+    Replay historical crisis periods against the current proposed allocation.
+
+    The allocator justifies a split from whatever period its attribution data
+    covers; this checks the same split against known crash sequences it was
+    never fitted to (src/tuning/stress_simulator.py). Read-only, like
+    /strategies/allocation — it reports what the current allocation would have
+    done, it does not change one.
+
+    Every strategy is replayed against the SAME market-wide crash sequence.
+    That is the conservative assumption on purpose: the simulator supports
+    per-strategy scenario returns, but this bot has no attributed
+    crisis-period history per strategy, and assuming any strategy hedges a
+    crash it has never traded through would understate exactly the tail risk
+    the test exists to find.
+
+    The floor comes from RISK_CAPITAL_PRESERVATION_MAX_DRAWDOWN_PCT, not the
+    simulator's own default, so `breaches_floor` means "breaches the halt that
+    is actually armed" rather than a number that happens to match today.
+
+    Units: everything reported here is a PERCENT. The config value and the
+    simulator's internal comparison are both FRACTIONS
+    (RISK_CAPITAL_PRESERVATION_MAX_DRAWDOWN_PCT is 0.30 despite its name,
+    validated 0 < x < 1), while StressTestResult already multiplies its
+    drawdown by 100. Reporting the floor raw would have put "drawdown 50.2"
+    next to "floor 0.30" in the same object, which reads as a comfortable
+    margin and is in fact a 20-point breach.
+
+    Returns
+    -------
+    {
+        "allocations": {strategy_id: float, ...},
+        "capital_preservation_floor_pct": float,   # percent, e.g. 30.0
+        "scenarios": [{scenario, max_drawdown_pct, final_return_pct,
+                       breaches_floor}, ...],      # percents
+        "breaches_any_floor": bool,
+    }
+    """
+    registry = get_default_registry()
+    strategies = list(registry.all())
+    # Fraction for the comparison, percent for the report -- see Units above.
+    floor = float(get_settings().risk.capital_preservation_max_drawdown_pct)
+    floor_pct = floor * 100.0
+    if not strategies:
+        return {
+            "allocations": {},
+            "capital_preservation_floor_pct": floor_pct,
+            "scenarios": [],
+            "breaches_any_floor": False,
+        }
+
+    enabled_ids = get_strategy_kill_switch_manager().enabled_ids(s.strategy_id for s in strategies)
+    # Stress the allocation the book is actually running, not the target it is
+    # still creeping toward -- a crash tests the positions you hold today. The
+    # target is the fallback only before the first rebalance, when there is no
+    # incumbent allocation yet.
+    controller = get_allocation_controller(
+        get_settings().strategy_portfolio.max_allocation_shift_per_step
+    )
+    allocation = (
+        controller.applied()
+        or performance_weighted_allocate(tuple(strategies), enabled_ids).fractions
+    )
+
+    by_scenario = {
+        name: dict.fromkeys(allocation, returns) for name, returns in KNOWN_CRISIS_SCENARIOS.items()
+    }
+    results = run_all_known_scenarios(
+        allocation,
+        by_scenario,
+        capital_preservation_floor_pct=floor,
+    )
+    return {
+        "allocations": allocation,
+        "capital_preservation_floor_pct": floor_pct,
+        "scenarios": [
+            {
+                "scenario": r.scenario_name,
+                "max_drawdown_pct": round(r.simulated_max_drawdown_pct, 4),
+                "final_return_pct": round(r.simulated_final_return_pct, 4),
+                "breaches_floor": r.breaches_capital_floor,
+            }
+            for r in results
+        ],
+        "breaches_any_floor": any(r.breaches_capital_floor for r in results),
+    }
+
+
+@app.get("/performance-drift", tags=["monitoring"], dependencies=[Depends(api_key_header)])
+async def get_performance_drift() -> dict[str, Any]:
+    """
+    Get current performance drift status.
+
+    Monitors model degradation in live trading. Compares live performance
+    metrics (Sharpe, accuracy, win rate, max DD) against training baseline.
+
+    Returns
+    -------
+    {
+        "drifted": bool,           # True if drift threshold exceeded
+        "metric": str,             # Which metric drifted (if any)
+        "reason": str,             # Explanation
+        "drift_pp": float,         # Percentage points of drift
+        "live_value": float,       # Current live metric value
+        "baseline_value": float,   # Training baseline
+        "metrics": {
+            "total_live_trades": int,
+            "rolling_sharpe": float,
+            "rolling_winrate": float,
+            "rolling_accuracy": float,
+            "max_live_drawdown_pct": float,
+        }
+    }
+    """
+    # BUGFIX (found during audit, 2026-06-25): this previously read
+    # runtime_config.drift_adapter, which does not exist on RuntimeConfig.
+    # The orchestrator owns _drift_adapter as its own instance attribute
+    # (initialised in Orchestrator.startup() once a trained model baseline
+    # is available) -- access it the same way every other endpoint reaches
+    # orchestrator-owned state (_state.orchestrator._executor etc.).
+    if _state.orchestrator is None:
+        return {"drifted": False, "reason": "Orchestrator not initialised."}
+    try:
+        return _state.orchestrator._drift_adapter.check_drift()
+    except Exception as exc:
+        # API-009: log the cause; the 200 body must not carry DSNs or paths.
+        log.warning("api.endpoint_failed", endpoint="drift_status", error=str(exc), exc_info=True)
+        return {"error": GENERIC_ERROR_DETAIL}
+
+
+@app.get("/intelligence/coverage", tags=["intelligence"], dependencies=[Depends(api_key_header)])
+async def get_intelligence_coverage() -> dict:
+    """
+    Return per-column non-NULL coverage for intelligence_features_history.
+
+    Useful for operators to verify OCI backfill health and understand which
+    features are active in the current training run.
+
+    Returns
+    -------
+    {
+        "symbol": str,
+        "timeframe": str,
+        "total_rows": int,
+        "coverage": {"intelligence_<col>": float, ...}   # 0.0-1.0
+    }
+    """
+    if _state.orchestrator is None:
+        return {"error": "Orchestrator not initialised."}
+    try:
+        storage = _state.orchestrator._storage
+        # BUG FIX: _state.runtime_config is not an AppState attribute — runtime_config
+        # is a module-level singleton imported at line 51. Use get_settings() instead,
+        # which is already used for symbol/timeframe throughout the rest of this file.
+        cfg = get_settings()
+        symbol = cfg.primary_symbol
+        timeframe = (
+            cfg.primary_timeframe.value
+            if hasattr(cfg.primary_timeframe, "value")
+            else str(cfg.primary_timeframe)
+        )
+        cov = await storage.intelligence_feature_coverage(symbol, timeframe)
+        return {"symbol": symbol, "timeframe": timeframe, **cov}
+    except Exception as exc:
+        # API-009: log the cause; the 200 body must not carry DSNs or paths.
+        log.warning(
+            "api.endpoint_failed", endpoint="intelligence_coverage", error=str(exc), exc_info=True
+        )
+        return {"error": GENERIC_ERROR_DETAIL}
+
+
+@app.get("/intelligence/providers", tags=["intelligence"], dependencies=[Depends(api_key_header)])
+async def get_intelligence_providers() -> dict:
+    """
+    Return the current OCI provider configuration (which keys are active).
+
+    Does NOT expose key values — only reports which providers are enabled
+    (key non-empty) vs disabled (key empty → fail-open neutral mode).
+
+    Returns
+    -------
+    {
+        "providers": [
+            {"name": str, "enabled": bool, "exchange_id": str}
+        ]
+    }
+    """
+    try:
+        from src.config import get_settings
+
+        cfg = get_settings().intelligence
+        providers = [
+            {
+                "name": "ArkhamProvider",
+                "exchange_id": "arkham_intel",
+                "enabled": bool(cfg.arkham_api_key),
+            },
+            {
+                "name": "DeFiLlamaProvider",
+                "exchange_id": "defillama",
+                "enabled": True,
+            },  # public API
+            {
+                "name": "DuneProvider",
+                "exchange_id": "dune_analytics",
+                "enabled": bool(cfg.dune_api_key),
+            },
+            {
+                "name": "CryptoQuantProvider",
+                "exchange_id": "cryptoquant",
+                "enabled": bool(cfg.cryptoquant_api_key),
+            },
+            {
+                "name": "CoinglassProvider",
+                "exchange_id": "coinglass",
+                "enabled": bool(cfg.coinglass_api_key),
+            },
+        ]
+        return {"providers": providers}
+    except Exception as exc:
+        # API-009: log the cause; the 200 body must not carry DSNs or paths.
+        log.warning(
+            "api.endpoint_failed", endpoint="intelligence_providers", error=str(exc), exc_info=True
+        )
+        return {"error": GENERIC_ERROR_DETAIL}
+
+
+# ---------------------------------------------------------------------------
+# Risk simulation endpoint
+# ---------------------------------------------------------------------------
+
+
+class SizeCheckRequest(BaseModel):
+    """Request body for /risk/size-check."""
+
+    symbol: str = Field(..., description="Trading pair, e.g. BTC/USDT")
+    group: str = Field(..., description="Asset group for macro-budget, e.g. crypto_large_cap")
+    capital_usd: float = Field(..., gt=0, description="Total account capital in USD")
+    current_equity: float = Field(..., gt=0, description="Current account equity in USD")
+    hwm: float = Field(..., gt=0, description="High-water mark equity in USD")
+    realized_vol_pct: float = Field(
+        ..., ge=0, description="Annualised realised volatility as pct (e.g. 80.0 = 80%)"
+    )
+    win_rate: float = Field(default=0.0, ge=0.0, le=1.0)
+    avg_win_usd: float = Field(default=0.0, ge=0.0)
+    avg_loss_usd: float = Field(default=0.0, ge=0.0)
+    target_vol_pct: float = Field(
+        default=1.0, gt=0, description="Daily vol target pct per position"
+    )
+    max_notional_pct: float = Field(default=0.25, gt=0, le=1.0)
+
+
+@app.post("/risk/size-check", tags=["risk"], dependencies=[Depends(api_key_header)])
+async def risk_size_check(body: SizeCheckRequest, request: Request) -> dict[str, Any]:
+    """
+    Pre-trade feasibility check combining vol-target sizing and macro-budget.
+
+    Simulates what position size would result from the vol-target sizer and
+    whether the macro-exposure budget permits adding that notional to the
+    given asset group.  Does not place any order.
+
+    Returns
+    -------
+    {
+        "vol_target": {notional_usd, vol_target_notional, kelly_scalar, ...},
+        "budget_check": {allowed, group, requested_notional, ...},
+        "final_notional_usd": float,
+        "allowed": bool,
+        "reject_reason": str
+    }
+    """
+    _state.check_endpoint_rate_limit(
+        "risk_size_check", request.client.host if request.client else ""
+    )
+
+    from src.risk.macro_exposure_budget import get_budget
+    from src.risk.vol_target_sizer import vol_target_size
+
+    vt = vol_target_size(
+        capital_usd=body.capital_usd,
+        current_equity=body.current_equity,
+        hwm=body.hwm,
+        realized_vol_pct=body.realized_vol_pct,
+        target_vol_pct=body.target_vol_pct,
+        max_notional_pct=body.max_notional_pct,
+        win_rate=body.win_rate,
+        avg_win_usd=body.avg_win_usd,
+        avg_loss_usd=body.avg_loss_usd,
+    )
+
+    budget = get_budget(capital_usd=body.capital_usd)
+    bc = budget.check(
+        symbol=body.symbol,
+        group=body.group,
+        requested_notional=vt.notional_usd,
+    )
+
+    allowed = bool(vt.notional_usd > 0 and bc.allowed)
+    reject_reason = vt.reject_reason or ("" if bc.allowed else bc.reason)
+
+    return {
+        "vol_target": {
+            "notional_usd": round(vt.notional_usd, 2),
+            "vol_target_notional": round(vt.vol_target_notional, 2),
+            "kelly_scalar": round(vt.kelly_scalar, 4),
+            "dd_haircut": round(vt.dd_haircut, 4),
+            "realized_vol_pct": round(vt.realized_vol_pct, 4),
+            "reject_reason": vt.reject_reason,
+        },
+        "budget_check": {
+            "allowed": bc.allowed,
+            "group": bc.group,
+            "requested_notional": round(bc.requested_notional, 2),
+            "current_group_notional": round(bc.current_group_notional, 2),
+            "current_global_notional": round(bc.current_global_notional, 2),
+            "reason": bc.reason,
+        },
+        "final_notional_usd": round(vt.notional_usd, 2) if allowed else 0.0,
+        "allowed": allowed,
+        "reject_reason": reject_reason,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Venue connectivity (REG-0014)
+#
+# A venue can now be down while the bot runs, so its state has to be readable
+# and its recovery has to be reachable without a restart. These two endpoints
+# are that control surface: what is up, and bring one back.
+# ---------------------------------------------------------------------------
+
+
+class VenueReconnectRequest(BaseModel):
+    """Second factor for reconnecting a venue, as for every other control."""
+
+    operator_secret: str = Field(..., min_length=1, max_length=256)
+    operator: str = Field(default="operator", max_length=64)
+
+    @field_validator("operator")
+    @classmethod
+    def validate_operator(cls, v: str) -> str:
+        return _validate_operator(v)
+
+
+# The venues the fetcher knows. A path parameter outside this set is a 404
+# before anything else runs -- it never reaches the fetcher, a log line or the
+# audit trail as an attacker-chosen string.
+_KNOWN_VENUES: frozenset[str] = frozenset({EXCHANGE_BINANCE, EXCHANGE_OKX})
+
+_VENUE_GUARDS = [
+    Depends(api_key_header),
+    Depends(requires(Permission.MANAGE_VENUES)),
+    Depends(require_healthy_security_controls),
+]
+
+
+def _known_venue_or_404(venue: str) -> str:
+    if venue not in _KNOWN_VENUES:
+        raise HTTPException(status_code=404, detail="unknown venue")
+    return venue
+
+
+async def _venue_action_recorded(
+    action: str, venue: str, operator: str, details: dict[str, Any]
+) -> dict[str, Any]:
+    """Audit, log and push one venue control action; return the venue's state."""
+    status = require_orchestrator()._fetcher.venue_status()[venue]
+    record = {
+        "venue": venue,
+        "available": status.get("available"),
+        "state": status.get("state"),
+        "account": (status.get("account") or {}).get("state"),
+    }
+    storage = getattr(_state, "storage", None)
+    if storage is not None:
+        await _audit_event(
+            storage, event_type=f"venue_{action}", operator=operator, details={**record, **details}
+        )
+    log.info(f"api.venue_{action}", operator=operator, **record)
+    # Out of band, like control_changed: every open dashboard re-reads the
+    # venue now rather than at its next poll.
+    await _state.broadcast({"type": "venue_changed", "venue": venue, "status": status})
+    return status
+
+
+@app.get("/venues", dependencies=[Depends(api_key_header)])
+async def venues_status() -> dict[str, Any]:
+    """
+    Per-venue market-data and account state and, for a venue that is down,
+    what it said.
+
+    The reason is the point: an operator has to tell a transient network fault
+    from a 451 eligibility block, because only one of those is worth retrying.
+    Market data and authenticated account access are separate fields because
+    one does not imply the other.
+    """
+    orchestrator = require_orchestrator()
+    status = orchestrator._fetcher.venue_status()
+    return {
+        "venues": status,
+        "available": sorted(v for v, s in status.items() if s["available"]),
+        "degraded": any(not s["available"] for s in status.values()),
+    }
+
+
+@app.post("/venues/{venue}/reconnect", dependencies=_VENUE_GUARDS)
+async def reconnect_venue(
+    venue: str,
+    body: VenueReconnectRequest,
+    request: Request,
+) -> dict[str, Any]:
+    """Re-open one venue in place. Returns its state after the attempt."""
+    _state.check_endpoint_rate_limit(
+        "reconnect_venue", request.client.host if request.client else ""
+    )
+    _known_venue_or_404(venue)
+    # SEC-007: same second-factor pattern as /execution-mode. Reconnecting is a
+    # state change on the trading path -- it can put a venue back in service --
+    # so the API key alone is not enough.
+    _verify_operator_secret(body.operator_secret, body.operator, "reconnect_venue")
+
+    orchestrator = require_orchestrator()
+    reconnected = await orchestrator._fetcher.reconnect(venue)
+    status = await _venue_action_recorded(
+        "reconnect", venue, body.operator, {"reconnected": reconnected}
+    )
+    return {"venue": venue, "reconnected": reconnected, **status}
+
+
+@app.post("/venues/{venue}/connect", dependencies=_VENUE_GUARDS)
+async def connect_venue(
+    venue: str, body: VenueReconnectRequest, request: Request
+) -> dict[str, Any]:
+    """
+    Connect (or retry) one venue, then check its account access.
+
+    The account check is one read-only fetch_balance; it runs only when the
+    market connection came up and credentials are configured, and its result
+    is reported separately from the connection's. Nothing here places an
+    order or changes the execution mode.
+    """
+    _state.check_endpoint_rate_limit("connect_venue", request.client.host if request.client else "")
+    _known_venue_or_404(venue)
+    _verify_operator_secret(body.operator_secret, body.operator, "connect_venue")
+
+    fetcher = require_orchestrator()._fetcher
+    connected = await fetcher.reconnect(venue)
+    if connected:
+        await fetcher.verify_account(venue)
+    status = await _venue_action_recorded("connect", venue, body.operator, {"connected": connected})
+    return {"venue": venue, "connected": connected, **status}
+
+
+@app.post("/venues/{venue}/disconnect", dependencies=_VENUE_GUARDS)
+async def disconnect_venue(
+    venue: str, body: VenueReconnectRequest, request: Request
+) -> dict[str, Any]:
+    """
+    Close one venue and keep it closed until it is connected again.
+
+    The other venue is not touched. 409 when this is the last connected venue:
+    a fetcher with no venue is a state the bot treats as fatal at startup, and
+    stopping trading is the kill switch's job.
+    """
+    _state.check_endpoint_rate_limit(
+        "disconnect_venue", request.client.host if request.client else ""
+    )
+    _known_venue_or_404(venue)
+    _verify_operator_secret(body.operator_secret, body.operator, "disconnect_venue")
+
+    fetcher = require_orchestrator()._fetcher
+    try:
+        await fetcher.disconnect(venue)
+    except VenueDisconnectRefused as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    status = await _venue_action_recorded("disconnect", venue, body.operator, {})
+    return {"venue": venue, "disconnected": True, **status}
+
+
+@app.post("/venues/{venue}/verify", dependencies=_VENUE_GUARDS)
+async def verify_venue_account(
+    venue: str, body: VenueReconnectRequest, request: Request
+) -> dict[str, Any]:
+    """Re-check authenticated account access without reconnecting."""
+    _state.check_endpoint_rate_limit(
+        "verify_venue_account", request.client.host if request.client else ""
+    )
+    _known_venue_or_404(venue)
+    _verify_operator_secret(body.operator_secret, body.operator, "verify_venue_account")
+
+    account = await require_orchestrator()._fetcher.verify_account(venue)
+    status = await _venue_action_recorded("verify", venue, body.operator, {"account": account})
+    return {"venue": venue, **status}
+
+
+@app.get("/controls", dependencies=[Depends(api_key_header)])
+async def control_surface() -> dict[str, Any]:
+    """
+    Every control the operator has, each labelled with the tier it belongs to.
+
+    The dashboard renders from this rather than from its own idea of what is
+    adjustable, so a control it offers is one the backend will actually honour.
+    Protected entries (hard risk limits, credentials) are present and read-only
+    with the reason: an operator needs to see that a position-size cap exists
+    and that it is not movable from here, which is not the same as hiding it.
+    """
+    return await build_control_surface(SetRiskControlsRequest)
+
+
+class SetControlRequest(BaseModel):
+    """One control, one value, plus the second factor."""
+
+    value: Any
+    operator: str
+    operator_secret: str
+
+    @field_validator("operator")
+    @classmethod
+    def _operator_ok(cls, v: str) -> str:
+        return _validate_operator(v)
+
+
+@app.post(
+    "/controls/{name}",
+    dependencies=[
+        Depends(requires(Permission.CHANGE_EXECUTION_MODE)),
+        Depends(require_healthy_security_controls),
+    ],
+)
+async def set_control(name: str, body: SetControlRequest, request: Request) -> dict[str, Any]:
+    """
+    Set one live control, routed to the setter that already owns it.
+
+    One entry point for the dashboard, not a second way in: a risk control is
+    still validated by SetRiskControlsRequest and a tunable still by its
+    registry bounds, so this endpoint cannot write anything the dedicated
+    endpoints would have refused. A protected parameter is refused outright.
+    """
+    _state.check_endpoint_rate_limit("set_control", request.client.host if request.client else "")
+    # SEC-007: same second factor as /execution-mode and /risk-controls. This
+    # moves live trading parameters, so the API key alone is not enough.
+    _verify_operator_secret(body.operator_secret, body.operator, "set_control")
+
+    async def _mode_setter(mode: ExecutionMode) -> None:
+        await _change_execution_mode(mode, body.operator)
+
+    try:
+        applied = await apply_control(
+            name,
+            body.value,
+            SetRiskControlsRequest,
+            operator=body.operator,
+            operator_secret=body.operator_secret,
+            execution_mode_setter=_mode_setter,
+        )
+    except ControlWriteError as exc:
+        raise HTTPException(status_code=exc.status, detail=exc.detail) from exc
+
+    # API-003: every control write is audited, not just logged.
+    await _audit_event(
+        _state.storage,
+        event_type="control_change",
+        operator=body.operator,
+        details={"control": applied["name"], "value": applied["value"]},
+    )
+
+    log.info("api.control_set", control=name, value=applied["value"])
+    # Out of band, so a second dashboard -- or the same one, mid-drag -- sees
+    # the new value now rather than at the next heartbeat.
+    await _state.broadcast({"type": "control_changed", **applied})
+    return {"applied": True, **applied}
+
+
+# ---------------------------------------------------------------------------
+# Runtime platform (src/runtime) -- RES-017
+#
+# Reads need VIEW_STATUS, except the agent-control ledgers, which need
+# CHANGE_RUNTIME (SEC-0015); every mutation needs CHANGE_RUNTIME plus the
+# operator second factor, and goes through the change manager, which
+# classifies it, checks dependencies, applies policy and audits it. No route
+# here reaches a supervisor or a component directly.
+# ---------------------------------------------------------------------------
+
+
+async def start_runtime_platform() -> RuntimePlatform | None:
+    """
+    Build the runtime platform and restore stored desired state.
+
+    The control plane must not be able to stop trading from starting: a
+    failed build leaves _state.runtime None, so every /runtime route answers
+    503 and nothing can be changed through it, and the failure is logged. A
+    desired state that cannot be restored is reported per entry.
+    """
+    try:
+        sources = runtime_sources()
+        from src.runtime.horizon_models import HorizonModelRuntime
+
+        sources.horizon_models = HorizonModelRuntime(sources.intel)
+        platform = build_runtime_platform(
+            bus=get_event_bus(),
+            discoveries=production_discoveries(sources),
+            controllers=production_controllers(sources),
+            trail=get_audit_trail(),
+            desired_backend=_state.storage,
+            audit_backend=_state.storage,
+            horizon_models=sources.horizon_models,
+        )
+        for problem in await platform.restore():
+            log.warning("api.runtime_desired_state_unusable", problem=problem)
+        upgrades = UpgradeListing(sources)
+        loop = RuntimeLoop(
+            platform, lambda: production_discoveries(sources), slow_refresh=upgrades.refresh
+        )
+        # The first pass now, before the orchestrator ticks (see lifespan).
+        for outcome in loop.step():
+            log.info("api.runtime_startup_reconcile", outcome=outcome.to_dict())
+        await platform.flush()
+    except Exception as exc:  # no control plane, not no trading; refused at 503
+        log.error("api.runtime_platform_unavailable", error=str(exc))
+        return None
+    _state.runtime_loop = loop
+    _state.runtime_upgrades = upgrades
+    return platform
+
+
+def runtime_sources() -> ProductionSources:
+    """The running process as the runtime platform reads it (src/runtime/production.py)."""
+
+    def record_pause(paused: bool) -> None:
+        # Same audit record /self-tuning/pause and /resume write.
+        tuning_audit_log.record(
+            "__global__",
+            TuningEventType.PAUSED if paused else TuningEventType.RESUMED,
+            {"operator": "runtime-platform"},
+        )
+
+    return ProductionSources(
+        bus=get_event_bus(),
+        strategies=get_default_registry(),
+        kill_switch=get_strategy_kill_switch_manager(),
+        parameters=tuning_registry,
+        pause=tuning_pause_state,
+        on_pause_change=record_pause,
+        orchestrator=lambda: _state.orchestrator,
+        scheduler_running=lambda: _state.tuning_scheduler is not None,
+        api_tasks=lambda: tuple(_state.background_tasks),
+        intel=lambda: _state.crypto_intel,
+    )
+
+
+_SELF_TUNING_COMPONENT = make_component_id(ComponentType.TUNING, SELF_TUNING)
+
+
+def _note_runtime_intent(
+    component_id: str, target: LifecycleState, operator: str, reason: str
+) -> None:
+    """
+    A subsystem endpoint changed something the runtime platform enforces:
+    make the operator's act the desired state, or the runtime loop would put
+    back the older intent (re-quarantine a re-enabled strategy, resume a
+    paused tuner). A failure is logged, never raised: the change itself has
+    already happened through the subsystem's own gate.
+    """
+    problem = runtime_control.note_operator_intent(
+        _state.runtime, component_id, target, operator, reason
+    )
+    if problem is not None:
+        log.warning("api.runtime_intent_not_recorded", component_id=component_id, problem=problem)
+
+
+def require_runtime() -> RuntimePlatform:
+    if _state.runtime is None:
+        raise HTTPException(status_code=503, detail="Runtime platform not started.")
+    return _state.runtime
+
+
+# API-011: runtime control calls can reach model deserialization and
+# learning-store writes. They run on this dedicated worker, never on the event
+# loop that carries the heartbeat, the websockets and the trading path.
+_RUNTIME_EXECUTOR = ThreadPoolExecutor(max_workers=1, thread_name_prefix="runtime-control")
+
+
+async def _runtime_call(fn: Callable[..., Any], *args: Any) -> Any:
+    try:
+        return await asyncio.get_running_loop().run_in_executor(_RUNTIME_EXECUTOR, fn, *args)
+    except RuntimeControlError as exc:
+        raise HTTPException(status_code=exc.status, detail=exc.detail) from exc
+
+
+_RUNTIME_READ = [Depends(api_key_header), Depends(requires(Permission.VIEW_STATUS))]
+_RUNTIME_WRITE = [
+    Depends(api_key_header),
+    Depends(requires(Permission.CHANGE_RUNTIME)),
+    Depends(require_healthy_security_controls),
+]
+# SEC-0015: the agent ledgers disclose in-flight engineering work (objectives,
+# branches, SHAs), so reading them is operator authority, not VIEW_STATUS. The
+# route changes nothing, so it takes no operator second factor.
+_RUNTIME_OPERATOR_READ = _RUNTIME_WRITE
+
+
+@app.get("/runtime", dependencies=_RUNTIME_READ)
+async def runtime_overview() -> dict[str, Any]:
+    """Counts by type and state, desired/actual mismatches, open changes."""
+    return require_runtime().summary()
+
+
+@app.get("/runtime/components", dependencies=_RUNTIME_READ)
+async def runtime_components(component_type: str | None = None) -> list[dict[str, Any]]:
+    platform = require_runtime()
+    try:
+        ctype = None if component_type is None else ComponentType(component_type)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=f"unknown type {component_type!r}") from exc
+    return [
+        r.to_dict(platform.registry.dependents(r.component_id))
+        for r in platform.registry.components(ctype)
+    ]
+
+
+@app.get("/runtime/components/{component_id}", dependencies=_RUNTIME_READ)
+async def runtime_component(component_id: str) -> dict[str, Any]:
+    platform = require_runtime()
+    result: dict[str, Any] = await _runtime_call(runtime_control.component, platform, component_id)
+    return result
+
+
+@app.get("/runtime/dependencies", dependencies=_RUNTIME_READ)
+async def runtime_dependencies() -> dict[str, Any]:
+    return require_runtime().dependencies()
+
+
+@app.get("/runtime/changes", dependencies=_RUNTIME_READ)
+async def runtime_changes() -> list[dict[str, Any]]:
+    return [c.to_dict() for c in require_runtime().changes.changes()]
+
+
+@app.get("/runtime/changes/{change_id}", dependencies=_RUNTIME_READ)
+async def runtime_change(change_id: str) -> dict[str, Any]:
+    result: dict[str, Any] = await _runtime_call(
+        runtime_control.change, require_runtime(), change_id
+    )
+    return result
+
+
+@app.get("/runtime/traces", dependencies=_RUNTIME_READ)
+async def runtime_traces(limit: int = Query(default=20, ge=1, le=200)) -> list[dict[str, Any]]:
+    return [t.to_dict() for t in require_runtime().traces.recent(limit)]
+
+
+@app.get("/runtime/traces/{trace_id}", dependencies=_RUNTIME_READ)
+async def runtime_trace(trace_id: str) -> dict[str, Any]:
+    result: dict[str, Any] = await _runtime_call(runtime_control.trace, require_runtime(), trace_id)
+    return result
+
+
+@app.get("/runtime/agent", dependencies=_RUNTIME_OPERATOR_READ)
+async def runtime_agent_ledgers() -> dict[str, Any]:
+    """Claude session task manifests and the branch-audit ledger; CHANGE_RUNTIME only."""
+    return runtime_control.agent_ledgers()
+
+
+@app.post("/runtime/changes", dependencies=_RUNTIME_WRITE)
+async def runtime_submit_change(body: RuntimeChangeBody, request: Request) -> dict[str, Any]:
+    _state.check_endpoint_rate_limit("runtime", request.client.host if request.client else "")
+    platform = require_runtime()
+    result = await _runtime_call(runtime_control.submit_change, platform, body)
+    await platform.flush()
+    return cast(dict[str, Any], result)
+
+
+@app.post("/runtime/changes/{change_id}/{verb}", dependencies=_RUNTIME_WRITE)
+async def runtime_decide(
+    change_id: str, verb: str, body: RuntimeDecisionBody, request: Request
+) -> dict[str, Any]:
+    _state.check_endpoint_rate_limit("runtime", request.client.host if request.client else "")
+    platform = require_runtime()
+    result = await _runtime_call(runtime_control.decide, platform, change_id, verb, body)
+    await platform.flush()
+    return cast(dict[str, Any], result)
+
+
+@app.post("/runtime/components/{component_id}/{action}", dependencies=_RUNTIME_WRITE)
+async def runtime_component_action(
+    component_id: str, action: str, body: RuntimeActionBody, request: Request
+) -> dict[str, Any]:
+    _state.check_endpoint_rate_limit("runtime", request.client.host if request.client else "")
+    platform = require_runtime()
+    result = await _runtime_call(
+        runtime_control.component_action, platform, component_id, action, body
+    )
+    await platform.flush()
+    return cast(dict[str, Any], result)
+
+
+@app.post("/runtime/desired", dependencies=_RUNTIME_WRITE)
+async def runtime_set_desired(body: RuntimeDesiredBody, request: Request) -> dict[str, Any]:
+    _state.check_endpoint_rate_limit("runtime", request.client.host if request.client else "")
+    platform = require_runtime()
+    result = await _runtime_call(runtime_control.set_desired, platform, body)
+    await platform.flush()
+    return cast(dict[str, Any], result)
+
+
+@app.post("/runtime/reconcile", dependencies=_RUNTIME_WRITE)
+async def runtime_reconcile(body: OperatorFactor, request: Request) -> list[dict[str, Any]]:
+    _state.check_endpoint_rate_limit("runtime", request.client.host if request.client else "")
+    platform = require_runtime()
+    result = await _runtime_call(runtime_control.reconcile, platform, body)
+    await platform.flush()
+    return cast(list[dict[str, Any]], result)
