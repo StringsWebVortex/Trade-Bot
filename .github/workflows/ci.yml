@@ -31,13 +31,35 @@ jobs:
       - name: Mypy
         run: mypy . --ignore-missing-imports
         continue-on-error: true
-      - name: Tests
-        run: pytest -q --tb=short
-        env:
-          PYTHONASYNCIODEBUG: "1"
       - name: Bandit
         run: bandit -r . -q -x ./tests,./.venv,./venv
         continue-on-error: true
+
+  python-tests:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          if [ -f pyproject.toml ]; then pip install -e . || true; fi
+          pip install pytest pytest-asyncio pytest-cov pytest-shard
+      - name: Tests (shard ${{ matrix.shard }}/3)
+        run: pytest -q --tb=short --shard-id=${{ matrix.shard }} --num-shards=3
+        env:
+          PYTHONASYNCIODEBUG: "1"
 
   frontend:
     runs-on: ubuntu-latest

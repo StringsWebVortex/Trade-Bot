@@ -13,7 +13,7 @@ _REPO = Path(__file__).resolve().parents[4]
 _SKILL = Path(__file__).resolve().parents[1]
 _CONFIG_PATH = _SKILL / "qe.config.json"
 
-_GATE_REGISTRY: dict[str, "GateFn"] = {}
+_GATE_REGISTRY: dict[str, GateFn] = {}
 
 
 def _register(gate_id: str):
