@@ -27,6 +27,8 @@ the contract does not recognise produces one whose status is `UNKNOWN` and
 whose `problems` say why. Returning a value rather than raising is deliberate
 — the caller polling an order needs to distinguish "keep waiting" from "stop
 and reconcile", and an exception collapses both into one.
+
+Registry: EXEC-003, EXEC-004, INV-003, RES-008 (config/quality_registry.json).
 """
 
 from __future__ import annotations
@@ -282,9 +284,19 @@ def parse_order(
         )
 
     filled_qty = _coerce_positive(response.get("filled"))
-    average_price = _coerce_positive(
-        response.get("average") if response.get("average") is not None else response.get("price")
-    )
+    # ``price`` is the REQUEST price on a limit order, not what traded, so it is
+    # never a fill-price fallback (EXR-024). A missing average is derived from
+    # cost / filled; if that is unusable too, the terminal-fill check below
+    # flags the order for reconciliation.
+    if response.get("average") is not None:
+        average_price = _coerce_positive(response.get("average"))
+    else:
+        cost = _coerce_positive(response.get("cost"))
+        average_price = (
+            _coerce_positive(cost / filled_qty)
+            if cost is not None and filled_qty is not None
+            else None
+        )
     remaining_qty = _coerce_non_negative(response.get("remaining"))
 
     if status in TERMINAL_FILLED:

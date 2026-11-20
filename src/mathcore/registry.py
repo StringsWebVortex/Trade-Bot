@@ -10,9 +10,10 @@ every session:
   3. What breaks if it is used wrongly?
 
 Validation is strict and happens at load time. A registry that has drifted --
-a dangling ``depends_on``, two owners for one entry, a folklore entry wired
-into a live strategy -- is a governance failure, and the right moment to find
-out is at import, in CI, not when a signal reaches an order router.
+a dangling ``depends_on``, two owners for one entry, a component module with
+no owner, a folklore entry wired into a live strategy -- is a governance
+failure, and the right moment to find out is at import, in CI, not when a
+signal reaches an order router.
 
 The file is read-only at runtime. Nothing here writes to it: it is edited by a
 human or by a session doing registry work, and reviewed as a diff.
@@ -55,6 +56,24 @@ class WiringPoint:
     def is_owner(self) -> bool:
         return self.kind == "owner"
 
+    @property
+    def is_component(self) -> bool:
+        """
+        Whether this module implements part of a multi-module object.
+
+        ``component`` exists for the one shape ``owner`` cannot express: an
+        object that is genuinely one concept with more than one implementation.
+        ``finite-fields`` is it -- GF(p) and GF(2^n) are the same algebraic
+        object over different characteristics, and neither module implements
+        the other's half. Listing both as owners would trip the one-owner rule,
+        whose purpose is to catch an object accidentally implemented twice;
+        listing only one would be a false claim about the other.
+
+        A component is held to the same existence check as an owner. The kind
+        buys an entry a second module, not a weaker standard.
+        """
+        return self.kind == "component"
+
 
 @dataclass(frozen=True)
 class RegistryEntry:
@@ -89,8 +108,21 @@ class RegistryEntry:
         return tuple(w for w in self.wiring if w.is_owner)
 
     @property
+    def components(self) -> tuple[WiringPoint, ...]:
+        return tuple(w for w in self.wiring if w.is_component)
+
+    @property
+    def implementing_modules(self) -> tuple[WiringPoint, ...]:
+        """Every module that implements this entry: its owner and any components."""
+        return self.owners + self.components
+
+    @property
     def consumers(self) -> tuple[WiringPoint, ...]:
         return tuple(w for w in self.wiring if w.kind == "consumer")
+
+    @property
+    def tests(self) -> tuple[WiringPoint, ...]:
+        return tuple(w for w in self.wiring if w.kind == "test")
 
     @classmethod
     def from_dict(cls, raw: dict[str, Any]) -> RegistryEntry:
@@ -156,6 +188,18 @@ class MathRegistry:
     def owned_by(self, module: str) -> tuple[RegistryEntry, ...]:
         """Entries whose owning module is exactly ``module``."""
         return tuple(e for e in self.entries if any(w.module == module for w in e.owners))
+
+    def implemented_by(self, module: str) -> tuple[RegistryEntry, ...]:
+        """
+        Entries ``module`` implements, as owner or as a component.
+
+        The question "what am I on the hook for if I change this file?" is this
+        one, not :meth:`owned_by` -- a component module carries the same
+        obligations as an owner and is just as much the thing under test.
+        """
+        return tuple(
+            e for e in self.entries if any(w.module == module for w in e.implementing_modules)
+        )
 
     def gated(self) -> tuple[RegistryEntry, ...]:
         """Entries that must not become live signals without validation."""
@@ -267,14 +311,36 @@ def _check_semantics(registry_raw: dict[str, Any], entries: Iterable[RegistryEnt
             )
 
     for entry in entries:
-        for owner in entry.owners:
+        if entry.components and not entry.owners:
+            raise RegistryError(
+                f"entry {entry.id!r} lists component modules but no owner; a component "
+                f"is part of an implementation, not a substitute for one"
+            )
+        for module in entry.implementing_modules:
             if entry.status not in IMPLEMENTED_STATUSES:
                 continue
-            if not (PROJECT_ROOT / owner.module).exists():
+            if not (PROJECT_ROOT / module.module).exists():
                 raise RegistryError(
-                    f"entry {entry.id!r} is marked implemented but its owning module "
-                    f"{owner.module!r} does not exist. The registry must describe the "
-                    f"tree as it is, not as it is planned to be."
+                    f"entry {entry.id!r} is marked implemented but its {module.kind} "
+                    f"module {module.module!r} does not exist. The registry must "
+                    f"describe the tree as it is, not as it is planned to be."
+                )
+
+    for entry in entries:
+        if entry.status not in IMPLEMENTED_STATUSES:
+            continue
+        if not entry.tests:
+            raise RegistryError(
+                f"entry {entry.id!r} is marked implemented but names no test "
+                f"module. Every implemented mathematical object gets at least one "
+                f"'test'-kind wiring pointing at the file that decides it."
+            )
+        for test in entry.tests:
+            if not (PROJECT_ROOT / test.module).exists():
+                raise RegistryError(
+                    f"entry {entry.id!r} names test module {test.module!r} "
+                    f"which does not exist. The registry must describe the tree "
+                    f"as it is, not as it is planned to be."
                 )
 
     for entry in entries:
@@ -283,6 +349,34 @@ def _check_semantics(registry_raw: dict[str, Any], entries: Iterable[RegistryEnt
                 f"entry {entry.id!r} is folklore and cannot be marked implemented. "
                 f"If it is being used, it must pass the validation gate first."
             )
+
+    for entry in entries:
+        for wire in entry.wiring:
+            if wire.kind not in {"consumer", "config", "doc"}:
+                continue
+            if not (PROJECT_ROOT / wire.module).exists():
+                raise RegistryError(
+                    f"entry {entry.id!r} names {wire.kind} module {wire.module!r} "
+                    f"which does not exist. Every wiring kind is held to the same "
+                    f"existence check -- a pointer to a missing file is worse than "
+                    f"no pointer."
+                )
+
+    by_id = {e.id: e for e in entries}
+    for entry in entries:
+        if entry.status != "implemented":
+            continue
+        for dep_id in entry.depends_on:
+            dep = by_id.get(dep_id)
+            if dep is None:
+                continue  # dangling deps are caught above.
+            if dep.status not in {"implemented", "not_applicable"}:
+                raise RegistryError(
+                    f"entry {entry.id!r} is marked implemented but depends on {dep_id!r} "
+                    f"whose status is {dep.status!r}. An implementation resting on a "
+                    f"dependency that is not itself implemented (or explicitly "
+                    f"not_applicable) is a claim the tree cannot support."
+                )
 
 
 def _check_acyclic(entries: list[RegistryEntry]) -> None:

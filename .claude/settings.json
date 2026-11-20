@@ -1,24 +1,21 @@
 {
   "hooks": {
-    "SessionStart": [
+    "PostToolUse": [
       {
+        "matcher": "Edit|Write|MultiEdit",
         "hooks": [
           {
             "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/session-start.sh",
-            "timeout": 600
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/post_edit_check.sh"
           }
         ]
-      }
-    ],
-    "PreToolUse": [
+      },
       {
-        "matcher": "Bash",
+        "matcher": "Write|Edit",
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/pre_tool_use.py\"",
-            "timeout": 10
+            "command": "python \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/quality_gate.py"
           }
         ]
       }

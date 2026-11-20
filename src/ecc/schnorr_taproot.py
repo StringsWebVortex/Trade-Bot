@@ -90,8 +90,9 @@ def estimate_privacy_routing(clusters: list[list[str]]) -> float:
     Estimate privacy routing score [0, 1].
 
     Higher score = more use of privacy-enhancing Taproot features.
-    Based on: fraction of key-path spends (indistinguishable from single-sig)
-    vs script-path spends (reveals the full Taproot tree).
+    Heuristic: average size of the detected key clusters, saturating at 5.
+    It is NOT a key-path vs script-path fraction, and the clusters are only
+    x-only keys sharing a 4-byte prefix, not proven MuSig2 aggregates.
     """
     if not clusters:
         return 0.0
@@ -161,6 +162,8 @@ def parse_taproot_block(transactions: list[dict]) -> TaprootSpendInfo:
 
     musig2_clusters = detect_musig2_cosigners(all_taproot_inputs)
     privacy = estimate_privacy_routing(musig2_clusters)
+    # No retail-direction source is wired in, so the divergence is a constant 0.0
+    # (neutral); consumers must not treat it as signal.
     divergence = compute_smart_money_divergence(musig2_clusters, retail_direction=0.0)
 
     return TaprootSpendInfo(
