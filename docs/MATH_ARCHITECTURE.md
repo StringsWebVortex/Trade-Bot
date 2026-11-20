@@ -111,7 +111,15 @@ when they are filled in.
 
 ### 3.1 `src/mathcore/fields/`
 
-**`src/mathcore/fields/prime_field.py`** — owns `finite-fields`,
+**`src/mathcore/fields/__init__.py`** — owns `finite-fields`.
+
+Finite fields are one algebraic object with two implementations here, one per
+characteristic. Neither module below implements the other's half, so neither
+can honestly be the sole owner and both cannot be owners — the registry allows
+exactly one. The package is the owner; the two modules are its `component`
+wiring points, held to the same existence check and re-exported from here.
+
+**`src/mathcore/fields/prime_field.py`** — component of `finite-fields`; owns
 `pseudo-mersenne-primes`.
 ```
 class PrimeField:
@@ -128,8 +136,9 @@ Non-goals: not constant-time in v1 and the docstring says so, so it is an
 analysis tool, not a signer. Constant-time variants arrive with a benchmark
 that proves the claim rather than asserting it.
 
-**`src/mathcore/fields/binary_field.py`** — owns `linear-algebra-f2` support
-and the GF(2^n) arithmetic behind `galois-field-gcm` analysis.
+**`src/mathcore/fields/binary_field.py`** — component of `finite-fields`;
+provides the `linear-algebra-f2` support and the GF(2^n) arithmetic behind
+`galois-field-gcm` analysis.
 ```
 class BinaryField:
     def __init__(self, degree: int, modulus_poly: int) -> None
@@ -468,6 +477,36 @@ def detect(source: str) -> list[FolkloreFinding]
 Static detection of Fibonacci retracement levels, Gann angles, Elliott wave
 labelling and stock-to-flow fits appearing in strategy code. It reports; the
 gate decides. The point is that nobody has to notice by eye during review.
+
+### 3.11 `src/mathcore/numbertheory/safe_primes.py`
+
+Owns `dh-safe-primes`. Diffie-Hellman parameter and public-value checks that
+close the small-subgroup confinement attack: verifies a caller-supplied modulus
+is a safe prime (`p = 2q + 1` with `q` prime) rather than shipping RFC 7919
+named-group constants — a 2048-bit constant copied into a file is how this
+project has shipped a fabricated constant three times, and checking the
+structure is strictly stronger than trusting the transcription.
+`is_valid_public_value` is the half that actually stops the attack: correct
+parameters do not prevent a peer from sending an element of order 2. No key
+agreement lives here, and no random source.
+
+### 3.12 `src/mathcore/quantum/`
+
+The threat model, not the algorithms. Owns the `quantum-grover-search` and
+`quantum-fourier-shor` registry entries. No quantum simulation lives here — a
+simulator would say nothing about a 256-bit curve — only the arithmetic a
+migration plan needs.
+
+**`src/mathcore/quantum/grover.py`** — classifies symmetric-strength primitives
+under Grover's square-root speedup and returns the *effective* security bits, so
+a 128-bit symmetric key is recorded as 64-bit-effective rather than pronounced
+"broken".
+
+**`src/mathcore/quantum/shor.py`** — classifies asymmetric primitives by the
+hard problem Shor breaks (`FACTORING`, `FINITE_FIELD_DLP`, `ELLIPTIC_CURVE_DLP`)
+and implements Mosca's inequality (`X + Y > Z`) so `harvest-now-decrypt-later`
+exposure is a computable answer from three numbers the caller knows and one
+they must assume. The assumed date is a parameter, never a module constant.
 
 ---
 
