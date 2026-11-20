@@ -1,195 +1,133 @@
 name: Release
 
+# SUP-004 -- a deployable artifact that cannot be traced back to a commit is
+# an artifact nobody can audit after an incident. Every build here carries its
+# version, commit, build time and dependency manifest, and is attested with a
+# signed provenance statement so "this is what production is running" is a
+# claim somebody can verify rather than a note in a wiki.
+#
+# SUP-007 -- the triggers are deliberately narrow. `workflow_dispatch` and a
+# version tag, and nothing else: no push, no schedule, no pull_request. A
+# merged dependency bump must not be able to publish by itself, and the
+# absence of those triggers is what scripts/check_supply_chain.py asserts.
+
 on:
   push:
-    branches: ["main"]
+    tags:
+      - "v*.*.*"
   workflow_dispatch:
     inputs:
-      force_release:
-        description: "Force a release even without [release] tag in commit"
-        required: false
-        default: "false"
+      dry_run:
+        description: "Build and attest, but publish nothing"
+        type: boolean
+        default: true
+
+# Read by default; the two write scopes live on the job that needs them.
+permissions:
+  contents: read
 
 concurrency:
-  group: release-${{ github.sha }}
-  cancel-in-progress: false
-
-env:
-  PYTHON_VERSION: "3.11"
-  NODE_VERSION: "20"
+  group: release-${{ github.ref }}
+  cancel-in-progress: false # never cancel a half-finished publish
 
 jobs:
-  gate:
-    name: Gate - Verify release tag
-    runs-on: ubuntu-latest
-    outputs:
-      should_release: ${{ steps.check.outputs.should_release }}
-
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          fetch-depth: 1
-
-      - name: Check commit message
-        id: check
-        # Both values reach the script through the environment instead of
-        # being interpolated into it. `COMMIT_MSG="${{ ... }}"` pasted the raw
-        # commit message into bash, so a message containing shell
-        # metacharacters was executed rather than compared: a multi-line body
-        # ended this step with exit 127, and a crafted one would run arbitrary
-        # code holding the workflow's token. Quoting cannot fix that — the
-        # substitution happens before bash ever sees the line.
-        env:
-          COMMIT_MSG: ${{ github.event.head_commit.message }}
-          FORCE: ${{ github.event.inputs.force_release }}
-        run: |
-          if echo "$COMMIT_MSG" | grep -q "\[auto-fix\]"; then
-            echo "should_release=false" >> "$GITHUB_OUTPUT"
-            echo "Skipping release - auto-fix commit."
-            exit 0
-          fi
-
-          if echo "$COMMIT_MSG" | grep -q "\[release\]" || [ "$FORCE" = "true" ]; then
-            echo "should_release=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "should_release=false" >> "$GITHUB_OUTPUT"
-            echo "No [release] tag in commit message - skipping release."
-          fi
-
   build:
-    name: Build Artifacts
+    name: Build, describe and attest
     runs-on: ubuntu-latest
-    needs: gate
-    if: needs.gate.outputs.should_release == 'true'
-
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      # OIDC: the attestation is signed with a short-lived workload identity
+      # rather than a stored signing key. There is no secret to leak, and the
+      # resulting certificate names this workflow, this repository and this
+      # commit -- which is the part that makes provenance mean anything.
+      id-token: write
+      attestations: write
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 0
+          fetch-depth: 0 # the provenance records describe/tag state
 
-      - name: Set up Python
-        uses: actions/setup-python@v7
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
-          python-version: ${{ env.PYTHON_VERSION }}
+          python-version-file: .python-version
           cache: pip
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
+      - name: Install build tooling
+        run: python -m pip install --upgrade pip build cyclonedx-bom
 
-      - name: Install Python build tools
-        run: |
-          python -m pip install --upgrade pip build
-          pip install -e ".[dev]"
+      - name: Build the distribution
+        run: python -m build --outdir dist
 
-      - name: Run backend tests
+      - name: Generate the SBOM
+        # CycloneDX over the pinned runtime manifest -- the same file ci.yml
+        # installs, so the SBOM describes what actually ships rather than
+        # whatever happened to be resolvable on the day.
+        run: cyclonedx-py requirements requirements.txt -o dist/sbom.cdx.json
+
+      - name: Write the provenance record
         env:
-          TRADING_MODE: paper
-          BINANCE_API_KEY: dummy
-          BINANCE_API_SECRET: dummy
-          OKX_API_KEY: dummy
-          OKX_API_SECRET: dummy
-          OKX_PASSPHRASE: dummy
-          LOG_LEVEL: WARNING
-        run: pytest tests/ -v --tb=short --junitxml=test-results-release.xml
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: python3 scripts/write_provenance.py --out dist/provenance.json
 
-      - name: Build Python wheel
-        run: python -m build --wheel --outdir dist/
-
-      - name: Install frontend dependencies
-        working-directory: frontend
-        run: npm ci
-
-      - name: Build frontend
-        working-directory: frontend
-        run: npm run build
-
-      - name: Package frontend dist
-        run: |
-          cd frontend
-          tar -czf ../dist/frontend-dist.tar.gz dist/
-
-      - name: Compute version
-        id: version
-        run: |
-          VERSION=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
-          SHORT_SHA=$(git rev-parse --short HEAD)
-          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-          echo "tag=v${VERSION}-${SHORT_SHA}" >> "$GITHUB_OUTPUT"
-
-      - name: Upload release artifacts
-        uses: actions/upload-artifact@v7
+      - name: Attest build provenance
+        # Produces a signed, verifiable statement binding these bytes to this
+        # workflow run. `gh attestation verify` checks it; the verification
+        # step in a deployment is what turns it from decoration into a gate.
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
-          name: release-${{ steps.version.outputs.tag }}
+          subject-path: "dist/*"
+
+      - name: Upload the release bundle
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-bundle
           path: dist/
-          retention-days: 30
+          if-no-files-found: error
+          retention-days: 90
 
-      - name: Upload test results
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: release-test-results
-          path: test-results-release.xml
-          retention-days: 14
-
-    outputs:
-      version: ${{ steps.version.outputs.version }}
-      tag: ${{ steps.version.outputs.tag }}
-
-  publish:
-    name: Publish GitHub Release
+  verify:
+    name: Verify the artifact describes itself
     runs-on: ubuntu-latest
-    needs: [gate, build]
-    if: needs.gate.outputs.should_release == 'true'
-    permissions:
-      contents: write
-
+    timeout-minutes: 10
+    needs: [build]
     steps:
-      - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Download release artifacts
-        uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          name: release-${{ needs.build.outputs.tag }}
-          path: dist/
+          name: release-bundle
+          path: dist
 
-      - name: Create Git tag
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version-file: .python-version
+
+      # The check that makes SUP-004 real: a provenance file that is present
+      # but empty, or that names a different commit, fails here rather than
+      # being discovered during an incident.
+      - name: Check the provenance record
+        run: python3 scripts/write_provenance.py --verify dist/provenance.json
+
+      - name: Check the SBOM is non-trivial
         run: |
-          git config user.name  "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag ${{ needs.build.outputs.tag }}
-          git push origin ${{ needs.build.outputs.tag }}
+          python3 - <<'PY'
+          import json, sys
+          sbom = json.load(open("dist/sbom.cdx.json"))
+          components = sbom.get("components") or []
+          if len(components) < 10:
+              sys.exit(f"SBOM lists only {len(components)} components; that is not this project")
+          print(f"SBOM lists {len(components)} components")
+          PY
+
+  gate:
+    name: Release gate (all jobs green)
+    runs-on: ubuntu-latest
+    if: always()
+    needs: [build, verify]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Assert every job in this workflow succeeded
         env:
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v3
-        with:
-          tag_name: ${{ needs.build.outputs.tag }}
-          name: "Trade-Bot ${{ needs.build.outputs.tag }}"
-          body: |
-            ## Trade-Bot ${{ needs.build.outputs.tag }}
-
-            **Commit:** ${{ github.sha }}
-            **Branch:** ${{ github.ref_name }}
-
-            ### Artifacts
-            - `tradebot-*.whl` - Python wheel (FastAPI backend + engine)
-            - `frontend-dist.tar.gz` - React/Vite dashboard (production build)
-
-            ### Install
-            ```bash
-            pip install tradebot-*.whl
-            ```
-          files: |
-            dist/*.whl
-            dist/frontend-dist.tar.gz
-          draft: false
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+          NEEDS: ${{ toJSON(needs) }}
+        run: python3 scripts/assert_jobs_green.py

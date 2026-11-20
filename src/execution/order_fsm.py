@@ -21,6 +21,8 @@ State persistence enables:
   - Partial fill aggregation across retries
   - Audit trail and reconciliation
   - Timeout escalation
+
+Registry: EXEC-002, EXEC-006, INV-003 (config/quality_registry.json).
 """
 
 from __future__ import annotations
@@ -34,6 +36,7 @@ from typing import Any, Final
 
 import structlog
 
+from src.eventbus import get_event_bus
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
@@ -47,6 +50,10 @@ class OrderStatus(Enum):
     CANCELLED = "cancelled"  # User/system cancelled, terminal
     TIMEOUT = "timeout"  # Exceeded max wait time, terminal
     FAILED = "failed"  # Permanent error, terminal
+
+
+#: Relative slack on the overfill guard. See add_partial_fill.
+_OVERFILL_RELATIVE_TOLERANCE: Final[float] = 1e-9
 
 
 class OrderFSMError(Exception):
@@ -239,8 +246,27 @@ class OrderFSM:
             self._transition_to_failed(context)
 
         # Update status and timestamps
+        previous = self._state.status
         self._state.status = next_status
         self._state.last_updated_ms = int(datetime.now(tz=UTC).timestamp() * 1000)
+
+        # Published after the state is committed, never before: a subscriber
+        # that saw FILLED while the FSM still read FILLING would be reporting
+        # a fill the system has not yet made.
+        get_event_bus().publish(
+            "order",
+            {
+                "order_id": self._state.order_id,
+                "symbol": self._state.symbol,
+                "side": self._state.side,
+                "from": previous.value,
+                "to": next_status.value,
+                "quantity": self._state.quantity,
+                "filled_qty": self._state.filled_qty,
+                "average_fill_price": self._state.average_fill_price,
+                "terminal": self._state.is_terminal(),
+            },
+        )
 
     def add_partial_fill(self, qty: float, price: float) -> None:
         """
@@ -270,12 +296,26 @@ class OrderFSM:
         old_filled = self._state.filled_qty
         self._state.filled_qty += qty
 
-        # Guard against overfill
-        if self._state.filled_qty > self._state.quantity:
+        # Guard against overfill.
+        #
+        # Compared with a relative tolerance, not exactly. An order filled in
+        # many pieces accumulates float error -- 200 fills of 0.001 sum to
+        # 0.19900000000000015, which is greater than 0.2 by 1.5e-16 -- so an
+        # exact comparison rejects the *last* fill of an order that filled
+        # perfectly, leaving it stuck in FILLING with the venue believing it
+        # complete. The tolerance is the one declared in
+        # docs/quality/MONEY_AND_TIME.md: 1e-9 relative, six orders of
+        # magnitude inside float64's precision and far inside any venue's
+        # reporting precision, so a real overfill still fails.
+        overfill_tolerance = abs(self._state.quantity) * _OVERFILL_RELATIVE_TOLERANCE
+        if self._state.filled_qty > self._state.quantity + overfill_tolerance:
             self._state.filled_qty = old_filled
             raise OrderFSMError(
                 f"Partial fill would exceed order quantity: {old_filled} + {qty} > {self._state.quantity}"
             )
+        # Clamp away the accumulated drift so the recorded quantity is the
+        # one the venue reports rather than one ulp above it.
+        self._state.filled_qty = min(self._state.filled_qty, self._state.quantity)
 
         # Update filled prices list and recalculate average
         self._state.filled_at_prices.append((price, qty))
