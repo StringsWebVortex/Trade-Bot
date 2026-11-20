@@ -151,7 +151,7 @@ class TestMalformedInputIsNeverAPass:
 class TestStaleAllowance:
     def test_unused_allowance_is_reported(self):
         result = run_gate({"a": {"result": "success"}}, allow_skipped="gone")
-        assert result.returncode == 0
+        assert result.returncode == 2
         assert "gone" in result.stdout
         assert "stale allowance" in result.stdout
 

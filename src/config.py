@@ -120,6 +120,21 @@ class OKXSettings(BaseSettings):
     rate_limit_per_second: int = Field(default=10, ge=1)
 
 
+class PaperQualificationSettings(BaseSettings):
+    """Secret that authenticates the paper-qualification record (EXR-020).
+
+    Deliberately not a field of ``Settings`` and never cached: the live gate
+    reads it fresh on every call so a rotated or removed key takes effect at
+    once, and the qualification module needs no direct environment access.
+    """
+
+    model_config = SettingsConfigDict(
+        env_prefix="PAPER_QUALIFICATION_", env_file=".env", extra="ignore"
+    )
+
+    hmac_key: str = Field(default="", description="HMAC key signing the qualification record")
+
+
 # ---------------------------------------------------------------------------
 # Risk constants — López de Prado (2018) AFML + Kelly (1956)
 # ---------------------------------------------------------------------------
@@ -193,7 +208,17 @@ class RiskSettings(BaseSettings):
     approval_timeout_s: float = Field(
         default=30.0,
         ge=1.0,
-        description="Seconds to wait for manual approval before auto-skip in RESTRICTED mode",
+        description="Seconds to wait for manual approval before auto-skip (RESTRICTED and MANUAL modes)",
+    )
+    approval_max_price_drift_bps: float = Field(
+        default=50.0,
+        ge=0.0,
+        description=(
+            "An approved trade executes on the next tick that still passes every "
+            "gate, and only while the fresh price is within this many bps of the "
+            "price the approval request showed; beyond it the approval is stale "
+            "and the trade is rejected (EXR-018)."
+        ),
     )
 
     # GAP-001 — Almgren-Chriss slippage / market-impact model
@@ -381,6 +406,9 @@ class XGBoostSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="XGB_", env_file=".env", extra="ignore")
 
     n_estimators: int = Field(default=500, ge=10)
+    # One XGBoost worker by default: TRAIN_WORKERS bounds concurrent fits,
+    # while this separately bounds the native threads inside each fit.
+    n_jobs: int = Field(default=1, ge=1, le=32)
     max_depth: int = Field(default=6, ge=1, le=20)
     learning_rate: float = Field(default=0.05, ge=1e-5, le=1.0)
     subsample: float = Field(default=0.8, ge=0.1, le=1.0)
@@ -573,7 +601,11 @@ class APISettings(BaseSettings):
     )
     port: int = Field(default=8000, ge=1024, le=65535)
     reload: bool = Field(default=False)
-    cors_origins: list[str] = Field(default=["http://localhost:5173"])
+    # Both loopback spellings of the dashboard's dev server: Vite binds
+    # 127.0.0.1 (frontend/vite.config.js) and the desktop app loads
+    # http://127.0.0.1:5173, so allowing only "localhost" made the browser
+    # drop every API answer and the dashboard read a running API as down.
+    cors_origins: list[str] = Field(default=["http://localhost:5173", "http://127.0.0.1:5173"])
     ws_heartbeat_s: float = Field(default=5.0, ge=1.0)
 
     @field_validator("cors_origins")
@@ -672,6 +704,11 @@ class SelfTuningSettings(BaseSettings):
         ge=1,
         description="Minimum closed trades between tuning attempts for the same parameter.",
     )
+    min_bars_between_attempts: int = Field(
+        default=1_000,
+        ge=1,
+        description="Minimum newly closed bars between bar-driven tuning attempts for the same parameter.",
+    )
     min_hours_between_attempts: float = Field(
         default=24.0,
         ge=1.0,
@@ -749,9 +786,9 @@ class StrategyPortfolioSettings(BaseSettings):
 
     Each *_fraction is an upper bound on the share of book capital that
     strategy may request, enforced independently of Kelly (Kelly is a
-    ceiling, not a target). The enabled fractions are validated to sum to
-    <= 1.0 at bootstrap, so a mis-set config fails at startup rather than
-    at the first fill.
+    ceiling, not a target). They are ceilings, not a partition: they may sum
+    above 1.0 (the capital allocator caps each strategy and renormalises),
+    and a sum below 1.0 is logged as a warning at bootstrap.
 
     Defaults keep only the incumbent model-driven signal engine enabled.
     The v2/v3/v5 strategy families are opt-in per CLAUDE.md's out-of-sample
@@ -1002,11 +1039,25 @@ class StrategySettings(BaseSettings):
         description="Block strategy selection during detected regime transitions.",
     )
 
+    @model_validator(mode="after")
+    def _check_cross_field_invariants(self) -> StrategySettings:
+        """An inverted pair silently gates every trade off (API-031)."""
+        if self.mr_min_half_life > self.mr_max_half_life:
+            raise ValueError("mr_min_half_life must be <= mr_max_half_life")
+        if self.mr_exit_z >= self.mr_entry_z:
+            raise ValueError("mr_exit_z must be < mr_entry_z")
+        if self.bo_exit_period > self.bo_entry_period:
+            raise ValueError("bo_exit_period must be <= bo_entry_period")
+        if self.bo_min_atr_pct >= self.bo_max_atr_pct:
+            raise ValueError("bo_min_atr_pct must be < bo_max_atr_pct")
+        return self
+
 
 class Settings(BaseSettings):
     """
     Root settings object.  Single source of truth for the entire application.
-    Loaded once via get_settings() and cached for the process lifetime.
+    Loaded via get_settings() and cached; fields outside the startup-only set
+    may be overridden at runtime through the /controls surface.
 
     Environment variables:
       TRADING_MODE   : "paper" (default) | "live"

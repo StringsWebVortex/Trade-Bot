@@ -42,7 +42,7 @@ class DriftIntegrationAdapter:
         trade_id: str,
         exit_price: float,
         pnl_usd: float,
-        predicted_prob: float,  # Direction model P(long)
+        predicted_prob: float | None,  # Direction model P(long); None = unknown, skip accuracy
         actual_direction: int,  # 1 (long) or -1 (short)
         current_equity: float,
         starting_equity: float,

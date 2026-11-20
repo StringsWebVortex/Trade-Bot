@@ -14,6 +14,10 @@ Two separate properties share this file because they share a mechanism:
         json.dumps per client for identical bytes. A subscription model that
         builds a payload per recipient brings that straight back, so the
         filter selects recipients and the serialization still happens once.
+
+Decides:
+  - INV-032 — GUI backpressure never reaches the trading loop
+  - SECR-019 — A read-only websocket key never receives the approval queue
 """
 
 from __future__ import annotations
@@ -29,6 +33,7 @@ from src.eventbus import TOPICS
 class _FakeWS:
     def __init__(self) -> None:
         self.sent: list[str] = []
+        self.headers: dict[str, str] = {}
 
     async def send_text(self, message: str) -> None:
         self.sent.append(message)
@@ -221,8 +226,9 @@ class _ScriptedWS(_FakeWS):
         self.accepted = False
         self.close_codes: list[int] = []
 
-    async def accept(self) -> None:
+    async def accept(self, subprotocol: str | None = None) -> None:
         self.accepted = True
+        self.accepted_subprotocol = subprotocol
 
     async def close(self, code: int = 1000) -> None:
         self.close_codes.append(code)

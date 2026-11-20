@@ -1,100 +1,65 @@
-"""
-REG-0018 — a cancelled job is not a failing job in the CI notice.
+"""The diagnostics report is terminal-state complete and bound to the current PR head.
 
-`.github/workflows/ci-failure-notify.yml` is the only channel this project
-permits for CI failure information (CLAUDE.md section 9), so its precision
-is load-bearing in a way an ordinary workflow's is not: there is no
-fallback to reading the logs, and a notice that over-reports trains the
-reader to skim the one thing they are allowed to read.
-
-It over-reported. A push that replaces a commit cancels that commit's
-in-flight runs, and every cancelled job was counted as "not green" -- one
-observed notice read "11 not green" for two real failures and nine runs
-cancelled by their own successor, padded with the artifact-upload warning
-that a cancelled shard leaves behind.
-
-Asserted against the workflow source. The classification is inline
-JavaScript inside the YAML, so there is no module to import; this is the
-same shape as tests/test_ci_workflow_cost.py, which reads workflow text
-for the same reason.
+Decides:
+  - REG-0018 — CI diagnostics wait for terminal outcomes without cancelling sibling workflows
 """
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
-import pytest
 import yaml
 
-WORKFLOW = (
-    Path(__file__).resolve().parent.parent / ".github" / "workflows" / "ci-failure-notify.yml"
-)
+ROOT = Path(__file__).resolve().parents[1]
+WORKFLOW = ROOT / ".github/workflows/ci-diagnostics.yml"
+COLLECTOR = ROOT / "scripts/ci_diagnostics.py"
 
 
-@pytest.fixture(scope="module")
-def script() -> str:
-    """The notify step's inline script, read once for the module."""
-    spec = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
-    for step in spec["jobs"]["notify"]["steps"]:
-        body = step.get("with", {}).get("script")
-        if body and "ci-notice" in body:
-            return body
-    pytest.fail("notify step with the ci-notice script not found")
+def test_collector_waits_for_every_applicable_workflow_and_job() -> None:
+    source = COLLECTOR.read_text(encoding="utf-8")
+    assert 'run.get("status") != "completed"' in source
+    assert "_all_jobs_terminal(jobs, run)" in source
+    assert "COLLECT_DEADLINE_SECONDS" in source
+    assert "report remains unfinalized" in source
 
 
-def test_cancelled_jobs_are_partitioned_out_of_the_count(script: str) -> None:
-    """The headline count must be real failures, not failures plus fallout."""
-    assert "f.job.conclusion === 'cancelled'" in script
-    assert "const failures = failing.filter" in script
-    assert "${failures.length} not green" in script
+def test_collector_has_no_manual_dispatch_or_agent_triggered_collection() -> None:
+    workflow = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
+    triggers = workflow.get("on") or workflow.get(True) or {}
+    source = COLLECTOR.read_text(encoding="utf-8")
+    assert set(triggers) == {"workflow_run"}
+    assert 'event_name == "workflow_run"' in source
+    assert 'event_name == "workflow_dispatch"' not in source
 
 
-def test_a_cancelled_run_is_never_reported_as_green(script: str) -> None:
-    """
-    The opposite error, and the worse one: a commit whose jobs were
-    cancelled proved nothing, so dropping cancellations from the count must
-    not let the notice claim the commit passed.
-    """
-    green = "— all checks green"
-    assert "failures.length === 0 && cancelled.length === 0" in script
-    # The green branch is guarded by both counts, never by failures alone.
-    assert script.count(green) == 1
-    guard = script[: script.index(green)]
-    assert "cancelled.length === 0" in guard.rsplit("if (", 1)[-1]
+def test_source_workflows_are_not_cancelled_by_diagnostics() -> None:
+    workflow = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
+    assert workflow["concurrency"]["cancel-in-progress"] is False
+    assert "actions: write" not in WORKFLOW.read_text(encoding="utf-8")
+    assert "cancelWorkflowRun" not in COLLECTOR.read_text(encoding="utf-8")
 
 
-def test_cancellations_are_still_named(script: str) -> None:
-    """
-    Silently dropping them would hide that the commit has no verdict, which
-    is a different thing from having passed.
-    """
-    assert "superseded by a newer commit, no verdict" in script
-    assert "— no verdict" in script
+def test_report_identity_is_bound_to_pr_and_head_sha() -> None:
+    source = COLLECTOR.read_text(encoding="utf-8")
+    assert re.search(r'"pr": pr_number,\s*"head_sha": sha', source)
+    assert "_ensure_head_unchanged(slug, pr_number, sha)" in source
+    assert "master_external_id" in source or "_external_id(pr_number, sha)" in source
+    assert "report is stale or belongs to a different pull request" in source
 
 
-@pytest.mark.parametrize(
-    "epilogue",
-    [
-        "Canceling since a higher priority waiting request",
-        "No files were found with the provided path:",
-    ],
-)
-def test_cancellation_epilogues_are_treated_as_noise(script: str, epilogue: str) -> None:
-    """
-    Both lines describe the cancellation, not a defect in the commit. They
-    were quoted verbatim as if they were failure messages.
-    """
-    assert epilogue in script
-    noise = script[script.index("const NOISE = [") : script.index("const isNoise")]
-    assert epilogue in noise
+def test_collector_binds_each_line_to_its_run_and_job() -> None:
+    source = COLLECTOR.read_text(encoding="utf-8")
+    for field in ("workflow_run_id", "job_id", "line_number"):
+        assert field in source
+    assert "_add_failure_lines" in source
 
 
-def test_the_notice_still_carries_no_advice_or_log_link(script: str) -> None:
-    """
-    Section 9 again: the comment is failure information only. A change that
-    adds a link to a log nobody may open would defeat the channel.
-    """
-    body_start = script.index("body.push(marker)")
-    body = script[body_start : script.index("const text = body.join")]
-    assert "details_url" not in body
-    assert "html_url" not in body
+def test_report_retrieval_has_one_canonical_invocation() -> None:
+    from scripts.ci_diagnostics import _canonical_invocation
+
+    cli = (ROOT / "scripts/prfail").read_text(encoding="utf-8")
+    assert "main_prfail" in cli
+    assert _canonical_invocation(["--pr", "462"]) == 462
+    assert _canonical_invocation(["--run-id", "1"]) is None
+    assert _canonical_invocation(["--pr", "462", "--run-id", "1"]) is None

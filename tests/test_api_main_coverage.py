@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import collections
+import json
 import os
 import time
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -536,6 +537,7 @@ def test_lifespan_full_startup_and_shutdown():
             return fake_fetcher
 
         async def __aexit__(self, *exc):
+            await fake_fetcher.close()
             return False
 
     async def _run():
@@ -586,6 +588,7 @@ def test_lifespan_starts_and_stops_tuning_scheduler_when_enabled():
             return fake_fetcher
 
         async def __aexit__(self, *exc):
+            await fake_fetcher.close()
             return False
 
     async def _run():
@@ -671,6 +674,7 @@ def test_lifespan_startup_failure_closes_fetcher():
             return fake_fetcher
 
         async def __aexit__(self, *exc):
+            await fake_fetcher.close()
             return False
 
     async def _run():
@@ -802,6 +806,7 @@ def test_lifespan_startup_failure_and_fetcher_close_also_fails():
     must be logged (not replace the original exception) and the original
     startup exception must still propagate."""
     import asyncio
+    from contextlib import suppress
 
     import src.api.main as main_mod
 
@@ -816,6 +821,10 @@ def test_lifespan_startup_failure_and_fetcher_close_also_fails():
             return fake_fetcher
 
         async def __aexit__(self, *exc):
+            # Match open_fetcher's contract: contain a secondary close error
+            # and let the original startup exception propagate.
+            with suppress(RuntimeError):
+                await fake_fetcher.close()
             return False
 
     async def _run():
@@ -953,22 +962,18 @@ def test_websocket_rejects_bad_key(mock_state):
 
 
 def test_websocket_full_tick_cycle(mock_state):
-    from src.api.auth import verify_ws_key
+    from src.api.access_control import Role
 
     async def _allow_ws(ws):
-        return None
+        return Role.TRADE_AUTHORIZING
 
     with patch("src.api.main.verify_ws_key", side_effect=_allow_ws):
         client = _get_client()
-        try:
-            with client.websocket_connect("/ws") as ws:
-                msg = ws.receive_text()
-                assert "tick" in msg
-        except Exception:
-            # Environment-dependent WS timing; the important part for
-            # coverage is that the handler body executed at least once.
-            pass
-    assert verify_ws_key is not None  # sanity: import didn't fail
+        with client.websocket_connect("/ws") as ws:
+            # The cold-start snapshot is sent on connect, before any heartbeat.
+            msg = json.loads(ws.receive_text())
+    assert msg["type"] == "tick"
+    assert msg["equity_usd"] == 100_000.0
 
 
 def _fake_ws():
@@ -1071,6 +1076,8 @@ def test_a_failing_beat_does_not_kill_the_heartbeat_loop(mock_state):
 
 
 def test_websocket_capacity_rejected(mock_state):
+    from starlette.websockets import WebSocketDisconnect
+
     async def _allow_ws(ws):
         return None
 
@@ -1082,11 +1089,10 @@ def test_websocket_capacity_rejected(mock_state):
         patch("src.api.main.AppState.add_ws_client", side_effect=_add_full),
     ):
         client = _get_client()
-        try:
+        with pytest.raises(WebSocketDisconnect) as exc_info:
             with client.websocket_connect("/ws"):
                 pass
-        except Exception:
-            pass
+    assert exc_info.value.code == 4429
 
 
 # ---------------------------------------------------------------------------
@@ -1173,7 +1179,7 @@ def test_performance_drift_exception(mock_state):
     client = _get_client()
     resp = client.get("/performance-drift", headers={"x-api-key": _API_KEY})
     assert resp.status_code == 200
-    assert resp.json() == {"error": "drift boom"}
+    assert resp.json() == {"error": "Internal error."}
 
 
 # ---------------------------------------------------------------------------
@@ -1197,7 +1203,7 @@ def test_intelligence_coverage_exception(mock_state):
     client = _get_client()
     resp = client.get("/intelligence/coverage", headers={"x-api-key": _API_KEY})
     assert resp.status_code == 200
-    assert resp.json() == {"error": "cov boom"}
+    assert resp.json() == {"error": "Internal error."}
 
 
 # ---------------------------------------------------------------------------
@@ -1573,3 +1579,114 @@ def test_strategies_gauntlet_uses_lifetime_facts_not_the_window(mock_state):
     candidate = resp.json()["candidates"]["alpha"]
     assert candidate["trade_count"] == 500
     assert candidate["days_running"] > 89.0
+
+
+def test_startup_guard_cleanup_attempts_every_resource_after_failures(monkeypatch):
+    """Best-effort cleanup must continue after each individual close failure."""
+    from types import SimpleNamespace
+
+    import src.api.main as main_mod
+
+    async def _run():
+        storage = AsyncMock()
+        storage.close = AsyncMock(side_effect=OSError("storage close failed"))
+        orchestrator = MagicMock()
+        orchestrator.stop.side_effect = RuntimeError("stop failed")
+        orchestrator.shutdown = AsyncMock(side_effect=RuntimeError("shutdown failed"))
+        guard = main_mod._StartupGuard(storage)
+        guard.orchestrator = orchestrator
+        guard.runtime_stop = asyncio.Event()
+
+        ws_subscription = MagicMock()
+        ws_subscription.close.side_effect = RuntimeError("ws subscription close failed")
+        trace_subscription = MagicMock()
+        trace_subscription.close.side_effect = RuntimeError("trace subscription close failed")
+        guard.ws_subscription = ws_subscription
+        guard.trace_subscription = trace_subscription
+
+        guard.fetcher_task = asyncio.create_task(asyncio.sleep(60))
+        pending_ws_task = asyncio.create_task(asyncio.sleep(60))
+        completed_ws_task = asyncio.create_task(asyncio.sleep(0))
+        await completed_ws_task
+        guard.ws_tasks = [pending_ws_task, completed_ws_task]
+        guard.orch_task = asyncio.create_task(asyncio.sleep(60))
+
+        runtime_upgrades = MagicMock()
+        runtime_upgrades.close.side_effect = RuntimeError("upgrade close failed")
+        runtime = MagicMock()
+        runtime.flush = AsyncMock(side_effect=RuntimeError("runtime flush failed"))
+        scheduler = MagicMock()
+        scheduler.stop.side_effect = RuntimeError("scheduler stop failed")
+        intel = SimpleNamespace(_intel=MagicMock())
+        intel._intel.close.side_effect = RuntimeError("intel close failed")
+
+        for name, value in {
+            "ready": True,
+            "stopping": False,
+            "runtime_upgrades": runtime_upgrades,
+            "runtime": runtime,
+            "runtime_loop": MagicMock(),
+            "background_tasks": [object()],
+            "tuning_scheduler": scheduler,
+            "intel_adapter": intel,
+            "crypto_intel": MagicMock(),
+        }.items():
+            monkeypatch.setattr(main_mod._state, name, value, raising=False)
+        guard.tuning_scheduler = scheduler
+
+        # Exercise the timeout path without waiting ten real seconds. The
+        # guard must cancel and drain the still-running orchestrator task.
+        with patch("src.api.main.asyncio.wait_for", new=AsyncMock(side_effect=TimeoutError)):
+            await guard._cleanup()
+
+        assert guard.runtime_stop.is_set()
+        ws_subscription.close.assert_called_once()
+        trace_subscription.close.assert_called_once()
+        runtime_upgrades.close.assert_called_once()
+        runtime.flush.assert_awaited_once()
+        scheduler.stop.assert_called_once()
+        intel._intel.close.assert_called_once()
+        orchestrator.stop.assert_called_once()
+        orchestrator.shutdown.assert_awaited_once()
+        storage.close.assert_awaited_once()
+        assert guard.fetcher_task.cancelled()
+        assert pending_ws_task.cancelled()
+        assert completed_ws_task.done()
+        assert guard.orch_task.cancelled()
+        assert main_mod._state.ready is False
+        assert main_mod._state.stopping is True
+        assert main_mod._state.runtime is None
+        assert main_mod._state.runtime_loop is None
+        assert main_mod._state.runtime_upgrades is None
+        assert main_mod._state.background_tasks == []
+        assert main_mod._state.tuning_scheduler is None
+        assert main_mod._state.intel_adapter is None
+        assert main_mod._state.crypto_intel is None
+
+    asyncio.run(_run())
+
+
+def test_lifespan_storage_initialization_failure_closes_storage(monkeypatch):
+    import src.api.main as main_mod
+
+    storage = AsyncMock()
+    storage.initialize = AsyncMock(side_effect=RuntimeError("storage init failed"))
+    previous_storage = getattr(main_mod._state, "storage", None)
+    monkeypatch.setattr(main_mod._state, "storage", previous_storage, raising=False)
+
+    async def _run():
+        with (
+            patch.dict(
+                os.environ,
+                {"API_SECRET_KEY": _API_KEY, "OPERATOR_SECRET": "y" * 32},
+                clear=True,
+            ),
+            patch("src.api.main.create_storage_backend", return_value=storage),
+            pytest.raises(RuntimeError, match="storage init failed"),
+        ):
+            async with main_mod.lifespan(main_mod.app):
+                pass
+
+    asyncio.run(_run())
+    storage.initialize.assert_awaited_once()
+    storage.close.assert_awaited_once()

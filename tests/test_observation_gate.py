@@ -1,122 +1,207 @@
-import importlib.util
-import json
+"""Tests for the PostToolUse observation gate.
+
+Decides:
+  - REG-1227 -- see config/quality_registry.json
+  - GOV-057 — all model-visible tool observations cross the repository boundary
+"""
+
+from importlib import util
 from pathlib import Path
+
+ROOT = Path(__file__).parents[1]
+GATE_PATH = ROOT / ".claude" / "hooks" / "observation_gate.py"
 
 
 def load_gate():
-    path = Path(__file__).parents[1] / ".claude" / "hooks" / "observation_gate.py"
-    spec = importlib.util.spec_from_file_location("observation_gate", path)
-    module = importlib.util.module_from_spec(spec)
+    spec = util.spec_from_file_location("observation_gate_v2", GATE_PATH)
+    module = util.module_from_spec(spec)
     assert spec.loader is not None
     spec.loader.exec_module(module)
     return module
 
 
-def test_minimize_text_keeps_diagnostic_and_context():
+def test_read_output_is_compacted_to_a_useful_bounded_excerpt():
     gate = load_gate()
-    raw = "noise\ncontext\nERROR: build failed\nnext detail\n" + ("noise\n" * 100)
-    result = gate.minimize_text(raw)
-    assert "context" in result
-    assert "ERROR: build failed" in result
-    assert "next detail" in result
-    assert len(result) < len(raw)
+    raw = "\n".join(f"{i + 1}\tdef important_source_{i}():" for i in range(200))
+    event = {"tool_name": "Read", "tool_response": raw}
+    output = gate.transform(event)["hookSpecificOutput"]["updatedToolOutput"]
+    assert output != raw
+    assert len(output.splitlines()) <= 81
+    assert "source observation compacted" in output
 
 
-def test_minimize_text_bounds_success_output_tightly():
+def test_small_read_output_is_preserved():
     gate = load_gate()
-    raw = "\n".join(f"line {i}" for i in range(200))
-    result = gate.minimize_text(raw)
-    assert result.count("\n") <= gate.MAX_LINES
-    assert "line 0" in result
-    assert len(result) < len(raw) // 4
+    raw = "1\tdef foo():\n2\t    return 1"
+    event = {"tool_name": "Read", "tool_response": raw}
+    output = gate.transform(event)["hookSpecificOutput"]["updatedToolOutput"]
+    assert output == raw
 
 
-def test_empty_text_stays_empty():
-    gate = load_gate()
-    assert gate.minimize_text("") == ""
-
-
-def test_transform_preserves_structured_tool_shape():
+def test_bash_output_is_replaced_without_changing_tool_shape():
     gate = load_gate()
     event = {
         "tool_name": "Bash",
         "tool_response": {
-            "stdout": "ok\nERROR: test failed\nmore",
+            "stdout": "\n".join(["noise"] * 100 + ["ERROR: build failed", "detail"]),
             "stderr": "",
             "interrupted": False,
             "isImage": False,
         },
     }
-    result = gate.transform(event)
-    output = result["hookSpecificOutput"]["updatedToolOutput"]
-    assert output["stderr"] == ""
-    assert output["interrupted"] is False
-    assert "ERROR: test failed" in output["stdout"]
+    output = gate.transform(event)["hookSpecificOutput"]["updatedToolOutput"]
+    assert set(output) == {"stdout", "stderr", "interrupted", "isImage"}
+    assert "ERROR: build failed" in output["stdout"]
+    assert len(output["stdout"].splitlines()) <= 4
 
 
-def test_transform_compacts_scalar_response():
+def test_prfail_report_keeps_every_failure_up_to_the_larger_budget():
+    """DOC-021: the CI report used to be cut to its first 3 error lines."""
     gate = load_gate()
-    event = {"tool_name": "Read", "tool_response": "line 1\nline 2"}
-    result = gate.transform(event)
-    output = result["hookSpecificOutput"]["updatedToolOutput"]
-    assert output.startswith("[Read]\n")
-    assert "line 1" in output
+    raw = "\n".join(f"ERROR: check {i} failed" for i in range(12))
+
+    def stdout_for(command):
+        event = {
+            "tool_name": "Bash",
+            "tool_input": {"command": command},
+            "tool_response": {"stdout": raw, "stderr": "", "interrupted": False, "isImage": False},
+        }
+        return gate.transform(event)["hookSpecificOutput"]["updatedToolOutput"]["stdout"]
+
+    report = stdout_for("./scripts/prfail --pr 123")
+    assert all(f"check {i} failed" in report for i in range(12))
+    assert "check 11 failed" not in stdout_for("./scripts/prfail --pr 123; echo hi")
+    assert "check 11 failed" not in stdout_for("pytest")
 
 
-def test_transform_compacts_common_structured_text_fields():
+def test_bash_success_summary_is_small():
     gate = load_gate()
+    raw = "\n".join(f"progress {i}" for i in range(500))
     event = {
-        "tool_name": "MCP",
+        "tool_name": "Bash",
         "tool_response": {
-            "content": [{"type": "text", "text": "\n".join(f"line {i}" for i in range(100))}],
-            "message": "\n".join(f"line {i}" for i in range(100)),
-            "id": "keep-me",
+            "stdout": raw,
+            "stderr": "",
+            "interrupted": False,
+            "isImage": False,
         },
     }
-    result = gate.transform(event)
-    output = result["hookSpecificOutput"]["updatedToolOutput"]
-    assert output["id"] == "keep-me"
-    assert len(output["content"][0]["text"]) < 1000
-    assert len(output["message"]) < 1000
+    output = gate.transform(event)["hookSpecificOutput"]["updatedToolOutput"]
+    assert len(output["stdout"]) < len(raw) // 10
 
 
-def test_main_never_raises_on_bad_input(monkeypatch, capsys):
+def test_operational_mcp_logs_are_compacted_but_metadata_survives():
     gate = load_gate()
-    monkeypatch.setattr(gate.sys, "stdin", type("S", (), {"read": lambda self: "{"})())
-    assert gate.main() == 0
-    payload = json.loads(capsys.readouterr().out)
-    assert payload["hookSpecificOutput"]["hookEventName"] == "PostToolUse"
-    assert "error" in payload
-
-
-def test_transform_deduplicates_repeated_observation(monkeypatch, tmp_path):
-    gate = load_gate()
-    monkeypatch.setenv("OBSERVATION_GATE_STATE_DIR", str(tmp_path))
+    raw_logs = "\n".join(["noise"] * 100 + ["ERROR: test failed", "detail"])
     event = {
-        "session_id": "session-1",
-        "tool_name": "Bash",
-        "tool_response": {"stdout": "same output that is long enough to deduplicate"},
+        "tool_name": "mcp__github__workflow_logs",
+        "tool_response": {
+            "run_id": 123,
+            "status": "failure",
+            "logs": raw_logs,
+            "body": "keep the full API body",
+        },
     }
-    first = gate.transform(event)
-    second = gate.transform(event)
-    assert "same output" in first["hookSpecificOutput"]["updatedToolOutput"]["stdout"]
-    assert second["hookSpecificOutput"]["updatedToolOutput"]["stdout"] == gate.REPEAT_MARKER
+    output = gate.transform(event)["hookSpecificOutput"]["updatedToolOutput"]
+    assert output["run_id"] == 123
+    assert output["status"] == "failure"
+    assert output["body"] == "keep the full API body"
+    assert "ERROR: test failed" in output["logs"]
 
 
-def test_deduplication_is_scoped_to_session(monkeypatch, tmp_path):
+def test_large_arbitrary_mcp_text_is_compacted():
     gate = load_gate()
-    monkeypatch.setenv("OBSERVATION_GATE_STATE_DIR", str(tmp_path))
-    base = {
-        "tool_name": "Read",
-        "tool_response": "a repeated observation with enough characters",
+    raw = "\n".join(f"payload line {i}" for i in range(500))
+    event = {
+        "tool_name": "mcp__example__search",
+        "tool_response": {"content": raw, "id": "abc"},
     }
-    first = gate.transform({**base, "session_id": "one"})
-    second = gate.transform({**base, "session_id": "two"})
-    assert (
-        first["hookSpecificOutput"]["updatedToolOutput"]
-        == "[Read]\na repeated observation with enough characters"
-    )
-    assert (
-        second["hookSpecificOutput"]["updatedToolOutput"]
-        == "[Read]\na repeated observation with enough characters"
-    )
+    output = gate.transform(event)["hookSpecificOutput"]["updatedToolOutput"]
+    assert output["id"] == "abc"
+    assert len(output["content"]) < len(raw)
+    assert "observation compacted" in output["content"]
+
+
+def test_nested_content_blocks_are_compacted_without_destroying_shape():
+    gate = load_gate()
+    raw = "\n".join(f"detail {i}" for i in range(300))
+    event = {
+        "tool_name": "mcp__example__tool",
+        "tool_response": {
+            "content": [
+                {"type": "text", "text": raw},
+                {"type": "image", "source": {"data": "preserve-me"}},
+            ]
+        },
+    }
+    output = gate.transform(event)["hookSpecificOutput"]["updatedToolOutput"]
+    assert len(output["content"][0]["text"]) < len(raw)
+    assert output["content"][1]["source"]["data"] == "preserve-me"
+
+
+def test_non_operational_mcp_content_is_preserved_when_small():
+    gate = load_gate()
+    raw = "\n".join(f"result line {i}" for i in range(20))
+    event = {
+        "tool_name": "mcp__github__get_pull_request",
+        "tool_response": {"body": raw, "number": 414},
+    }
+    output = gate.transform(event)["hookSpecificOutput"]["updatedToolOutput"]
+    assert output["body"] == raw
+    assert output["number"] == 414
+
+
+def test_search_results_are_semantically_compacted():
+    gate = load_gate()
+    raw = "\n".join(f"src/pkg_{i % 3}.py:{i}: matched symbol {i}" for i in range(500))
+    event = {"tool_name": "Grep", "tool_response": raw}
+    output = gate.transform(event)["hookSpecificOutput"]["updatedToolOutput"]
+    assert len(output) < len(raw)
+    assert "search compacted" in output
+    assert "src/pkg_0.py" in output
+    assert "matched symbol 0" in output
+
+
+def test_large_glob_output_is_compacted_by_directory_not_head_tail():
+    gate = load_gate()
+    raw = "\n".join(f"src/pkg_{i % 10}/module_{i}.py" for i in range(1000))
+    event = {"tool_name": "Glob", "tool_response": raw}
+    output = gate.transform(event)["hookSpecificOutput"]["updatedToolOutput"]
+    assert len(output) < len(raw)
+    assert "1000 entries" in output
+    assert "src/pkg_0" in output
+    assert "src/pkg_9" in output
+    assert "Use a narrower search query" in output
+
+
+def test_repeated_observations_are_deterministic():
+    gate = load_gate()
+    event = {
+        "session_id": "same-session",
+        "tool_name": "Bash",
+        "tool_response": {
+            "stdout": "a long enough successful command result " * 100,
+            "stderr": "",
+            "interrupted": False,
+            "isImage": False,
+        },
+    }
+    first = gate.transform(event)["hookSpecificOutput"]["updatedToolOutput"]
+    second = gate.transform(event)["hookSpecificOutput"]["updatedToolOutput"]
+    assert second["stdout"] == first["stdout"]
+
+
+def test_empty_execution_output_is_valid():
+    gate = load_gate()
+    event = {
+        "tool_name": "Bash",
+        "tool_response": {
+            "stdout": "",
+            "stderr": "",
+            "interrupted": False,
+            "isImage": False,
+        },
+    }
+    output = gate.transform(event)["hookSpecificOutput"]["updatedToolOutput"]
+    assert output["stdout"] == ""
+    assert output["stderr"] == ""

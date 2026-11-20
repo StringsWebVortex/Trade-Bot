@@ -54,6 +54,7 @@ from __future__ import annotations
 import asyncio
 import collections
 import time
+import uuid
 from collections.abc import AsyncIterator, Iterable, Mapping
 from dataclasses import dataclass, field
 from functools import lru_cache
@@ -75,6 +76,7 @@ TOPICS: frozenset[str] = frozenset(
         "order",  # order FSM state transitions
         "approval",  # approval queue add / resolve
         "signal",  # orchestrator tick
+        "engine",  # E-01..E-18, consensus, risk quantifier, signal gate: one per cycle
         "regime",  # orchestrator tick
         "gate",  # evaluate_all_gates, *including* blocks
         "killswitch",  # strategy_kill_switch
@@ -85,6 +87,7 @@ TOPICS: frozenset[str] = frozenset(
         "intel",  # provider health transitions
         "price",  # orderbook stream, coalesced
         "book",  # orderbook stream, coalesced
+        "runtime",  # runtime platform: lifecycle transitions and change audit
     }
 )
 
@@ -95,6 +98,32 @@ TOPICS: frozenset[str] = frozenset(
 # is not briefly busy, it is broken, and the drop counter is how that gets
 # noticed.
 DEFAULT_MAXLEN = 256
+
+
+# structlog contextvars the bus copies onto every event: the correlation ids
+# a tick (trace_id), an order submission (order_key) or a runtime change
+# binds. Read at publish time -- the producer's context, never the consumer's.
+CORRELATION_KEYS: tuple[str, ...] = (
+    "trace_id",
+    "causation_id",
+    "decision_id",
+    "order_key",
+    "strategy_id",
+    "model_id",
+    "runtime_component_id",
+    "change_id",
+    "task_id",
+    "timeframe",
+)
+
+
+def _correlation() -> dict[str, Any]:
+    bound = structlog.contextvars.get_contextvars()
+    return {k: bound[k] for k in CORRELATION_KEYS if k in bound}
+
+
+def _new_event_id() -> str:
+    return uuid.uuid4().hex
 
 
 def _now_ms() -> int:
@@ -112,11 +141,25 @@ class Event:
     difference between this and the browser's clock is the end-to-end lag,
     and a timestamp applied at send time would report zero lag no matter how
     badly the transport was starved.
+
+    ``mono_ns`` is the same instant on the monotonic clock, and it exists
+    because the two consumers need different things. The browser can only
+    compare against an epoch timestamp, so the frame has to carry wall clock.
+    The server-side lag histogram is a *duration*, and a duration taken from
+    wall clock is wrong the one time it matters: an NTP correction landing
+    between the publish and the send makes the measurement negative or
+    enormous, which is indistinguishable from the starvation the metric is
+    watching for. Never serialized -- it is meaningless outside this process.
     """
 
     topic: str
     data: Mapping[str, Any]
     ts_ms: int
+    mono_ns: int = field(default_factory=time.monotonic_ns)
+    event_id: str = field(default_factory=_new_event_id)
+    # The correlation ids bound where publish() was called (CORRELATION_KEYS);
+    # what lets a fill be traced back to the tick and signal that caused it.
+    context: Mapping[str, Any] = field(default_factory=dict)
 
 
 @dataclass(eq=False)
@@ -236,6 +279,8 @@ class EventBus:
 
     def __init__(self, maxlen: int = DEFAULT_MAXLEN) -> None:
         self._subscribers: set[Subscription] = set()
+        # Drops of subscribers already detached, so total_dropped is monotonic.
+        self._dropped_detached = 0
         self._maxlen = maxlen
         self.published = 0
         self.unknown_topic_drops = 0
@@ -246,8 +291,14 @@ class EventBus:
 
     @property
     def total_dropped(self) -> int:
-        """Drops across every live subscriber -- what the heartbeat reports."""
-        return sum(sub.dropped for sub in self._subscribers)
+        """Drops across live and detached subscribers -- what the heartbeat reports."""
+        return self._dropped_detached + sum(sub.dropped for sub in self._subscribers)
+
+    def _remove_subscriber(self, sub: Subscription) -> None:
+        """Unregister ``sub``, folding its drop count into the bus total once."""
+        if sub in self._subscribers:
+            self._subscribers.discard(sub)
+            self._dropped_detached += sub.dropped
 
     def publish(
         self,
@@ -275,7 +326,10 @@ class EventBus:
                 return
 
             event = Event(
-                topic=topic, data=payload, ts_ms=ts_ms if ts_ms is not None else _now_ms()
+                topic=topic,
+                data=payload,
+                ts_ms=ts_ms if ts_ms is not None else _now_ms(),
+                context=_correlation(),
             )
             self.published += 1
             # Snapshot: _offer drops a subscriber whose loop has been closed,
@@ -302,7 +356,7 @@ class EventBus:
             raise ValueError(f"unknown topic(s): {', '.join(sorted(unknown))}")
 
         sub = Subscription(topics=wanted, maxlen=self._maxlen)
-        sub._unsubscribe = self._subscribers.discard
+        sub._unsubscribe = self._remove_subscriber
         self._subscribers.add(sub)
         return sub
 

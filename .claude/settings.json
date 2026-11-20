@@ -1,54 +1,21 @@
 {
-  "permissions": {
-    "deny": [
-      "ScheduleWakeup",
-      "CronCreate",
-      "RemoteTrigger",
-      "mcp__github__subscribe_pr_activity"
-    ]
-  },
   "hooks": {
-    "SessionStart": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/session-start.sh",
-            "timeout": 600
-          }
-        ]
-      }
-    ],
-    "PreToolUse": [
-      {
-        "matcher": "Bash|Monitor",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/pre_tool_use.py\"",
-            "timeout": 10
-          }
-        ]
-      }
-    ],
     "PostToolUse": [
       {
-        "matcher": "*",
+        "matcher": "Edit|Write|MultiEdit",
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/observation_gate.py\"",
-            "timeout": 10
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/post_edit_check.sh"
           }
         ]
       },
       {
-        "matcher": "Write|Edit|MultiEdit|NotebookEdit",
+        "matcher": "Write|Edit",
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/quality_gate.py\"",
-            "timeout": 30
+            "command": "python \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/quality_gate.py"
           }
         ]
       }

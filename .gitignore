@@ -42,5 +42,16 @@ frontend/release/
 .venv-tmp/
 
 # Created at runtime by StorageSettings.model_dir the first time a model is
-# registered, which any suite run does. Artifacts, not source.
-models/
+# registered, which any suite run does. Anchor this artifact directory at the
+# repository root so source modules under src/models/ remain versionable.
+/models/
+
+# Claude runtime state (never source)
+.claude/.hook-state/
+# Rendered on demand from the quality registry, never committed (GOV-071): a
+# committed copy made every two registry-touching pull requests conflict.
+/docs/quality/REQUIREMENTS_TRACEABILITY.md
+.mutmut-cache
+.test_durations
+audit/*
+!audit/codebase_index.md

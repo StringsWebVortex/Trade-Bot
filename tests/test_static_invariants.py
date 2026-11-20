@@ -14,6 +14,24 @@ The per-check tests below feed each check a synthetic tree containing the
 exact defect it was written for, then the same tree with the defect removed.
 A check that cannot fail is worse than no check, so both directions are
 asserted.
+
+Decides:
+  - GOV-004 — No silent degradation in a security or risk path
+  - GOV-018 — Dependencies between src packages run downward, and the exceptions are a shrinking list
+  - GOV-039 — check_zip_is_strict has a negative test
+  - GOV-040 — check_import_cycles has a negative test
+  - GOV-041 — check_every_gate_status_is_reachable has a negative test
+  - GOV-042 — check_layering coverage locator
+  - GOV-047 — no print() in src
+  - GOV-048 — no wildcard imports in src
+  - GOV-049 — no bare except in src
+  - GOV-050 — no assert in src
+  - GOV-051 — no eval or exec in src
+  - GOV-052 — yaml uses safe_load
+  - GOV-053 — no shell=True in src
+  - GOV-054 — no bare md5 or sha1 in src
+  - GOV-055 — text open names encoding
+  - SECR-002 — Secret comparisons are constant-time
 """
 
 from __future__ import annotations
@@ -1322,7 +1340,7 @@ def test_if_raise_replacement_passes(invariants, fake_tree) -> None:
 def test_eval_or_exec_in_src_is_flagged(invariants, fake_tree, call) -> None:
     fake_tree("src/mod.py", f"def go(payload):\n    return {call}(payload)\n")
     problems = invariants.check_no_eval_or_exec()
-    assert any(f"{call}() in src/" in p for p in problems)
+    assert any(p.startswith(f"src/mod.py:2: {call}()") for p in problems)
 
 
 def test_getattr_is_not_flagged(invariants, fake_tree) -> None:

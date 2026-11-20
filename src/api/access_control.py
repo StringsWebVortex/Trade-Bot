@@ -42,6 +42,14 @@ class Permission(Enum):
     VIEW_TRADES = "view_trades"
     APPROVE_TRADE = "approve_trade"
     CHANGE_EXECUTION_MODE = "change_execution_mode"
+    # Request, approve or roll back a runtime-platform change (src/runtime).
+    # Operator authority, like the execution mode: a read-only key may watch
+    # the runtime state but never move it.
+    CHANGE_RUNTIME = "change_runtime"
+    # Connect, disconnect or re-verify an exchange venue (VEN-001). It changes
+    # what the trading path can reach, so it is operator authority too; it
+    # does not imply any trading permission and grants none.
+    MANAGE_VENUES = "manage_venues"
 
 
 # MappingProxyType, not a bare dict: this is the authorization table. The
@@ -57,6 +65,8 @@ _ROLE_PERMISSIONS: Final[Mapping[Role, frozenset[Permission]]] = MappingProxyTyp
                 Permission.VIEW_TRADES,
                 Permission.APPROVE_TRADE,
                 Permission.CHANGE_EXECUTION_MODE,
+                Permission.CHANGE_RUNTIME,
+                Permission.MANAGE_VENUES,
             }
         ),
     }

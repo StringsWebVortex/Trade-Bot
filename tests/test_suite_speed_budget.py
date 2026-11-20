@@ -33,11 +33,11 @@ import pytest
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 TESTS = PROJECT_ROOT / "tests"
 
-# Frozen 2026-09-21. These may be lowered, never raised. Raising one is the
+# Frozen 2026-11-11. These may be lowered, never raised. Raising one is the
 # specific thing this file exists to prevent, so a diff that does it has to
 # argue for it in the commit message rather than nudging a number.
-SLEEP_BUDGET = 27
-SUBPROCESS_BUDGET = 14
+SLEEP_BUDGET = 20
+SUBPROCESS_BUDGET = 13
 
 # `sleep(0)` is a scheduler yield and costs nothing. A sleep of a minute or
 # more is a sentinel inside a task the test cancels -- it is never awaited to

@@ -24,6 +24,12 @@ There are no REG/SEC entries yet. That is the honest state of a registry
 created three phases ago, and the tests below assert the *contract* those
 entries will be held to, so the first one filed lands on rails rather than
 inventing its own shape.
+
+Decides:
+  - EXEC-007 — Mutation score on the execution subsystem is at or above 90%
+  - GOV-003 — Mutation testing runs nightly on the critical subsystems
+  - RISK-006 — Mutation score on the risk subsystem is at or above 90%
+  - SIG-003 — Mutation score on the signal subsystem is at or above 85%
 """
 
 from __future__ import annotations
@@ -79,128 +85,21 @@ class TestTheRegistryHasAPlaceForDefects:
         assert "never deleted" in registry.kind_definitions["regression"]
         assert "permanent" in registry.kind_definitions["security_regression"]
 
-    def test_the_filed_defects_are_the_ones_we_know_about(self, registry):
-        # This test is the visible event. It used to assert that no defect had
-        # been filed; updating it is how filing one announces itself, rather
-        # than a defect appearing by silent append. Each id is listed here on
-        # purpose, so a new entry cannot ride in unnoticed on a passing suite.
-        #
-        # REG-0005: an order-dependent test read a process-global registry an
-        # earlier test had written, so it passed while checking the wrong
-        # blend weight. It was filed as REG-0001 on this branch before the
-        # queue defects took that id on main; the entry was renumbered in the
-        # merge rather than dropped.
-        #
-        # REG-0007: the lint job was trimmed to ruff alone and stopped
-        # installing jsonschema and PyYAML, which qe_gate hard-depends on. It
-        # passed locally because the developer's interpreter already had both,
-        # so only a clean environment could see it. REG-0006 is deliberately
-        # skipped: it is taken by the queue-promotion defect on another branch,
-        # and reusing the id would collide when that branch lands.
-        # REG-0008: _approximate_sopr returned a literal 1.0 and ignored its
-        # argument, and that value reached the live feature dict in src/intel.py
-        # and the intelligence_features_history table. The test that existed
-        # asserted the placeholder, so the suite could not have caught it.
-        # REG-0009: xdist workers inherited the controller's DUCKDB_PATH, so
-        # they all opened one exclusively-locked DuckDB file and whichever
-        # worker arrived second failed. Only visible under -n, so it read as a
-        # flake rather than as the isolation defect it was.
-        # REG-0010: qe_new_requirement.py allocated the next id by scanning the
-        # work tree, which sees only what has merged. Two branches open at once
-        # were handed the same id three times in one session; a human reading
-        # the diff caught every one, and nothing else would have.
-        # REG-0011: the same scaffolder reported success against the JSON
-        # schema while the gate validates with the loader, so it printed
-        # "[ok  ] added SEC-0001" for an entry the loader then refused.
-        # REG-0012: GOV-015 pinned the CPU torch index for every workflow that
-        # installs torch, and its test globs .github/workflows. The Dockerfile
-        # installs "-r requirements.txt" and never names torch, so the largest
-        # torch install in the repository sat outside both the rule's wording
-        # and its test until the container job died on "No space left on
-        # device".
-        # REG-0013: scripts/timescaledb.sh was named from six call sites --
-        # the README, two src/ comments and the skip message all 92
-        # TimescaleDB tests printed -- and was not in the repository, so the
-        # backend reported green by absence and the instruction the reader
-        # was given could not be followed.
-        # REG-0014: initialize() loaded both exchange venues in one unisolated
-        # sequence, so Binance answering 451 from a restricted location aborted
-        # startup entirely and stopped OKX strategies that never touched
-        # Binance -- and recovery meant restarting the process.
-        # REG-0015: the same shape as REG-0014 one layer further in. The
-        # ensemble fit was submitted to the shared single-worker training
-        # executor with no timeout, guarded only by `except Exception` --
-        # which cannot catch a hang. A wedged fit held the FastAPI lifespan
-        # open forever, so port 8000 never opened and the health endpoint,
-        # living behind that same lifespan, could not be asked. Nothing in
-        # the suite bounded a training call, so only a hang in the wild
-        # would have shown it.
-        # REG-0016: the tick's metrics snapshot was an inline dict calling
-        # len() on `open_positions`, which is a method while `equity_usd`
-        # beside it is a property. Python evaluates the dict in full before
-        # update_metrics() is reached, so the TypeError cost all eight gauges
-        # on every tick rather than one. The call site catches Exception and
-        # logs at warning by design, and Prometheus gives no feedback into
-        # the process, so an empty gauge looked exactly like a quiet market.
-        # REG-0017: LAW12 matched the token `DH` rather than a cipher suite,
-        # under `re.IGNORECASE` and with no left boundary. It therefore
-        # reported `DHE` and `ECDHE` -- the ephemeral, forward-secret
-        # exchanges -- as "Non-PFS", and fired on any word ending in "dh",
-        # including a lowercase scheme name in a lookup table. The rule had
-        # no test of its own, so the first thing able to tell a true positive
-        # from a false one was a PR tripping it.
-        # REG-0018: the CI notice counted a cancelled job as a failing one,
-        # so a commit replaced by a newer push reported its successor's
-        # cancellations as its own failures. This workflow is the only
-        # channel permitted for CI failure information, and its
-        # classification had no test.
-        # REG-0019: the dashboard's socket reconnected after unmount --
-        # cleanup closed it, the close handler scheduled a retry, and the
-        # loop outlived the component -- and retried on a flat 3s with no
-        # jitter, so the whole fleet hit a recovering API together. Neither
-        # is visible to a build, and there was no frontend test runner.
-        # REG-0022: usePolling and useStream closed over the callback their
-        # caller passed on the first render, so the five inline arrows in
-        # App.jsx were pinned forever, while useWebSocket listed its handlers
-        # in the dependency array and so tore the socket down on every render
-        # that passed new ones. One defect with two faces: the obvious fix for
-        # either is the other's bug, and refs are what satisfy both.
-        assert {e.id for e in registry.by_kind("regression")} == {
-            "REG-0005",
-            "REG-0007",
-            "REG-0008",
-            "REG-0009",
-            "REG-0010",
-            "REG-0011",
-            "REG-0012",
-            "REG-0013",
-            "REG-0014",
-            "REG-0015",
-            "REG-0016",
-            "REG-0017",
-            "REG-0018",
-            "REG-0019",
-            "REG-0020",
-            "REG-0022",
-        }
-        # SEC-0005: `.gitignore` carried a bare `.env`, which matches that one
-        # name and nothing else -- so `.env.bak.<timestamp>` from a
-        # backup-before-edit, `.env.local` and `.env.save` were all
-        # committable while holding the same API_SECRET_KEY and
-        # OPERATOR_SECRET. The secret scanners read committed content, and
-        # these files were never committed, so nothing upstream of a commit
-        # could have seen it.
-        # SEC-0006: urllib3 was only transitive, and every ccxt from 4.5.65 on
-        # pins urllib3==2.7.0 exactly, so an upstream release -- not a commit
-        # here -- made pip resolve a version with three CVEs.
-        # SEC-0007: http-cache-semantics GHSA-ch52-4w7c-c8xp has no patched
-        # release at all, so electron-builder carried eight high advisories
-        # into the frontend tree that no upgrade or override could clear.
-        assert {e.id for e in registry.by_kind("security_regression")} == {
-            "SEC-0005",
-            "SEC-0006",
-            "SEC-0007",
-        }
+    def test_every_filed_defect_is_filed_under_its_own_kind(self, registry):
+        # This test used to list every REG/SEC id by hand, so that filing one
+        # announced itself as an edit here. It also meant every pull request
+        # that filed a defect conflicted with every other one, whatever order
+        # they merged in (GOV-071). A new entry is now its own file under
+        # config/quality_registry.d/, which announces it in the diff just as
+        # visibly. What stays asserted is that the defects exist and that each
+        # one is filed where the escaped-defect metric will count it.
+        regressions = registry.by_kind("regression")
+        security = registry.by_kind("security_regression")
+        assert "REG-0005" in {e.id for e in regressions}
+        assert "SEC-0005" in {e.id for e in security}
+        for entry in (*regressions, *security):
+            assert entry.id.startswith(("REG-", "SEC-")), entry.id
+            assert entry.expected_kind == entry.kind, entry.id
 
     def test_every_filed_defect_names_a_permanent_test(self, registry):
         # The rule that separates a regression entry from a bug report: the
@@ -401,7 +300,9 @@ class TestTheMetricsCollector:
     def test_it_reports_the_registry_counts(self, collector, registry):
         metrics = collector.collect()["metrics"]
         assert metrics["requirements_total"]["value"] == len(registry)
-        assert metrics["requirements_waived"]["value"] == 0
+        # Main carries five explicitly accepted architecture-baseline waivers;
+        # they remain visible and time-bounded rather than silently counted as zero.
+        assert metrics["requirements_waived"]["value"] == 5
 
     def test_an_unmeasurable_metric_is_reported_not_omitted(self, collector):
         # A report that quietly drops what it could not measure reads as a
@@ -412,40 +313,19 @@ class TestTheMetricsCollector:
             assert metrics[name]["status"] == "unavailable"
             assert metrics[name]["reason"]
 
-    def test_a_filed_defect_is_counted_against_its_layer(self, collector):
+    def test_a_filed_defect_is_counted_against_its_layer(self, collector, registry):
         # Every filed defect names the layer that should have caught it. An
         # "unknown" bucket would mean an entry skipped that question, which
         # makes the metric useless: it measures which layer needs work.
         metric = collector.collect()["metrics"]["escaped_defects_by_layer"]
         assert metric["status"] == "ok"
         assert "unknown" not in metric["value"]
-        # 8 -> 9 with REG-0015: an unbounded ensemble fit inside the startup
-        # lifespan. The suite bounded no training call, so nothing but a hang
-        # in the wild could have surfaced it -- test-suite, not review.
-        # 9 -> 10 with REG-0016: the tick metrics payload raised on a method
-        # treated as an attribute. No test built the payload, so only reading
-        # the per-tick warning would have shown it -- test-suite.
-        # 10 -> 11 with SEC-0005: a bare `.env` pattern left every backup of
-        # it committable. Scanners read committed content and these were
-        # never committed, so only a suite check could have seen it.
-        # REG-0017: the LAW12 rule had no test of its own, so nothing could
-        # separate a true positive from a false one -- test-suite.
-        # REG-0018: the notice classification had no test, so the
-        # over-report was visible only to a reader who already knew which
-        # jobs were superseded -- test-suite.
-        # SEC-0006: no test held a floor on a transitive dependency, so a new
-        # upstream release could pull a vulnerable urllib3 unseen -- test-suite.
-        # REG-0020: the notice's extraction was only tested on pytest-shaped
-        # output, so a tool with a different failure shape went unseen -- test-suite.
-        # REG-0019: no frontend runner existed to hold the check that
-        # would have caught either defect -- test-suite.
-        # SEC-0007: the advisory reached the tree through a dependency nobody
-        # here chose, and no test or review of this repository's own code could
-        # have seen it arrive -- supply-chain, which no earlier defect carried.
-        # REG-0022: a stale callback and a socket rebuilt on every render both
-        # look like a working dashboard to a reader and to a build; only a test
-        # driving a rerender separates them -- test-suite.
-        assert metric["value"] == {"test-suite": 17, "review": 1, "supply-chain": 1}
+        # The per-layer totals used to be pinned here, so every pull request
+        # that filed a defect edited the same line (GOV-071). The property is
+        # that every defect lands in exactly one known layer.
+        assert set(metric["value"]) <= {"test-suite", "review", "supply-chain", "ci-gate-design"}
+        defects = (*registry.by_kind("regression"), *registry.by_kind("security_regression"))
+        assert sum(metric["value"].values()) == len(defects)
 
     def test_zero_escaped_defects_would_be_stated_explicitly(self, collector, monkeypatch):
         # "We have not measured this" and "this is zero" are different
