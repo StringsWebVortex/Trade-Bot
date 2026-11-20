@@ -29,13 +29,23 @@ post_quantum posture (LAW12):
   ML-DSA is not in `cryptography` as of the pinned version, and any
   counterparty verifying these signatures has to accept the new algorithm
   before we can emit it. Revisit when that lands.
+
+Registry: SECR-005 (config/quality_registry.json).
 """
 
 from __future__ import annotations
 
 import base64
 import os
+import time
+from collections import OrderedDict
 from dataclasses import dataclass
+from typing import Any, Final
+
+
+def _canonical_payload(method: str, path: str, body: str, timestamp: int) -> bytes:
+    """Newline-delimited so (path="/a", body="b") != (path="/ab", body="")."""
+    return f"{timestamp}\n{method}\n{path}\n{body}".encode()
 
 
 class ApiSigner:
@@ -56,15 +66,21 @@ class ApiSigner:
 
     @classmethod
     def from_env(cls, env_var: str = "API_SIGNING_KEY_B64") -> ApiSigner:
-        """Load key from environment variable (base64-encoded 32-byte seed)."""
+        """
+        Load key from environment variable (base64-encoded 32-byte seed).
+
+        An unset or empty variable is a configuration error: a key generated
+        here would sign requests no peer can verify. Call ``ApiSigner()`` to
+        get an ephemeral key on purpose.
+        """
         raw = os.environ.get(env_var, "")
-        if raw:
-            return cls(raw)
-        return cls()  # ephemeral key for testing
+        if not raw:
+            raise ValueError(f"{env_var} is not set; refusing to generate an ephemeral signing key")
+        return cls(raw)
 
     def sign_request(self, method: str, path: str, body: str, timestamp: int) -> str:
         """Return hex-encoded Ed25519 signature for the request."""
-        payload = f"{timestamp}{method}{path}{body}".encode()
+        payload = _canonical_payload(method, path, body, timestamp)
         sig = self._key.sign(payload)
         return sig.hex()
 
@@ -81,13 +97,94 @@ class ApiSigner:
         from cryptography.exceptions import InvalidSignature
 
         try:
-            payload = f"{timestamp}{method}{path}{body}".encode()
+            payload = _canonical_payload(method, path, body, timestamp)
             sig = bytes.fromhex(signature_hex)
             pub = self._key.public_key()
             pub.verify(sig, payload)
             return True
         except (InvalidSignature, ValueError):
             return False
+
+
+# ---------------------------------------------------------------------------
+# SECR-005 -- freshness and replay
+# ---------------------------------------------------------------------------
+
+# A valid signature stays valid forever, which is the whole problem: an
+# attacker who captures one signed "close all positions" can send it again
+# tomorrow and it verifies. Signing proves authorship, never recency, so the
+# timestamp is inside the signed payload (it already is, see sign_request) and
+# these two checks are what make it mean anything.
+
+MAX_TIMESTAMP_SKEW_S: Final[int] = 30
+
+# Bounded, because the cache is filled by whoever is talking to us. Sized
+# generously against the skew window: at any moment only signatures from the
+# last MAX_TIMESTAMP_SKEW_S seconds can still verify, so a cache that holds
+# more than one such window can never forget a signature that is still live.
+_SEEN_CACHE_SIZE: Final[int] = 4096
+
+
+class ReplayError(RuntimeError):
+    """A signed request that is stale, post-dated, or already used."""
+
+
+class ReplayWindow:
+    """
+    Remembers recently-accepted signatures and rejects a second use.
+
+    One instance per verifying process. The signature is the replay key
+    rather than a separate nonce: it is unique per (timestamp, method, path,
+    body) already, so a client needs nothing new and there is no field an
+    implementation can forget to send.
+    """
+
+    def __init__(self, now: Any = time.time) -> None:
+        self._now = now
+        self._seen: OrderedDict[str, float] = OrderedDict()
+
+    def check(self, signature_hex: str, timestamp: int) -> None:
+        """Raise `ReplayError` unless this signature is fresh and unused."""
+        now = float(self._now())
+        skew = now - float(timestamp)
+        if skew > MAX_TIMESTAMP_SKEW_S:
+            raise ReplayError("request timestamp is too old")
+        if -skew > MAX_TIMESTAMP_SKEW_S:
+            # Post-dated requests are refused too: accepting one would let an
+            # attacker mint a signature that stays replayable for as long as
+            # they cared to post-date it.
+            raise ReplayError("request timestamp is in the future")
+        if signature_hex in self._seen:
+            raise ReplayError("signature has already been used")
+        self._seen[signature_hex] = now
+        self._prune(now)
+
+    def _prune(self, now: float) -> None:
+        while self._seen and now - next(iter(self._seen.values())) > MAX_TIMESTAMP_SKEW_S:
+            self._seen.popitem(last=False)
+        while len(self._seen) > _SEEN_CACHE_SIZE:
+            self._seen.popitem(last=False)
+
+
+def verify_fresh_request(
+    signer: ApiSigner,
+    window: ReplayWindow,
+    method: str,
+    path: str,
+    body: str,
+    timestamp: int,
+    signature_hex: str,
+) -> None:
+    """
+    Full verification: authorship, then freshness, then single-use.
+
+    Raises `ReplayError`. Signature first, so that an unauthenticated caller
+    cannot fill the replay cache by sending garbage -- the cheap check is the
+    one an attacker controls the volume of.
+    """
+    if not signer.verify(method, path, body, timestamp, signature_hex):
+        raise ReplayError("signature does not verify")
+    window.check(signature_hex, timestamp)
 
 
 @dataclass(frozen=True)
@@ -149,7 +246,7 @@ def audit_signer(signer: ApiSigner) -> SignerAudit:
     from src.mathcore.curves import ed25519
 
     method, path, body, timestamp = "POST", "/v1/audit", '{"probe":true}', 1_700_000_000
-    payload = f"{timestamp}{method}{path}{body}".encode()
+    payload = _canonical_payload(method, path, body, timestamp)
 
     findings: list[str] = []
 

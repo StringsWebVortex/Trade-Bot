@@ -153,6 +153,8 @@ def test_reset_nonexistent_no_error():
     t = OrderThrottler()
     t.reset("ghost")  # should not raise
 
+    assert "ghost" not in t._buckets
+
 
 # ---------------------------------------------------------------------------
 # set_rate
