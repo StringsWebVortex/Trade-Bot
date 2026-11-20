@@ -6,10 +6,15 @@ outcome is that the table and the code disagree within two months. Nobody
 notices, because the only time anyone reads the table is during an incident,
 and during an incident nobody is comparing it to the source.
 
-So the table is here, in code, and the behaviour is read from it rather than
-written twice. `on_failure(Component.PRICE_FEED)` returns the declared
-response; there is no second place where the price feed's failure is handled
-differently, because the handler asks this module.
+So the table is here, in code, and the intent is that behaviour is read from
+it rather than written twice. `on_failure(Component.PRICE_FEED)` returns the
+declared response.
+
+**Wiring status (AGT-010): NOT enforced in the live path.** No module under
+src/ calls on_failure(); only tests and scripts/check_static_invariants.py import it.
+The behaviour described here is what the module does *when called*, not a
+claim that the running bot calls it. Live halts today come from the risk
+gates (src/risk/gates.py) and the capital-preservation floor.
 
 Two design choices are worth stating:
 
@@ -24,6 +29,8 @@ stop trading -- losing the sentiment feed is not a reason to abandon open
 positions -- but "keep going" without a stated bound is how a bot trades for
 six hours on a frozen order book. Every DEGRADE carries what is lost and how
 long it may last.
+
+Registry: RES-001, RES-007 (config/quality_registry.json).
 """
 
 from __future__ import annotations

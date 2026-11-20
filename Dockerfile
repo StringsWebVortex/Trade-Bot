@@ -28,8 +28,11 @@
 # enforce them; what it can do is be usable with them, which the health check
 # below exercises.
 
-# python:3.11-slim -- matches .python-version, which is what CI installs
-FROM python@sha256:9534e5a8e315485d4061ed659af0fd78a284c015f9b73661b41d6bab25604534 AS build
+# python:3.11-slim -- matches .python-version, which is what CI installs.
+# The tag stays beside the digest so a Dependabot update has to name the tag
+# it moves to: with a bare digest it proposed a python 3.15.1 image as a plain
+# digest refresh (#516), and the dependency install failed on it.
+FROM python:3.15-slim@sha256:65a65fc7b30b06cb6df4930fd4650697cb23f4c2698ab81fc87e4b031bc36928 AS build
 
 WORKDIR /build
 
@@ -38,8 +41,24 @@ WORKDIR /build
 # that can silently pick up something different.
 COPY requirements.txt ./
 
+# The CPU torch index first, for the same reason ci.yml does it (GOV-015).
+# PyPI's default torch wheel bundles the CUDA runtime: gigabytes of wheel for
+# an image that has no GPU and never executes a line of it. Unpacked into a
+# build layer it exhausted the runner's disk outright -- the container job
+# died on "No space left on device" before it reached the scan. The range pin
+# below is already satisfied when pip reaches requirements.txt, so that file
+# stays the single source of truth for the version.
+#
+# pip does not look inside --prefix for what is already installed, so the
+# second pass needs /install on PYTHONPATH. Without it the pre-pass's torch
+# is not seen as satisfied, and a dependency the pre-pass installed (filelock
+# 3.32.3, CVE-2026-112940) is not upgraded but installed again beside itself:
+# its old dist-info stays in the image and the scan reads it (SEC-0012).
 RUN python -m pip install --no-cache-dir --upgrade pip \
-    && python -m pip install --no-cache-dir --prefix=/install -r requirements.txt
+    && python -m pip install --no-cache-dir --prefix=/install \
+         --index-url https://download.pytorch.org/whl/cpu "torch>=2.14.0,<3.0" \
+    && PYTHONPATH=/install/lib/python3.11/site-packages \
+         python -m pip install --no-cache-dir --prefix=/install -r requirements.txt
 
 COPY src ./src
 COPY common ./common
@@ -48,7 +67,29 @@ COPY scripts ./scripts
 
 # ---------------------------------------------------------------------------
 
-FROM python@sha256:9534e5a8e315485d4061ed659af0fd78a284c015f9b73661b41d6bab25604534 AS runtime
+FROM python:3.15-slim@sha256:65a65fc7b30b06cb6df4930fd4650697cb23f4c2698ab81fc87e4b031bc36928 AS runtime
+
+# Pin the base, then patch it.
+#
+# The digest above is the newest python:3.11-slim, and the Trivy gate still
+# fails on it: Debian has a fixed perl-base and the image has not been rebuilt
+# with it yet. That gap is normal and it is why pinning alone is not a
+# security posture -- a digest is reproducible, not current.
+#
+# Security upgrades only, and no new packages: `upgrade` rather than `install`
+# keeps the "no toolchain in the runtime layer" property that
+# tests/supply_chain/test_container_posture.py asserts. The lists are removed
+# in the same layer, or they ship inside the image for no reason.
+RUN apt-get update \
+    && apt-get upgrade -y --no-install-recommends \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# setuptools ships vendored dependencies (jaraco.*) that the scan reads out of
+# their METADATA, and the base image's copy lags the fixed release. Upgrading
+# it here is cheaper than carrying an ignore file that somebody has to
+# remember to prune.
+RUN python -m pip install --no-cache-dir --upgrade pip setuptools
 
 # A fixed uid/gid rather than whatever the base assigns: a volume mounted from
 # the host has to match something, and "whatever useradd picked" is not a
@@ -63,6 +104,32 @@ COPY --from=build --chown=root:root /build/src /app/src
 COPY --from=build --chown=root:root /build/common /app/common
 COPY --from=build --chown=root:root /build/config /app/config
 COPY --from=build --chown=root:root /build/scripts /app/scripts
+
+# Remove the package manager from the runtime image.
+#
+# This started as a vulnerability hunt and ended as a posture fix, which is
+# the more useful outcome. requirements.txt floors msgpack at 1.2.1 and the
+# image carries msgpack-1.2.2 -- yet the scan kept reporting 1.1.2 installed.
+# The second copy is pip's: pip vendors msgpack under `pip/_vendor`, pinned
+# to whatever that pip release shipped, and no upgrade of the real package
+# touches it.
+#
+# The fix is not to chase the vendored copy. A runtime container has no
+# business carrying a package manager: it is an install capability handed to
+# anyone who gets execution, and this file already claims "no toolchain in
+# the runtime layer". Removing pip makes that claim true and takes the
+# vendored tree with it.
+#
+# setuptools stays -- pkg_resources is still imported by parts of the ML
+# stack at runtime, and removing it trades a scan finding for a crash.
+RUN python -m pip uninstall --yes pip wheel \
+    && rm -rf /usr/local/lib/python3.11/site-packages/pip \
+    && rm -rf /root/.cache
+
+# OPS-005: the only writable paths under a read-only root. Created owned by the
+# app user so named volumes mounted here inherit that ownership.
+RUN mkdir -p /app/data /app/logs /app/models \
+    && chown -R 10001:10001 /app/data /app/logs /app/models
 
 # Owned by root, run as tradebot: the running process cannot modify its own
 # code. This is the single most useful property in the file.

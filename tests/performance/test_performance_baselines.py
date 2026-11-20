@@ -108,9 +108,16 @@ class TestTheCheckCatchesRegressions:
         assert check(self._measurement(ms=50.0), baselines)
 
     def test_a_slow_tail_alone_is_caught(self, baselines):
-        # The regression a mean would hide entirely: 99 fast samples and one
+        # The regression a mean would hide entirely: a fast run with a tail
         # that takes a second.
-        durations = [1.0] * 99 + [1000.0]
+        #
+        # Two slow samples in a hundred, not one. `percentile` is nearest-rank
+        # by deliberate choice -- it never reports a number that was not
+        # measured -- so the p99 of a hundred samples is the 99th of them, and
+        # a single outlier is the 100th percentile rather than the 99th. One
+        # slow sample here asserted that the estimator interpolates, which is
+        # the thing the implementation refuses to do.
+        durations = [1.0] * 98 + [1000.0] * 2
         found = check(Measurement("risk_check", durations), baselines)
         assert any(r.metric == "p99_ms" for r in found)
 
@@ -208,3 +215,28 @@ class TestTheBatchForm:
         # Not an implementation detail: dropping p99 from the loop would make
         # the tail invisible again, which is the entire failure mode.
         assert PERCENTILES == (50, 95, 99)
+
+
+def test_measurement_empty_and_single_sample_edges():
+    empty = Measurement(operation="risk_check", durations_ms=[])
+    assert empty.samples == 0
+    assert empty.mean_ms == 0.0
+    with pytest.raises(BaselineError, match="no samples"):
+        empty.percentile(99)
+
+    single = Measurement(operation="risk_check", durations_ms=[12.5])
+    assert single.percentile(50) == 12.5
+    assert single.percentile(99) == 12.5
+    assert single.mean_ms == 12.5
+
+
+def test_a_missing_baseline_file_is_reported_as_unreadable(tmp_path):
+    with pytest.raises(BaselineError, match="unreadable"):
+        load_baselines(tmp_path / "missing.json")
+
+
+def test_tolerance_rejects_values_outside_the_fraction_range(tmp_path):
+    path = tmp_path / "baseline.json"
+    path.write_text(json.dumps({"regression_tolerance": 1.0}))
+    with pytest.raises(BaselineError, match="not a sensible fraction"):
+        tolerance(path)
