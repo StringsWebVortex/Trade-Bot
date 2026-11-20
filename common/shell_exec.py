@@ -14,33 +14,17 @@ Environment differences handled automatically:
   - Timeout: process group killed on SIGKILL after timeout (works in both envs)
   - jsonschema: stdlib-only fallback if package absent (no hard import failure)
 
-Usage:
-    from common.shell_exec import run
-
-    result = run({
-        "command": "pytest tests/ -q",
-        "output_policy": {
-            "max_lines": 40,
-            "stream": "both",
-            "filter_mode": "tail",
-        },
-        "retry_policy": {
-            "max_attempts": 2,
-            "retry_on": ["nonzero_exit"],
-            "delay_s": 1,
-        },
-    })
-
-    # result["filtered_output"]  — capped, filtered text (only this enters context)
-    # result["exit_code"]        — final attempt exit code
-    # result["truncated"]        — True if lines were dropped by cap
-    # result["attempt_count"]    — how many runs were made
-    # result["error"]            — None on success, str on unrecoverable failure
+Execution policy:
+    GitHub Actions is the sole execution path for tests, builds, lint, security
+    scans and quality gates. The runtime refuses local check commands before
+    execution. The only permitted CI report command is ./scripts/prfail --pr <PR_NUMBER>;
+    legacy local_checks.py prepare and local execution are denied.
 """
 
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import json
 import os
 import re
@@ -48,9 +32,21 @@ import shutil
 import signal
 import subprocess
 import time
+from datetime import UTC, datetime
 from typing import Any
 
-from common.command_schema import COMMAND_EXEC_SCHEMA
+from common.command_schema import (
+    CI_LOG_REFUSAL,
+    COMMAND_EXEC_SCHEMA,
+    LOCAL_CHECK_REFUSAL,
+    build_env,
+    classify,
+    is_ci_log_access,
+    is_exact_patch_apply_command,
+    is_local_check_execution,
+    rank,
+    redact,
+)
 
 # ---------------------------------------------------------------------------
 # Validation — jsonschema preferred, lightweight fallback if absent
@@ -89,7 +85,48 @@ except ImportError:
 # ---------------------------------------------------------------------------
 
 
-def _capture(command: str, stream: str, timeout: int) -> tuple[int, str]:
+def _command_hash(command: str) -> str:
+    """
+    Stable identifier for a command string.
+
+    Logged with result and purpose so an audit can correlate "what was
+    declared" with "what ran" without storing the command text itself, which
+    may embed a path or an argument that is sensitive in aggregate.
+    """
+    return hashlib.sha256(command.encode("utf-8")).hexdigest()[:16]
+
+
+def _refused(command: str, classification: str, reason: str) -> dict[str, Any]:
+    """
+    Build the result of a declaration rejected before execution.
+
+    Shaped exactly like a normal result (same keys, same types) so callers
+    never need a second code path: exit_code=-1 and a non-None error already
+    mean "did not succeed". attempt_count=0 is the tell that nothing ran.
+    """
+    return {
+        "exit_code": -1,
+        "filtered_output": "",
+        "truncated": False,
+        "bytes_truncated": False,
+        "timed_out": False,
+        "attempt_count": 0,
+        "duration_s": 0.0,
+        "classification": classification,
+        "redactions_applied": 0,
+        "command_sha256": _command_hash(command),
+        "started_at": datetime.now(UTC).isoformat(),
+        "error": f"refused: {reason}",
+    }
+
+
+def _capture(
+    command: str,
+    stream: str,
+    timeout: int,
+    cwd: str | None = None,
+    env: dict[str, str] | None = None,
+) -> tuple[int, str]:
     """
     Run command in a new process group so the entire tree can be killed on
     timeout. Works on both local and cloud container environments.
@@ -107,8 +144,19 @@ def _capture(command: str, stream: str, timeout: int) -> tuple[int, str]:
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
-        # New process group: lets us kill children on timeout
-        preexec_fn=os.setsid,
+        # New session (and so a new process group): lets us kill children on
+        # timeout. start_new_session, not preexec_fn=os.setsid: preexec_fn
+        # runs Python between fork and exec, which is not async-signal-safe
+        # and can deadlock if any other thread holds a lock at fork time --
+        # and this module is called from FastAPI handlers and asyncio
+        # executors, both of which are threaded. start_new_session is the
+        # same setsid() call made safely in C, and it is not deprecated.
+        start_new_session=True,
+        cwd=cwd,
+        # env=None inherits the parent environment (pre-1.1.0 behaviour).
+        # A dict from build_env() replaces it wholesale, which is how the
+        # env.allowlist secret-containment guarantee is actually enforced.
+        env=env,
     )
     try:
         stdout, stderr = proc.communicate(timeout=timeout)
@@ -167,12 +215,15 @@ def _filter(text: str, mode: str, expr: str) -> str:
                 "On cloud containers use filter_mode=fields or filter_mode=regex instead. "
                 "Install locally: apt-get install jq / brew install jq"
             )
+        # check=False: a failed jq query is reported as a ValueError naming
+        # the query, which is more useful than CalledProcessError.
         proc = subprocess.run(
             ["jq", "-r", expr],
             input=text,
             capture_output=True,
             text=True,
             timeout=30,
+            check=False,
         )
         if proc.returncode != 0:
             raise ValueError(f"jq query failed: {proc.stderr.strip()}")
@@ -202,6 +253,24 @@ def _filter(text: str, mode: str, expr: str) -> str:
 # ---------------------------------------------------------------------------
 # Internal: cap
 # ---------------------------------------------------------------------------
+
+
+def _cap_bytes(text: str, max_bytes: int) -> tuple[str, bool]:
+    """
+    Hard-cap to max_bytes of UTF-8. Returns (capped_text, truncated_flag).
+
+    Applied after the line cap because the line cap is not a size bound: a
+    minified bundle, a base64 payload or a no-newline progress log is one
+    line and can be megabytes. Truncation is done on the encoded bytes and
+    decoded with errors="ignore" so a cut inside a multi-byte codepoint
+    drops that codepoint instead of raising.
+    """
+    raw = text.encode("utf-8")
+    if len(raw) <= max_bytes:
+        return text, False
+    note = f"\n... [{len(raw) - max_bytes} bytes dropped — tighten filter_expr]"
+    budget = max(0, max_bytes - len(note.encode("utf-8")))
+    return raw[:budget].decode("utf-8", errors="ignore") + note, True
 
 
 def _cap(text: str, max_lines: int) -> tuple[str, bool]:
@@ -247,7 +316,7 @@ def run(declaration: dict[str, Any], timeout: int = 120) -> dict[str, Any]:
     Args:
         declaration: dict conforming to COMMAND_EXEC_SCHEMA.
         timeout:     Per-attempt timeout in seconds. Default 120.
-                     Increase for slow commands (long test suites, builds).
+                     Increase only for permitted non-check commands; tests and builds are GitHub-only.
 
     Returns:
         {
@@ -266,19 +335,75 @@ def run(declaration: dict[str, Any], timeout: int = 120) -> dict[str, Any]:
 
     cmd: str = declaration["command"]
     policy: dict = declaration["output_policy"]
+    exact_patch_apply = is_exact_patch_apply_command(cmd)
+
+    # ---- effect-class contract (schema 1.1.0) --------------------------
+    # A declaration that under-states its effect is a hard error, not a
+    # warning: the whole point of declaring is that the declaration, not the
+    # shell string, is what a reviewer and the PreToolUse hook read.
+    declared: str = declaration.get("classification", "read_only")
+    detected: str = "mutating" if exact_patch_apply else classify(cmd)
+
+    # ---- CI observability contract -------------------------------------
+    # Ahead of every output control, because this is not an output-size
+    # question. No line bound, filter or redaction makes reading a CI log
+    # allowed: the finalized filtered Check Run report is the only permitted channel. Refused here as well as in the PreToolUse
+    # hook so that routing a command through this module is not a way around that rule.
+    if not exact_patch_apply and is_ci_log_access(cmd):
+        return _refused(cmd, declared, CI_LOG_REFUSAL)
+    if not exact_patch_apply and is_local_check_execution(cmd):
+        return _refused(cmd, declared, LOCAL_CHECK_REFUSAL)
+    if rank(detected) > rank(declared):
+        return _refused(
+            cmd,
+            declared,
+            f"declaration says classification={declared!r} but the command "
+            f"matches a {detected!r} pattern. Correct the declaration -- "
+            f"do not weaken the check.",
+        )
+    if declared == "destructive" and not declaration.get("confirm_destructive", False):
+        return _refused(
+            cmd,
+            declared,
+            "destructive command requires confirm_destructive=True and "
+            "explicit user authorization.",
+        )
+
+    cwd: str | None = declaration.get("cwd")
+    if cwd is not None and not os.path.isdir(cwd):
+        return _refused(cmd, declared, f"cwd does not exist or is not a directory: {cwd!r}")
+
+    child_env = build_env(declaration.get("env"))
+    # Declared timeout wins over the run() kwarg; the kwarg stays the default
+    # for pre-1.1.0 declarations that carry no timeout_s.
+    timeout = int(declaration.get("timeout_s", timeout))
     max_lines: int = policy.get("max_lines", 50)
     stream: str = policy.get("stream", "stdout")
     filter_mode: str = policy.get("filter_mode", "none")
     filter_expr: str = policy.get("filter_expr", "")
     on_empty: str = policy.get("on_empty", "ok")
+    max_bytes: int = policy.get("max_bytes", 65536)
+    redact_spec: dict = policy.get("redact", {})
+    redact_on: bool = redact_spec.get("enabled", True)
+    redact_extra: list[str] = redact_spec.get("extra_patterns", [])
 
     retry: dict = declaration.get("retry_policy", {})
     max_attempts: int = retry.get("max_attempts", 1)
+    if declared == "destructive":
+        # CLAUDE.md hard rule: never retry a destructive command. A partially
+        # applied rm/DROP re-run against changed state is how one failure
+        # becomes two.
+        max_attempts = 1
     retry_on: list[str] = retry.get("retry_on", [])
     pattern_absent: str = retry.get("pattern_absent", "")
     delay_s: float = retry.get("delay_s", 1.0)
 
     exit_code: int = -1
+    bytes_truncated: bool = False
+    timed_out: bool = False
+    redactions: int = 0
+    started = time.monotonic()
+    started_at = datetime.now(UTC).isoformat()
     capped: str = ""
     truncated: bool = False
     attempt: int = 0
@@ -286,16 +411,23 @@ def run(declaration: dict[str, Any], timeout: int = 120) -> dict[str, Any]:
 
     for attempt in range(1, max_attempts + 1):
         try:
-            exit_code, raw = _capture(cmd, stream, timeout)
+            exit_code, raw = _capture(cmd, stream, timeout, cwd, child_env)
         except subprocess.TimeoutExpired:
+            timed_out = True
             last_error = f"Command timed out after {timeout}s (attempt {attempt})"
             if attempt < max_attempts:
                 time.sleep(delay_s)
                 continue
             break
 
+        # DOC-001: mask secrets in the whole output before any filter or cap
+        # can cut a multi-line secret (a PEM block) in half and leave its
+        # tail unmatched by the redaction patterns.
+        if redact_on:
+            raw, redactions = redact(raw, redact_extra)
         filtered = _filter(raw, filter_mode, filter_expr)
         capped, truncated = _cap(filtered, max_lines)
+        capped, bytes_truncated = _cap_bytes(capped, max_bytes)
 
         # on_empty guard
         if on_empty == "error" and not capped.strip():
@@ -323,6 +455,13 @@ def run(declaration: dict[str, Any], timeout: int = 120) -> dict[str, Any]:
         "exit_code": exit_code,
         "filtered_output": capped,
         "truncated": truncated,
+        "bytes_truncated": bytes_truncated,
+        "timed_out": timed_out,
         "attempt_count": attempt,
+        "duration_s": round(time.monotonic() - started, 3),
+        "classification": declared,
+        "redactions_applied": redactions,
+        "command_sha256": _command_hash(cmd),
+        "started_at": started_at,
         "error": last_error,
     }
