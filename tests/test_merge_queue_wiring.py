@@ -11,6 +11,9 @@ prevent.
 So the rule is mechanical: whatever is required to merge must also run in the
 queue. These tests derive the required set from the workflows themselves
 rather than restating it, so adding a gate cannot quietly skip this check.
+
+Decides:
+  - GOV-014 — Every required check also runs in the merge queue
 """
 
 from __future__ import annotations
@@ -23,12 +26,12 @@ import yaml
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 WORKFLOWS = PROJECT_ROOT / ".github" / "workflows"
 
-# Advisory, by CLAUDE.md: the cloud review never approves or merges, so it is
-# deliberately not a required check and therefore not a queue participant.
-ADVISORY = {"claude-review.yml"}
+# No advisory workflows remain: the cloud review was removed (GOV-036) and no
+# workflow may run Claude again.
+ADVISORY: set[str] = set()
 
-# Reports on a failed run of another workflow; it has no place in a queue.
-NOT_A_GATE = {"ci-failure-notify.yml"}
+# The autonomous diagnostics collector reports on other workflows; it is not a gate.
+NOT_A_GATE = {"ci-diagnostics.yml"}
 
 
 def _triggers(spec: dict) -> dict:
@@ -49,6 +52,11 @@ def gating_workflows() -> list[Path]:
         if "pull_request" in _triggers(_load(path)):
             out.append(path)
     return out
+
+
+# Mirrors the guard applied in .github/workflows/*.yml; see
+# tests/test_pr_queue.py, which owns the requirement that it exists.
+_DRAFT_GUARD = "!(github.event_name == 'pull_request' && github.event.pull_request.draft)"
 
 
 class TestQueueParticipation:
@@ -77,7 +85,11 @@ class TestQueueParticipation:
         if gate is None:
             pytest.skip(f"{path.name} has no gate job")
         condition = str(gate.get("if", ""))
-        assert "pull_request" not in condition, (
+        # The queue's draft guard names `pull_request`, but only to exclude
+        # drafts: for any other event the guard is true, so the gate still
+        # runs on a queue ref. Strip it before looking for a real fence.
+        residue = condition.replace(_DRAFT_GUARD, "")
+        assert "pull_request" not in residue, (
             f"{path.name}'s gate is conditioned on pull_request and would be "
             "skipped in the merge queue."
         )
