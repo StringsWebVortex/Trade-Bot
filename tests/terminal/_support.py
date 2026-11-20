@@ -270,6 +270,7 @@ class Daemon:
         self.task = asyncio.ensure_future(
             run_daemon(
                 config,
+                allow_root=kwargs.pop("allow_root", os.geteuid() == 0),
                 stop=self.stop,
                 install_signals=kwargs.pop("install_signals", False),
                 ready=self._ready,
@@ -324,6 +325,7 @@ class ThreadedDaemon:
 
             await run_daemon(
                 self.config,
+                allow_root=os.geteuid() == 0,
                 stop=self.stop,
                 install_signals=False,
                 ready=ready,
