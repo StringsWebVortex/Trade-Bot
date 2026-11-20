@@ -121,3 +121,16 @@ export function runtimeProblemText(problem) {
   }
   return problem.detail ? `${problem.message} (${problem.detail})` : problem.message;
 }
+
+/**
+ * SEC-0015: GET /runtime/agent needs the runtime-change permission. A 403
+ * there means the key is valid but read-only, so it is not reported as a
+ * rejected key; every other cause reads as runtimeProblemText says.
+ */
+export function agentLedgersProblemText(problem) {
+  if (problem.status === 403) {
+    return 'Agent ledgers need an operator key (runtime-change permission); this '
+      + "dashboard's key is read-only.";
+  }
+  return runtimeProblemText(problem);
+}

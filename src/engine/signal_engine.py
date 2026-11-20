@@ -34,6 +34,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Final, cast
 
+import numpy as np
 import pandas as pd
 import structlog
 from xgboost import XGBClassifier
@@ -1017,7 +1018,12 @@ class SignalEngine:
         _ensemble_p_long: float | None = None
         if ensemble is not None and _ensemble_blend_weight > 0.0:
             try:
-                _ens_pred = ensemble.predict_row(vec)
+                # REG-1714: ARIMA and the LSTM forecast from the realised
+                # closed-bar log returns (the pipeline's log_ret convention),
+                # not from the feature row. The last bar is closed (H-16).
+                _closes = bars["close"].astype(float)
+                _recent_returns = np.log(_closes / _closes.shift(1)).iloc[1:]
+                _ens_pred = ensemble.predict_row(vec, recent_returns=_recent_returns)
                 _ensemble_point_estimate = _ens_pred.point_estimate
                 _total_uncertainty = math.sqrt(
                     _ens_pred.aleatoric_uncertainty**2 + _ens_pred.epistemic_uncertainty**2

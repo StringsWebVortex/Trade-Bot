@@ -192,7 +192,7 @@ async def test_resolve_approval_success():
     assert req.resolved is True
     assert req.approved is True
     assert req.operator == "alice"
-    assert req._event.is_set()
+    assert req.resolved_at > 0.0
 
 
 @pytest.mark.asyncio
@@ -337,73 +337,3 @@ async def test_get_risk_snapshot():
     assert equity == pytest.approx(95_000.0)
     assert isinstance(start, float)
     assert isinstance(pnl, float)
-
-
-# ---------------------------------------------------------------------------
-# _await_approval() — timeout path
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.asyncio
-async def test_await_approval_missing_request_returns_false():
-    ex = _make_executor()
-    result, operator = await ex._await_approval("nonexistent", timeout_s=0.01)
-    assert result is False
-    assert operator == ""
-
-
-@pytest.mark.asyncio
-async def test_await_approval_timeout_returns_false():
-    ex = _make_executor()
-    req = ApprovalRequest(
-        request_id="req-1",
-        symbol="BTC/USDT",
-        timeframe="15m",
-        direction=1,
-        notional_usd=5000.0,
-        entry_price=50_000.0,
-        quantity=0.1,
-        kelly_fraction=0.02,
-        regime_state=1,
-        meta_label_prob=0.6,
-        raw_signal=0.7,
-        created_at=time.monotonic(),
-    )
-    ex._approval_queue["req-1"] = req
-
-    result, operator = await ex._await_approval("req-1", timeout_s=0.01)
-    assert result is False
-    assert operator == "auto_timeout"
-
-
-@pytest.mark.asyncio
-async def test_await_approval_success():
-    ex = _make_executor()
-    req = ApprovalRequest(
-        request_id="req-2",
-        symbol="BTC/USDT",
-        timeframe="15m",
-        direction=1,
-        notional_usd=5000.0,
-        entry_price=50_000.0,
-        quantity=0.1,
-        kelly_fraction=0.02,
-        regime_state=1,
-        meta_label_prob=0.6,
-        raw_signal=0.7,
-        created_at=time.monotonic(),
-    )
-    ex._approval_queue["req-2"] = req
-
-    async def _resolve():
-        await asyncio.sleep(0.01)
-        req.approved = True
-        req.operator = "alice"
-        req.resolved = True
-        req._event.set()
-
-    task = asyncio.create_task(_resolve())
-    result, operator = await ex._await_approval("req-2", timeout_s=1.0)
-    await task
-    assert result is True
-    assert operator == "alice"

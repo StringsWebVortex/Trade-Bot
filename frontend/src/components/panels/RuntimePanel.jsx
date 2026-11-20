@@ -3,6 +3,7 @@ import { useApiResource, usePolling } from '../../hooks/useApi';
 import {
   HEALTH_COLOR,
   STATE_COLOR,
+  agentLedgersProblemText,
   changeRequestBody,
   countPairs,
   decisionsFor,
@@ -201,8 +202,9 @@ function Traces({ traces }) {
   );
 }
 
-function AgentLedgers({ ledgers }) {
-  if (!ledgers) return <Empty>No agent ledgers.</Empty>;
+function AgentLedgers({ ledgers, problem }) {
+  if (problem) return <Empty>{agentLedgersProblemText(problem)}</Empty>;
+  if (!ledgers) return <Empty>Loading the agent ledgers…</Empty>;
   return (
     <div style={{ fontSize: 11 }}>
       {ledgers.tasks.map((t) => (
@@ -230,7 +232,7 @@ export function RuntimePanel({ operatorAction }) {
   const graph = usePolling('/runtime/dependencies', 30000);
   const changes = usePolling('/runtime/changes', 5000);
   const traces = usePolling('/runtime/traces?limit=20', 10000);
-  const ledgers = usePolling('/runtime/agent', 30000);
+  const { data: ledgers, problem: ledgersProblem } = useApiResource('/runtime/agent', 30000);
 
   const onDecide = (changeId, verb) =>
     operatorAction(`/runtime/changes/${encodeURIComponent(changeId)}/${verb}`, 'POST', { reason: '' });
@@ -257,7 +259,7 @@ export function RuntimePanel({ operatorAction }) {
       {view === 'dependencies' && <Dependencies graph={graph} />}
       {view === 'changes' && <Changes changes={changes} onDecide={onDecide} onSubmit={onSubmit} />}
       {view === 'traces' && <Traces traces={traces} />}
-      {view === 'agent' && <AgentLedgers ledgers={ledgers} />}
+      {view === 'agent' && <AgentLedgers ledgers={ledgers} problem={ledgersProblem} />}
     </div>
   );
 }

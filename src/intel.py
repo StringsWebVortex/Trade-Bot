@@ -519,7 +519,13 @@ class CryptoIntelligence:
         ecc_result = self._collect_ecc()
 
         # Causal layer update
-        if alt_prices and len(next(iter(alt_prices.values()), [])) >= 10:
+        close_history = ohlcv.get("close_history")
+        if (
+            alt_prices
+            and len(next(iter(alt_prices.values()), [])) >= 10
+            and close_history is not None
+            and len(close_history) >= 11
+        ):
             import numpy as np
 
             btc_ret = np.diff(np.log(np.array(ohlcv.get("close_history", [price] * 11))))
