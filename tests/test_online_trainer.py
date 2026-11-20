@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import tempfile
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
@@ -109,6 +110,9 @@ def test_learn_direction_does_not_raise_on_bad_input():
     trainer.learn_direction(np.array([np.nan, np.inf, 1.0]), label=1)
     trainer.learn_direction(np.array([]), label=0)
 
+    # Both inputs are refused, so nothing was learned from them.
+    assert trainer._dir_model.n_samples == 0
+
 
 def test_learn_direction_with_predicted_records_outcome():
     trainer = OnlineTrainer()
@@ -125,6 +129,8 @@ def test_learn_meta_with_predicted_records_outcome():
 def test_learn_meta_does_not_raise_on_bad_input():
     trainer = OnlineTrainer()
     trainer.learn_meta(np.array([np.nan, np.inf, 1.0]), p_long=0.5, label=1)
+
+    assert trainer._meta_model.n_samples == 0
 
 
 # ---------------------------------------------------------------------------
@@ -219,10 +225,16 @@ def test_reset_without_model_dir_skips_file_cleanup():
     assert trainer._dir_model.n_samples == 0
 
 
-def test_save_without_model_dir_is_a_noop():
+def test_save_without_model_dir_is_a_noop(monkeypatch):
+    import src.models.online_trainer as ot_mod
+
+    dumped: list[object] = []
+    monkeypatch.setattr(ot_mod.joblib, "dump", lambda *a, **k: dumped.append(a))
     trainer = OnlineTrainer()  # no model_dir configured
     _warm_up(trainer)
     trainer.save()  # must not raise; nothing to persist to
+
+    assert dumped == []
 
 
 def test_save_exception_is_caught_and_logged(monkeypatch):
@@ -232,11 +244,15 @@ def test_save_exception_is_caught_and_logged(monkeypatch):
         path = Path(tmpdir)
         trainer = OnlineTrainer(model_dir=path)
         _warm_up(trainer)
+        trainer._log = MagicMock()
 
         monkeypatch.setattr(
             ot_mod.joblib, "dump", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("disk full"))
         )
         trainer.save()  # must not raise despite joblib.dump failing
+
+        trainer._log.warning.assert_called_once()
+        assert trainer._log.warning.call_args.args[0] == "online_trainer.save_failed"
 
 
 # ---------------------------------------------------------------------------
