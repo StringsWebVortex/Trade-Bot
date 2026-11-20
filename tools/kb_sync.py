@@ -34,7 +34,9 @@ def tracked():
 
 
 def digest(p):
-    return hashlib.sha1(Path(p).read_bytes()).hexdigest()
+    # SHA-1 is retained only as a legacy content fingerprint for index compatibility;
+    # it is not used for authentication, signatures, or any security decision.
+    return hashlib.sha1(Path(p).read_bytes(), usedforsecurity=False).hexdigest()
 
 
 def symbols(p):
