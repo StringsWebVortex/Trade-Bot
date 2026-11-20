@@ -49,11 +49,13 @@ class ArkhamProvider(OnChainProvider):
     _RATE = 20.0  # 20 req/s per Arkham docs
 
     def __init__(self, api_key: str, cache_ttl_s: int = 60) -> None:
-        super().__init__()
+        super().__init__(cache_ttl_s)
         self._api_key = api_key
         self._CACHE_TTL_S = cache_ttl_s
         # Rolling netflow history for z-score (30 samples x 7d = 210d)
         self._netflow_history: list[float] = []
+        # INT-022: append once per cache window, not once per call.
+        self._netflow_hist_ts: float | None = None
 
     @property
     def exchange_id(self) -> str:
@@ -120,7 +122,10 @@ class ArkhamProvider(OnChainProvider):
             inflow = _sum_usd_direction(flow_data, "in")
             outflow = _sum_usd_direction(flow_data, "out")
             netflow = inflow - outflow
-            self._netflow_history.append(netflow)
+            now_m = time.monotonic()
+            if self._netflow_hist_ts is None or now_m - self._netflow_hist_ts >= self._CACHE_TTL_S:
+                self._netflow_history.append(netflow)
+                self._netflow_hist_ts = now_m
             if len(self._netflow_history) > 30:
                 self._netflow_history = self._netflow_history[-30:]
             result["exchange_netflow_7d_zscore"] = _zscore(netflow, self._netflow_history)
@@ -139,9 +144,10 @@ class ArkhamProvider(OnChainProvider):
                 reserve_ok = False
                 break
             total_balance += float(summary.get("totalUsdValue", 0) or 0)
-        if reserve_ok:
-            # Denominator: BTC market cap proxy (21M x ~$60k default; actual from summary)
-            btc_cap = 21_000_000 * 60_000.0  # conservative floor
+        # INT-028: no hardcoded BTC price. The ratio needs a live market cap,
+        # supplied via ``btc_market_cap_usd``; without it the field is unavailable.
+        btc_cap = getattr(self, "btc_market_cap_usd", None)
+        if reserve_ok and btc_cap is not None and math.isfinite(btc_cap) and btc_cap > 0.0:
             ratio = total_balance / (btc_cap + _EPS)
             result["exchange_reserve_ratio"] = max(0.0, min(1.0, ratio))
         else:
@@ -185,8 +191,9 @@ def _zscore(value: float, history: list[float]) -> float:
         return 0.0
     mean = sum(history) / len(history)
     variance = sum((x - mean) ** 2 for x in history) / len(history)
-    std = math.sqrt(variance) if variance > 0 else _EPS
-    return (value - mean) / std
+    if variance <= 1e-18:
+        return 0.0  # INT-022: no dispersion -> no z-score (an _EPS std blows up)
+    return max(-3.0, min(3.0, (value - mean) / math.sqrt(variance)))
 
 
 def _herfindahl(data: dict[str, Any]) -> float:

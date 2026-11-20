@@ -1,0 +1,23 @@
+{
+  "id": "SEC-0017",
+  "kind": "security_regression",
+  "title": "Outbound provider requests connect to the address the SSRF guard vetted",
+  "statement": "resolve_allowed resolves an outbound URL once on the event loop's resolver (never a blocking socket.getaddrinfo), applies the API-004 address policy to every answer, and returns the vetted addresses. The intelligence client sends every Glassnode request through PinnedTransport, which connects to a vetted address while keeping the Host header and TLS SNI on the original hostname, and refuses any request for an origin it did not vet.",
+  "criticality": "high",
+  "subsystem": "security",
+  "status": "verified",
+  "source": "OPS-2026-10-28",
+  "failure_mode": "The guard resolved the host, then httpx resolved it again, so a DNS-rebinding answer (public then private) passed the check and the request reached an internal address; the synchronous getaddrinfo also blocked the event loop on every request. The API-004 tests injected a resolver into the guard alone and never followed the request to the connection, so nothing compared the vetted address with the connected one; the deciding test now does.",
+  "owning_modules": [
+    "src/security/ssrf.py",
+    "src/intelligence/client.py"
+  ],
+  "verification": [
+    {
+      "test": "tests/security/test_ssrf_pinning.py",
+      "test_type": "regression"
+    }
+  ],
+  "depends_on": [],
+  "notes": "Audit API-020. layer: test-suite"
+}

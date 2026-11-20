@@ -46,6 +46,7 @@ Known limits — read these before trusting a clean run:
 from __future__ import annotations
 
 import ast
+import json
 import re
 import sys
 from collections import defaultdict
@@ -92,24 +93,49 @@ def _enclosing_function(tree: ast.Module) -> dict[ast.AST, str]:
     return owner
 
 
+def _module_name(path: Path) -> str:
+    """``src/a/b.py`` -> ``src.a.b``; ``src/a/__init__.py`` -> ``src.a``."""
+    return _rel(path)[:-3].replace("/", ".").removesuffix(".__init__")
+
+
+def _imported_modules(node: ast.ImportFrom | ast.Import, path: Path) -> list[str]:
+    """
+    The absolute module names an import statement in ``path`` reaches.
+
+    A relative import is resolved against the file's own package (audit
+    SCR-011): skipping it left every cycle and package edge written as
+    ``from .x import y`` invisible, and src/mathcore alone uses dozens of them.
+    ``from . import x`` names its submodules, so those are returned; an
+    absolute ``from a import b`` returns ``a`` only, as it always has.
+    """
+    if isinstance(node, ast.Import):
+        return [alias.name for alias in node.names]
+    if not node.level:
+        return [node.module] if node.module else []
+    package = _module_name(path).split(".")
+    if path.name != "__init__.py":
+        package = package[:-1]
+    base = package[: len(package) - (node.level - 1)]
+    if not base:
+        return []
+    if node.module:
+        return [".".join([*base, node.module])]
+    return [".".join([*base, alias.name]) for alias in node.names]
+
+
 def check_import_cycles() -> list[str]:
     """
     Module-level import cycles fail at import time, and no test can run to
     report it — the collection error is all you get.
     """
-    modules: dict[str, Path] = {}
-    for path in _py_files(SRC):
-        name = _rel(path)[:-3].replace("/", ".")
-        modules[name.removesuffix(".__init__")] = path
+    modules: dict[str, Path] = {_module_name(path): path for path in _py_files(SRC)}
 
     graph: dict[str, set[str]] = {}
     for name, path in modules.items():
         edges: set[str] = set()
         for node in _parse(path).body:  # top level only; a deferred import cannot cycle
-            if isinstance(node, ast.ImportFrom) and node.module and node.module.startswith("src"):
-                edges.add(node.module)
-            elif isinstance(node, ast.Import):
-                edges.update(a.name for a in node.names if a.name.startswith("src"))
+            if isinstance(node, (ast.ImportFrom, ast.Import)):
+                edges.update(_imported_modules(node, path))
         graph[name] = {e for e in edges if e in modules}
 
     white, grey, black = 0, 1, 2
@@ -154,6 +180,100 @@ def _slices_axis_labels(value: ast.AST) -> bool:
             return _slices_axis_labels(value.args[0])
         return False
     return isinstance(value, ast.Attribute) and value.attr in ("index", "columns")
+
+
+def _package_edges() -> tuple[dict[tuple[str, str], str], set[str]]:
+    """Every src package -> src package import, with one file that makes it."""
+    edges: dict[tuple[str, str], str] = {}
+    packages: set[str] = set()
+    for path in _py_files(SRC):
+        parts = path.relative_to(SRC).parts
+        package = parts[0] if len(parts) > 1 else parts[0][:-3]
+        if package == "__init__":
+            continue
+        packages.add(package)
+        for node in ast.walk(_parse(path)):
+            if not isinstance(node, (ast.ImportFrom, ast.Import)):
+                continue
+            for module in _imported_modules(node, path):
+                if not module.startswith("src."):
+                    continue
+                target = module.split(".")[1]
+                if target != package:
+                    edges.setdefault((package, target), _rel(path))
+    return edges, packages
+
+
+def _layering_problems(
+    contract: dict,
+    edges: dict[tuple[str, str], str],
+    packages: set[str],
+) -> list[str]:
+    """
+    Pure half of check_layering, so the rule can be tested on a graph that is
+    not this repository's.
+    """
+    rank = {
+        pkg: index for index, layer in enumerate(contract["layers"]) for pkg in layer["packages"]
+    }
+    accepted = {(e["from"], e["to"]) for e in contract["accepted_upward_edges"]}
+    names = [layer["name"] for layer in contract["layers"]]
+    problems: list[str] = []
+
+    # A package nobody placed is a package nobody decided about. Failing here
+    # is the point: a new top-level package is an architectural decision.
+    for package in sorted(packages - set(rank)):
+        problems.append(
+            f"config/architecture_layers.json: src/{package} is in no layer -- "
+            "place it, or the contract says nothing about it"
+        )
+
+    upward: set[tuple[str, str]] = set()
+    for (source, target), where in sorted(edges.items()):
+        if source not in rank or target not in rank:
+            continue
+        if rank[target] <= rank[source]:
+            continue
+        upward.add((source, target))
+        if (source, target) not in accepted:
+            problems.append(
+                f"{where}: src/{source} imports src/{target}, which is a higher "
+                f"layer ({names[rank[source]]} -> {names[rank[target]]}). Move "
+                "the shared shape down, or add the edge to "
+                "accepted_upward_edges with the argument for it."
+            )
+
+    # The ratchet. An inversion that has been fixed must leave the list, or the
+    # next one to appear finds a slot already paid for.
+    for source, target in sorted(accepted - upward):
+        problems.append(
+            f"config/architecture_layers.json: src/{source} no longer imports "
+            f"src/{target} -- remove the accepted edge and bank the fix"
+        )
+
+    return problems
+
+
+def check_layering() -> list[str]:
+    """
+    Dependencies run downward. A package may import from its own layer or any
+    layer below it, never above.
+
+    check_import_cycles above refuses a *module*-level cycle, because that one
+    fails at import time and is therefore self-reporting. A *package*-level
+    cycle never fails: it hides behind submodule imports and deferred imports,
+    and surfaces instead as two packages that cannot be changed, tested or
+    reasoned about apart. `api` and `engine` import each other today; so do
+    `engine` and `strategies`.
+
+    The layer order and the edges that already run upward are declared in
+    config/architecture_layers.json. That list is a ratchet -- it may shrink
+    and never grow -- so an inversion has to be either fixed or argued for in
+    the diff that adds it, rather than accumulating silently.
+    """
+    contract = json.loads((REPO / "config" / "architecture_layers.json").read_text("utf-8"))
+    edges, packages = _package_edges()
+    return _layering_problems(contract, edges, packages)
 
 
 def check_positional_column_slices() -> list[str]:
@@ -334,6 +454,13 @@ def check_every_gate_status_is_reachable() -> list[str]:
             stack_source = ast.dump(node)
 
     # Which check_* functions does the stack actually call?
+    # Renaming GateStatus or evaluate_all_gates must not turn this into a
+    # check that passes because it found nothing to check (audit SCR-011).
+    if not members:
+        return ["src/risk/gates.py: no GateStatus class with members -- the check has no subject"]
+    if not stack_source:
+        return ["src/risk/gates.py: no evaluate_all_gates() -- the check has no gate stack"]
+
     called = set(re.findall(r"id='(check_\w+)'", stack_source))
     produced: set[str] = set()
     for node in ast.walk(tree):
@@ -921,6 +1048,51 @@ _MUTABLE_FACTORIES = frozenset(
 _AUTH_CALL_NAMES = frozenset({"verify_ws_key", "api_key_header", "require_permission"})
 
 
+_ROUTE_METHODS = frozenset({"get", "post", "put", "delete", "patch", "websocket"})
+_ROUTE_REGISTRARS = frozenset({"add_api_route", "add_api_websocket_route"})
+
+
+def _call_name(call: ast.Call) -> str | None:
+    if isinstance(call.func, ast.Name):
+        return call.func.id
+    if isinstance(call.func, ast.Attribute):
+        return call.func.attr
+    return None
+
+
+def _route_modules() -> list[Path]:
+    """src/api/main.py, plus every src module that builds a FastAPI app or an APIRouter."""
+    main = SRC / "api" / "main.py"
+    found = [main] if main.exists() else []
+    for path in _py_files(SRC):
+        if path == main:
+            continue
+        if any(
+            isinstance(node, ast.Call) and _call_name(node) in {"FastAPI", "APIRouter"}
+            for node in ast.walk(_parse(path))
+        ):
+            found.append(path)
+    return found
+
+
+def _first_statement_authenticates(function: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
+    """The handler's first statement (after a docstring) makes an auth call."""
+    body = function.body
+    if (
+        body
+        and isinstance(body[0], ast.Expr)
+        and isinstance(body[0].value, ast.Constant)
+        and isinstance(body[0].value.value, str)
+    ):
+        body = body[1:]
+    if not body:
+        return False
+    return any(
+        isinstance(call, ast.Call) and _call_name(call) in _AUTH_CALL_NAMES
+        for call in ast.walk(body[0])
+    )
+
+
 def check_every_route_is_authenticated() -> list[str]:
     """
     Every HTTP route and WebSocket must authenticate.
@@ -937,48 +1109,50 @@ def check_every_route_is_authenticated() -> list[str]:
     happen before add_ws_client(), or a raising auth leaks a client slot.
     Demanding the decorator form would report that as unguarded and push
     someone to "fix" a correct ordering.
+
+    The in-body form counts only as the first statement: an auth call after a
+    side effect authenticates too late (audit OPS-023). Every module that
+    builds an app or a router is scanned, and so is `add_api_route`, since a
+    route registered either way serves the same; finding no route module at
+    all is reported rather than passed (SCR-011).
     """
-    main = SRC / "api" / "main.py"
-    if not main.exists():
-        return []
+    modules = _route_modules()
+    if not modules:
+        return ["src/: no FastAPI app or APIRouter found -- the route check has no subject"]
 
     problems: list[str] = []
-    for node in ast.walk(_parse(main)):
-        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            continue
-        for dec in node.decorator_list:
-            if not (isinstance(dec, ast.Call) and isinstance(dec.func, ast.Attribute)):
-                continue
-            if dec.func.attr not in (
-                "get",
-                "post",
-                "put",
-                "delete",
-                "patch",
-                "websocket",
+    for path in modules:
+        for node in ast.walk(_parse(path)):
+            if (
+                isinstance(node, ast.Call)
+                and _call_name(node) in _ROUTE_REGISTRARS
+                and not any(kw.arg == "dependencies" for kw in node.keywords)
             ):
-                continue
-            if any(kw.arg == "dependencies" for kw in dec.keywords):
-                continue
-            body_authenticates = any(
-                isinstance(call, ast.Call)
-                and (
-                    (isinstance(call.func, ast.Name) and call.func.id in _AUTH_CALL_NAMES)
-                    or (isinstance(call.func, ast.Attribute) and call.func.attr in _AUTH_CALL_NAMES)
+                problems.append(
+                    f"{_rel(path)}:{node.lineno} {_call_name(node)}() has no dependencies= "
+                    "guard -- it serves unauthenticated"
                 )
-                for call in ast.walk(node)
-            )
-            if body_authenticates:
+            if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 continue
-            route = (
-                dec.args[0].value
-                if dec.args and isinstance(dec.args[0], ast.Constant)
-                else "<unknown>"
-            )
-            problems.append(
-                f"{_rel(main)}:{node.lineno} {dec.func.attr.upper()} {route} has no "
-                "dependencies= guard and no in-body auth call — it serves unauthenticated"
-            )
+            for dec in node.decorator_list:
+                if not (isinstance(dec, ast.Call) and isinstance(dec.func, ast.Attribute)):
+                    continue
+                if dec.func.attr not in _ROUTE_METHODS:
+                    continue
+                if any(kw.arg == "dependencies" for kw in dec.keywords):
+                    continue
+                if _first_statement_authenticates(node):
+                    continue
+                route = (
+                    dec.args[0].value
+                    if dec.args and isinstance(dec.args[0], ast.Constant)
+                    else "<unknown>"
+                )
+                problems.append(
+                    f"{_rel(path)}:{node.lineno} {dec.func.attr.upper()} {route} has no "
+                    "dependencies= guard and no auth call as its first statement — it "
+                    "serves unauthenticated"
+                )
     return problems
 
 
@@ -1140,6 +1314,15 @@ _WALL_CLOCK_ARITHMETIC_ALLOWED = {
     ("src/data/quality_gate.py", "check_ohlcv"),
     # Same: compared against the macro release date parsed from the provider.
     ("src/data/quality_gate.py", "check_macro"),
+    # A qualification record stores an ISO wall-clock instant on disk; its age
+    # must be checked against the current wall clock across process restarts.
+    ("src/risk/paper_qualification.py", "assert_qualified_for_live"),
+    # _collect_ecc compares a recorded epoch observation time with current epoch
+    # to determine the age of an observation (an absolute point in history).
+    ("src/intel.py", "_collect_ecc"),
+    # _apply_intelligence_order_gate compares a prediction epoch timestamp with
+    # current epoch; the timestamp is the point in history when it was produced.
+    ("src/engine/orchestrator.py", "_apply_intelligence_order_gate"),
     # since_ms is an exchange API parameter and must be a real epoch time.
     # _tick_traced, not _tick: the tick body moved there when _tick became the
     # wrapper that binds the trace id.
@@ -1414,8 +1597,244 @@ def check_dataclass_attributes_exist() -> list[str]:
     return problems
 
 
+def check_no_wildcard_imports() -> list[str]:
+    """
+    ``from x import *`` puts the exporter in charge of a caller's namespace:
+    a rename in x silently deletes a name in the caller, and a new export
+    silently adds one that shadows what the caller had. Neither shows in the
+    caller's diff. Every import in src/ names what it takes.
+    """
+    problems: list[str] = []
+    for path in _py_files(SRC):
+        for node in ast.walk(_parse(path)):
+            if isinstance(node, ast.ImportFrom):
+                for alias in node.names:
+                    if alias.name == "*":
+                        source = "." * node.level + (node.module or "")
+                        problems.append(
+                            f"{_rel(path)}:{node.lineno}: wildcard import 'from {source} import *'"
+                        )
+    return problems
+
+
+def check_no_print_in_src() -> list[str]:
+    """
+    ``print()`` in production code is the shape of an output that the
+    observability stack cannot see. structlog is the only writer the runbook
+    covers, so a print() bypasses log level, formatting and rate limiting,
+    and its output vanishes wherever stdout does. Tests and scripts may
+    still print freely; only ``src/`` is guarded.
+    """
+    problems: list[str] = []
+    for path in _py_files(SRC):
+        for node in ast.walk(_parse(path)):
+            if (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Name)
+                and node.func.id == "print"
+            ):
+                problems.append(
+                    f"{_rel(path)}:{node.lineno}: print() in src/ -- use structlog instead"
+                )
+    return problems
+
+
+def check_no_bare_except() -> list[str]:
+    """
+    A bare ``except:`` catches ``KeyboardInterrupt`` and ``SystemExit`` too,
+    which turns Ctrl+C and ``sys.exit()`` into swallowed exceptions in a
+    long-running trading process. Every handler names what it means to
+    catch; ``except Exception:`` is the widest permitted.
+    """
+    problems: list[str] = []
+    for path in _py_files(SRC):
+        for node in ast.walk(_parse(path)):
+            if isinstance(node, ast.ExceptHandler) and node.type is None:
+                problems.append(f"{_rel(path)}:{node.lineno}: bare except -- name the exception")
+    return problems
+
+
+def check_no_assert_in_src() -> list[str]:
+    """
+    ``assert`` disappears under ``python -O``. A production check spelled as
+    an assert becomes a silent no-op in optimised runs, so the invariant it
+    was defending goes with it. Every production check is an ``if x: raise``.
+    Tests are free to assert; only ``src/`` is guarded.
+    """
+    problems: list[str] = []
+    for path in _py_files(SRC):
+        for node in ast.walk(_parse(path)):
+            if isinstance(node, ast.Assert):
+                problems.append(
+                    f"{_rel(path)}:{node.lineno}: assert in src/ -- use 'if not x: raise'"
+                )
+    return problems
+
+
+def _code_files() -> list[Path]:
+    """src/ and scripts/: the scripts run in CI and on the operator's machine too (SCR-011)."""
+    return [*_py_files(SRC), *_py_files(REPO / "scripts")]
+
+
+def check_no_eval_or_exec() -> list[str]:
+    """
+    ``eval`` and ``exec`` accept a string and run it as code. In a trading
+    process that reads from configuration, from a network peer, or from any
+    source that is not entirely under the operator's key, that string is a
+    remote-code-execution primitive. Nothing in ``src/`` needs either.
+    """
+    problems: list[str] = []
+    for path in _code_files():
+        for node in ast.walk(_parse(path)):
+            if (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Name)
+                and node.func.id in {"eval", "exec"}
+            ):
+                problems.append(
+                    f"{_rel(path)}:{node.lineno}: {node.func.id}() -- refuse code from a string"
+                )
+    return problems
+
+
+def check_yaml_uses_safe_load() -> list[str]:
+    """
+    ``yaml.load`` without a loader argument accepts YAML tags that construct
+    arbitrary Python objects -- the shape of ``!!python/object/apply:os.system``.
+    ``yaml.safe_load`` is the only entry point that refuses those tags.
+    """
+    problems: list[str] = []
+    for path in _code_files():
+        for node in ast.walk(_parse(path)):
+            if (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and node.func.attr == "load"
+                and isinstance(node.func.value, ast.Name)
+                and node.func.value.id == "yaml"
+                and not _names_a_safe_loader(node)
+            ):
+                problems.append(f"{_rel(path)}:{node.lineno}: yaml.load() -- use yaml.safe_load()")
+    return problems
+
+
+_SAFE_YAML_LOADERS = frozenset({"SafeLoader", "CSafeLoader"})
+
+
+def _names_a_safe_loader(call: ast.Call) -> bool:
+    """``yaml.load(text, Loader=yaml.SafeLoader)`` is safe_load spelled out (SCR-011)."""
+    loaders = [kw.value for kw in call.keywords if kw.arg == "Loader"] + call.args[1:2]
+    for loader in loaders:
+        name = loader.attr if isinstance(loader, ast.Attribute) else getattr(loader, "id", None)
+        if name in _SAFE_YAML_LOADERS:
+            return True
+    return False
+
+
+def check_no_subprocess_shell_true() -> list[str]:
+    """
+    ``shell=True`` on a subprocess turns any interpolated string into a shell
+    command line. In a codebase whose configuration and adapter surfaces
+    include values from peers, exchanges and operators, that is a shell
+    injection primitive one f-string away. Pass a list argv and let the
+    kernel handle argument boundaries.
+    """
+    problems: list[str] = []
+    for path in _code_files():
+        for node in ast.walk(_parse(path)):
+            if not isinstance(node, ast.Call):
+                continue
+            for kw in node.keywords:
+                if (
+                    kw.arg == "shell"
+                    and isinstance(kw.value, ast.Constant)
+                    and kw.value.value is True
+                ):
+                    problems.append(
+                        f"{_rel(path)}:{node.lineno}: shell=True -- pass an argv list instead"
+                    )
+    return problems
+
+
+def check_no_weak_hash() -> list[str]:
+    """
+    MD5 and SHA-1 fail collision resistance in the field. Every hash in this
+    codebase is either a security primitive or an integrity check where a
+    forged collision is the attack -- SHA-256 or better is the floor.
+    ``hashlib.md5(..., usedforsecurity=False)`` remains available for the one
+    place a legacy non-security id is unavoidable, but the argumentless call
+    is refused everywhere in ``src/``.
+    """
+    problems: list[str] = []
+    for path in _py_files(SRC):
+        for node in ast.walk(_parse(path)):
+            if not (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and node.func.attr in {"md5", "sha1"}
+                and isinstance(node.func.value, ast.Name)
+                and node.func.value.id == "hashlib"
+            ):
+                continue
+            marked_non_security = any(
+                kw.arg == "usedforsecurity"
+                and isinstance(kw.value, ast.Constant)
+                and kw.value.value is False
+                for kw in node.keywords
+            )
+            if marked_non_security:
+                continue
+            problems.append(
+                f"{_rel(path)}:{node.lineno}: hashlib.{node.func.attr}() -- use sha256 or pass usedforsecurity=False"
+            )
+    return problems
+
+
+def check_text_open_names_encoding() -> list[str]:
+    """
+    ``open(path)`` in text mode without an explicit ``encoding=`` uses the
+    system default, which differs between hosts and is not guaranteed to be
+    UTF-8. A model artifact written on one host and read on another has
+    already lost data through this on this codebase. Binary opens are
+    unaffected.
+    """
+    problems: list[str] = []
+    for path in _py_files(SRC):
+        for node in ast.walk(_parse(path)):
+            if not (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Name)
+                and node.func.id == "open"
+            ):
+                continue
+            mode = "r"
+            if len(node.args) >= 2 and isinstance(node.args[1], ast.Constant):
+                mode = str(node.args[1].value)
+            for kw in node.keywords:
+                if kw.arg == "mode" and isinstance(kw.value, ast.Constant):
+                    mode = str(kw.value.value)
+            if "b" in mode:
+                continue
+            if any(kw.arg == "encoding" for kw in node.keywords):
+                continue
+            problems.append(
+                f'{_rel(path)}:{node.lineno}: open() in text mode without encoding=; pass encoding="utf-8"'
+            )
+    return problems
+
+
 CHECKS = (
     ("import cycles", check_import_cycles),
+    ("print in src", check_no_print_in_src),
+    ("bare except", check_no_bare_except),
+    ("assert in src", check_no_assert_in_src),
+    ("eval or exec", check_no_eval_or_exec),
+    ("yaml.load", check_yaml_uses_safe_load),
+    ("shell=True", check_no_subprocess_shell_true),
+    ("weak hash", check_no_weak_hash),
+    ("text open without encoding", check_text_open_names_encoding),
+    ("wildcard imports", check_no_wildcard_imports),
+    ("layering", check_layering),
     ("cpu-bound work on the loop", check_cpu_bound_work_is_offloaded),
     ("wall-clock durations", check_durations_use_monotonic),
     ("naive datetimes", check_datetimes_are_timezone_aware),
