@@ -15,6 +15,8 @@ PerformanceDriftDetector.check_drift().
 Authority:
   - López de Prado (2018) AFML Ch.11 — backtest overfitting and the need
     for out-of-sample re-validation before reinstating a strategy
+
+Registry: EXEC-005, REL-004 (config/quality_registry.json).
 """
 
 from __future__ import annotations
@@ -22,6 +24,8 @@ from __future__ import annotations
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
 
 import structlog
 
@@ -31,11 +35,13 @@ from src.diagnostics.decision_log_writer import (
     StructuralChangeRecord,
     append_to_decision_log,
 )
+from src.eventbus import get_event_bus
 from src.risk.performance_drift import (
     DriftDetected,
     PerformanceBaseline,
     PerformanceDriftDetector,
 )
+from src.risk.state_persistence import StateUnreadableError, load_state, save_state
 from src.risk.strategy_decay import CusumDecayDetector
 from src.tuning.promotion_gauntlet import (
     GauntletCriteria,
@@ -89,6 +95,64 @@ class StrategyKillSwitchManager:
 
     def __init__(self) -> None:
         self._states: dict[str, StrategyRuntimeState] = {}
+        # EXR-013: disabled-strategy state survives a restart once a path is set.
+        self._state_path: Path | None = None
+        self._persisted_disabled: dict[str, dict[str, Any]] = {}
+        self._state_unreadable: bool = False
+
+    def enable_persistence(self, path: Path) -> None:
+        """Load previously disabled strategies from *path* and persist future changes.
+
+        Call before register_strategy(). An unreadable file disables every
+        strategy registered afterwards (fail closed).
+        """
+        self._state_path = path
+        self._persisted_disabled = {}
+        self._state_unreadable = False
+        try:
+            state = load_state(path)
+            if state is not None:
+                disabled = state["disabled"]
+                if not isinstance(disabled, dict):
+                    raise StateUnreadableError("disabled is not an object")
+                self._persisted_disabled = {str(k): dict(v) for k, v in disabled.items()}
+        except (StateUnreadableError, KeyError, TypeError, ValueError) as exc:
+            self._state_unreadable = True
+            log.critical("strategy_kill_switch.state_unreadable", error=str(exc))
+        if self._state_unreadable:
+            # The manager is process-wide and can already contain strategies
+            # when persistence is reconfigured (for example, a second
+            # orchestrator startup). Fail closed for those existing entries
+            # too; protecting only subsequently registered strategies leaves
+            # an already-live strategy able to trade through corrupt state.
+            for state_obj in self._states.values():
+                state_obj.enabled = False
+                state_obj.disabled_reason = "kill-switch state unreadable, failing closed"
+        else:
+            for sid, entry in self._persisted_disabled.items():
+                state_obj = self._states.get(sid)
+                if state_obj is not None:
+                    self._apply_persisted(state_obj, entry)
+
+    @staticmethod
+    def _apply_persisted(state: StrategyRuntimeState, entry: dict[str, Any]) -> None:
+        state.enabled = False
+        state.disabled_reason = str(entry.get("reason", "disabled before restart"))
+        state.disabled_at_ms = int(entry.get("at_ms", 0))
+
+    def _persist(self) -> None:
+        if self._state_path is None:
+            return
+        disabled = {
+            sid: {"reason": st.disabled_reason, "at_ms": st.disabled_at_ms}
+            for sid, st in self._states.items()
+            if not st.enabled
+        }
+        # Entries for strategies not registered yet must not be lost.
+        for sid, entry in self._persisted_disabled.items():
+            if sid not in self._states:
+                disabled[sid] = entry
+        save_state(self._state_path, {"disabled": disabled})
 
     def register_strategy(self, strategy_id: str, baseline: PerformanceBaseline) -> None:
         if strategy_id in self._states:
@@ -101,15 +165,21 @@ class StrategyKillSwitchManager:
             # accumulates evidence over time rather than reacting to a
             # single window, so it flags persistent structural decay
             # distinctly from this class's transient drift-triggered halts.
-            decay_detector=CusumDecayDetector(baseline_mean=baseline.oos_sharpe),
+            decay_detector=CusumDecayDetector(baseline_mean=baseline.sharpe_baseline_per_trade),
         )
         log.info("strategy_kill_switch.registered", strategy_id=strategy_id)
+        if strategy_id in self._persisted_disabled:
+            self._apply_persisted(self._states[strategy_id], self._persisted_disabled[strategy_id])
+        elif self._state_unreadable:
+            st = self._states[strategy_id]
+            st.enabled = False
+            st.disabled_reason = "kill-switch state unreadable, failing closed"
 
     def record_trade_outcome(
         self,
         strategy_id: str,
         pnl_usd: float,
-        predicted_prob: float,
+        predicted_prob: float | None,
         actual_direction: int,
         current_equity: float,
         starting_equity: float,
@@ -177,29 +247,74 @@ class StrategyKillSwitchManager:
                     )
 
         if drift.drifted and state.enabled:
-            state.enabled = False
-            state.disabled_reason = drift.reason
-            state.disabled_at_ms = now_ms
-            log.warning(
-                "strategy_kill_switch.disabled",
-                strategy_id=strategy_id,
-                reason=drift.reason,
-                metric=drift.metric,
-            )
-            # Recorded AFTER the state change, never before: a decision log
-            # that cannot be written must not stop capital being pulled from
-            # a drifting strategy.
-            _record_structural_change(
+            self._disable(
+                state,
+                drift.reason,
+                drift.metric,
+                now_ms,
                 title=f"Strategy {strategy_id} auto-disabled",
-                change_type="strategy_disabled",
-                justification=drift.reason,
-                evidence={
-                    "strategy_id": strategy_id,
-                    "metric": drift.metric,
-                    "disabled_at_ms": now_ms,
-                },
             )
         return drift
+
+    def disable(self, strategy_id: str, reason: str, *, now_ms: int = 0) -> bool:
+        """
+        Disable a strategy on request -- the runtime platform's QUARANTINE.
+
+        The same switch evaluate() pulls on drift, with the same decision-log
+        and event; only re_enable() turns it back on, so the gauntlet still
+        decides when the strategy gets capital again. False when it was
+        already disabled (nothing changed, nothing recorded).
+        """
+        if not reason.strip():
+            raise ValueError("a disable needs a reason")
+        state = self._require_state(strategy_id)
+        if not state.enabled:
+            return False
+        self._disable(
+            state, reason, "operator", now_ms, title=f"Strategy {strategy_id} disabled on request"
+        )
+        return True
+
+    def _disable(
+        self, state: StrategyRuntimeState, reason: str, metric: str, now_ms: int, *, title: str
+    ) -> None:
+        strategy_id = state.strategy_id
+        state.enabled = False
+        state.disabled_reason = reason
+        state.disabled_at_ms = now_ms
+        self._persist()
+        log.warning(
+            "strategy_kill_switch.disabled",
+            strategy_id=strategy_id,
+            reason=reason,
+            metric=metric,
+        )
+        # Recorded AFTER the state change, never before: a decision log
+        # that cannot be written must not stop capital being pulled from
+        # a drifting strategy.
+        _record_structural_change(
+            title=title,
+            change_type="strategy_disabled",
+            justification=reason,
+            evidence={
+                "strategy_id": strategy_id,
+                "metric": metric,
+                "disabled_at_ms": now_ms,
+            },
+        )
+        # Same ordering rule as the decision-log write above, and for the
+        # same reason: capital has already been pulled from this strategy
+        # by the time anyone is told about it.
+        get_event_bus().publish(
+            "killswitch",
+            {
+                "strategy_id": strategy_id,
+                "enabled": False,
+                "reason": reason,
+                "metric": metric,
+                "disabled_at_ms": now_ms,
+            },
+        )
 
     def is_enabled(self, strategy_id: str) -> bool:
         return self._require_state(strategy_id).enabled
@@ -319,6 +434,8 @@ class StrategyKillSwitchManager:
         state.enabled = True
         state.disabled_reason = ""
         state.disabled_at_ms = 0
+        self._persisted_disabled.pop(strategy_id, None)
+        self._persist()
         log_fn = log.warning if force else log.info
         log_fn(
             "strategy_kill_switch.re_enabled",
