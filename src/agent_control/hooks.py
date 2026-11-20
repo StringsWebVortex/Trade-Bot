@@ -31,12 +31,12 @@ Registry: GOV-063, GOV-064 (config/quality_registry.json).
 
 from __future__ import annotations
 
-import json
 import os
 from collections.abc import Mapping
 from datetime import datetime
 from typing import Any, TextIO
 
+from src.agent_control.hook_protocol import format_result, get_hook_spec, parse_event
 from src.agent_control.git_safety import git_invocations
 from src.agent_control.gitstate import GitError
 from src.agent_control.model import CompletionState
@@ -159,28 +159,22 @@ def git_guard(event: Mapping[str, Any], *, now: datetime | None = None) -> str |
 
 
 def run_hook(name: str, stdin: TextIO, stdout: TextIO, stderr: TextIO) -> int:
-    """Wrapper body for ``.claude/hooks/*``: read the payload, act, answer, fail open."""
+    """Dispatch one registered hook through the shared process-boundary contract."""
     try:
-        event = json.loads(stdin.read() or "{}")
-        if not isinstance(event, dict):
-            raise ValueError("payload is not a JSON object")
-        if name == "stop":
-            result = stop(event)
-        elif name == "precompact":
-            result = precompact(event)
-        elif name == "session-start":
-            text = session_start(event)
-            if text:
-                stdout.write(text + "\n")
-            return 0
-        elif name == "post-bash":
-            post_bash(event)
-            return 0
-        else:
-            raise ValueError(f"unknown hook {name!r}")
+        spec = get_hook_spec(name)
+        event = parse_event(stdin.read())
+        handlers = {
+            "stop": stop,
+            "precompact": precompact,
+            "session_start": session_start,
+            "post_bash": post_bash,
+        }
+        result = handlers[spec.handler](event)
+        response = format_result(spec, result)
+        if response is not None:
+            stdout.write(response)
     except Exception as exc:
-        stderr.write(f"[agent-control] {name} hook degraded, allowing: {exc!r}\n")
-        return 0
-    if result is not None:
-        stdout.write(json.dumps(result) + "\n")
+        # Hook failures are advisory except when the handler itself deliberately
+        # returns a blocking decision (notably an unpersisted PreCompact state).
+        stderr.write(f"[agent-control] {name} hook degraded, allowing: {exc!r}\\n")
     return 0
