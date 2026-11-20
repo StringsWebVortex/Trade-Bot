@@ -359,3 +359,69 @@ class TestTheSkillAppliesWithoutBeingInvoked:
         text = (REPO / "CLAUDE.md").read_text(encoding="utf-8")
         assert "quality-engineering" in text
         assert "qe_gate.py" in text
+
+
+class TestStrictChangePlanContract:
+    def _run_plan(self, tmp_path: Path, plan: dict[str, Any]) -> subprocess.CompletedProcess:
+        path = tmp_path / "plan.json"
+        path.write_text(json.dumps(plan), encoding="utf-8")
+        return subprocess.run(
+            [sys.executable, str(GATE), "--plan", str(path)],
+            capture_output=True,
+            text=True,
+            cwd=REPO,
+            timeout=60,
+            check=False,
+        )
+
+    @staticmethod
+    def _valid_plan() -> dict[str, Any]:
+        return {
+            "summary": "Add a bounded loss guard for each individual symbol.",
+            "change_class": "production_behaviour",
+            "requirements": [{"id": "RISK-099", "new": True, "status_after": "verified"}],
+            "verification": [{
+                "test": "tests/trading/invariants/test_per_symbol_loss.py",
+                "test_type": "risk",
+                "decides": "A position breaching the per-symbol loss ceiling is refused.",
+                "new": True,
+            }],
+            "failure_mode": "One symbol can consume the portfolio loss budget.",
+            "blast_radius": "funds",
+            "rollback": "Revert the change; no persistent state migration is introduced.",
+        }
+
+    def test_plan_rejects_unknown_fields(self, tmp_path):
+        plan = self._valid_plan()
+        plan["shell_command"] = "touch /tmp/should-not-run"
+        result = self._run_plan(tmp_path, plan)
+        assert result.returncode == 1
+        assert "additional properties" in (result.stdout + result.stderr).lower()
+
+    def test_plan_requires_a_concrete_failure_mode(self, tmp_path):
+        plan = self._valid_plan()
+        del plan["failure_mode"]
+        result = self._run_plan(tmp_path, plan)
+        assert result.returncode == 1
+        assert "failure_mode" in (result.stdout + result.stderr)
+
+    def test_plan_rejects_unqualified_or_non_test_paths(self, tmp_path):
+        plan = self._valid_plan()
+        plan["verification"][0]["test"] = "../../etc/passwd"
+        result = self._run_plan(tmp_path, plan)
+        assert result.returncode == 1
+        assert "test" in (result.stdout + result.stderr)
+
+    def test_plan_rejects_unknown_change_class(self, tmp_path):
+        plan = self._valid_plan()
+        plan["change_class"] = "ship_it"
+        result = self._run_plan(tmp_path, plan)
+        assert result.returncode == 1
+        assert "change_class" in (result.stdout + result.stderr)
+
+    def test_plan_rejects_verification_without_decision_statement(self, tmp_path):
+        plan = self._valid_plan()
+        del plan["verification"][0]["decides"]
+        result = self._run_plan(tmp_path, plan)
+        assert result.returncode == 1
+        assert "decides" in (result.stdout + result.stderr)
