@@ -10,12 +10,208 @@ don't Work identically in:
 
 Companion runtime: common/shell_exec.py
 Skill:            .claude/skills/command-execution/SKILL.md
+
+Registry: GOV-019, SECR-001 (config/quality_registry.json).
 """
 
 from __future__ import annotations
 
+import re
+
+SCHEMA_VERSION = "1.1.0"
+
+# Environment names always kept when env.inherit is False, so that a command
+# with a scrubbed environment can still resolve binaries and behave
+# deterministically instead of failing in a way that looks like a bug.
+ENV_MINIMAL_BASE: tuple[str, ...] = ("PATH", "HOME", "LANG", "LC_ALL", "TZ")
+
+# Patterns whose match means the command is irreversible or hard to reverse.
+# Matched against the raw command string, case-insensitively. This list is
+# deliberately conservative: a false positive costs one explicit
+# confirm_destructive=True, a false negative costs data.
+DESTRUCTIVE_PATTERNS: tuple[str, ...] = (
+    r"\brm\s+(-[a-zA-Z]*\s+)*-[a-zA-Z]*[rf]",  # rm -rf / rm -f / rm -r -f
+    r"\brmdir\b",
+    r"\bshred\b",
+    r"\bmkfs(\.[a-z0-9]+)?\b",
+    r"\bdd\b[^|]*\bof=",
+    r"\btruncate\b",
+    r">\s*/dev/(sd|nvme|vd|hd)",
+    r"\bgit\s+push\b[^|]*--force(?!-with-lease)",
+    r"\bgit\s+push\b[^|]*\s-f\b",
+    r"\bgit\s+reset\b[^|]*--hard",
+    r"\bgit\s+clean\b[^|]*-[a-zA-Z]*[dfx]",
+    r"\bgit\s+branch\b[^|]*\s-D\b",
+    r"\bDROP\s+(TABLE|DATABASE|COLLECTION|INDEX|SCHEMA)\b",
+    r"\bTRUNCATE\s+TABLE\b",
+    r"\bDELETE\s+FROM\b",
+    r"\bdrop(Database|Collection|Index)\s*\(",
+    r"\bdeleteMany\s*\(",
+    r"\bremove\s*\(\s*\{\s*\}\s*\)",
+    r"\bkubectl\s+delete\b",
+    r"\bterraform\s+destroy\b",
+    r"\bdocker\s+(rm|rmi|volume\s+rm|system\s+prune)\b",
+    r"\bnpm\s+unpublish\b",
+    r"\baws\s+s3\s+rm\b",
+    r"\baws\s+s3\s+rb\b",
+)
+
+# Patterns whose match means the command changes state but reversibly.
+MUTATING_PATTERNS: tuple[str, ...] = (
+    r"\bgit\s+(commit|push|merge|rebase|checkout|switch|apply|stash|tag|am)\b",
+    r"\b(pip|pip3|uv|poetry|npm|pnpm|yarn|cargo|go)\s+(install|add|remove|sync|get)\b",
+    r"\bmk(dir|temp)\b",
+    r"\b(cp|mv|ln|touch|chmod|chown|install)\b",
+    r"\b(tee|sed)\b[^|]*\s-i\b",
+    r"\btee\b",
+    r">>?\s*[^&|\s]",
+    r"\b(INSERT\s+INTO|UPDATE\s+\w+\s+SET|CREATE\s+(TABLE|INDEX|DATABASE))\b",
+    r"\b(insertOne|insertMany|updateOne|updateMany|replaceOne|createIndex)\s*\(",
+    r"\bdocker\s+(run|build|compose\s+up)\b",
+    r"\bkubectl\s+(apply|create|patch|scale)\b",
+)
+
+# CI observability: the only authorized diagnostic route is the exact
+# ./scripts/prfail --pr <PR_NUMBER> command. It reads a completed, SHA-bound
+# filtered Check Run report. Direct Actions run/job/log/annotation/artifact
+# retrieval and the old PR-comment notice path are not alternate routes.
+# Dispatching/rerunning workflows merely to retrieve their output is blocked.
+CI_LOG_PATTERNS: tuple[str, ...] = (
+    # Only the exact report-only CLI is permitted. These patterns deny its
+    # legacy alternatives plus direct Actions/check-run APIs and log utilities.
+    r"\bgh\s+run\s+(view|list|download|watch|rerun|cancel|delete)\b",
+    r"\bgh\s+workflow\s+(run|view|list)\b",
+    r"\bgh\s+pr\s+checks\b",
+    r"\bgh\s+cache\s+(list|delete)\b",
+    r"\bgh\s+api\b[^|]*/actions/",
+    r"\bgh\s+api\b[^|]*/check-runs?\b",
+    r"\bgh\s+api\b[^|]*/check-suites?\b",
+    r"\bgh\s+api\b[^|]*/commits/[^/\s]+/(status|check-runs)\b",
+    r"\bgh\s+api\b[^|]*/statuses/",
+    r"\bgh\s+(pr|run)\b[^|]*--json\b[^|]*\b(statusCheckRollup|checkRuns|jobs|workflowRuns)\b",
+    r"\b(?:curl|wget)\b[^|]*(?:api\.github\.com|github\.com/)[^|]*(?:actions|check-runs|check-suites|annotations|statuses|workflow_runs)\b",
+    r"\b(?:https?|xh)\b[^|]*(?:api\.github\.com|github\.com/)[^|]*(?:actions|check-runs?|check-suites?|annotations|statuses|workflow_runs|artifacts|jobs)\b",
+    r"\bact\b\s+-",
+    r"\bgh\s+pr\s+view\b[^|]*(?:--comments\b|--json\b[^|]*\bcomments\b)",
+    r"\bgh\s+issue\s+view\b[^|]*(?:--comments\b|--json\b[^|]*\bcomments\b)",
+    r"\bgh\s+api\b[^|]*/(?:issues/(?:comments|\d+/comments)|pulls/\d+/comments)\b",
+    r"\b(?:curl|wget)\b[^|]*/(?:issues/\d+/comments|pulls/\d+/comments)\b",
+    r"\bgh\s+api\b[^|]*\bgraphql\b",
+    r"\b(?:curl|wget)\b[^|]*/graphql\b",
+    r"\bpython(?:3)?(?:\.\d+)?\s+-c\b.*(?:api\.github\.com|github\.com/|graphql)\b",
+    r"\bnode\s+-e\b.*(?:api\.github\.com|github\.com/|graphql)\b",
+    r"\bpython(?:3)?(?:\.\d+)?\s+scripts/(?:local_checks|ci_verdict|ci_diagnostics)\.py\b",
+    r"\b(?:\./)?scripts/prfail\b",
+    r"(?:^|[;&|]\s*)\./scripts/ci_diagnostics\.py\b",
+    r"\bpython(?:3)?(?:\.\d+)?\s+-m\s+scripts\.ci_diagnostics\b",
+    r"\bpython(?:3)?(?:\.\d+)?\s+-c\b[\s\S]*(?:\bscripts[./](?:ci_diagnostics|ci_verdict|local_checks|prfail)\b|\bfrom\s+scripts\s+import\b[\s\S]*\b(?:ci_diagnostics|ci_verdict|local_checks)\b)",
+    r"\bpython(?:3)?(?:\.\d+)?\s+-\s*<<[\s\S]*(?:\bscripts[./](?:ci_diagnostics|ci_verdict|local_checks|prfail)\b|\bfrom\s+scripts\s+import\b[\s\S]*\b(?:ci_diagnostics|ci_verdict|local_checks)\b)",
+    r"\b(?:python(?:3)?(?:\.\d+)?|node|ruby|perl|php|go)\b[^|]*(?:urllib|requests|httpx|fetch\(|axios|Net::HTTP|curl_easy|github\.com|api\.github\.com)[^|]*(?:actions|check-runs?|check-suites?|annotations|statuses|workflow_runs|artifacts|jobs)",
+)
+
+
+# Forms the comment allowlist must NOT be able to excuse. These live on the
+# same subcommands as the sanctioned comment reads -- `gh pr view --json
+# statusCheckRollup` is one flag away from `gh pr view --json comments` -- so a
+# plain allowlist would wave them through. They are check results, which is CI
+# data whatever verb fetched it.
+CI_HARD_DENY_PATTERNS: tuple[str, ...] = (
+    r"\bgh\s+(pr|run|repo)\b[^|]*--json\b[^|]*\b("
+    r"statusCheckRollup|checkRuns|checkSuites|jobs|workflowRuns"
+    r")\b",
+    r"\bgh\s+pr\s+checks\b",
+)
+
+# Compatibility name retained for callers; only the filtered prfail report is allowed.
+# Direct PR-comment reads and local check execution remain blocked.
+CI_COMMENT_ALLOW_PATTERNS: tuple[str, ...] = (r"^\s*\./scripts/prfail\s+--pr\s+[1-9][0-9]*\s*$",)
+
+
+LOCAL_CHECK_PATTERNS: tuple[str, ...] = (
+    r"(?:^|[;&|]\s*)(?:uv\s+run\s+)?(?:[^\s;&|]+/)?pytest(?:\s|$)",
+    "\\bpython(?:3)?(?:\\.\\d+)?\\s+-m\\s+pytest\\b",
+    "\\b(?:python(?:3)?(?:\\.\\d+)?\\s+-m\\s+)?unittest\\b",
+    "\\b(?:tox|nox)\\b",
+    "\\bcoverage(?:\\s+(?:run|combine|report|html|xml|erase))?\\b",
+    "\\bruff\\s+(?:check|format)\\b",
+    "\\b(?:mypy|pyright|flake8|pylint|black|isort)\\b",
+    "\\b(?:bandit|pip-audit|safety|semgrep|trivy)\\b",
+    "\\b(?:npx\\s+)?(?:vitest|jest|playwright|cypress)\\b",
+    "\\b(?:npm|pnpm|yarn)\\s+(?:test|run\\s+(?:test|build|lint|check)|build|lint|check)\\b",
+    "\\b(?:cargo\\s+(?:test|build|clippy)|go\\s+(?:test|build|vet))\\b",
+    "\\b(?:make|gmake)\\s+(?:test|build|lint|check|ci)\\b",
+    "\\b(?:cmake\\s+--build|ninja(?:\\s|$))",
+    "\\bpython(?:3)?(?:\\.\\d+)?\\s+-m\\s+build\\b",
+    "\\bpre-commit\\s+run\\b",
+    "\\b(?:actionlint|shellcheck)\\b",
+    "\\.claude/skills/quality-engineering/scripts/qe_gate\\.py\\b",
+    "\\bscripts/arch_gate\\.sh\\b",
+    "\\bpython(?:3)?(?:\\.\\d+)?\\s+(?:-m\\s+)?tests?/[^ \\t;&|]*\\.py\\b",
+    "\\bpython(?:3)?(?:\\.\\d+)?\\s+-m\\s+tests?(?:\\.|\\s)",
+    "\\bpython(?:3)?(?:\\.\\d+)?\\s+-m\\s+compileall\\b",
+    "\\bpython(?:3)?(?:\\.\\d+)?\\s+scripts/generate_(?:math|quality)_docs\\.py\\s+--check\\b",
+    "\\b(?:bash|sh)\\s+[^;&|]*(?:test|tests|testing|build|lint|check|quality[-_]gate|security[-_]scan)[^;&|]*\\.sh\\b",
+    "\\bnode\\s+[^;&|]*(?:test|tests|testing|build|lint|check)[^;&|]*\\.(?:js|mjs|cjs|ts)\\b",
+    r"\bpython(?:3)?(?:\.\d+)?\s+(?:[^\s;&|]+/)?(?!local_checks\.py\b)[^\s;&|]*(?:test|tests|build|lint|check|quality_gate|security_scan)[^\s;&|]*\.py\b",
+    r"\b(?:docker\s+(?:compose\s+)?build|podman\s+build)\b",
+    r"\b(?:cargo\s+fmt|go\s+fmt)\b",
+    r"\b(?:eslint|prettier|tsc)\b",
+    r"\bgit\s+diff\b[^;&|]*--check\b",
+    r"\b(?:npm|pnpm|yarn)\s+(?:run\s+)?(?:typecheck|type-check|type-checks|lint:check)\b",
+)
+_LOCAL_CHECK_RE = [re.compile(pattern, re.IGNORECASE) for pattern in LOCAL_CHECK_PATTERNS]
+LOCAL_CHECK_REFUSAL = (
+    "Local tests, builds, lint, security scans, and quality gates are disabled. "
+    "GitHub Actions is the sole execution path; legacy local_checks.py commands "
+    "are retired and the only CI report route is ./scripts/prfail --pr <PR_NUMBER>."
+)
+
+
+def is_local_check_execution(command: str) -> bool:
+    """Block local checks, retired routes, and every noncanonical patcher invocation."""
+    if is_exact_patch_apply_command(command):
+        return False
+    if "scripts/apply_ci_patch.py" in command or "scripts/local_checks.py" in command:
+        return True
+    return any(pattern.search(command) for pattern in _LOCAL_CHECK_RE)
+
+
+# Secrets that must never reach an LLM context. Each pattern captures the
+# whole secret-bearing token; _redact() replaces the match with a marker that
+# preserves shape (so a reader can tell "a token was here") without value.
+REDACTION_PATTERNS: tuple[tuple[str, str], ...] = (
+    (r"\b(gh[pousr]_[A-Za-z0-9]{16,})", "GITHUB_TOKEN"),
+    (r"\b(github_pat_[A-Za-z0-9_]{20,})", "GITHUB_PAT"),
+    (r"\b(AKIA[0-9A-Z]{16})", "AWS_ACCESS_KEY_ID"),
+    (r"\b(ASIA[0-9A-Z]{16})", "AWS_STS_KEY_ID"),
+    (r"\b(sk-[A-Za-z0-9_\-]{20,})", "OPENAI_KEY"),
+    (r"\b(sk-ant-[A-Za-z0-9_\-]{20,})", "ANTHROPIC_KEY"),
+    (r"\b(xox[abprs]-[A-Za-z0-9\-]{10,})", "SLACK_TOKEN"),
+    (r"\b(eyJ[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,})", "JWT"),
+    (r"(mongodb(?:\+srv)?://[^:@/\s]+:)[^@/\s]+(@)", "MONGO_PASSWORD"),
+    (r"(https?://[^:@/\s]+:)[^@/\s]+(@)", "URL_PASSWORD"),
+    (
+        r"(-----BEGIN [A-Z ]*PRIVATE KEY-----)[\s\S]*?(-----END [A-Z ]*PRIVATE KEY-----)",
+        "PRIVATE_KEY",
+    ),
+    # DOC-001: a key block whose END line is missing (truncated upstream) is
+    # masked to the end of the text rather than passed through.
+    (
+        r"(-----BEGIN [A-Z ]*PRIVATE KEY-----)(?:(?!-----END [A-Z ]*PRIVATE KEY-----)[\s\S])*\Z",
+        "PRIVATE_KEY_UNTERMINATED",
+    ),
+    (
+        r"((?i:\b[A-Za-z0-9_]*(?:SECRET|TOKEN|PASSWORD|PASSWD|APIKEY|API_KEY|PRIVATE_KEY)[A-Za-z0-9_]*)\s*[=:]\s*)(\S*)(\s|$)",
+        "ENV_SECRET",
+    ),
+    (r"\b(xprv[A-Za-z0-9]{50,})", "BIP32_XPRV"),
+    (r"\b([5KL][1-9A-HJ-NP-Za-km-z]{50,51})\b", "BTC_WIF_KEY"),
+)
+
+
 COMMAND_EXEC_SCHEMA: dict = {
     "$schema": "http://json-schema.org/draft-07/schema#",
+    "$id": "https://trade-bot.local/schemas/command-execution/1.1.0.json",
     "title": "CommandExecution",
     "description": (
         "Structured declaration of a shell command. "
@@ -30,6 +226,110 @@ COMMAND_EXEC_SCHEMA: dict = {
             "type": "string",
             "minLength": 1,
             "description": "Exact shell command string to execute.",
+        },
+        "schema_version": {
+            "type": "string",
+            "const": SCHEMA_VERSION,
+            "default": SCHEMA_VERSION,
+            "description": (
+                "Version of COMMAND_EXEC_SCHEMA this declaration targets. "
+                "Omitted declarations are treated as SCHEMA_VERSION. A future "
+                "major bump lets shell_exec.run() reject stale declarations "
+                "instead of silently misreading them."
+            ),
+        },
+        "purpose": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": (
+                "Why this command is being run, in one line. Audit trail: it "
+                "is logged with the command hash so a later reader can tell "
+                "intent from effect without re-deriving it from the shell."
+            ),
+        },
+        "classification": {
+            "type": "string",
+            "enum": ["read_only", "mutating", "destructive"],
+            "default": "read_only",
+            "description": (
+                "Effect class. read_only: no filesystem/network/state change. "
+                "mutating: reversible change (writes a file, installs a dep). "
+                "destructive: irreversible or hard to reverse (rm, DROP, "
+                "DELETE, force-push, dd, mkfs, truncate). destructive is never "
+                "retried and requires confirm_destructive=True. If the declared "
+                "value is weaker than what classify() detects in the command "
+                "string, shell_exec.run() refuses to execute -- misdeclaring "
+                "is a hard error, not a warning."
+            ),
+        },
+        "confirm_destructive": {
+            "type": "boolean",
+            "default": False,
+            "description": (
+                "Explicit authorization for classification='destructive'. "
+                "Must be set by a human-authorized caller; shell_exec.run() "
+                "refuses destructive commands without it."
+            ),
+        },
+        "timeout_s": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 900,
+            "default": 120,
+            "description": (
+                "Per-attempt wall-clock timeout. On expiry the whole process "
+                "group is SIGKILLed. Declared here (not only as a run() kwarg) "
+                "so a declaration is self-contained and reproducible."
+            ),
+        },
+        "cwd": {
+            "type": "string",
+            "minLength": 1,
+            "description": (
+                "Working directory for the command. Must exist and be a "
+                "directory at execution time, else the declaration is "
+                "rejected before anything runs. Defaults to the caller's cwd."
+            ),
+        },
+        "env": {
+            "type": "object",
+            "additionalProperties": False,
+            "description": (
+                "Deterministic child environment. Without this the child "
+                "inherits every secret in os.environ; with it, only the "
+                "allowlist survives. Reproducibility and secret containment."
+            ),
+            "properties": {
+                "inherit": {
+                    "type": "boolean",
+                    "default": True,
+                    "description": (
+                        "True: start from os.environ. False: start from an "
+                        "empty environment plus ENV_MINIMAL_BASE (PATH, HOME, "
+                        "LANG, TZ) so the command can still find binaries."
+                    ),
+                },
+                "allowlist": {
+                    "type": "array",
+                    "items": {"type": "string", "minLength": 1},
+                    "maxItems": 64,
+                    "description": (
+                        "When present, only these names are passed through "
+                        "from the inherited environment. Everything else is "
+                        "dropped, secrets included."
+                    ),
+                },
+                "overrides": {
+                    "type": "object",
+                    "additionalProperties": {"type": "string"},
+                    "maxProperties": 64,
+                    "description": (
+                        "Explicit name->value pairs applied last. Never put a "
+                        "secret literal here: the declaration is logged."
+                    ),
+                },
+            },
         },
         "output_policy": {
             "type": "object",
@@ -72,6 +372,43 @@ COMMAND_EXEC_SCHEMA: dict = {
                     "type": "string",
                     "default": "",
                     "description": "Expression for filter_mode. Ignored when filter_mode=none.",
+                },
+                "max_bytes": {
+                    "type": "integer",
+                    "minimum": 256,
+                    "maximum": 262144,
+                    "default": 65536,
+                    "description": (
+                        "Hard cap on bytes returned, applied after max_lines. "
+                        "max_lines alone is not a bound: a single minified "
+                        "bundle, a base64 blob or a no-newline log line can be "
+                        "megabytes and still be one line. Excess is cut and "
+                        "result.bytes_truncated is set."
+                    ),
+                },
+                "redact": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "description": (
+                        "Secret masking applied to filtered output before it "
+                        "is returned. On by default: command output routinely "
+                        "contains tokens (git remotes with PATs, AWS keys, "
+                        "connection strings) and this module's whole purpose "
+                        "is that its return value enters an LLM context."
+                    ),
+                    "properties": {
+                        "enabled": {"type": "boolean", "default": True},
+                        "extra_patterns": {
+                            "type": "array",
+                            "items": {"type": "string", "minLength": 1},
+                            "maxItems": 32,
+                            "description": (
+                                "Additional Python regexes to mask, on top of "
+                                "REDACTION_PATTERNS. Each must compile; an "
+                                "invalid regex rejects the declaration."
+                            ),
+                        },
+                    },
                 },
                 "on_empty": {
                     "type": "string",
@@ -128,8 +465,159 @@ COMMAND_EXEC_SCHEMA: dict = {
                 "filtered_output": {"type": "string"},
                 "truncated": {"type": "boolean"},
                 "attempt_count": {"type": "integer"},
+                "bytes_truncated": {"type": "boolean"},
+                "timed_out": {"type": "boolean"},
+                "duration_s": {"type": "number"},
+                "classification": {"type": "string"},
+                "redactions_applied": {"type": "integer"},
+                "command_sha256": {"type": "string"},
+                "started_at": {"type": "string"},
                 "error": {"type": ["string", "null"]},
             },
         },
     },
 }
+
+
+# --------------------------------------------------------------------------
+# Policy helpers. Pure functions over the vocabulary above; no I/O, no
+# subprocess. shell_exec.run() is the only intended caller, but they are
+# importable so that tests and the PreToolUse hook classify identically --
+# one implementation, not three that drift.
+# --------------------------------------------------------------------------
+
+_DESTRUCTIVE_RE = [re.compile(p, re.IGNORECASE) for p in DESTRUCTIVE_PATTERNS]
+_MUTATING_RE = [re.compile(p, re.IGNORECASE) for p in MUTATING_PATTERNS]
+_REDACT_RE = [(re.compile(p), name) for p, name in REDACTION_PATTERNS]
+
+_RANK: dict[str, int] = {"read_only": 0, "mutating": 1, "destructive": 2}
+
+
+def classify(command: str) -> str:
+    """
+    Detect the effect class of a raw command string.
+
+    Returns "destructive", "mutating" or "read_only". Detection is textual and
+    therefore an under-approximation of what a shell can do: `bash evil.sh`
+    looks read-only. It exists to catch the declared-vs-actual mismatch that
+    a careless caller produces, not to sandbox a hostile one. Never treat a
+    "read_only" verdict as proof a command is safe.
+    """
+    for rx in _DESTRUCTIVE_RE:
+        if rx.search(command):
+            return "destructive"
+    for rx in _MUTATING_RE:
+        if rx.search(command):
+            return "mutating"
+    return "read_only"
+
+
+def is_exact_patch_apply_command(command: str) -> bool:
+    """Recognize the sole safe heredoc form for the report-bound patch applier."""
+    lines = command.strip().splitlines()
+    if len(lines) < 4 or lines[-1] != "TB_CI_PATCH" or lines.count("TB_CI_PATCH") != 1:
+        return False
+    if not re.fullmatch(
+        r"python3 scripts/apply_ci_patch\.py --pr [1-9][0-9]* --head-sha [0-9a-f]{40} --patch-stdin <<'TB_CI_PATCH'",
+        lines[0],
+    ):
+        return False
+    body = lines[1:-1]
+    return any(line.startswith("diff --git a/") for line in body) and any(
+        line.startswith("@@ ") for line in body
+    )
+
+
+_CI_LOG_RE = [re.compile(p, re.IGNORECASE) for p in CI_LOG_PATTERNS]
+_CI_HARD_DENY_RE = [re.compile(p, re.IGNORECASE) for p in CI_HARD_DENY_PATTERNS]
+_CI_COMMENT_RE = [re.compile(p, re.IGNORECASE) for p in CI_COMMENT_ALLOW_PATTERNS]
+
+CI_LOG_REFUSAL = (
+    "THAPPAR — CI DIAGNOSTIC ACCESS BLOCKED. Use only: "
+    "./scripts/prfail --pr <PR_NUMBER>. "
+    "Direct or alternative diagnostic retrieval is prohibited."
+)
+
+
+def is_ci_log_access(command: str) -> bool:
+    """
+    Refuse CI records and all legacy comment/log paths.
+
+    The exact report-only prfail command and strict report-bound patcher are
+    exempt; all other CI-log routes remain blocked.
+    """
+    if is_exact_patch_apply_command(command):
+        return False
+    if any(rx.search(command) for rx in _CI_HARD_DENY_RE):
+        return True
+    if any(rx.fullmatch(command.strip()) for rx in _CI_COMMENT_RE):
+        return False
+    return any(rx.search(command) for rx in _CI_LOG_RE)
+
+
+def rank(classification: str) -> int:
+    """Order effect classes so 'is the declaration weaker than reality' is a <."""
+    try:
+        return _RANK[classification]
+    except KeyError:  # pragma: no cover - schema enum prevents this
+        raise ValueError(f"unknown classification: {classification!r}") from None
+
+
+def redact(text: str, extra_patterns: list[str] | None = None) -> tuple[str, int]:
+    """
+    Mask secrets in command output.
+
+    Returns (masked_text, replacement_count). Each match becomes
+    "[REDACTED:<NAME>]", preserving the fact that a secret was present without
+    its value. Patterns with two capture groups (URL credentials, PEM blocks)
+    keep their delimiters so the surrounding structure stays readable.
+
+    This is a defence in depth, not a guarantee: a secret in a format no
+    pattern describes will pass through. The primary control is env.allowlist,
+    which stops the secret reaching the child process at all.
+    """
+    count = 0
+    patterns = list(_REDACT_RE)
+    for raw in extra_patterns or []:
+        patterns.append((re.compile(raw), "CUSTOM"))
+
+    for rx, name in patterns:
+        marker = f"[REDACTED:{name}]"
+
+        def _sub(m: re.Match[str], _marker: str = marker) -> str:
+            nonlocal count
+            count += 1
+            groups = m.groups()
+            if len(groups) >= 2:
+                return f"{groups[0]}{_marker}{groups[-1]}"
+            return _marker
+
+        text = rx.sub(_sub, text)
+    return text, count
+
+
+def build_env(spec: dict | None) -> dict[str, str] | None:
+    """
+    Materialise the child environment from an `env` declaration.
+
+    Returns None when no spec is given, which makes shell_exec pass env=None to
+    Popen and inherit the parent environment unchanged -- the pre-1.1.0
+    behaviour, so existing declarations are unaffected.
+    """
+    import os
+
+    if not spec:
+        return None
+
+    if spec.get("inherit", True):
+        base = dict(os.environ)
+    else:
+        base = {k: os.environ[k] for k in ENV_MINIMAL_BASE if k in os.environ}
+
+    allowlist = spec.get("allowlist")
+    if allowlist is not None:
+        keep = set(allowlist) | set(ENV_MINIMAL_BASE)
+        base = {k: v for k, v in base.items() if k in keep}
+
+    base.update(spec.get("overrides", {}))
+    return base

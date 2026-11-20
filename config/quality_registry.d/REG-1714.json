@@ -1,0 +1,27 @@
+{
+  "id": "REG-1714",
+  "kind": "regression",
+  "title": "Ensemble sequence members consume the realised return window at inference",
+  "statement": "At inference the ensemble's ARIMA and LSTM members forecast from the realised closed-bar log-return window that SignalEngine computes from its bars (log of close over previous close, ending at the last closed bar) and passes through EnsemblePredictor.predict_row/predict. The LSTM is fed the last lookback returns as a (1, lookback, 1) tensor for any feature count; ARIMA keeps its fitted parameters and filters its state over the window (apply(window, refit=False)) before a one-step forecast, so the forecast moves with each new bar. With no window, too few returns or a non-finite value in the values used, the member raises and the ensemble excludes it; a forward-pass or forecast error also raises instead of returning 0.0.",
+  "criticality": "high",
+  "subsystem": "signal",
+  "status": "verified",
+  "source": "OPS-2026-10-28",
+  "failure_mode": "LSTMPredictor.predict reshaped the tabular feature row with reshape(-1, lookback, 1): it raised (and was swallowed into a 0.0 forecast) unless the feature count was a multiple of 20, and otherwise fed features where the net was trained on returns. ARIMAPredictor.predict ignored its input and returned forecast(steps=1) from the end of the training sample, the same number on every call until the next retrain; non-primary timeframes are never retrained in-session. Both outputs were blended into p_long. The member tests fed hand-built inputs matching the broken reshape and mocked forecast(), so no test checked what the members were actually fed; the deciding tests now pin the tensor the LSTM receives, that the ARIMA forecast moves with new observations, and that SignalEngine passes the bar return window.",
+  "owning_modules": [
+    "src/intelligence/ensemble_predictor.py",
+    "src/engine/signal_engine.py"
+  ],
+  "depends_on": [],
+  "verification": [
+    {
+      "test": "tests/test_ensemble_sequence_inputs.py",
+      "test_type": "regression"
+    },
+    {
+      "test": "tests/test_signal_engine.py",
+      "test_type": "regression"
+    }
+  ],
+  "notes": "Audit INT-006. layer: test-suite"
+}

@@ -1,0 +1,22 @@
+{
+  "id": "REG-1710",
+  "kind": "regression",
+  "title": "A failed ensemble-field update never strands an open transaction",
+  "statement": "StorageBackend.update_trade_ensemble_fields writes under _write_ctx, so an UPDATE that raises is rolled back before the write lock is released and the shared connection keeps accepting writes.",
+  "criticality": "medium",
+  "subsystem": "data",
+  "status": "verified",
+  "source": "OPS-2026-10-28",
+  "failure_mode": "update_trade_ensemble_fields took the bare lock instead of _write_ctx, so an UPDATE aborted after its implicit BEGIN left the shared connection inside a transaction: the BUGFIX-001 deadlock that blocks every later write and the WAL checkpoint on close. _write_ctx was introduced for exactly this and this write site was missed; the deciding test aborts the UPDATE and checks the connection is out of the transaction.",
+  "owning_modules": [
+    "src/data/storage.py"
+  ],
+  "verification": [
+    {
+      "test": "tests/test_storage_migration_atomicity.py",
+      "test_type": "regression"
+    }
+  ],
+  "depends_on": [],
+  "notes": "Audit DAT-021. layer: test-suite"
+}
