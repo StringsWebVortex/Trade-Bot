@@ -12,9 +12,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pandas as pd
 import pytest
-from conftest import settings_double
 
 from src.config import Timeframe, TradingMode
+from tests.conftest import settings_double
 
 MIN_ROWS = 12
 
