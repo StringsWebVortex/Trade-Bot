@@ -1,0 +1,10 @@
+#!/bin/sh
+# GOV-069: hold a push made by ChatGPT (Desktop Commander) until the pull
+# request's CI answers. Git runs this after the push has succeeded and waits
+# for it, so the push command stays open until scripts/push_wait.py returns.
+# Installed by scripts/install_push_wait_hook.sh.
+[ "$1" = committed ] || exit 0
+root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
+[ -f "$root/scripts/push_wait.py" ] || exit 0
+python=$(command -v python3 || command -v python) || exit 0
+exec "$python" "$root/scripts/push_wait.py" "$@"
