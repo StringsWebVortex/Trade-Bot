@@ -28,6 +28,8 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from src.terminal.config import STATE_DIR_MARKER, is_managed_state_dir
+
 MARKER = "managed-by: tradebot-terminal"
 UNIT_NAME = "tradebot-terminal.service"
 
@@ -208,8 +210,32 @@ def uninstall(
     elif wrapper.exists():
         report.conflicts.append(f"{wrapper} was not created by this installer; left in place")
     if purge and state_dir.is_dir():
-        shutil.rmtree(state_dir)
-        report.removed.append(str(state_dir))
+        # AGT-029: a token file alone does not prove ownership; a user can point
+        # TB_TERMINAL_STATE_DIR at $HOME or another existing directory.
+        if not is_managed_state_dir(state_dir):
+            report.conflicts.append(
+                f"{state_dir} is not a marked terminal state directory; not purged"
+            )
+        else:
+            allowed = {STATE_DIR_MARKER, "token", "token.tmp", "termd.log"}
+            entries = list(state_dir.iterdir())
+            unmanaged = [
+                entry
+                for entry in entries
+                if (
+                    entry.name not in allowed
+                    or entry.is_symlink()
+                    or not entry.is_file()
+                    or entry.stat().st_uid != os.getuid()
+                )
+            ]
+            if unmanaged:
+                report.conflicts.append(f"{state_dir} contains unmanaged entries; not purged")
+            else:
+                for entry in entries:
+                    entry.unlink()
+                state_dir.rmdir()
+                report.removed.append(str(state_dir))
     return report
 
 

@@ -152,6 +152,15 @@ def _validate_patch(patch: str) -> list[str]:
 
     paths: list[str] = []
     lines = patch.splitlines()
+    # SCR-001: `git apply` also accepts traditional `---`/`+++` sections with
+    # no `diff --git` header. Only the first section's preamble may precede a
+    # header; any file-header or hunk line outside a validated section is
+    # refused rather than skipped.
+    first_header = next((i for i, ln in enumerate(lines) if ln.startswith("diff --git ")), None)
+    if first_header is not None and any(
+        ln.startswith(("--- ", "+++ ", "@@ ")) for ln in lines[:first_header]
+    ):
+        raise PatchError("patch has file sections outside a validated 'diff --git' header")
     index = 0
     while index < len(lines):
         line = lines[index]
@@ -195,6 +204,14 @@ def _validate_patch(patch: str) -> list[str]:
             raise PatchError(f"patch section headers do not match {old_path!r}")
         if not any(line.startswith("@@ ") for line in lines[new_header_index + 1 : next_section]):
             raise PatchError(f"patch section for {old_path!r} has no text-edit hunk")
+        # Between this section's target header and the next header, no second
+        # traditional ---/+++ pair may start a hidden section. Hunk bodies can
+        # contain such text only behind a +/-/space prefix, so a line starting
+        # with "--- " directly followed by "+++ " is a section header.
+        body = lines[new_header_index + 1 : next_section]
+        for pos in range(len(body) - 1):
+            if body[pos].startswith("--- ") and body[pos + 1].startswith("+++ "):
+                raise PatchError("patch section contains an unvalidated '---'/'+++' file header")
         paths.append(old_path)
         index = next_section
 

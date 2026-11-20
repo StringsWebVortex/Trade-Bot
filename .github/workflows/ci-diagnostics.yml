@@ -15,6 +15,8 @@ on:
     types: [completed]
 
 permissions:
+  # checks: write publishes the one filtered diagnostics check run; the collect
+  # job below declares the same scopes, nothing else in this file needs more.
   contents: read
   actions: read
   checks: write

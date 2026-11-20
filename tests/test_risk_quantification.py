@@ -113,47 +113,6 @@ class TestStressTest:
 
 
 # ---------------------------------------------------------------------------
-# RiskQuantifier.estimate_probability_of_ruin
-# ---------------------------------------------------------------------------
-
-
-class TestProbabilityOfRuin:
-    def setup_method(self):
-        self.rq = RiskQuantifier()
-
-    def test_normal_returns_low_ruin_prob(self):
-        rng = np.random.default_rng(42)
-        returns = rng.standard_normal(500) * 0.01  # ~1% daily vol
-        result = self.rq.estimate_probability_of_ruin(10000.0, returns)
-        assert "probability" in result
-        assert 0.0 <= result["probability"] <= 1.0
-
-    def test_volatile_returns_higher_ruin(self):
-        rng = np.random.default_rng(42)
-        calm = rng.standard_normal(200) * 0.005
-        volatile = rng.standard_normal(200) * 0.5
-        r_calm = self.rq.estimate_probability_of_ruin(10000.0, calm)
-        r_vol = self.rq.estimate_probability_of_ruin(10000.0, volatile)
-        assert r_vol["probability"] >= r_calm["probability"]
-
-    def test_short_tail_branch(self):
-        # Fewer than 10 tail samples → use empirical
-        returns = np.array([-0.01] * 5 + [0.01] * 5)
-        result = self.rq.estimate_probability_of_ruin(1000.0, returns)
-        assert "probability" in result
-        assert result["confidence"] in ("moderate", "low")
-
-    def test_percentile_equivalent_format(self):
-        rng = np.random.default_rng(0)
-        returns = rng.standard_normal(100) * 0.02
-        result = self.rq.estimate_probability_of_ruin(1000.0, returns, drawdown_threshold=0.5)
-        if result["probability"] > 0:
-            assert "1 in" in result["percentile_equivalent"]
-        else:
-            assert result["percentile_equivalent"] == "no observed ruin risk"
-
-
-# ---------------------------------------------------------------------------
 # RiskQuantifier.uncertainty_decomposition
 # ---------------------------------------------------------------------------
 

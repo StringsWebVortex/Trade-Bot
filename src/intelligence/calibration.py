@@ -106,6 +106,8 @@ def brier_score(probabilities: list[float], outcomes: list[float]) -> float:
 
     p = np.asarray(probabilities, dtype=float)
     y = np.asarray(outcomes, dtype=float)
+    if not (np.all(np.isfinite(p)) and np.all((p >= 0.0) & (p <= 1.0))):
+        raise ValueError("probabilities must be finite and within [0, 1]")
     return float(np.mean((p - y) ** 2))
 
 

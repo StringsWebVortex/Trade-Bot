@@ -10,6 +10,9 @@ would silently break -- the cap actually dropping lines, the filter running
 Every test drives real subprocesses (echo/seq/printf/sleep) rather than mocking
 Popen, because the timeout path depends on real process-group behaviour. They
 are all sub-second except the two timeout cases, which use a 1s ceiling.
+
+Decides:
+  - SEC-1023 — Command output is redacted before it is truncated
 """
 
 from __future__ import annotations
@@ -575,3 +578,21 @@ class TestRunTimeout:
         )
         assert result["attempt_count"] == 2
         assert "timed out" in result["error"]
+
+
+class TestRedactBeforeCap:
+    def test_pem_key_cut_by_line_cap_is_still_masked(self):
+        """DOC-001: redaction runs before truncation, so a cut key leaks nothing."""
+        script = (
+            "printf '%s\\n' '-----BEGIN RSA PRIVATE KEY-----' KEYBODYAAA KEYBODYBBB "
+            "KEYBODYCCC '-----END RSA PRIVATE KEY-----'"
+        )
+        result = run({"command": script, "output_policy": {"max_lines": 3}})
+        assert "KEYBODY" not in result["filtered_output"]
+        assert result["redactions_applied"] >= 1
+
+    def test_unterminated_pem_key_is_masked_to_end(self):
+        from common.command_schema import redact
+
+        masked, count = redact("x\n-----BEGIN PRIVATE KEY-----\nSECRETBODY\n")
+        assert "SECRETBODY" not in masked and count == 1

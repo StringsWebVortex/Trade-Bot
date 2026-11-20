@@ -63,12 +63,18 @@ class _FakeStorage:
 
 @pytest.fixture()
 def api_client(monkeypatch):
-    os.environ["API_SECRET_KEY"] = "test-key-" + "a" * 32  # pragma: allowlist secret
-    os.environ["OPERATOR_SECRET"] = _TEST_SECRET
+    api_key = "test-key-" + "a" * 32  # pragma: allowlist secret
+    monkeypatch.setenv("API_SECRET_KEY", api_key)
+    monkeypatch.setenv("OPERATOR_SECRET", _TEST_SECRET)
 
     from fastapi.testclient import TestClient
 
     from src.api import main as api_main
+    from src.api.fail_closed import CONTROL_HEALTH, SecurityControl, mark_all_healthy
+
+    previous_health = {control: CONTROL_HEALTH.status(control) for control in SecurityControl}
+    CONTROL_HEALTH.reset()
+    mark_all_healthy(CONTROL_HEALTH)
 
     fetcher = _FakeFetcher()
     api_main._state.ready = True
@@ -78,9 +84,17 @@ def api_client(monkeypatch):
     monkeypatch.setattr(api_main._state, "storage", _FakeStorage(), raising=False)
 
     client = TestClient(api_main.app)
-    client.headers.update({"x-api-key": os.environ["API_SECRET_KEY"]})
+    client.headers.update({"x-api-key": api_key})
     client.fetcher = fetcher  # type: ignore[attr-defined]
-    return client
+    try:
+        yield client
+    finally:
+        CONTROL_HEALTH.reset()
+        for control, status in previous_health.items():
+            if status.healthy:
+                CONTROL_HEALTH.mark_healthy(control)
+            else:
+                CONTROL_HEALTH.mark_degraded(control, status.reason)
 
 
 class TestVenueStatusIsReadable:
