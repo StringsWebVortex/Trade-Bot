@@ -1,61 +1,37 @@
 # Contributing
 
-## Environment
+## Mandatory workflow
 
-Python version is pinned in `.python-version`; Node 22 for the frontend.
-
-```bash
-pip install -r requirements.txt -r requirements-dev.txt
-pre-commit install
-```
-
-`requirements-optional.txt` holds the heavy ML extras (mlflow, torch_geometric,
-stable_baselines3, …). CI does **not** install them: code paths behind those
-imports must degrade gracefully, and their suites are expected to skip rather
-than fail.
-
-## Checks
-
-The three checks CI runs, in the order it runs them:
+### 1. Run the free audit first
+Before touching any module, run the full audit so you have a baseline:
 
 ```bash
-ruff check .
-ruff format --check .
-pytest -q
+bash scripts/audit.sh
 ```
 
-`ruff format --check` runs before the tests, so an unformatted file blocks the
-run before a single test executes. Run `ruff format .` before pushing, or let
-the pre-commit hook do it.
+Output lands in `audit/*.txt` (git-ignored). Give those files to the auditor agent along with the specific module you plan to change.
 
-## Coverage gate
+### 2. Use agents in order
 
-`pyproject.toml` puts `--cov --cov-branch --cov-fail-under=99` in pytest's
-`addopts`, so **every** `pytest` invocation enforces the gate. Two consequences:
+| Agent | Model | When |
+|---|---|---|
+| `explorer` | Haiku | Map a feature or flow; locate files before any change |
+| `auditor` | Sonnet | Review the diff or one module; produces a findings table |
+| `fixer` | Sonnet | Apply only the approved findings from the auditor |
+| `async-security-reviewer` | Sonnet | Auth routes, DB access, background tasks, API boundary |
 
-- Running a single file fails on coverage unless you pass `--no-cov`:
-  `pytest tests/test_foo.py --no-cov -q`
-- To check one module's coverage:
-  `pytest tests/test_foo.py --cov=src.foo --cov-fail-under=0 -q`
+Invoke via Claude Code: `/agents` lists them. Run `explorer` before you start, `auditor` before you finish, `fixer` for the patch, and `async-security-reviewer` on any route that touches auth or the DB.
 
-Measured packages are listed under `[tool.coverage.run] source`.
+### 3. The PostToolUse hook runs automatically
+Every `Edit`, `Write`, or `MultiEdit` call triggers `.claude/hooks/post_edit_check.sh`, which lints the saved file with `ruff` (Python) or `eslint` (JS/TS). It is silent on success and returns a short error on failure. Never skip or disable it.
 
-## Tests
+### 4. All changes go through a PR; CI must pass before merge
+- No direct commits to `main`.
+- Open a pull request for every change, however small.
+- The CI workflow (`.github/workflows/ci.yml`) runs ruff, mypy, pytest, bandit (backend) and eslint + build (frontend) on every PR. All jobs must be green before merging.
 
-- Never contact a real network, database, or exchange. Inject fakes with
-  `patch.dict(sys.modules, {...})` to reach the "dependency installed" branch
-  of an optional import.
-- Patch `asyncio.sleep` in anything that paces itself.
-- `filterwarnings` promotes `DeprecationWarning` raised from `src.*` to an
-  error. A test that fakes an entire third-party module also fakes away its
-  deprecations — fake only the transport when the deprecation is the point.
-- When a guard is genuinely unreachable, say so in the commit message instead
-  of contorting a test to reach it.
-
-## Pull requests
-
-- Branch off `main`; do not push to `main` directly.
-- One logical change per PR, with a commit message that explains *why*.
-- All checks must pass before merge, including the aggregate `CodeQL` status.
-- CodeQL runs `security-and-quality`, so quality notices in **test** files fail
-  the check too.
+### 5. Install the required tools once
+```bash
+pip install ruff mypy pytest pytest-asyncio bandit vulture
+(cd frontend && npm ci)
+```
