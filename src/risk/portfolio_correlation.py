@@ -128,9 +128,8 @@ class PortfolioCorrelationTracker:
 
     Usage:
         tracker = PortfolioCorrelationTracker()
-        # Each bar, call push_return() for each symbol:
-        tracker.push_return("BTC/USDT", 0.0012)
-        tracker.push_return("ETH/USDT", 0.0009)
+        # Each bar, push all symbols' returns together:
+        tracker.push_bar_returns({"BTC/USDT": 0.0012, "ETH/USDT": 0.0009})
         # Before opening a new BTC position:
         avg_corr = tracker.avg_correlation_with_open_positions(
             new_symbol="BTC/USDT",
@@ -152,28 +151,18 @@ class PortfolioCorrelationTracker:
         Record one bar return for a symbol.
 
         ret should be a simple arithmetic return: (close_t - close_{t-1}) / close_{t-1}.
-        Must be called for all tracked symbols each bar to keep the series in sync.
+        Updates only the univariate series; pairwise covariance/correlation is
+        fed exclusively by push_bar_returns().
         """
         if symbol not in self._series:
             self._series[symbol] = _EWMSeries(self._halflife)
         self._series[symbol].update(ret)
 
-        # Update pairwise covariances with all other symbols
-        for other in self._series:
-            if other == symbol:
-                continue
-            key = self._cov_key(symbol, other)
-            if key not in self._covs:
-                self._covs[key] = _EWMCov(self._halflife)
-            # NOTE: push_return() only sees one symbol's return at a time, so
-            # it cannot pair true same-bar returns like push_bar_returns()
-            # does. As an approximation, pair this bar's return against the
-            # other symbol's current EWM mean (its expected return) rather
-            # than leaving the covariance tracker permanently un-updated —
-            # the previous code looked up self._covs[key] and discarded the
-            # result, so push_return() never actually recorded any
-            # covariance and correlation() always saw cov=0.
-            self._covs[key].update(ret, self._series[other].mean)
+        # push_return() sees one symbol's return at a time, so it cannot form a
+        # same-bar pair. Pairing it with the other symbol's EWM mean (nearly
+        # constant) produced a covariance near zero and understated
+        # correlation (EXR-023), so no covariance is recorded here; use
+        # push_bar_returns() for correlation.
 
     def push_bar_returns(self, returns: dict[str, float]) -> None:
         """

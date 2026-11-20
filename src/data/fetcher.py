@@ -789,10 +789,11 @@ class MarketDataFetcher:
         """
         Fetch historical OHLCV bars from exchange and persist to storage.
 
-        Paginates backward from now until lookback_days of data is collected
-        or the exchange has no earlier data.  Returns total bars written.
+        Starts ``lookback_days`` before now and paginates forward until the
+        present or until the exchange returns no more data.  Returns total
+        bars written.
 
-        Uses Binance primary; falls back to OKX on any exchange error.
+        Uses Binance only (``_require_binance``); there is no OKX fallback.
         """
         exchange = self._require_binance()
         tf_str = timeframe.value

@@ -6,6 +6,7 @@ import asyncio
 
 import numpy as np
 import pandas as pd
+import pytest
 import torch
 import torch.nn as nn
 
@@ -87,7 +88,7 @@ class TestShadowDeployerExtended:
         dep.start()
         # Incumbent takes no directional bet (flat returns, Sharpe 0). The
         # challenger earns a steady positive edge with varying returns.
-        for i in range(20):
+        for i in range(40):
             actual = 0.01 if i % 2 == 0 else 0.03
             dep.record_return(actual, incumbent_pred=0.0, challenger_pred=1.0)
 
@@ -117,12 +118,13 @@ class TestShadowDeployerExtended:
         dep = ShadowDeployer(lambda x: 0, lambda x: 0, shadow_hours=0.001)
         assert not dep.ready_to_evaluate()
 
-    def test_model_without_predict_returns_zero(self) -> None:
+    def test_model_without_predict_fails_closed(self) -> None:
         from src.upgrade.shadow_deploy import ShadowDeployer
 
         dep = ShadowDeployer(42, 42)
         dep.start()
-        assert dep.predict_incumbent(None) == 0.0
+        with pytest.raises(TypeError, match="callable or expose predict"):
+            dep.predict_incumbent(None)
 
 
 # ─── WalkForwardStudy ─────────────────────────────────────────────────────────

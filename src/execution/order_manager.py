@@ -30,6 +30,7 @@ from src.execution.exchange_contract import (
 )
 from src.execution.idempotency import (
     IdempotencyRegistry,
+    attempt_client_order_id,
     client_order_id_params,
 )
 from src.execution.order_fsm import OrderFSM, OrderFSMError, OrderFSMState, OrderStatus
@@ -38,7 +39,35 @@ log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
 _ORDER_CONFIRM_POLLS: Final[int] = 10
 _ORDER_CONFIRM_INTERVAL: Final[float] = 0.5
+# EXR-015: venues often answer OrderNotFound for an order placed moments ago.
+_ORDER_NOT_FOUND_GRACE_POLLS: Final[int] = 3
 _TIMEOUT_SECONDS: Final[float] = 30.0  # Total timeout for order confirmation
+_ABSENT: Final[object] = object()  # venue says the client order id does not exist
+
+
+def _filled_of(order: dict[str, Any]) -> float:
+    try:
+        return float(order.get("filled") or 0.0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+class AmbiguousExecutionError(TimeoutError):
+    """
+    The venue outcome of a submitted order could not be established.
+
+    The order may be unfilled, partly filled or fully filled and could not be
+    cancelled or read back. The idempotency key stays claimed and the caller
+    must treat exposure as unknown (block new entries until reconciled).
+    """
+
+
+class AmbiguousOrderError(ccxt.ExchangeError):
+    """Exchange-error form of :class:`AmbiguousExecutionError` for the executor layer."""
+
+
+class OrderNotFilledError(ccxt.ExchangeError):
+    """The venue confirmed the order ended (cancelled/expired/rejected) with no fill."""
 
 
 class OrderManager:
@@ -176,7 +205,7 @@ class OrderManager:
 
         # Claim the key before anything can reach the wire. Raises
         # DuplicateOrderError to the caller if this intent was already sent.
-        await self._idempotency.reserve(idempotency_key)
+        reserved = await self._idempotency.reserve(idempotency_key)
 
         # Create initial FSM state
         order_id = None  # Will be set after placement
@@ -190,8 +219,9 @@ class OrderManager:
         fsm = OrderFSM(fsm_state)
         fsm.state.idempotency_key = idempotency_key
 
+        client_order_id = attempt_client_order_id(idempotency_key, reserved.attempts)
         order_params = client_order_id_params(
-            getattr(exchange, "id", None), idempotency_key, params
+            getattr(exchange, "id", None), client_order_id, params
         )
 
         # Place the order
@@ -203,21 +233,35 @@ class OrderManager:
             fsm.state.order_id = order_id
             await self._idempotency.complete(idempotency_key, order_id, order)
         except (ccxt.NetworkError, ccxt.RequestTimeout) as exc:
-            # NOT retryable in the idempotency sense: the request may have been
-            # executed with only the response lost. Keeping the key claimed
-            # forces the order into reconciliation instead of letting a retry
-            # place a second one.
-            await self._idempotency.fail(idempotency_key, str(exc), retryable=False)
+            # The request may have been executed with only the response lost,
+            # so a retry could double exposure. Reconcile by client order id:
+            # an order the venue returns is carried on into confirmation; an
+            # order it provably does not have releases the key; anything else
+            # keeps the key claimed (never resubmitted) and is re-raised.
             fsm.state.last_error = str(exc)
-            self._log.error(
-                "order_placement_network_error",
-                symbol=symbol,
-                idempotency_key=idempotency_key,
-                error=str(exc),
-                action="manual_reconciliation_required",
-                exc_info=True,
-            )
-            raise
+            found = await self._lookup_by_client_id(exchange, symbol, order_params)
+            if found is None:
+                await self._idempotency.fail(idempotency_key, str(exc), retryable=False)
+                self._log.error(
+                    "order_placement_network_error",
+                    symbol=symbol,
+                    idempotency_key=idempotency_key,
+                    error=str(exc),
+                    action="manual_reconciliation_required",
+                    exc_info=True,
+                )
+                raise
+            if found is _ABSENT:
+                await self._idempotency.fail(idempotency_key, str(exc), retryable=True)
+                fsm.transition(OrderStatus.FAILED, {"error": str(exc)})
+                raise
+            order = found
+            order_id = str(order.get("id") or "")
+            if not order_id:
+                await self._idempotency.fail(idempotency_key, str(exc), retryable=False)
+                raise
+            fsm.state.order_id = order_id
+            await self._idempotency.complete(idempotency_key, order_id, order)
         except ccxt.ExchangeError as exc:
             # The exchange answered and refused: nothing was placed, so the
             # key is released and the intent may legitimately be retried.
@@ -237,8 +281,21 @@ class OrderManager:
             confirmed_order = await self._confirm_order_fill(exchange, order_id, symbol, fsm)
             fsm.state.exchange_response = confirmed_order
             return fsm, confirmed_order
-        except TimeoutError:
-            fsm.transition(OrderStatus.TIMEOUT)
+        except TimeoutError as timeout_exc:
+            reconciled = await self._reconcile_unconfirmed(exchange, order_id, symbol, fsm)
+            if reconciled is not None:
+                fsm.state.exchange_response = reconciled
+                filled = _filled_of(reconciled)
+                if filled > 0.0:
+                    # Book whatever filled; the caller sizes the position
+                    # from the returned order's ``filled``.
+                    return fsm, reconciled
+                # Venue-confirmed terminal no-fill: nothing is live, so the
+                # exit/entry intent may be retried.
+                await self._idempotency.fail(idempotency_key, "terminal no-fill", retryable=True)
+                raise
+            if not fsm.state.is_terminal():
+                fsm.transition(OrderStatus.TIMEOUT)
             self._log.error(
                 "order_confirmation_timeout",
                 order_id=order_id,
@@ -246,6 +303,12 @@ class OrderManager:
                 action="manual_reconciliation_required",
                 exc_info=True,
             )
+            raise AmbiguousExecutionError(str(timeout_exc)) from timeout_exc
+        except OrderNotFilledError as exc:
+            # EXR-001: the venue proved nothing is live, so the key is
+            # released; a retried exit must place a fresh order, not be
+            # refused as a duplicate for the rest of the key's TTL.
+            await self._idempotency.fail(idempotency_key, str(exc), retryable=True)
             raise
         except ccxt.ExchangeError as exc:
             # _confirm_order_fill already transitions permanent-error cases
@@ -258,6 +321,59 @@ class OrderManager:
             if not fsm.state.is_terminal():
                 fsm.transition(OrderStatus.FAILED, {"error": str(exc)})
             raise
+
+    async def _lookup_by_client_id(
+        self,
+        exchange: ccxt.async_support.Exchange,
+        symbol: str,
+        order_params: dict[str, Any],
+    ) -> dict[str, Any] | object | None:
+        """Read an order back by client order id: order dict, ``_ABSENT`` or None (unknown)."""
+        try:
+            order = await exchange.fetch_order("", symbol, order_params)
+        except ccxt.OrderNotFound:
+            return _ABSENT
+        except Exception:
+            self._log.error("order_manager.client_id_lookup_failed", symbol=symbol, exc_info=True)
+            return None
+        return order if isinstance(order, dict) and order.get("id") else None
+
+    async def _reconcile_unconfirmed(
+        self,
+        exchange: ccxt.async_support.Exchange,
+        order_id: str,
+        symbol: str,
+        fsm: OrderFSM,
+    ) -> dict[str, Any] | None:
+        """
+        Cancel an order whose confirmation timed out, then read its final state.
+
+        Returns the venue's terminal order dict (filled or unfilled), or None
+        when the outcome cannot be established (cancel/read failed or the
+        order is still open).
+        """
+        try:
+            await exchange.cancel_order(order_id, symbol)
+        except Exception as exc:
+            # Already filled or closed is expected; the read-back decides.
+            self._log.warning(
+                "order_manager.timeout_cancel_failed", order_id=order_id, error=str(exc)
+            )
+        try:
+            fetched = await exchange.fetch_order(order_id, symbol)
+            update = parse_order(fetched, expected_symbol=symbol, expected_order_id=order_id)
+        except Exception:
+            self._log.error(
+                "order_manager.timeout_readback_failed", order_id=order_id, exc_info=True
+            )
+            return None
+        if update.needs_reconciliation or update.status is ExchangeOrderStatus.OPEN:
+            return None
+        if fsm.state.status == OrderStatus.PENDING:
+            fsm.transition(OrderStatus.FILLING, {"exchange_response": fetched})
+        if not fsm.state.is_terminal():
+            fsm.transition(FSM_STATUS[update.status], {"exchange_response": fetched})
+        return fetched
 
     async def _confirm_order_fill(
         self,
@@ -300,7 +416,7 @@ class OrderManager:
             # branch (below) gets caught by this same try's generic
             # `except ccxt.ExchangeError` handler and silently retried until
             # timeout instead of failing immediately.
-            cancelled_error: ccxt.ExchangeError | None = None
+            cancelled_error: OrderNotFilledError | None = None
             try:
                 confirmed = await exchange.fetch_order(order_id, symbol)
                 # EXEC-003: parse against the declared contract rather than
@@ -405,8 +521,13 @@ class OrderManager:
                 if fsm.state.status == OrderStatus.PENDING:
                     fsm.transition(OrderStatus.FILLING, {"exchange_response": confirmed})
                 fsm.transition(FSM_STATUS[update.status], {"exchange_response": confirmed})
+                if update.filled_qty:
+                    # EXR-002: an EXPIRED/CANCELLED market order can carry a
+                    # partial fill. It is live exposure, so return it for the
+                    # caller to book instead of reporting "no fill".
+                    return confirmed
                 # Do not raise here -- see the cancelled_error comment above.
-                cancelled_error = ccxt.ExchangeError(
+                cancelled_error = OrderNotFilledError(
                     f"Order {order_id} was cancelled on exchange (reported {update.raw_status!r})"
                 )
 
@@ -418,6 +539,21 @@ class OrderManager:
                     attempt=attempt,
                 )
                 continue
+
+            except ccxt.OrderNotFound as exc:
+                # EXR-015: OrderNotFound subclasses InvalidOrder but, right
+                # after placement, is propagation lag rather than a verdict.
+                if attempt <= _ORDER_NOT_FOUND_GRACE_POLLS:
+                    self._log.warning(
+                        "order_confirm_not_found_retry",
+                        order_id=order_id,
+                        attempt=attempt,
+                        error=str(exc),
+                    )
+                    continue
+                fsm.transition(OrderStatus.FAILED, {"error": str(exc)})
+                self._log.error("order_confirm_permanent_error", order_id=order_id, error=str(exc))
+                raise
 
             except (
                 ccxt.BadSymbol,

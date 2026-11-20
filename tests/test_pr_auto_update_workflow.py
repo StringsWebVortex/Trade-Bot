@@ -281,6 +281,14 @@ class TestResolveNext:
         guard = resolve_script[resolve_script.index("conflicted paths") :]
         assert guard.index("git merge --abort") < guard.index("generate_quality_docs.py")
 
+    def test_a_legacy_traceability_conflict_is_force_removed_from_the_index(self, resolve_script):
+        """An unmerged index entry needs force; --cached preserves the checkout copy."""
+        legacy = resolve_script[
+            resolve_script.index("docs/quality/REQUIREMENTS_TRACEABILITY.md)") :
+        ]
+        (remove,) = [line.strip() for line in legacy.splitlines() if "git rm" in line]
+        assert remove == 'git rm -f -q --cached --ignore-unmatch -- "${path}"'
+
     def test_it_regenerates_rather_than_picking_a_side(self, resolve_script):
         """
         The correct content of a generated file is whatever its generator says
