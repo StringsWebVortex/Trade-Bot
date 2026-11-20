@@ -1,121 +1,106 @@
-# GAP-006: local TimescaleDB for bars/trades/equity storage.
-# Free community image, runs entirely on this machine — no cloud, no cost.
+# Local operational stack: TimescaleDB + Trade-Bot API.
 #
-# Works with either engine:
-#   docker compose up -d        (requires docker group membership)
-#   podman compose up -d        (rootless, no privileges needed)
-# Or use the helper: bash scripts/timescaledb.sh up
+# StorageSettings.timescale_dsn defaults to a host on 127.0.0.1:5433. Inside
+# compose, containers reach the DB by service name (`timescaledb:5432`) — set
+# STORAGE_TIMESCALE_DSN in `.env` accordingly (see .env.example).
 #
-# Credentials are local-dev defaults; the container binds to 127.0.0.1 only,
-# so it is unreachable from the network. Override via STORAGE_TIMESCALE_DSN
-# in .env if you change them.
+# Authoritative trading loop: the `api` service.
+#
+# `src/api/main.py`'s FastAPI lifespan unconditionally starts the
+# Orchestrator, so the API replica owns the trading loop. Running the
+# headless worker at the same time would produce a second loop trading
+# the same account against the same DB — disabled here on purpose.
+#
+# The worker service definition is kept below under the `worker` profile
+# so operators can opt in explicitly, e.g. to run the loop headlessly on
+# a separate host. Only ever run ONE of {api-with-loop, worker} at a time:
+#   * default `docker compose up`         → api only (loop lives in api).
+#   * `docker compose --profile worker up worker timescaledb`
+#                                          → worker only (loop headless);
+#                                            do NOT also start `api`
+#                                            until src/api/main.py grows
+#                                            a toggle to skip its own
+#                                            Orchestrator startup.
+
 services:
   timescaledb:
-    image: docker.io/timescale/timescaledb:2.17.2-pg17
-    container_name: tradebot-timescaledb
+    image: timescale/timescaledb:2.14.2-pg16
     restart: unless-stopped
-    ports:
-      - "127.0.0.1:5433:5432"
     environment:
       POSTGRES_USER: tradebot
-      POSTGRES_PASSWORD: tradebot-local  # pragma: allowlist secret — localhost-only dev credential
+      # OPS-006: no shipped default. Set POSTGRES_PASSWORD in .env.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
       POSTGRES_DB: tradebot
-      # Timescale tuning for an 11GB-RAM host sharing with the bot itself
-      TS_TUNE_MEMORY: 2GB
-      TS_TUNE_NUM_CPUS: "2"
     volumes:
-      - tradebot-timescale-data:/var/lib/postgresql/data
+      - tsdb-data:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5433:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U tradebot -d tradebot"]
-      interval: 5s
-      timeout: 3s
-      retries: 12
-
-  # ── crypto-intel-v6 services ───────────────────────────────────────────────
-
-  redpanda:
-    image: redpandadata/redpanda:latest
-    container_name: crypto_redpanda
-    command:
-      - redpanda
-      - start
-      - --overprovisioned
-      - --smp
-      - "1"
-      - --memory
-      - 1G
-      - --reserve-memory
-      - 0M
-      - --node-id
-      - "0"
-      - --check=false
-      - --kafka-addr=0.0.0.0:9092
-      - --advertise-kafka-addr=localhost:9092
-    ports:
-      - "127.0.0.1:9092:9092"
-      - "127.0.0.1:9644:9644"
-    healthcheck:
-      test: ["CMD-SHELL", "rpk cluster info || exit 1"]
       interval: 10s
       timeout: 5s
-      retries: 10
+      retries: 6
 
-  neo4j:
-    image: neo4j:5
-    container_name: crypto_neo4j
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env
     environment:
-      NEO4J_AUTH: "neo4j/crypto"  # pragma: allowlist secret — localhost-only dev credential
-      NEO4J_PLUGINS: '["graph-data-science"]'
-      NEO4J_dbms_memory_pagecache_size: "512M"
-      NEO4J_dbms_memory_heap_max__size: "1G"
-    ports:
-      - "127.0.0.1:7474:7474"
-      - "127.0.0.1:7687:7687"
+      # Container must bind 0.0.0.0 so compose can expose the port.
+      # See src/api/main.py lifespan: the non-loopback bind is intentional
+      # here and must be paired with a TLS-terminating reverse proxy in prod.
+      API_HOST: 0.0.0.0
+      API_PORT: "8000"
+      STORAGE_BACKEND: timescale
+      STORAGE_TIMESCALE_DSN: postgresql://tradebot:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@timescaledb:5432/tradebot
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp
     volumes:
-      - neo4j_data:/data
-    healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://localhost:7474 || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-
-  mlflow:
-    image: ghcr.io/mlflow/mlflow:latest
-    container_name: crypto_mlflow
-    command: >
-      mlflow server
-      --host 0.0.0.0
-      --port 5000
-      --backend-store-uri /mlruns
-      --default-artifact-root /mlruns/artifacts
+      - app-data:/app/data
+      - app-logs:/app/logs
+      - app-models:/app/models
     ports:
-      - "127.0.0.1:5000:5000"
-    volumes:
-      - mlflow_data:/mlruns
-    healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:5000/health || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
+      - "127.0.0.1:8000:8000"
 
-  grafana:
-    image: grafana/grafana:latest
-    container_name: crypto_grafana
+  # Opt-in only. Never start with `api` — see header comment.
+  worker:
+    profiles: ["worker"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env
     environment:
-      GF_SECURITY_ADMIN_PASSWORD: "crypto"  # pragma: allowlist secret — localhost-only dev credential
-      GF_USERS_ALLOW_SIGN_UP: "false"
-    ports:
-      - "127.0.0.1:3000:3000"
+      STORAGE_BACKEND: timescale
+      STORAGE_TIMESCALE_DSN: postgresql://tradebot:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@timescaledb:5432/tradebot
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp
     volumes:
-      - grafana_data:/var/lib/grafana
-    healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:3000/api/health || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
+      - app-data:/app/data
+      - app-logs:/app/logs
+      - app-models:/app/models
+    command: ["python", "-m", "src.workers"]
 
 volumes:
-  tradebot-timescale-data:
-  neo4j_data:
-  mlflow_data:
-  grafana_data:
+  tsdb-data:
+  app-data:
+  app-logs:
+  app-models:

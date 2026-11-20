@@ -3,9 +3,10 @@ Real historical OHLCV fetcher — Binance public REST API (no auth required).
 No mocks: hits the live public endpoint and returns real historical candles.
 """
 
+import time
+
 import pandas as pd
 import requests
-
 
 BINANCE_KLINES_URL = "https://api.binance.com/api/v3/klines"
 
@@ -50,6 +51,11 @@ def fetch_ohlcv(symbol: str = "BTCUSDT", interval: str = "1h", limit: int = 1000
         "ignore",
     ]
     df = pd.DataFrame(raw, columns=cols)
+    # Binance includes the still-open bar as the last row. Its close_time is in
+    # the future, so keep only candles that have closed; a forming candle
+    # repaints and must not feed features or labels.
+    now_ms = int(time.time() * 1000)
+    df = df[df["close_time"].astype("int64") < now_ms]
 
     df["timestamp"] = pd.to_datetime(df["open_time"], unit="ms", utc=True)
     for c in ["open", "high", "low", "close", "volume"]:
