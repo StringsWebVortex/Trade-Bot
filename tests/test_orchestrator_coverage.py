@@ -18,10 +18,10 @@ from contextlib import contextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from conftest import settings_double
 
 from src.config import Timeframe, TradingMode
 from src.data.storage import BarRecord
+from tests.conftest import settings_double
 
 
 def _make_bars(n: int = 350) -> list[BarRecord]:

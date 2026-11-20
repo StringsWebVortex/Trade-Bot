@@ -3113,9 +3113,6 @@
       "status": "verified",
       "source": "OPS-2026-09-30",
       "failure_mode": "The rule inverted itself: DHE and ECDHE are the ephemeral exchanges that provide forward secrecy, so the recommended suites were reported as 'Non-PFS', while the absent left boundary plus re.IGNORECASE fired on any word ending in 'dh' -- a lookup-table key or the word ECDH in a sentence. A false HIGH is not harmless: it is baselined, and the suppression then hides the real finding that file later grows, or it trains a reviewer to read LAW12 as noise. One such suppression (src/mathcore/numbertheory/safe_primes.py) already existed and is removed by this change.",
-      "owning_modules": [
-        ".claude/skills/crypto-architect/scripts/validate_arch.py"
-      ],
       "verification": [
         {
           "test": "tests/test_law12_cipher_suite_pattern.py",
@@ -9125,7 +9122,6 @@
       "notes": "layer: test-suite",
       "failure_mode": "Fingerprints have no line or evidence, so any new instance of a baselined check in that file was silently suppressed.",
       "owning_modules": [
-        ".claude/skills/crypto-architect/scripts/validate_arch.py",
         "config/arch_baseline.json"
       ],
       "verification": [
@@ -9169,9 +9165,6 @@
       "status": "verified",
       "source": "OPS-2026-11-07",
       "failure_mode": "Malformed count data could raise an uncaught AttributeError or silently accept negative suppression budgets instead of failing with a controlled baseline error.",
-      "owning_modules": [
-        ".claude/skills/crypto-architect/scripts/validate_arch.py"
-      ],
       "depends_on": [],
       "verification": [
         {
