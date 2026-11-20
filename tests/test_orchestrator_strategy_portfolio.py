@@ -17,7 +17,6 @@ import numpy as np
 import pandas as pd
 import pytest
 import structlog
-from conftest import settings_double
 
 import src.engine.orchestrator as orch_mod
 from src.config import StrategyPortfolioSettings, Timeframe
@@ -29,6 +28,7 @@ from src.engine.strategy_portfolio import (
 )
 from src.strategies.breakout import BreakoutStrategy
 from src.strategies.registry import StrategyRegistry
+from tests.conftest import settings_double
 
 
 class _Bar:
