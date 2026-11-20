@@ -4,6 +4,9 @@ Role enforcement on the FastAPI surface.
 Covers the `requires(...)` dependency factory in src/api/main.py: a read-only
 key authenticates (200/401 unchanged) but is denied 403 on the trade- and
 mode-changing routes, while the trade-authorizing key passes through.
+
+Decides:
+  - API-001 — The authorization matrix is executable and every cell is tested
 """
 
 from __future__ import annotations
@@ -16,7 +19,6 @@ from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from src.api.access_control import Permission, Role
-
 
 _TRADE_KEY = "t" * 32
 _READ_KEY = "r" * 32
