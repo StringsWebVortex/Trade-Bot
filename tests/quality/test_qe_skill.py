@@ -425,3 +425,10 @@ class TestStrictChangePlanContract:
         result = self._run_plan(tmp_path, plan)
         assert result.returncode == 1
         assert "decides" in (result.stdout + result.stderr)
+
+    def test_plan_rejects_traversal_inside_test_root(self, tmp_path):
+        plan = self._valid_plan()
+        plan["verification"][0]["test"] = "tests/../../etc/passwd.py"
+        result = self._run_plan(tmp_path, plan)
+        assert result.returncode == 1
+        assert "test" in (result.stdout + result.stderr)
