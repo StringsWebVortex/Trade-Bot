@@ -1,7 +1,10 @@
 """Covers horizon dispatch, honest abstention, and the risk-gated signal path.
 
 Decides:
+  - REG-0030 — Horizon decisions cannot bypass the single risk-gated order path
   - REG-0031 — Horizon drift detection suppresses the signal and is persisted as measured
+  - REG-1430 — Data and intelligence low-severity defects: bus drop total, naive now, funding units, NaN guards
+  - REG-1719 — Granger updates require observed BTC close history
 """
 
 from __future__ import annotations
@@ -88,6 +91,10 @@ def intel(tmp_path, monkeypatch):
     )
     monkeypatch.setattr("src.intel._HORIZONS_CONFIG", horizons)
     monkeypatch.setenv("DUCKDB_PATH", str(tmp_path / "intel.duckdb"))
+    # INT-017: no default RPC credentials; configure them so the on-chain
+    # extractor exists to be stubbed below.
+    monkeypatch.setenv("BTC_RPC_USER", "test-user")
+    monkeypatch.setenv("BTC_RPC_PASS", "test-pass")
     obj = CryptoIntelligence(config_path=cfg)
     obj._orchestrator = _FakeOrchestrator()
 
@@ -718,3 +725,29 @@ def test_close_survives_a_duckdb_that_fails_to_close(intel):
 
     assert intel._started is False
     assert intel._orchestrator.shutdown_called is True
+
+
+def test_on_bar_skips_granger_update_without_close_history(intel):
+    """INT-035: no close_history must not feed a fabricated flat series to Granger."""
+    _deliver_results(intel, [_result(i) for i in range(3)])
+    calls: list[object] = []
+    intel._granger.update = lambda btc_ret, alts: calls.append(btc_ret)
+
+    asyncio.run(
+        intel.on_bar("BTC/USDT", _ohlcv(), alt_prices={"ETH/USDT": [10.0 + i for i in range(12)]}),
+    )
+    assert calls == []
+
+
+def test_on_bar_skips_granger_update_with_fewer_than_eleven_btc_closes(intel):
+    """Short BTC history must not be padded or treated as observed market data."""
+    _deliver_results(intel, [_result(i) for i in range(3)])
+    calls: list[object] = []
+    intel._granger.update = lambda btc_ret, alts: calls.append(btc_ret)
+    ohlcv = {**_ohlcv(), "close_history": [50_000.0 + i for i in range(10)]}
+
+    asyncio.run(
+        intel.on_bar("BTC/USDT", ohlcv, alt_prices={"ETH/USDT": [10.0 + i for i in range(12)]}),
+    )
+
+    assert calls == []

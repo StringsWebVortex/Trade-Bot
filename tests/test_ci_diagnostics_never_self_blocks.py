@@ -108,18 +108,14 @@ def collector_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setattr(ci_diagnostics, "_resolve_pr_from_event", lambda slug, trig: pull)
     monkeypatch.setattr(ci_diagnostics, "_matches_pr_run", lambda run, pr, sha: True)
     monkeypatch.setattr(ci_diagnostics, "_ensure_head_unchanged", lambda *a: None)
-    names = [spec["name"] for spec in ci_diagnostics.WORKFLOW_INVENTORY]
-    monkeypatch.setattr(
-        ci_diagnostics, "_workflow_ids", lambda slug: {n: i for i, n in enumerate(names)}
-    )
-    runs = {
-        n: {"id": i, "status": "completed", "conclusion": "success"} for i, n in enumerate(names)
-    }
+    runs = [
+        {"id": i, "name": name, "status": "completed", "conclusion": "success"}
+        for i, name in enumerate(("CI", "Security"))
+    ]
     monkeypatch.setattr(ci_diagnostics, "_list_runs_for_pr", lambda *a: runs)
     job = {"id": 1, "name": "lint", "status": "completed", "conclusion": "success", "steps": []}
     monkeypatch.setattr(ci_diagnostics, "_jobs_for_run", lambda slug, run_id: [dict(job)])
-    monkeypatch.setattr(ci_diagnostics, "_add_annotations", lambda *a: None)
-    monkeypatch.setattr(ci_diagnostics, "_add_log_diagnostics", lambda *a: None)
+    monkeypatch.setattr(ci_diagnostics, "_add_failure_lines", lambda *a: None)
 
 
 @pytest.mark.usefixtures("collector_env")
@@ -132,10 +128,12 @@ def test_collection_writes_only_completed_checks_and_finalizes(checks: _Checks) 
 
 @pytest.mark.usefixtures("collector_env")
 def test_a_failed_collection_records_why(checks: _Checks, monkeypatch, capsys) -> None:
-    def no_workflows(slug: str) -> dict[str, int]:
-        raise DiagnosticError("Expected exactly one active workflow named 'CI'")
+    def no_runs(*args: object) -> list[dict[str, Any]]:
+        raise DiagnosticError(
+            "GitHub API response is missing the expected workflow_runs collection"
+        )
 
-    monkeypatch.setattr(ci_diagnostics, "_workflow_ids", no_workflows)
+    monkeypatch.setattr(ci_diagnostics, "_list_runs_for_pr", no_runs)
     with pytest.raises(DiagnosticError):
         ci_diagnostics._collect()
     assert checks.master is not None and checks.master["status"] == "completed"
@@ -149,7 +147,7 @@ def test_a_failed_collection_records_why(checks: _Checks, monkeypatch, capsys) -
     )
     assert ci_diagnostics._retrieve(PR) != 0
     err = capsys.readouterr().err
-    assert "Diagnostics collection failed: Expected exactly one active workflow" in err
+    assert "Diagnostics collection failed: GitHub API response is missing" in err
 
 
 @pytest.mark.usefixtures("collector_env")

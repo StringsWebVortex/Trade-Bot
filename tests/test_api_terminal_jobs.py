@@ -83,7 +83,7 @@ class FakeStorage:
 
 
 @pytest.fixture
-def api(monkeypatch):
+def api(monkeypatch, healthy_security_controls):
     monkeypatch.setenv("API_SECRET_KEY", _KEY)
     monkeypatch.setenv("OPERATOR_SECRET", _SECRET)
     from fastapi.testclient import TestClient

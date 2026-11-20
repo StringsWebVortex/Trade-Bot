@@ -10,8 +10,22 @@ complete source-file hashes and current line bounds, and API_REFERENCE route row
 are compared with AST-derived method/path/handler/line tuples. A source edit
 requires deliberate anchor review rather than silently re-labeling stale ranges.
 
+Two check levels (REG-1705):
+
+  --check           the pull-request gate. Structure only: every indexed path
+                    is tracked, every anchor names an existing file and a range
+                    inside it, and every documented route exists by method,
+                    path and handler. Nothing here goes stale because some
+                    other file changed.
+  --check --strict  maintenance. Also demands current SHA8s, line counts, row
+                    numbers and route line numbers -- the byte-identical
+                    regeneration the gate used to require. That made every
+                    merge, even a dependency bump, break every other open pull
+                    request; freshness is verified where it is relied on (an
+                    agent re-checks an anchor's hash before trusting it).
+
 Usage:
-    python3 scripts/codebase_knowledge_index.py --check
+    python3 scripts/codebase_knowledge_index.py --check [--strict]
     python3 scripts/codebase_knowledge_index.py --refresh-file-index
 """
 
@@ -119,8 +133,14 @@ def refresh_file_index(text: str, root: Path = PROJECT_ROOT) -> tuple[str, list[
     if table_header_index is None:
         return text, ["FILE_INDEX.md complete inventory has no table header"]
 
+    # The table ends at its first non-row line; whatever follows is kept (SCR-018).
+    table_end = next(
+        (i for i in range(table_header_index + 1, len(lines)) if not lines[i].startswith("|")),
+        len(lines),
+    )
+
     existing: dict[str, tuple[str, str, str]] = {}
-    for line in lines[table_header_index + 1 :]:
+    for line in lines[table_header_index + 1 : table_end]:
         match = FILE_ROW.match(line)
         if not match:
             continue
@@ -184,7 +204,7 @@ def refresh_file_index(text: str, root: Path = PROJECT_ROOT) -> tuple[str, list[
         return text, issues
 
     header = lines[section_start : table_header_index + 1]
-    result_lines = refreshed_top + header + rendered_rows
+    result_lines = refreshed_top + header + rendered_rows + lines[table_end:]
     totals = {
         "Tracked paths": len(rows),
         "Python files": sum(1 for _, path_text, *_ in rows if path_text.endswith(".py")),
@@ -203,8 +223,13 @@ def refresh_file_index(text: str, root: Path = PROJECT_ROOT) -> tuple[str, list[
     return result, issues
 
 
-def validate_anchors(text: str, root: Path = PROJECT_ROOT) -> list[str]:
-    """Verify chunk metadata, stable anchors, file existence and range bounds."""
+def file_index_paths(text: str) -> set[str]:
+    """Every path FILE_INDEX.md lists, in either table."""
+    return {match.group(2).strip() for line in text.splitlines() if (match := FILE_ROW.match(line))}
+
+
+def validate_anchors(text: str, root: Path = PROJECT_ROOT, *, strict: bool = True) -> list[str]:
+    """Verify file existence and range bounds; with strict, also hashes and chunk metadata."""
     issues: list[str] = []
     chunk_text = (root / "codebase-analysis-docs/CHUNK_INDEX.md").read_text(encoding="utf-8")
     current_path: str | None = None
@@ -216,7 +241,7 @@ def validate_anchors(text: str, root: Path = PROJECT_ROOT) -> list[str]:
             current_path = candidate if (root / candidate).is_file() else None
             continue
         meta = CHUNK_META.match(line)
-        if not meta or current_path is None:
+        if not strict or not meta or current_path is None:
             continue
         path = root / current_path
         digest, count = file_facts(path)
@@ -237,7 +262,7 @@ def validate_anchors(text: str, root: Path = PROJECT_ROOT) -> list[str]:
                 continue
             actual_digest, line_count = file_facts(path)
             start, end = int(start_text), int(end_text)
-            if digest != actual_digest:
+            if strict and digest != actual_digest:
                 issues.append(
                     f"stale {index_name} anchor hash for {path_text}#{start}-{end}: "
                     f"indexed={digest} actual={actual_digest}"
@@ -250,8 +275,10 @@ def validate_anchors(text: str, root: Path = PROJECT_ROOT) -> list[str]:
     return issues
 
 
-def validate_api_reference(source_text: str, reference_text: str) -> list[str]:
-    """Compare API routes with AST-derived method/path/handler/line tuples."""
+def validate_api_reference(
+    source_text: str, reference_text: str, *, strict: bool = True
+) -> list[str]:
+    """Compare API routes with AST-derived method/path/handler(/line, when strict) tuples."""
     methods = {"get", "post", "put", "patch", "delete", "options", "head", "websocket"}
     tree = ast.parse(source_text)
     source_routes: list[tuple[str, str, str, int]] = []
@@ -285,6 +312,9 @@ def validate_api_reference(source_text: str, reference_text: str) -> list[str]:
         for line in route_section.splitlines()
         if (match := row_pattern.match(line))
     ]
+    if not strict:
+        source_routes = [(*route[:3], 0) for route in source_routes]
+        documented_routes = [(*route[:3], 0) for route in documented_routes]
     source_routes.sort()
     documented_routes.sort()
     if source_routes == documented_routes:
@@ -302,8 +332,8 @@ def validate_api_reference(source_text: str, reference_text: str) -> list[str]:
     ]
 
 
-def check(root: Path = PROJECT_ROOT) -> list[str]:
-    """Return all structural integrity failures without modifying files."""
+def check(root: Path = PROJECT_ROOT, *, strict: bool = False) -> list[str]:
+    """Return integrity failures without modifying files; strict adds metadata freshness."""
     issues: list[str] = []
     required_paths = (
         root / "codebase-analysis-docs/FILE_INDEX.md",
@@ -320,15 +350,23 @@ def check(root: Path = PROJECT_ROOT) -> list[str]:
     index_path = required_paths[0]
     master_path = required_paths[2]
     original = index_path.read_text(encoding="utf-8")
-    refreshed, index_issues = refresh_file_index(original, root)
-    issues.extend(index_issues)
-    if refreshed != original:
-        issues.append("FILE_INDEX.md metadata is stale; run --refresh-file-index")
+    if strict:
+        refreshed, index_issues = refresh_file_index(original, root)
+        issues.extend(index_issues)
+        if refreshed != original:
+            issues.append("FILE_INDEX.md metadata is stale; run --refresh-file-index")
+    else:
+        try:
+            tracked = tracked_paths(root)
+        except RuntimeError as exc:
+            return [*issues, str(exc)]
+        for path_text in sorted(file_index_paths(original) - tracked):
+            issues.append(f"FILE_INDEX.md lists a path that is not tracked: {path_text}")
     master = master_path.read_text(encoding="utf-8")
-    issues.extend(validate_anchors(master, root))
+    issues.extend(validate_anchors(master, root, strict=strict))
     api_source = (root / "src/api/main.py").read_text(encoding="utf-8")
     api_reference = (root / "codebase-analysis-docs/API_REFERENCE.md").read_text(encoding="utf-8")
-    issues.extend(validate_api_reference(api_source, api_reference))
+    issues.extend(validate_api_reference(api_source, api_reference, strict=strict))
     return issues
 
 
@@ -345,7 +383,14 @@ def main(argv: list[str] | None = None) -> int:
             "rebuild FILE_INDEX rows/totals while preserving notes; never rewrite semantic anchors"
         ),
     )
+    parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="with --check, also require current hashes, line counts and route lines",
+    )
     args = parser.parse_args(argv)
+    if args.strict and not args.check:
+        parser.error("--strict applies to --check only")
 
     if args.refresh_file_index:
         path = PROJECT_ROOT / FILE_INDEX.relative_to(PROJECT_ROOT)
@@ -358,7 +403,7 @@ def main(argv: list[str] | None = None) -> int:
         print("FILE_INDEX.md metadata refreshed; semantic notes and anchor ranges unchanged.")
         return 0
 
-    issues = check()
+    issues = check(strict=args.strict)
     if issues:
         for issue in issues[:30]:
             print(f"STALE: {issue}", file=sys.stderr)

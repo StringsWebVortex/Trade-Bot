@@ -376,6 +376,19 @@ def main(argv: list[str] | None = None) -> int:
             "MONGODB_URI": "",
         }
     )
+    # Blank every credential-shaped name, from the environment and from .env,
+    # because the child reads .env itself and an env value overrides it.
+    _credential_suffixes = ("_API_KEY", "_API_SECRET", "_SECRET", "_PASS", "_PASSWORD", "_TOKEN")
+    _keep = {"API_SECRET_KEY", "OPERATOR_SECRET"}
+    _names = set(env)
+    _dotenv = REPO_ROOT / ".env"
+    if _dotenv.is_file():
+        for line in _dotenv.read_text(encoding="utf-8", errors="replace").splitlines():
+            if "=" in line and not line.lstrip().startswith("#"):
+                _names.add(line.split("=", 1)[0].strip().removeprefix("export ").strip())
+    for name in _names:
+        if name.endswith(_credential_suffixes) and name not in _keep:
+            env[name] = ""
     temp_root = Path(tempfile.mkdtemp(prefix="trade-bot-paper-preflight-"))
     atexit.register(shutil.rmtree, temp_root, ignore_errors=True)
     try:

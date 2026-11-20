@@ -9,11 +9,15 @@ changes branches, or runs tests/quality gates.
 from __future__ import annotations
 
 import argparse
-import json
 import re
 import subprocess
 import sys
 from pathlib import Path, PurePosixPath
+
+try:
+    from scripts import ci_diagnostics
+except ImportError:  # run as `python3 scripts/apply_ci_patch.py`
+    import ci_diagnostics
 
 ROOT = Path(__file__).resolve().parents[1]
 MAX_PATCH_BYTES = 2 * 1024 * 1024
@@ -148,6 +152,15 @@ def _validate_patch(patch: str) -> list[str]:
 
     paths: list[str] = []
     lines = patch.splitlines()
+    # SCR-001: `git apply` also accepts traditional `---`/`+++` sections with
+    # no `diff --git` header. Only the first section's preamble may precede a
+    # header; any file-header or hunk line outside a validated section is
+    # refused rather than skipped.
+    first_header = next((i for i, ln in enumerate(lines) if ln.startswith("diff --git ")), None)
+    if first_header is not None and any(
+        ln.startswith(("--- ", "+++ ", "@@ ")) for ln in lines[:first_header]
+    ):
+        raise PatchError("patch has file sections outside a validated 'diff --git' header")
     index = 0
     while index < len(lines):
         line = lines[index]
@@ -191,6 +204,14 @@ def _validate_patch(patch: str) -> list[str]:
             raise PatchError(f"patch section headers do not match {old_path!r}")
         if not any(line.startswith("@@ ") for line in lines[new_header_index + 1 : next_section]):
             raise PatchError(f"patch section for {old_path!r} has no text-edit hunk")
+        # Between this section's target header and the next header, no second
+        # traditional ---/+++ pair may start a hidden section. Hunk bodies can
+        # contain such text only behind a +/-/space prefix, so a line starting
+        # with "--- " directly followed by "+++ " is a section header.
+        body = lines[new_header_index + 1 : next_section]
+        for pos in range(len(body) - 1):
+            if body[pos].startswith("--- ") and body[pos + 1].startswith("+++ "):
+                raise PatchError("patch section contains an unvalidated '---'/'+++' file header")
         paths.append(old_path)
         index = next_section
 
@@ -202,37 +223,25 @@ def _validate_patch(patch: str) -> list[str]:
 
 
 def _verify_diagnostic_report(pr_number: int, expected_head: str) -> None:
-    """Require a finalized report for this PR/head before applying any diff."""
-    cli = ROOT / "scripts" / "prfail"
+    """Require a finished report for this PR/head before applying any diff."""
     try:
-        result = subprocess.run(
-            [str(cli), "--pr", str(pr_number)],
-            cwd=ROOT,
-            text=True,
-            capture_output=True,
-            check=False,
-            timeout=45,
-        )
-    except (OSError, subprocess.SubprocessError) as exc:
+        sha, records = ci_diagnostics.read_report(pr_number)
+    except ci_diagnostics.ReportPending as exc:
         raise PatchError(
-            f"the finalized diagnostic report could not be retrieved ({type(exc).__name__})"
+            "the diagnostic report for this PR head is not finished yet; refusing the patch"
         ) from exc
-    if result.returncode != 0:
+    except (ci_diagnostics.DiagnosticError, OSError, ValueError, TypeError, KeyError) as exc:
         raise PatchError(
             "the finalized diagnostic report is unavailable for this PR head; refusing the patch"
-        )
-    try:
-        records = json.loads(result.stdout) if result.stdout.strip() else []
-    except json.JSONDecodeError as exc:
-        raise PatchError("the diagnostic CLI returned malformed report data") from exc
-    if not isinstance(records, list) or not records:
+        ) from exc
+    if sha != expected_head:
+        raise PatchError("the diagnostic report does not match the requested PR and head SHA")
+    if not records:
         raise PatchError(
             "the finalized report contains no diagnostic records; refusing an ungrounded patch"
         )
     if any(
-        not isinstance(record, dict)
-        or record.get("pr") != pr_number
-        or record.get("head_sha") != expected_head
+        record.get("pr") != pr_number or record.get("head_sha") != expected_head
         for record in records
     ):
         raise PatchError("the diagnostic report does not match the requested PR and head SHA")

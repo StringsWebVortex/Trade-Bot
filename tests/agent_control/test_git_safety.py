@@ -11,6 +11,10 @@ What these tests would catch:
   people learn to work around;
 * an authorization that can be reused, outlive its expiry, or be spent
   partially on a command that is then refused anyway.
+
+Decides:
+  - SEC-1130 The git guard sees nested, aliased and repeated guarded operations
+
 """
 
 from __future__ import annotations
@@ -48,7 +52,7 @@ NOW = datetime(2026, 10, 7, 12, 0, tzinfo=UTC)
         ("git status", []),
         ("git checkout -b topic", ["checkout"]),
         ("git checkout -- file && git stash pop", ["checkout", "stash"]),
-        ("git reset && git reset", ["reset"]),
+        ("git reset && git reset", ["reset", "reset"]),
         ("cd a && git -C b -c core.x=y stash list", []),
         ("git stash", ["stash"]),
         ("(true)&&git reset HEAD~1", ["reset"]),
@@ -91,6 +95,53 @@ NOW = datetime(2026, 10, 7, 12, 0, tzinfo=UTC)
 )
 def test_guarded_operation_detection(command: str, expected: list[str]) -> None:
     assert guarded_operations(command) == expected
+
+
+@pytest.mark.parametrize(
+    ("command", "expected"),
+    [
+        ("echo `git reset --hard`", ["reset"]),
+        ('echo "$(git checkout main)"', ["checkout"]),
+        ("echo $(printf x$(git stash drop))", ["stash"]),
+        ("echo '$(git reset --hard)'", []),
+        ('echo "x `git checkout main` y"', ["checkout"]),
+        ("echo '`git reset`'", []),
+        ("xargs git checkout < files.txt", ["checkout"]),
+        ("ls | xargs -n1 git stash", ["stash"]),
+        ("xargs -I{} sh -c 'git merge {}'", ["merge"]),
+        ("find . -exec git clean -fd \\;", ["clean"]),
+        ("find . -name x -execdir git restore {} +", ["restore"]),
+        ("find . -name x", []),
+        ("git -c alias.x=reset x HEAD~1", ["reset"]),
+        ("git -c alias.pf='push --force' pf origin b", [FORCE_PUSH]),
+        ("git -c alias.x='!git stash drop' x", ["stash"]),
+        ("git -c alias.x='!f() { git reset --hard; }; f' x", ["reset"]),
+        ("git -c alias.x=status x", []),
+        ("git checkout a && git checkout b", ["checkout", "checkout"]),
+    ],
+)
+def test_nested_and_aliased_operations_are_detected(command: str, expected: list[str]) -> None:
+    assert guarded_operations(command) == expected
+
+
+def test_configured_aliases_are_resolved() -> None:
+    aliases = {"co": "checkout", "pf": "push --force", "sh": "!git stash drop"}
+    assert guarded_operations("git co main", aliases) == ["checkout"]
+    assert guarded_operations("git pf origin b", aliases) == [FORCE_PUSH]
+    assert guarded_operations("git sh", aliases) == ["stash"]
+    assert guarded_operations("git fn", {"fn": "!f() { git reset --hard; }; f"}) == ["reset"]
+    assert guarded_operations("git co main") == []
+
+
+def test_one_grant_does_not_cover_repeated_operations() -> None:
+    task = _task()
+    authorize(task, "checkout", "r", checkpoint_id="CP-1", now=NOW)
+    ops = guarded_operations("git checkout a && git checkout b")
+    assert consume(task, ops, "git checkout a && git checkout b", now=NOW) == ["checkout"]
+    assert task.authorizations[0].consumed_at is None
+    authorize(task, "checkout", "r2", checkpoint_id="CP-2", now=NOW)
+    assert consume(task, ops, "git checkout a && git checkout b", now=NOW) == []
+    assert all(a.consumed_at for a in task.authorizations)
 
 
 def test_heredoc_bodies_are_dropped_but_the_command_line_kept() -> None:
@@ -185,3 +236,22 @@ class TestAuthorization:
         command = f"git push --force https://x:{token}@github.com/o/r.git"
         assert consume(task, [FORCE_PUSH], command, now=NOW) == []
         assert token not in (task.authorizations[0].consumed_by or "")
+
+
+def test_parser_handles_escaped_nested_delimiters_and_alias_edge_cases() -> None:
+    # An escaped closing parenthesis is data inside the substitution, not its
+    # terminator; the later guarded command must still be discovered.
+    assert guarded_operations(r"echo $(printf \) && git reset)") == ["reset"]
+    # An escaped backtick does not terminate the outer legacy substitution.
+    assert guarded_operations(r"echo `printf \`literal && git merge main`") == ["merge"]
+    # Quotes inside $() are tracked while looking for the matching close.
+    assert guarded_operations("echo $(printf 'quoted' && git checkout main)") == ["checkout"]
+
+    # xargs without a command to execute contains no nested invocation.
+    assert guarded_operations("xargs -n1 echo") == []
+    # Empty aliases preserve the original invocation; malformed aliases use
+    # the documented conservative split fallback.
+    assert guarded_operations("git empty", {"empty": "   "}) == []
+    assert guarded_operations("git malformed", {"malformed": "git 'unterminated"}) == []
+    # A shell option that does not carry a command string must not be guessed.
+    assert guarded_operations("bash -l script.sh") == []

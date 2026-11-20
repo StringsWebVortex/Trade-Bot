@@ -90,6 +90,7 @@ CI_LOG_PATTERNS: tuple[str, ...] = (
     r"\bgh\s+api\b[^|]*/statuses/",
     r"\bgh\s+(pr|run)\b[^|]*--json\b[^|]*\b(statusCheckRollup|checkRuns|jobs|workflowRuns)\b",
     r"\b(?:curl|wget)\b[^|]*(?:api\.github\.com|github\.com/)[^|]*(?:actions|check-runs|check-suites|annotations|statuses|workflow_runs)\b",
+    r"\b(?:https?|xh)\b[^|]*(?:api\.github\.com|github\.com/)[^|]*(?:actions|check-runs?|check-suites?|annotations|statuses|workflow_runs|artifacts|jobs)\b",
     r"\bact\b\s+-",
     r"\bgh\s+pr\s+view\b[^|]*(?:--comments\b|--json\b[^|]*\bcomments\b)",
     r"\bgh\s+issue\s+view\b[^|]*(?:--comments\b|--json\b[^|]*\bcomments\b)",
@@ -105,7 +106,7 @@ CI_LOG_PATTERNS: tuple[str, ...] = (
     r"\bpython(?:3)?(?:\.\d+)?\s+-m\s+scripts\.ci_diagnostics\b",
     r"\bpython(?:3)?(?:\.\d+)?\s+-c\b[\s\S]*(?:\bscripts[./](?:ci_diagnostics|ci_verdict|local_checks|prfail)\b|\bfrom\s+scripts\s+import\b[\s\S]*\b(?:ci_diagnostics|ci_verdict|local_checks)\b)",
     r"\bpython(?:3)?(?:\.\d+)?\s+-\s*<<[\s\S]*(?:\bscripts[./](?:ci_diagnostics|ci_verdict|local_checks|prfail)\b|\bfrom\s+scripts\s+import\b[\s\S]*\b(?:ci_diagnostics|ci_verdict|local_checks)\b)",
-    r"\b(?:python|python3|node)\b[^|]*(?:urllib|requests|httpx|fetch\()\b[^|]*(?:github\.com|api\.github\.com)",
+    r"\b(?:python(?:3)?(?:\.\d+)?|node|ruby|perl|php|go)\b[^|]*(?:urllib|requests|httpx|fetch\(|axios|Net::HTTP|curl_easy|github\.com|api\.github\.com)[^|]*(?:actions|check-runs?|check-suites?|annotations|statuses|workflow_runs|artifacts|jobs)",
 )
 
 
@@ -121,8 +122,8 @@ CI_HARD_DENY_PATTERNS: tuple[str, ...] = (
     r"\bgh\s+pr\s+checks\b",
 )
 
-# Compatibility name retained for callers; the sole allowed CI route is the
-# exact report-only prfail command. Direct PR-comment reads remain blocked.
+# Compatibility name retained for callers; only the filtered prfail report is allowed.
+# Direct PR-comment reads and local check execution remain blocked.
 CI_COMMENT_ALLOW_PATTERNS: tuple[str, ...] = (r"^\s*\./scripts/prfail\s+--pr\s+[1-9][0-9]*\s*$",)
 
 
@@ -192,6 +193,12 @@ REDACTION_PATTERNS: tuple[tuple[str, str], ...] = (
     (
         r"(-----BEGIN [A-Z ]*PRIVATE KEY-----)[\s\S]*?(-----END [A-Z ]*PRIVATE KEY-----)",
         "PRIVATE_KEY",
+    ),
+    # DOC-001: a key block whose END line is missing (truncated upstream) is
+    # masked to the end of the text rather than passed through.
+    (
+        r"(-----BEGIN [A-Z ]*PRIVATE KEY-----)(?:(?!-----END [A-Z ]*PRIVATE KEY-----)[\s\S])*\Z",
+        "PRIVATE_KEY_UNTERMINATED",
     ),
     (
         r"((?i:\b[A-Za-z0-9_]*(?:SECRET|TOKEN|PASSWORD|PASSWD|APIKEY|API_KEY|PRIVATE_KEY)[A-Za-z0-9_]*)\s*[=:]\s*)(\S*)(\s|$)",

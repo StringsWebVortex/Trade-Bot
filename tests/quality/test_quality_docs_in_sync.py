@@ -1,17 +1,20 @@
 """
-The traceability matrix is generated, so it must never be edited by hand.
+The traceability matrix is generated from the registry and never committed.
 
 A hand-edited generated file is the worst of both worlds: it reads as
-authoritative and is no longer derived from anything. These tests are the same
-check CI runs (`--check`), plus the assertions that make the failure legible
-when someone does edit the prose.
+authoritative and is no longer derived from anything. A committed generated
+file is the next worst: every pull request that touches the registry rewrites
+it, so any two of them conflict in it whatever order they merge in (GOV-071).
+So the document is rendered on demand, and these tests check what it renders.
 
 Decides:
   - GOV-005 — Requirement-to-test traceability is machine-checked
+  - GOV-071 — Pull requests that each add registry entries merge in any order
 """
 
 from __future__ import annotations
 
+import importlib.util
 import subprocess
 import sys
 from pathlib import Path
@@ -20,19 +23,25 @@ import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = PROJECT_ROOT / "scripts" / "generate_quality_docs.py"
-OUTPUT = PROJECT_ROOT / "docs" / "quality" / "REQUIREMENTS_TRACEABILITY.md"
+OUTPUT_REL = "docs/quality/REQUIREMENTS_TRACEABILITY.md"
 
 
 @pytest.fixture(scope="module")
 def document() -> str:
-    return OUTPUT.read_text(encoding="utf-8")
+    spec = importlib.util.spec_from_file_location("generate_quality_docs", SCRIPT)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    from src.quality.registry import load_registry
+
+    return module.render(load_registry())
 
 
 def test_the_generator_exists() -> None:
     assert SCRIPT.exists()
 
 
-def test_the_document_is_not_stale() -> None:
+def test_the_check_renders_the_registry() -> None:
     result = subprocess.run(
         [sys.executable, str(SCRIPT), "--check"],
         capture_output=True,
@@ -44,9 +53,15 @@ def test_the_document_is_not_stale() -> None:
     assert result.returncode == 0, result.stdout + result.stderr
 
 
+def test_the_document_is_not_committed() -> None:
+    ignored = (PROJECT_ROOT / ".gitignore").read_text(encoding="utf-8").splitlines()
+    assert f"/{OUTPUT_REL}" in ignored
+
+
 def test_it_warns_against_hand_editing(document: str) -> None:
     assert "GENERATED FILE — DO NOT EDIT BY HAND" in document
     assert "config/quality_registry.json" in document
+    assert "config/quality_registry.d/" in document
 
 
 def test_it_names_the_regeneration_command(document: str) -> None:

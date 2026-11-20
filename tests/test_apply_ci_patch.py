@@ -2,6 +2,7 @@
 
 Decides:
   - REG-0024 — Agent diagnostic retrieval is one canonical command; local checks stay disabled
+  - SEC-1022 — The CI patch validator refuses sections without a validated git header
 """
 
 from __future__ import annotations
@@ -61,3 +62,48 @@ def test_ordinary_application_source_is_not_protected_by_path_policy() -> None:
     patcher = _load_patcher()
     assert not patcher.is_protected_patch_path("src/strategies/trend.py")
     assert not patcher.is_protected_patch_path("tests/test_strategy_trend.py")
+
+
+def test_headerless_section_before_a_git_section_is_refused() -> None:
+    """SCR-001: a plain ---/+++ section must not slip past path validation."""
+    patcher = _load_patcher()
+    patch = "\n".join(
+        [
+            "--- a/CLAUDE.md",
+            "+++ b/CLAUDE.md",
+            "@@ -1,1 +1,1 @@",
+            "-a",
+            "+pwned",
+            "diff --git a/Makefile b/Makefile",
+            "--- a/Makefile",
+            "+++ b/Makefile",
+            "@@ -1,1 +1,1 @@",
+            "-x",
+            "+y",
+            "",
+        ]
+    )
+    with pytest.raises(patcher.PatchError):
+        patcher._validate_patch(patch)
+
+
+def test_headerless_section_after_a_git_section_is_refused() -> None:
+    patcher = _load_patcher()
+    patch = "\n".join(
+        [
+            "diff --git a/Makefile b/Makefile",
+            "--- a/Makefile",
+            "+++ b/Makefile",
+            "@@ -1,1 +1,1 @@",
+            "-x",
+            "+y",
+            "--- a/CLAUDE.md",
+            "+++ b/CLAUDE.md",
+            "@@ -1,1 +1,1 @@",
+            "-a",
+            "+pwned",
+            "",
+        ]
+    )
+    with pytest.raises(patcher.PatchError, match="unvalidated"):
+        patcher._validate_patch(patch)

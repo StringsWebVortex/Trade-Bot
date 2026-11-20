@@ -24,6 +24,7 @@ from src.execution.idempotency import (
     DuplicateOrderError,
     IdempotencyRegistry,
     SubmissionState,
+    attempt_client_order_id,
     client_order_id_params,
     derive_idempotency_key,
 )
@@ -273,6 +274,9 @@ class TestOrderManagerDeduplication:
         mgr = OrderManager()
         ex = _exchange()
         ex.create_market_order = AsyncMock(side_effect=ccxt.NetworkError("reset"))
+        # The client-id lookup is also unavailable, so the placement outcome
+        # remains ambiguous and the key must stay claimed.
+        ex.fetch_order = AsyncMock(side_effect=ccxt.NetworkError("lookup unavailable"))
         with pytest.raises(ccxt.NetworkError):
             await mgr.place_order_with_fsm(ex, "BTC/USDT", "buy", 1.5, "tbkey3")
 
@@ -436,3 +440,10 @@ class TestRouterDeduplication:
         with patch("src.execution.idempotency.time.time", return_value=1_000.0):
             assert router._route_id(signal, 100.0) == router._route_id(dict(signal), 100.0)
             assert router._route_id(signal, 100.0) != router._route_id(signal, 200.0)
+
+
+def test_retry_client_order_ids_do_not_wrap_after_100_attempts():
+    key = "tb" + "a" * 30
+    ids = [attempt_client_order_id(key, attempt) for attempt in (0, 1, 99, 100, 101, 1000)]
+    assert all(len(value) == len(key) for value in ids)
+    assert len(set(ids)) == len(ids)
