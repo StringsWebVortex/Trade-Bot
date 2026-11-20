@@ -5,6 +5,8 @@ Authority sources:
   - Pydantic-Settings v2 docs (https://docs.pydantic.dev/latest/concepts/pydantic_settings/)
   - López de Prado (2018) AFML — risk parameter foundations
   - Kelly (1956) A New Interpretation of Information Rate — position sizing constants
+
+Registry: REL-006 (config/quality_registry.json).
 """
 
 from __future__ import annotations
@@ -15,11 +17,10 @@ import threading
 from enum import StrEnum
 from functools import lru_cache
 from pathlib import Path
-from typing import Final, Literal
+from typing import Any, Final, Literal
 
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
-
 
 # ---------------------------------------------------------------------------
 # Enumerations — runtime-switchable modes
@@ -78,6 +79,16 @@ class BinanceSettings(BaseSettings):
         description="WebSocket base URL",
     )
     rate_limit_per_minute: int = Field(default=1200, ge=1)
+    orderbook_stream_enabled: bool = Field(
+        default=True,
+        description=(
+            "Run the Binance depth/aggTrade websocket stream for the primary symbol. "
+            "Public market data only -- no key is sent and it ignores the testnet flag, "
+            "because testnet order books are synthetic and useless as a price source. "
+            "Set false on a host with no outbound network, or to fall back to the 5s "
+            "REST poll for mark-to-market."
+        ),
+    )
 
     @model_validator(mode="after")
     def resolve_urls(self) -> BinanceSettings:
@@ -107,6 +118,21 @@ class OKXSettings(BaseSettings):
         description="REST base URL (same host, flag controls endpoint path)",
     )
     rate_limit_per_second: int = Field(default=10, ge=1)
+
+
+class PaperQualificationSettings(BaseSettings):
+    """Secret that authenticates the paper-qualification record (EXR-020).
+
+    Deliberately not a field of ``Settings`` and never cached: the live gate
+    reads it fresh on every call so a rotated or removed key takes effect at
+    once, and the qualification module needs no direct environment access.
+    """
+
+    model_config = SettingsConfigDict(
+        env_prefix="PAPER_QUALIFICATION_", env_file=".env", extra="ignore"
+    )
+
+    hmac_key: str = Field(default="", description="HMAC key signing the qualification record")
 
 
 # ---------------------------------------------------------------------------
@@ -182,7 +208,17 @@ class RiskSettings(BaseSettings):
     approval_timeout_s: float = Field(
         default=30.0,
         ge=1.0,
-        description="Seconds to wait for manual approval before auto-skip in RESTRICTED mode",
+        description="Seconds to wait for manual approval before auto-skip (RESTRICTED and MANUAL modes)",
+    )
+    approval_max_price_drift_bps: float = Field(
+        default=50.0,
+        ge=0.0,
+        description=(
+            "An approved trade executes on the next tick that still passes every "
+            "gate, and only while the fresh price is within this many bps of the "
+            "price the approval request showed; beyond it the approval is stale "
+            "and the trade is rejected (EXR-018)."
+        ),
     )
 
     # GAP-001 — Almgren-Chriss slippage / market-impact model
@@ -370,6 +406,9 @@ class XGBoostSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="XGB_", env_file=".env", extra="ignore")
 
     n_estimators: int = Field(default=500, ge=10)
+    # One XGBoost worker by default: TRAIN_WORKERS bounds concurrent fits,
+    # while this separately bounds the native threads inside each fit.
+    n_jobs: int = Field(default=1, ge=1, le=32)
     max_depth: int = Field(default=6, ge=1, le=20)
     learning_rate: float = Field(default=0.05, ge=1e-5, le=1.0)
     subsample: float = Field(default=0.8, ge=0.1, le=1.0)
@@ -562,7 +601,11 @@ class APISettings(BaseSettings):
     )
     port: int = Field(default=8000, ge=1024, le=65535)
     reload: bool = Field(default=False)
-    cors_origins: list[str] = Field(default=["http://localhost:5173"])
+    # Both loopback spellings of the dashboard's dev server: Vite binds
+    # 127.0.0.1 (frontend/vite.config.js) and the desktop app loads
+    # http://127.0.0.1:5173, so allowing only "localhost" made the browser
+    # drop every API answer and the dashboard read a running API as down.
+    cors_origins: list[str] = Field(default=["http://localhost:5173", "http://127.0.0.1:5173"])
     ws_heartbeat_s: float = Field(default=5.0, ge=1.0)
 
     @field_validator("cors_origins")
@@ -661,6 +704,11 @@ class SelfTuningSettings(BaseSettings):
         ge=1,
         description="Minimum closed trades between tuning attempts for the same parameter.",
     )
+    min_bars_between_attempts: int = Field(
+        default=1_000,
+        ge=1,
+        description="Minimum newly closed bars between bar-driven tuning attempts for the same parameter.",
+    )
     min_hours_between_attempts: float = Field(
         default=24.0,
         ge=1.0,
@@ -738,9 +786,9 @@ class StrategyPortfolioSettings(BaseSettings):
 
     Each *_fraction is an upper bound on the share of book capital that
     strategy may request, enforced independently of Kelly (Kelly is a
-    ceiling, not a target). The enabled fractions are validated to sum to
-    <= 1.0 at bootstrap, so a mis-set config fails at startup rather than
-    at the first fill.
+    ceiling, not a target). They are ceilings, not a partition: they may sum
+    above 1.0 (the capital allocator caps each strategy and renormalises),
+    and a sum below 1.0 is logged as a warning at bootstrap.
 
     Defaults keep only the incumbent model-driven signal engine enabled.
     The v2/v3/v5 strategy families are opt-in per CLAUDE.md's out-of-sample
@@ -895,29 +943,6 @@ class StrategyPortfolioSettings(BaseSettings):
     allocation_rebalance_interval_s: int = Field(default=3600, ge=60)
 
 
-class RegimeStrategySettings(BaseSettings):
-    """
-    Regime-conditional strategy gating
-    (src/strategies/regime_strategy_selector.py).
-
-    Read by select_strategy_from_config(). Defaults mirror the module-level
-    constants there, so the config path and the explicit-argument path agree
-    unless an operator deliberately overrides one.
-
-    A regime call below ``rs_min_confidence`` or above ``rs_max_entropy`` is
-    too uncertain to commit capital to, and the selector returns NEUTRAL
-    rather than guessing. ``rs_transition_guard`` additionally refuses to
-    open during a detected regime transition, where both mean-reversion and
-    breakout models lose their edge.
-    """
-
-    model_config = SettingsConfigDict(env_prefix="STRATEGY_", env_file=".env", extra="ignore")
-
-    rs_min_confidence: float = Field(default=0.55, ge=0.0, le=1.0)
-    rs_max_entropy: float = Field(default=0.75, ge=0.0, le=1.0)
-    rs_transition_guard: bool = Field(default=True)
-
-
 class OrderThrottleSettings(BaseSettings):
     """
     Outgoing-order rate limiting (src/execution/order_throttler.py).
@@ -957,10 +982,82 @@ class OrderThrottleSettings(BaseSettings):
     )
 
 
+class StrategySettings(BaseSettings):
+    """
+    Tunable parameters for the mean-reversion, breakout, and regime-selector
+    strategy modules added in the improvement-loop phase.
+
+    All values are overridable via env vars prefixed with STRATEGY_.
+    """
+
+    model_config = SettingsConfigDict(env_prefix="STRATEGY_", env_file=".env", extra="ignore")
+
+    # Mean reversion (Bollinger + OU gate)
+    mr_lookback: int = Field(default=20, ge=5, description="Bollinger lookback bars.")
+    mr_entry_z: float = Field(
+        default=2.0, gt=0.0, description="Z-score to enter a mean-reversion trade."
+    )
+    mr_exit_z: float = Field(
+        default=0.5, ge=0.0, description="Z-score to exit a mean-reversion trade."
+    )
+    mr_min_half_life: int = Field(default=2, ge=1, description="Minimum OU half-life in bars.")
+    mr_max_half_life: int = Field(default=120, ge=2, description="Maximum OU half-life in bars.")
+    mr_require_ou: bool = Field(
+        default=True, description="Require OU test to pass before entering."
+    )
+
+    # Breakout (Donchian + ATR gate)
+    bo_entry_period: int = Field(
+        default=20, ge=5, description="Donchian channel entry lookback bars."
+    )
+    bo_exit_period: int = Field(
+        default=10, ge=2, description="Donchian channel exit lookback bars."
+    )
+    bo_atr_period: int = Field(default=14, ge=2, description="ATR smoothing period for Wilder EMA.")
+    bo_min_atr_pct: float = Field(
+        default=0.1, ge=0.0, description="Minimum ATR% for volatility gate."
+    )
+    bo_max_atr_pct: float = Field(
+        default=10.0, gt=0.0, description="Maximum ATR% for volatility gate."
+    )
+
+    # Regime strategy selector
+    rs_min_confidence: float = Field(
+        default=0.55,
+        ge=0.0,
+        le=1.0,
+        description="Minimum dominant-regime probability before selecting a strategy.",
+    )
+    rs_max_entropy: float = Field(
+        default=0.75,
+        ge=0.0,
+        le=1.0,
+        description="Maximum normalised entropy before falling back to neutral.",
+    )
+    rs_transition_guard: bool = Field(
+        default=True,
+        description="Block strategy selection during detected regime transitions.",
+    )
+
+    @model_validator(mode="after")
+    def _check_cross_field_invariants(self) -> StrategySettings:
+        """An inverted pair silently gates every trade off (API-031)."""
+        if self.mr_min_half_life > self.mr_max_half_life:
+            raise ValueError("mr_min_half_life must be <= mr_max_half_life")
+        if self.mr_exit_z >= self.mr_entry_z:
+            raise ValueError("mr_exit_z must be < mr_entry_z")
+        if self.bo_exit_period > self.bo_entry_period:
+            raise ValueError("bo_exit_period must be <= bo_entry_period")
+        if self.bo_min_atr_pct >= self.bo_max_atr_pct:
+            raise ValueError("bo_min_atr_pct must be < bo_max_atr_pct")
+        return self
+
+
 class Settings(BaseSettings):
     """
     Root settings object.  Single source of truth for the entire application.
-    Loaded once via get_settings() and cached for the process lifetime.
+    Loaded via get_settings() and cached; fields outside the startup-only set
+    may be overridden at runtime through the /controls surface.
 
     Environment variables:
       TRADING_MODE   : "paper" (default) | "live"
@@ -1010,8 +1107,14 @@ class Settings(BaseSettings):
     intelligence: IntelligenceSettings = Field(default_factory=IntelligenceSettings)
     self_tuning: SelfTuningSettings = Field(default_factory=SelfTuningSettings)
     strategy_portfolio: StrategyPortfolioSettings = Field(default_factory=StrategyPortfolioSettings)
-    strategy: RegimeStrategySettings = Field(default_factory=RegimeStrategySettings)
     order_throttle: OrderThrottleSettings = Field(default_factory=OrderThrottleSettings)
+    # One field, not two. `strategy` was declared twice -- once as
+    # RegimeStrategySettings and once as StrategySettings -- and the second
+    # silently won, leaving RegimeStrategySettings dead. StrategySettings is
+    # a strict superset of it (same rs_* fields, same defaults, same
+    # STRATEGY_ env prefix) plus the mr_* and bo_* knobs, so keeping this one
+    # is what select_strategy_from_config() was already reading.
+    strategy: StrategySettings = Field(default_factory=StrategySettings)
 
     # Logging
     log_level: str = Field(default="INFO")
@@ -1083,21 +1186,185 @@ EXCHANGE_OKX: Final[str] = "okx"
 # ---------------------------------------------------------------------------
 
 
-@lru_cache(maxsize=1)
-def get_settings() -> Settings:
-    """
-    Return the singleton Settings instance.
+# Distinguishes "no override was set" from "an override whose value is None",
+# so a rejected write restores the exact previous state rather than guessing.
+_UNSET: object = object()
 
-    lru_cache(maxsize=1) ensures pydantic-settings reads .env exactly once,
-    preventing repeated I/O and guaranteeing a single source of truth.
-    Call invalidate_settings_cache() in tests to reset between cases.
+
+@lru_cache(maxsize=1)
+def _base_settings() -> Settings:
+    """
+    The settings as the environment defines them, read exactly once.
+
+    lru_cache(maxsize=1) ensures pydantic-settings reads .env a single time,
+    preventing repeated I/O and guaranteeing one source of truth for the
+    values an operator has *not* overridden at runtime.
     """
     return Settings()
 
 
+# --- live overrides --------------------------------------------------------
+#
+# An operator changing a setting must take effect on the next read, with no
+# restart. 79 of the 80 reads in src/ call get_settings() at use time rather
+# than capturing it, so making this function return live values is what makes
+# the configuration live -- not touching 188 fields one at a time.
+#
+# What this must not do is clear the cache. VUL-028: invalidate_settings_cache()
+# in a request path re-instantiates every setting from the environment, so
+# concurrent readers during the clear window observe a half-built object --
+# exchange keys and risk thresholds included. That is the bug this design
+# exists to avoid, not a cost to trade against.
+#
+# Instead the effective object is rebuilt once, off the read path, and the
+# module-level reference is swapped. A reader either sees the whole previous
+# object or the whole next one: a name lookup is atomic, so there is no window
+# in which one is half-applied. Reads stay lock-free; only writes take the
+# lock, and writes are rare.
+class _LiveSettings:
+    """
+    Owner of the live configuration: the base, the overrides, and the object
+    get_settings() hands out.
+
+    State lives on an instance rather than in module globals, matching
+    RuntimeConfig below -- the codebase already has exactly one home for
+    process-wide mutable runtime state and this is not a second one. The
+    architecture validator flags `global` for the same reason (LAW2), and it
+    is right that a second pattern would be worse even though the swap itself
+    is safe.
+
+    Safe how: the effective object is rebuilt off the read path, and `current`
+    is a single attribute read of an immutable model. A reader sees the whole
+    previous object or the whole next one, never a mix. Writes serialise on
+    the lock; reads take nothing.
+    """
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._overrides: dict[str, Any] = {}
+        self._effective: Settings | None = None
+
+    def current(self) -> Settings:
+        effective = self._effective
+        return effective if effective is not None else _base_settings()
+
+    def names(self) -> frozenset[str]:
+        return frozenset(self._overrides)
+
+    def _rebuild(self) -> Settings:
+        """
+        Apply every override onto a fresh dump of the base and re-validate.
+
+        Re-validating rather than model_copy(update=...) is deliberate: copy
+        does not run validators, so it would accept a negative
+        kelly_multiplier or an out-of-range percentage and leave the breakage
+        to be discovered by the risk engine at the worst possible moment.
+        """
+        data = _base_settings().model_dump()
+        for dotted, value in self._overrides.items():
+            target = data
+            *parents, leaf = dotted.split(".")
+            for part in parents:
+                target = target[part]
+            target[leaf] = value
+        return Settings.model_validate(data)
+
+    def set(self, dotted: str, value: Any) -> Settings:
+        resolve_setting_path(dotted)
+        with self._lock:
+            previous = self._overrides.get(dotted, _UNSET)
+            self._overrides[dotted] = value
+            try:
+                rebuilt = self._rebuild()
+            except Exception:
+                # Leave the live configuration exactly as it was: a rejected
+                # value must not remove the one that was working.
+                if previous is _UNSET:
+                    self._overrides.pop(dotted, None)
+                else:
+                    self._overrides[dotted] = previous
+                raise
+            self._effective = rebuilt
+            return rebuilt
+
+    def clear(self, dotted: str) -> Settings:
+        with self._lock:
+            self._overrides.pop(dotted, None)
+            self._effective = self._rebuild() if self._overrides else None
+            return self.current()
+
+    def reset(self) -> None:
+        with self._lock:
+            self._overrides.clear()
+            self._effective = None
+
+
+_live_settings = _LiveSettings()
+
+
+def get_settings() -> Settings:
+    """
+    The settings in force right now, including any live operator overrides.
+
+    One attribute read on the hot path. The object is immutable; changing a
+    setting replaces it wholesale rather than mutating it in place.
+    """
+    return _live_settings.current()
+
+
+def settings_override_names() -> frozenset[str]:
+    """Dotted paths that currently differ from the environment."""
+    return _live_settings.names()
+
+
+def resolve_setting_path(dotted: str) -> None:
+    """
+    Raise KeyError unless `dotted` names a real field on the settings tree.
+
+    Checked before the value is applied so an operator typo is refused by
+    name rather than silently creating a setting nothing reads.
+    """
+    model: Any = Settings
+    parts = dotted.split(".")
+    for index, part in enumerate(parts):
+        fields = getattr(model, "model_fields", None)
+        if fields is None or part not in fields:
+            raise KeyError(dotted)
+        annotation = fields[part].annotation
+        nested = isinstance(annotation, type) and hasattr(annotation, "model_fields")
+        if index < len(parts) - 1:
+            if not nested:
+                raise KeyError(dotted)
+            model = annotation
+        elif nested:
+            # A branch, not a leaf. Allowing it would let one write replace a
+            # whole settings section -- every risk limit at once, from a single
+            # field's worth of intent -- and the failure would surface as a
+            # validation error about a dict rather than as "that is not a
+            # setting". Leaves only.
+            raise KeyError(dotted)
+
+
+def set_setting_override(dotted: str, value: Any) -> Settings:
+    """
+    Put one setting under operator control and make it effective immediately.
+
+    Returns the settings now in force. Raises KeyError for an unknown path and
+    pydantic's ValidationError for a value the field's own validators refuse --
+    the same validators the environment would have been held to.
+    """
+    return _live_settings.set(dotted, value)
+
+
+def clear_setting_override(dotted: str) -> Settings:
+    """Hand one setting back to the environment, effective immediately."""
+    return _live_settings.clear(dotted)
+
+
 def invalidate_settings_cache() -> None:
-    """Clear cached settings — intended for test isolation only."""
-    get_settings.cache_clear()
+    """Clear cached settings and every override — for test isolation only."""
+    _live_settings.reset()
+    _base_settings.cache_clear()
 
 
 # ---------------------------------------------------------------------------
@@ -1163,8 +1430,10 @@ class RuntimeConfig:
         with self._init_guard:
             if self._lock is None:
                 self._lock = asyncio.Lock()
-        assert self._lock is not None
-        return self._lock
+            # Returned from inside the guard: this is the only place the
+            # attribute is narrowed to non-None without an assert, which
+            # `python -O` would strip.
+            return self._lock
 
     async def get_execution_mode(self) -> ExecutionMode:
         async with self._get_lock():

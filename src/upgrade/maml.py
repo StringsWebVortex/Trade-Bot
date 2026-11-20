@@ -5,6 +5,9 @@ Model-Agnostic Meta-Learning (Finn et al. 2017) lets the optimizer learn an
 initialization point that can adapt to a new market regime in K gradient steps
 from a handful of examples — critical for crypto's rapid structural breaks.
 
+Note: the inner loop uses ``create_graph=False``, so this is first-order MAML
+(FOMAML), not the second-order variant of the paper.
+
 This module implements:
   - MAMLOptimizer: wraps any nn.Module with inner-loop gradient tracking
   - HorizonMAMLAdapter: applies MAML to h8 and h10 head checkpoints
@@ -19,7 +22,6 @@ from pathlib import Path
 import structlog
 import torch
 import torch.nn as nn
-
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
@@ -46,12 +48,7 @@ def fast_adapt(
 
     for _ in range(k_steps):
         # Forward with adapted params via functional_call
-        try:
-            from torch.func import functional_call  # type: ignore[import]
-        except ImportError:
-            from torch._functorch.eager_transforms import (
-                functional_call,  # type: ignore[import, attr-defined, no-redef]
-            )
+        from torch.func import functional_call
 
         pred = functional_call(model, adapted, (support_x,))  # type: ignore[arg-type]
         loss = loss_fn(pred, support_y)
@@ -120,12 +117,7 @@ class MAMLOptimizer:
             )
 
             # Query loss with adapted parameters
-            try:
-                from torch.func import functional_call  # type: ignore[import]
-            except ImportError:
-                from torch._functorch.eager_transforms import (
-                    functional_call,  # type: ignore[import, attr-defined, no-redef]
-                )
+            from torch.func import functional_call
 
             pred_q = functional_call(self._model, adapted_params, (task["query_x"],))  # type: ignore[arg-type]
             outer_loss = outer_loss + self._loss_fn(pred_q, task["query_y"])
