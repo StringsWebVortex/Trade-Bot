@@ -1,0 +1,17 @@
+{
+  "id": "SEC-1503",
+  "kind": "security_regression",
+  "title": "POST /controls/{name} requires trade authority",
+  "statement": "A read-only API key that also presents the correct OPERATOR_SECRET is refused with 403 on POST /controls/{name} before any setter runs; the route declares the same dependency gates as /risk-controls.",
+  "criticality": "high",
+  "subsystem": "security",
+  "status": "verified",
+  "source": "OPS-2026-11-15",
+  "failure_mode": "The control route only authenticated the key, so a read-only key holder with the operator secret could change live risk controls through the same setters /risk-controls protects.",
+  "verification": [
+    {
+      "test": "tests/test_audit_api_controls.py",
+      "test_type": "security"
+    }
+  ]
+}

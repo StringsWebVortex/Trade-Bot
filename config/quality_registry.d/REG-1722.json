@@ -1,0 +1,17 @@
+{
+  "id": "REG-1722",
+  "kind": "regression",
+  "title": "Startup guard releases resources at most once",
+  "statement": "The API startup guard cleans up only for an exception raised before the lifespan hands off (mark_started); after hand-off the normal shutdown path owns the resources, and that path releases the job reporter and storage even when orchestrator shutdown raises.",
+  "criticality": "high",
+  "subsystem": "api",
+  "status": "verified",
+  "source": "OPS-2026-11-15",
+  "failure_mode": "An error during normal shutdown re-ran startup cleanup, shutting the orchestrator down and closing storage twice and burying the original error; a failing orchestrator shutdown leaked the job reporter and storage connection.",
+  "verification": [
+    {
+      "test": "tests/test_audit_api_lifespan.py",
+      "test_type": "regression"
+    }
+  ]
+}
