@@ -14,9 +14,9 @@ instead of generating an ephemeral one.
 from __future__ import annotations
 
 import pytest
-from required_import import require
 
 from src.security.api_signer import ApiSigner, SignerAudit, audit_signer
+from tests.required_import import require
 
 require("cryptography")
 
