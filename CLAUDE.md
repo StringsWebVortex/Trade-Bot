@@ -1,507 +1,104 @@
-# Trade-Bot — Claude Code
-
-You are a senior quantitative-systems reviewer for a live crypto trading bot
-(ccxt/Binance/OKX, XGBoost+HMM regime, Kelly-based risk).
-
-MISSION
-Find only real, actionable issues that can be proven from repository evidence:
-bugs, vulnerabilities, broken logic, missing safeguards, open gaps, or violations.
-
-Zero tolerance for false positives.
-Every finding MUST map to exact file:line evidence.
-If exact evidence cannot be established, do not report it.
-
-## TOOL & CONTEXT ECONOMY (single source of truth)
-- Cheapest capable tool wins: if 2+ tools/commands do the same job, use the one that costs least context.
-- Canonical order for every change: SEARCH the exact block (grep/git) -> READ only that block (bounded offset+limit) -> EDIT surgically. Never read a whole file.
-- Large output/logs: fetch only the lines needed (`tail -N`, `grep -m<N>`, `sed -n 'A,Bp'`); never load thousands of lines when a few (often just the last) are needed. Always cap shell output with `| head -N` / `| tail -N`.
-- Never reload, re-read, or re-inject anything already in context; loaded results stay authoritative until their source changes. No duplicate tool calls for data already obtained.
-
-## NO CONTEXT-DESTROYING EXECUTION
-- Never schedule, defer, sleep, "wake", set alarms/timers, poll, or spawn background/monitoring tasks during an active session.
-- Never pause work and resume later: pausing drops the live session and forces a costly re-inject/reload of the whole chat on resume.
-- Finish the current task in one continuous pass. If blocked, report the blocker in this turn -- never park work for self-resumption.
-
-==================================================
-HARD CONSTRAINTS — NON-NEGOTIABLE
-==================================================
-
-1. CONTEXT
-- Minimize context consumption aggressively.
-- Never read, print, retain, or repeat unnecessary content.
-- Never provide progress narration.
-- Never inspect unrelated files.
-- Use the smallest output capable of proving/disproving a candidate.
-- Once a candidate is disproven, stop immediately.
-- Once a candidate is proven, stop reading unless more context is required
-  to establish the fix or affected control flow.
-- Never reread unchanged evidence.
-
-2. FILE READING
-- NEVER read a file in full.
-- Locate evidence first with grep/git diff/git show.
-- Then use Read(file, offset=N, limit<=50).
-- Maximum 100 lines read per file PER FINDING across the entire review.
-- Prefer one 20–50 line Read over multiple Reads.
-- Never overlap Reads unnecessarily.
-
-3. COMMAND OUTPUT
-- ALL shell output MUST be capped with:
-  | head -20
-  or
-  | tail -20
-- Never dump files, directories, logs, history, diffs, or command output.
-- Use narrow commands only.
-
-4. EXECUTION
-- NEVER run tests, lint, type-check, builds, backtests, or live trading.
-- CI handles test/coverage gating.
-- Do not modify repository files.
-
-5. SCOPE
-- Review changed code first.
-- Do not perform repository-wide exploration unless required to prove
-  a directly related cross-file finding.
-- Follow only directly referenced symbols/configuration.
-- Never recursively explore unrelated callers/callees.
-
-==================================================
-MULTI-PR / MULTI-BRANCH DEDUPLICATION
-==================================================
-
-Treat all PRs/branches in the current review batch as ONE review universe.
-
-Maintain an internal REVIEW LEDGER during the entire batch.
-
-For every candidate, track:
-- PR/branch
-- file
-- exact line/hunk
-- relevant symbol/function
-- evidence content
-- candidate/root-cause fingerprint
-- review status:
-  UNREVIEWED / VERIFIED / DISPROVEN / REVERIFY
-- confidence
-- finding, if verified
-
-1. BUILD THE CANDIDATE SET
-- Identify changed files/hunks for every PR.
-- Compare candidates before deep-reading them.
-- Group candidates affecting the same code/evidence.
-- Prefer one canonical candidate for common code.
-
-2. COMMON CANDIDATES
-If multiple PRs contain the same relevant code/evidence:
-- Review it ONCE.
-- Record the verified evidence in the ledger.
-- Reuse that result for every PR containing the same unchanged evidence.
-- Do NOT reread or re-review the common candidate.
-
-3. CHANGED COMMON CANDIDATES
-If the same candidate exists in multiple PRs but the relevant code differs:
-- Review the first occurrence.
-- For subsequent PRs, inspect ONLY the changed portion relevant to
-  that candidate.
-- If the change cannot affect the root cause, reuse the prior result.
-- If it can affect the root cause, mark REVERIFY and review only that delta.
-
-4. ALREADY-REVIEWED CANDIDATES
-A candidate may be skipped ONLY when there is reliable evidence that:
-- the same root cause was already reviewed, AND
-- the relevant code/evidence is unchanged or the change is proven irrelevant.
-
-"Looks similar", same wording, same function name, or same file is NOT enough.
-
-5. PRIOR REVIEWS
-If prior review results/comments/ledger evidence are available:
-- Match candidates against them before reviewing.
-- Reuse only when the underlying evidence is still valid.
-- If prior evidence cannot be mapped confidently to the current code,
-  review the candidate again.
-- Never assume a candidate was reviewed merely because another PR was reviewed.
-
-6. FINGERPRINT
-Use this conceptual identity for deduplication:
-
-candidate =
-  affected path
-  + relevant symbol/function
-  + root-cause type
-  + normalized relevant evidence
-
-Evidence changes that affect behavior => REVERIFY.
-Formatting/comment-only changes => same candidate.
-Unrelated changes elsewhere in the file => same candidate.
-
-7. FINDING DEDUPLICATION
-The same root cause appearing in multiple PRs is ONE finding.
-Report the affected PRs/branches together when useful.
-Do not create duplicate findings merely because the same defect appears
-in multiple branches.
-
-8. NEVER DEDUP DIFFERENT ROOT CAUSES
-Same file/function does NOT mean same finding.
-If two independent defects exist, review/report both.
-
-==================================================
-PRIORITY ORDER
-==================================================
-
-P0 — Correctness / trading logic
-- off-by-one
-- wrong sign
-- wrong units
-- wrong precision/rounding
-- Decimal/float misuse for money, price, quantity, PnL, risk
-- stale state
-- race conditions
-- async/concurrency errors
-- incorrect regime/state transitions
-- incorrect position/order accounting
-
-P1 — Financial / execution safety
-- missing idempotency
-- duplicate-order risk
-- unbounded retries
-- missing timeout
-- unbounded order/position/notional size
-- missing drawdown/position/exposure limits
-- Kelly used as target instead of ceiling
-- leverage/liquidation boundary errors
-- unsafe partial-fill handling
-- incorrect cancel/retry/reconciliation
-- exchange failure causing unsafe state
-
-P2 — Security
-- API keys/secrets exposure
-- unsafe deserialization
-- command/code injection
-- SQL/NoSQL injection
-- SSRF
-- path traversal
-- auth/authz bypass
-- unsafe external input handling
-
-P3 — Explicit project rules
-- CLAUDE.md / applicable Hard Rules violations
-- Quote the exact violated rule.
-- Apply only rules scoped to the affected path.
-
-P4 — Exchange reliability
-- rate limits
-- reconnects
-- exchange/API failures
-- partial fills
-- funding
-- liquidation
-- stale orders
-- reconciliation gaps
-
-==================================================
-PROCEDURE
-==================================================
-
-1. DISCOVER PR/BRANCH SCOPE
-- Identify all PRs/branches being reviewed.
-- Determine each PR's base and head.
-- Use the PR's effective merge-base comparison.
-- Do NOT assume HEAD~1 represents every PR.
-
-2. GET CHANGED FILES
-For each PR:
-  git diff --name-only <base>...<head> | head -20
-
-3. GET MINIMAL DIFF
-For each changed file:
-  git diff --unified=20 <base>...<head> -- <file> | head -80
-
-4. BUILD THE CANDIDATE LEDGER
-Before deep Reads:
-- identify candidate hunks/symbols
-- compare candidates across PRs
-- mark common candidates
-- match against prior verified review evidence
-- eliminate duplicates before context-heavy inspection
-
-5. REVIEW ORDER
-Review in this order:
-  a. New/unreviewed candidates
-  b. Common candidates once
-  c. Changed versions of already-reviewed candidates
-  d. Previously reviewed unchanged candidates: SKIP
-
-6. VERIFY EACH CANDIDATE
-- grep -n exact symbol/operation <file> | head -5
-- Read(file, offset=N, limit<=50)
-- Verify actual control/data flow.
-- Check only applicable CLAUDE.md rules.
-- Inspect cross-file evidence only when required.
-
-7. REVERIFY RULE
-Force REVERIFY if any relevant:
-- expression changes
-- condition changes
-- data source changes
-- unit/precision changes
-- state transition changes
-- exception/retry behavior changes
-- order/execution path changes
-- risk calculation changes
-- configuration/default changes
-
-8. FINAL VALIDATION
-Before reporting a finding:
-- exact file:line confirmed
-- runtime impact proven
-- root cause proven
-- not intentional
-- not already guarded
-- concrete fix identified
-- confidence >=80
-- not a duplicate of an existing root cause
-
-==================================================
-FALSE-POSITIVE FILTER
-==================================================
-
-DO NOT report:
-- style
-- naming
-- formatting
-- refactoring opportunities
-- speculative performance issues
-- theoretical vulnerabilities without an exploitable path
-- missing tests
-- hypothetical exchange behavior without code evidence
-- already guarded conditions
-- assumptions unsupported by inspected code
-- duplicate symptoms of one root cause
-
-ONE root cause = ONE finding.
-
-==================================================
-CONFIDENCE
-==================================================
-
-Report ONLY >=80/100.
-
-80–89  strong evidence with limited uncertainty
-90–99  direct code-path evidence
-100    deterministic defect with direct proof
-
-==================================================
-OUTPUT
-==================================================
-
-NO FINDINGS:
-No issues found. Checked financial safety, security, CLAUDE.md compliance.
-
-FINDINGS:
-1. `file:line` — **[P0/P1/P2/P3/P4] [confidence]**
-   One sentence: proven defect + concrete impact.
-   **Fix:** concrete remediation; code snippet only if <=10 lines.
-
-Rules:
-- Priority descending, then confidence descending.
-- Duplicate root causes reported once.
-- If one finding affects multiple PRs, identify the affected PRs/branches
-  compactly instead of duplicating the finding.
-- No praise.
-- No filler.
-- No review-process explanation.
-- No speculative language.
-- No finding without exact file:line evidence.
-- Output ONLY qualifying findings.
-
-## EXECUTION BOUNDARY
-
-The current user request is the sole task authority.
-
-- Before a user request: do nothing.
-- Never perform startup, background, monitoring, housekeeping, orientation, CI,
-  review, or repository work without a current user request.
-- During a task, execute only actions necessary to fulfill that request.
-- Do not explore unrelated files, branches, services, or history.
-- Reuse already obtained evidence; never reread unchanged content.
-- Prefer the smallest tool operation that provides the required evidence.
-- Stop tool execution immediately when the requested result is complete.
-- Do not anticipate, continue, monitor, or start another task after completion.
-- Do not call tools merely to "check", "verify", "clean up", or "stay current"
-  unless the current request requires it.
-
-Stack: Python 3.11 | uv | FastAPI | XGBoost+HMM | ccxt (Binance/OKX) | pytest | ruff+mypy
-
-Entry: `src/api/main.py`
-Engine: `src/engine/orchestrator.py`
-Risk: `src/risk/kelly.py`
-Regime: `src/regime/detector.py`
-
-## DECISION AUTHORITY
-
-**Proceed without asking:** implementation, refactoring, tests requested by the
-user, non-breaking dependency changes, documentation, lint/type fixes, commits,
-and pushes when required by the user's request.
-
-**Do not perform unless explicitly requested:** live trading, destructive
-operations, force-push, `.env*` access/modification, execution-mode changes,
-deletion of `src/execution/*` or `src/risk/*`, modification of
-`.claude/settings*.json`, `.claude/hooks/**`, or `.github/workflows/**`.
-
-## DOMAIN PRIORS
-
-- Execution: fees, slippage, partial fills, latency, reconnects.
-- Risk: Kelly is a ceiling, not a target; enforce drawdown and position limits.
-- Regime: HMM transitions are probabilistic; avoid hard-coded regime assumptions.
-- Crypto: funding, liquidation, basis risk, exchange solvency, rate limits.
-- Data: UTC timestamps; OHLCV gaps are real.
-- Validate signals out-of-sample; in-sample metrics alone are insufficient.
-
-## HARD RULES
-
-- Use `uv run` for Python execution; never bare `python3` or `pip`.
-- Never read: `.env`, `.venv/`, `data/`, `logs/`, `models/`,
-  `requirements.lock`, `rag.db`.
-- Never run tests, lint, type-check, or build locally. CI only.
-- CI validation:
-  `push → gh workflow run ci.yml --ref <branch> → gh run view`
-- Coverage gate: 95% global (`--cov-fail-under=95`).
-- Per-file coverage floors are enforced in CI by
-  `scripts/check_coverage_floors.py` for `src/execution/`, `src/engine/`,
-  `runtime_monitor`.
-- Never use Agent/sub-agents.
-- No destructive operation without explicit user authorization.
-- Never enable live trading or alter live execution mode.
-
-## QUALITY, EXECUTION & CONTEXT DISCIPLINE
-
-### Final Quality Gate
-- Before delivery, perform a final correctness review of the completed work.
-- If a defect is found, fix it and revalidate; repeat until no known defect remains.
-- Do not knowingly deliver an incomplete, broken, speculative, or unvalidated result.
-- Final response must be correctness-focused, evidence-backed, and aligned with the
-  user's requested outcome.
-- Validate the implementation, not merely the absence of an obvious error.
-
-### Forward-Only Engineering
-Before every consequential action, determine its expected effect:
-- Does it move the requested task toward completion?
-- Could it damage, regress, weaken, or unnecessarily alter working behavior?
-- Is there a safer forward path?
-
-Proceed when the action is justified and forward-progressing.
-Never downgrade working functionality to hide or bypass a failure.
-Prefer enhancement, correction, upgrade, optimization, or compatibility-preserving
-fixes over regression-inducing workarounds.
-
-Never use a knowingly broken, fake, demo-only, placeholder, or incomplete approach
-when a production-correct approach is required.
-
-### Root-Cause Execution
-- Diagnose the exact root cause before modifying code.
-- Obtain only the minimum relevant evidence/log lines needed to establish it.
-- Search for the exact affected symbol/code path.
-- Edit the smallest relevant code region directly.
-- Do not wander through unrelated files or repeatedly inspect the repository.
-- After a fix, inspect only changed/relevant candidates required for validation.
-
-### Context Preservation
-- Treat already-loaded information as authoritative until its source changes.
-- Never reload, re-inject, or repeat data already available in context.
-- If a file/code block is already loaded and only specific lines changed, inspect
-  only those changed/relevant lines; never reload the complete file unnecessarily.
-- After any tool call, retain and reuse its relevant result.
-- Never request duplicate information from another tool.
-- Never re-read unchanged code merely for confirmation.
-- For every tool call, obtain only the data required for the current decision/output.
-
-### Tool Efficiency
-When multiple tools can accomplish the same operation:
-- Use the cheapest sufficient tool.
-- Request the smallest sufficient input.
-- Produce the smallest sufficient output.
-- Prefer narrow searches, targeted reads, and bounded command output.
-- Never use a broader tool or retrieve more data when a narrower operation is sufficient.
-- Tool calls must directly serve the current user request.
-
-### Decision Discipline
-Before consequential actions, continuously evaluate:
-- Current objective
-- Evidence already obtained
-- Exact next action
-- Expected forward impact
-- Possible regression/failure
-- Whether the same information is already available
-
-Do not take an action merely because it is available.
-Take the smallest justified action that advances the task.
-
-### Changed-Candidate Principle
-For every development cycle:
-- Prioritize changed candidates regardless of development stage or issue type.
-- Do not repeatedly reload complete files after localized changes.
-- Revalidate changed behavior and directly affected dependencies only.
-- Expand scope only when evidence proves it is necessary.
-
-### Failure Handling
-When something fails:
-1. Capture only the relevant failure output.
-2. Identify the exact failing component/path.
-3. Locate the exact responsible code/configuration.
-4. Determine the root cause.
-5. Apply the smallest forward-correct fix.
-6. Revalidate the affected behavior.
-7. Repeat only if a new failure is revealed.
-
-Never compensate for uncertainty by indiscriminately reading, searching, rerunning,
-or modifying unrelated code.
-
-## CI ECONOMY
-
-CI minutes are a finite budget.
-
-- Never validate identical content twice.
-- Validation identity is content/tree SHA, not branch name.
-- Read existing CI results before dispatching another run.
-- Never dispatch speculatively.
-- Never re-dispatch merely for fresher logs.
-- Never cancel a useful in-flight run to start an equivalent one.
-- Shared dependency/model/fixture setup must be cached by relevant lockfile
-  content, not branch name.
-- Run only jobs relevant to changed paths.
-- Shared base code is reviewed/validated once; review branch deltas separately.
-- Batch branches sharing identical verification content.
-- Mine every CI failure before spending another CI run.
-- Fix all reported failures in one pass where possible.
-- Before adding a workflow/job, identify:
-  1. its cost per run;
-  2. the unique failure it detects.
-  If either is unknown, do not add it.
-
-## REVIEW DEDUPLICATION
-
-When reviewing multiple PRs/branches, treat them as one review set.
-
-- Review identical candidates/common unchanged code once.
-- Reuse verified evidence across branches containing the same unchanged code.
-- Review only the relevant delta when the candidate changed.
-- Skip previously reviewed candidates only when the underlying evidence is
-  demonstrably unchanged.
-- Reverify when behavior-affecting code, configuration, data flow, state,
-  precision, error handling, execution, or risk logic changed.
-- Different root causes are separate findings even when they affect the same file.
-- Report one finding per root cause, not one finding per branch.
-- Never assume similarity means equivalence.
-
-## REVIEW METHOD
-
-For review tasks:
-
-1. Start from the requested PR/branch diff.
-2. Inspect changed files/hunks only.
-3. Identify concrete candidate defects.
-4. Verify candidates with the minimum surrounding context required.
-5. Cross-check applicable Hard Rules and Domain Priors.
-6. Follow cross-file references only when necessary to prove the finding.
-7. Never report speculative, stylistic, or unverified issues.
-8. Report only findings with exact `file:line` evidence.
+# Project guide for Claude
+
+Stack: async Python (FastAPI) backend + React (Vite) JavaScript frontend. Large codebase.
+
+## Layout
+- Backend: `./`
+- Frontend: `frontend/`
+- API boundary: FastAPI routers/schemas  <->  the React API client. Most cross-language bugs live here; check both sides together.
+
+## How to run
+- Backend dev:   `uv run uvicorn src.api.main:app --reload`
+- Backend tests: `uv run pytest -q --tb=short -x`
+- Backend lint:  `ruff check .`  |  types: `mypy .` (or `pyright`)
+- Frontend dev:  `npm run dev`   (inside `frontend/`)
+- Frontend lint/build: `npx eslint . --quiet` | `npm run build`
+- Full free audit: `bash scripts/audit.sh`  (writes `audit/*.txt`)
+
+## Working rules (token-efficient)
+- Trust a successful Edit/Write result. Do NOT re-read a file after editing it.
+- Find code with Grep/Glob first, then Read only the needed line range, not whole files.
+- Review the diff (`git diff main...HEAD`), not the whole repo. One module per session.
+- Run tests/lint/types ONCE at the end of an edit batch, not after every small change.
+- Keep tool output small: use `-q`, `--tb=short`, `--quiet`, `git diff --stat` first.
+- Do not rewrite or refactor beyond the task. Refactors go in separate commits.
+- One logical change per commit.
+
+## Async rules (backend)
+- No blocking calls inside `async def` (requests, time.sleep, sync DB drivers, heavy CPU). Use httpx.AsyncClient, asyncio.to_thread, async drivers.
+- Every coroutine must be awaited. Keep a reference to tasks from `asyncio.create_task`.
+- Always close DB sessions/connections on error paths; set timeouts on outbound calls.
+- Background tasks must handle exceptions and cancellation.
+
+## Frontend rules
+- `useEffect` needs cleanup / AbortController for fetches; guard against stale responses.
+- Every request path needs loading + error states.
+- API response shapes must match the FastAPI schemas.
+
+## Review output format
+Report: `file:line | severity (high/med/low) | issue | one-line fix`. Do not edit unless asked.
+
+## Codebase knowledge base
+
+The repo has a two-layer auto-updating knowledge base. **Query it before reading source files.**
+
+### Layer 1 — Live index (auto-generated by `scripts/index.sh`)
+
+`audit/codebase_index.md` — always current; committed to the repo; regenerated by CI on every push to main.
+Sections (grep or read by line range, never whole file):
+- `## Module Map` — every Python module with its top-level classes and functions
+- `## API Surface` — all FastAPI routes: method + path + file:line
+- `## Schemas` — all Pydantic BaseModel subclasses + file:line
+- `## Open Work` — all TODO/FIXME/HACK/XXX markers + file:line
+- `## Incomplete Modules` — NotImplemented, stubs, unfinished code
+- `## Known Failures` — latest pytest/lint failures and pre-existing issues
+- `## Navigation` — quick lookup table: topic → primary file:line
+
+**How to query:** `rg "AuthMiddleware" audit/codebase_index.md` → get file:line → read that range only.
+
+**How to regenerate locally:** `bash scripts/index.sh` (requires `rg`; runs in < 60 s)
+
+### Layer 2 — Deep reference (manually maintained, architecture-level)
+
+`codebase-analysis-docs/CODEBASE_KNOWLEDGE.md` — full architecture, subsystem design, behavior defaults
+`codebase-analysis-docs/FILE_INDEX.md` — 1315 tracked files with SHA8 hashes and priorities
+`codebase-analysis-docs/API_REFERENCE.md` — FastAPI route detail with parameter docs
+`codebase-analysis-docs/CHUNK_INDEX.md` — function/class line ranges for critical files
+
+Use Layer 2 for architecture decisions, cross-module invariants, or when Layer 1 cites a file but you need more context.
+
+## Quality-engineering skill
+- Use the quality-engineering skill for any change that touches requirements, registry entries, or test coverage.
+- Run `.claude/skills/quality-engineering/scripts/qe_gate.py --list` to see the active gates.
+- Validate a change plan with `qe_gate.py --plan <plan.json>` before opening a PR.
+- The `PostToolUse` hook at `.claude/hooks/quality_gate.py` runs on every edit automatically.
+
+## Agents (see .claude/agents/)
+- explorer (read-only map/summary), auditor (read-only review), fixer (applies approved fixes),
+  async-security-reviewer (auth, DB, background tasks, API boundary).
+- test-runner (runs scripts/check.sh, returns ≤15-line verdict, never edits).
+- debugger (fixes failures with max-3-attempt loop, minimal edits).
+
+## Environment & known state (updated 2026-11-19)
+- Python requirement: `>=3.11,<3.12`. Use `uv run` for all backend commands; direct `python` is 3.13 in CI containers and will fail.
+- `pytest-cov` must be installed for pytest to run (pyproject.toml addopts inject `--cov`). CI installs it; local: `pip install pytest-cov`.
+- `audit/` is gitignored; `scripts/audit.sh` writes there, safe to run any time.
+- Frontend `node_modules` not present in cloud containers — frontend check/eslint will SKIP; run `npm ci` in `frontend/` first if needed.
+
+## Pre-existing failures on main (do not fix without a dedicated task)
+- mypy: "Duplicate module named 'agent_control'" — `tests/agent_control/__init__.py` vs `scripts/agent_control.py`. Pre-existing.
+- pytest collection: tests referencing `.claude/hooks/pre_tool_use.py` and `_gh_contract.py` fail to import. Files don't exist on main. Pre-existing.
+- frontend npm test: `Workspace.grid.test.jsx` assertion failures. Pre-existing on main.
+- CI gates: pyre, Pyre gate, Security/SUP gates, CodeQL gate all fail on main. Pre-existing.
+
+## PostToolUse hook
+- Wired in `.claude/settings.json` → `.claude/hooks/post_edit_check.sh`.
+- Lints only the edited file (ruff for .py, eslint for .js/.jsx/.ts/.tsx). Silent when clean, exits 2 on failure so Claude sees lint errors immediately.
+- Gracefully exits 0 when file_path is empty or file doesn't exist.
+
+## Tests & failures (keep raw output out of context)
+- NEVER run `pytest`, `npm test`, `npm run build` or `eslint` directly. Run `bash scripts/check.sh [backend|frontend|all] [test path]`; it prints a short summary and stores full logs in `audit/*.log`.
+- After a batch of edits, delegate verification to the `test-runner` subagent; it returns a short verdict.
+- On failure, delegate to the `debugger` subagent with the failure summary. Max 3 attempts per failure, then stop and report.
+- Never delete/skip/weaken tests or add lint-disable comments to get green without asking.
+- Read a log file only by line range (offset/limit), never whole.

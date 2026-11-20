@@ -22,10 +22,10 @@ from __future__ import annotations
 from collections import deque
 from dataclasses import asdict, dataclass
 from datetime import UTC
+from functools import lru_cache
 from typing import Any, Final
 
 import structlog
-
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
@@ -277,11 +277,15 @@ class TradeAuditor:
 # Module-level singleton
 # ---------------------------------------------------------------------------
 
-_auditor: TradeAuditor | None = None
 
-
+@lru_cache(maxsize=1)
 def get_auditor() -> TradeAuditor:
-    global _auditor
-    if _auditor is None:
-        _auditor = TradeAuditor()
-    return _auditor
+    """Process-wide TradeAuditor.
+
+    lru_cache rather than a module global under `global`: the read and the
+    assignment were two steps, so two callers arriving together could both
+    find it unset and both construct one, with the second silently replacing
+    the first. Same idiom as get_settings() in src/config.py, and it gives
+    tests cache_clear() instead of reaching for the global.
+    """
+    return TradeAuditor()

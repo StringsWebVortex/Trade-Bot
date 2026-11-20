@@ -4,21 +4,24 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import types
+from datetime import UTC, datetime
 from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 import pytest
 
-from conftest import settings_double
 from src.config import Timeframe, TradingMode
 from src.data.storage import BarRecord
 from src.engine.signal_engine import SignalResult
 from src.risk.kelly import KellyResult
+from tests.conftest import settings_double
 
 
 def _make_bars(n: int = 350) -> list[BarRecord]:
+    latest_ts = int(datetime.now(UTC).timestamp() * 1000)
     return [
         BarRecord(
-            ts=1_700_000_000_000 + i * 900_000,
+            ts=latest_ts - (n - i - 1) * 900_000,
             symbol="BTC/USDT",
             timeframe="15m",
             open=40_000.0 + i,
@@ -43,7 +46,7 @@ def _make_storage():
     s.initialize = AsyncMock(return_value=None)
     s.close = AsyncMock(return_value=None)
     s.latest_close = AsyncMock(return_value=None)
-    s.latest_bar_ts = AsyncMock(return_value=1_700_000_000_000)
+    s.latest_bar_ts = AsyncMock(return_value=_make_bars()[-1].ts)
     s.upsert_regime_snapshot = AsyncMock(return_value=None)
     return s
 
@@ -67,8 +70,12 @@ def _make_executor():
     e.starting_equity_usd = 100_000.0
     e.shutdown = AsyncMock(return_value=None)
     e.open_positions_safe = AsyncMock(return_value=[])
+    e.open_positions = MagicMock(return_value=[])
     e.submit_signal = AsyncMock(return_value=("trade-123", "opened"))
     e.get_current_equity = AsyncMock(return_value=100_000.0)
+    # Synchronous on AbstractExecutor (EXR-018): an AsyncMock coroutine
+    # here would be created every tick and never awaited.
+    e.close_approval_window = MagicMock(return_value=None)
     return e
 
 
@@ -87,6 +94,11 @@ def _make_orch():
         cfg.storage.model_dir = "/tmp/models"
         mock_cfg.return_value = cfg
         orch = Orchestrator(storage, fetcher)
+        # Pin the double explicitly. get_settings() is read at use time now
+        # (GOV-028), so constructing inside the patch no longer freezes the
+        # fake onto the instance -- the with-block exits and later reads see
+        # the real settings. The pin says what the test always meant.
+        orch._cfg = cfg
     return orch
 
 
@@ -193,12 +205,17 @@ class TestTimeframeLoop:
         orch = _make_orch()
         orch._running = True
 
-        with patch.object(
-            orch, "_sleep_until_next_bar", new=AsyncMock(side_effect=asyncio.CancelledError)
+        sleep = AsyncMock(side_effect=asyncio.CancelledError)
+        tick = AsyncMock()
+        with (
+            patch.object(orch, "_sleep_until_next_bar", new=sleep),
+            patch.object(orch, "_tick", tick),
         ):
             # CancelledError is caught inside the loop, which then breaks — no exception propagates
             await orch._timeframe_loop(Timeframe.INTRADAY)
-        # Reaching here means the loop exited cleanly
+
+        sleep.assert_awaited_once()
+        tick.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_timeframe_loop_error_then_stops(self):
@@ -266,6 +283,11 @@ class TestTickUncoveredBranches:
             ),
         ):
             await orch._tick(Timeframe.INTRADAY)
+
+        # Both stored gates passed, so the engine is told both pass.
+        gates = mock_engine.tick.await_args.kwargs
+        assert gates["direction_gate_pass"] is True
+        assert gates["meta_gate_pass"] is True
 
     @pytest.mark.asyncio
     async def test_tick_with_latest_close_updates_correlation(self):
@@ -420,6 +442,11 @@ def _make_orch_cfg(trading_mode=TradingMode.PAPER):
         cfg.storage.model_dir = "/tmp/models"
         mock_cfg.return_value = cfg
         orch = Orchestrator(storage, fetcher)
+        # Pin the double explicitly. get_settings() is read at use time now
+        # (GOV-028), so constructing inside the patch no longer freezes the
+        # fake onto the instance -- the with-block exits and later reads see
+        # the real settings. The pin says what the test always meant.
+        orch._cfg = cfg
     return orch, storage, fetcher
 
 
@@ -473,6 +500,9 @@ class TestStartupLiveModeAndDriftDetector:
         async def _fake_train(tf):
             orch._trainers[tf.value] = trainer
             orch._detectors[tf.value] = MagicMock()
+            orch._training_results[tf.value] = types.SimpleNamespace(
+                oos_sharpe=1.5, accuracy=0.58, max_drawdown=10.0, n_trades=400
+            )
 
         orch._train_models = _fake_train
 
@@ -592,6 +622,9 @@ class TestTickUpdateMetricsFailure:
     async def test_update_metrics_exception_is_swallowed(self):
         orch = _make_orch()
         executor = _make_executor()
+        # open_positions() is sync; an AsyncMock child would hand the payload a
+        # coroutine, which failed before update_metrics was ever reached.
+        executor.open_positions = MagicMock(return_value=[])
         orch._executor = executor
         orch._storage = _make_storage()
         orch._tick_counts = {Timeframe.INTRADAY.value: 0}
@@ -612,9 +645,14 @@ class TestTickUpdateMetricsFailure:
             patch(
                 "src.engine.orchestrator.compute_win_loss_stats", return_value=(0, 0.0, 0.0, 0.0)
             ),
-            patch("src.engine.orchestrator.update_metrics", side_effect=RuntimeError("prom down")),
+            patch(
+                "src.engine.orchestrator.update_metrics", side_effect=RuntimeError("prom down")
+            ) as metrics,
         ):
             await orch._tick(Timeframe.INTRADAY)  # must not raise
+
+        metrics.assert_called_once()
+        mock_engine.tick.assert_awaited_once()
 
 
 # ---------------------------------------------------------------------------
@@ -647,6 +685,11 @@ class TestPositionMonitorDriftRecordOnClose:
             cfg.risk.position_monitor_interval_s = 5
             mock_cfg.return_value = cfg
             orch = Orchestrator(storage, fetcher)
+        # Pin the double explicitly. get_settings() is read at use time now
+        # (GOV-028), so constructing inside the patch no longer freezes the
+        # fake onto the instance -- the with-block exits and later reads see
+        # the real settings. The pin says what the test always meant.
+        orch._cfg = cfg
         orch._running = True
         orch._drift_detector = MagicMock()  # truthy → enters the block
         orch._drift_adapter.record_closed_trade = AsyncMock(return_value=None)
@@ -720,7 +763,7 @@ class TestPositionMonitorDriftRecordOnClose:
 
     @pytest.mark.asyncio
     async def test_drift_record_exception_is_logged_not_raised(self):
-        orch, _executor = self._make_orch_with_position()
+        orch, executor = self._make_orch_with_position()
         orch._drift_adapter.record_closed_trade = AsyncMock(side_effect=RuntimeError("boom"))
 
         async def _fake_sleep(_s):
@@ -735,6 +778,9 @@ class TestPositionMonitorDriftRecordOnClose:
             ),
         ):
             await orch._position_monitor_loop()  # must not raise
+
+        orch._drift_adapter.record_closed_trade.assert_awaited_once()
+        executor.close_position.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_no_drift_detector_skips_record(self):
@@ -924,6 +970,11 @@ class TestTrainModelsRemainingBranches:
             cfg.storage.model_dir = "/tmp/models"
             mock_cfg.return_value = cfg
             orch = Orchestrator(storage, fetcher)
+        # Pin the double explicitly. get_settings() is read at use time now
+        # (GOV-028), so constructing inside the patch no longer freezes the
+        # fake onto the instance -- the with-block exits and later reads see
+        # the real settings. The pin says what the test always meant.
+        orch._cfg = cfg
         return orch
 
     @pytest.mark.asyncio
@@ -1100,6 +1151,11 @@ class TestPositionMonitorRemainingBranches:
             cfg.risk.position_monitor_interval_s = 5
             mock_cfg.return_value = cfg
             orch = Orchestrator(storage, fetcher)
+        # Pin the double explicitly. get_settings() is read at use time now
+        # (GOV-028), so constructing inside the patch no longer freezes the
+        # fake onto the instance -- the with-block exits and later reads see
+        # the real settings. The pin says what the test always meant.
+        orch._cfg = cfg
         return orch
 
     @pytest.mark.asyncio
@@ -1242,6 +1298,10 @@ class TestPositionMonitorRemainingBranches:
         ):
             await orch._position_monitor_loop()  # must not raise
 
+        executor.close_position.assert_awaited_once_with(
+            trade_id="t1", exit_price=50_000.0, exit_reason="stop_loss"
+        )
+
     @pytest.mark.asyncio
     async def test_close_position_generic_exception_logged(self):
         orch = self._make_orch()
@@ -1361,6 +1421,149 @@ class TestPositionMonitorRemainingBranches:
 # ---------------------------------------------------------------------------
 # _timeframe_loop() — a full successful tick through the loop
 # ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# _monitor_positions_for — KeyError and exception paths
+# ---------------------------------------------------------------------------
+
+
+class TestMonitorPositionsFor:
+    def _make_orch_with_controls(self):
+        orch = _make_orch()
+        orch._drift_detector = None
+        orch._drift_adapter = None
+        return orch
+
+    def _controls(self) -> dict:
+        return {
+            "stop_loss_enabled": True,
+            "stop_loss_pct": 2.0,
+            "take_profit_enabled": True,
+            "take_profit_pct": 4.0,
+            "max_holding_period_s": 86_400.0,
+        }
+
+    @pytest.mark.asyncio
+    async def test_position_wrong_symbol_is_skipped(self):
+        orch = self._make_orch_with_controls()
+        executor = _make_executor()
+        executor.mark_to_market = AsyncMock(return_value=None)
+        executor.open_positions_safe = AsyncMock(
+            return_value=[
+                {
+                    "symbol": "ETH/USDT",  # not the primary symbol
+                    "trade_id": "t1",
+                    "unrealized_pnl_pct": -10.0,
+                    "entry_ts": 0,
+                    "direction": "long",
+                }
+            ]
+        )
+        executor.close_position = AsyncMock(return_value=0.0)
+
+        with patch(
+            "src.engine.orchestrator.runtime_config.get_risk_controls",
+            new_callable=AsyncMock,
+            return_value=self._controls(),
+        ):
+            await orch._monitor_positions_for(executor, price=50_000.0)
+
+        executor.close_position.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_key_error_during_close_is_silently_ignored(self):
+        orch = self._make_orch_with_controls()
+        executor = _make_executor()
+        executor.mark_to_market = AsyncMock(return_value=None)
+        pos = {
+            "symbol": "BTC/USDT",
+            "trade_id": "t1",
+            "unrealized_pnl_pct": -5.0,
+            "entry_ts": 0,
+            "direction": "long",
+        }
+        executor.open_positions_safe = AsyncMock(return_value=[pos])
+        executor.close_position = AsyncMock(side_effect=KeyError("already closed"))
+
+        with (
+            patch(
+                "src.engine.orchestrator.runtime_config.get_risk_controls",
+                new_callable=AsyncMock,
+                return_value=self._controls(),
+            ),
+            patch(
+                "src.engine.orchestrator.check_position_exit",
+                return_value="stop_loss",
+            ),
+        ):
+            await orch._monitor_positions_for(executor, price=50_000.0)
+
+        executor.close_position.assert_awaited_once_with(
+            trade_id="t1", exit_price=50_000.0, exit_reason="stop_loss"
+        )
+
+    @pytest.mark.asyncio
+    async def test_generic_exception_during_close_is_logged_not_raised(self):
+        orch = self._make_orch_with_controls()
+        executor = _make_executor()
+        executor.mark_to_market = AsyncMock(return_value=None)
+        pos = {
+            "symbol": "BTC/USDT",
+            "trade_id": "t2",
+            "unrealized_pnl_pct": 5.0,
+            "entry_ts": 0,
+            "direction": "long",
+        }
+        executor.open_positions_safe = AsyncMock(return_value=[pos])
+        executor.close_position = AsyncMock(side_effect=RuntimeError("exchange down"))
+
+        with (
+            patch(
+                "src.engine.orchestrator.runtime_config.get_risk_controls",
+                new_callable=AsyncMock,
+                return_value=self._controls(),
+            ),
+            patch(
+                "src.engine.orchestrator.check_position_exit",
+                return_value="profit_target",
+            ),
+        ):
+            await orch._monitor_positions_for(executor, price=50_000.0)
+
+        executor.close_position.assert_awaited_once_with(
+            trade_id="t2", exit_price=50_000.0, exit_reason="profit_target"
+        )
+
+    @pytest.mark.asyncio
+    async def test_no_exit_reason_does_not_call_close(self):
+        orch = self._make_orch_with_controls()
+        executor = _make_executor()
+        executor.mark_to_market = AsyncMock(return_value=None)
+        pos = {
+            "symbol": "BTC/USDT",
+            "trade_id": "t3",
+            "unrealized_pnl_pct": 0.5,
+            "entry_ts": 0,
+            "direction": "long",
+        }
+        executor.open_positions_safe = AsyncMock(return_value=[pos])
+        executor.close_position = AsyncMock(return_value=0.0)
+
+        with (
+            patch(
+                "src.engine.orchestrator.runtime_config.get_risk_controls",
+                new_callable=AsyncMock,
+                return_value=self._controls(),
+            ),
+            patch(
+                "src.engine.orchestrator.check_position_exit",
+                return_value=None,
+            ),
+        ):
+            await orch._monitor_positions_for(executor, price=50_000.0)
+
+        executor.close_position.assert_not_awaited()
 
 
 class TestTimeframeLoopSuccessfulTick:
