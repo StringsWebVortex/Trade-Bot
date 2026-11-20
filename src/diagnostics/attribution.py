@@ -90,8 +90,8 @@ def _sortino(pnls: list[float]) -> float:
     mean = sum(pnls) / len(pnls)
     losses = [p for p in pnls if p < 0.0]
     if not losses:
-        # No losses: Sortino is undefined; return a large positive value
-        # floored to the Sharpe ratio so callers see consistent ordering.
+        # No losses: Sortino is undefined; fall back to the Sharpe ratio so
+        # callers see consistent ordering.
         return _sharpe(pnls)
     downside_var = sum(p**2 for p in losses) / len(pnls)
     downside_std = math.sqrt(downside_var)
