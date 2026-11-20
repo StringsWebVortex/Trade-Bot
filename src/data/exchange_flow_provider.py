@@ -27,7 +27,6 @@ import aiohttp
 import pandas as pd
 import structlog
 
-
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
 _CEXS_URL = "https://api.llama.fi/cexs"
@@ -117,7 +116,7 @@ class ExchangeFlowProvider:
             # Cache first: the tick path reads it, and its freshness must not
             # depend on the daily history write succeeding.
             self._update_cache()
-            self._persist()
+            await asyncio.to_thread(self._persist)
         except Exception as exc:
             log.warning("exchange_flow_fetch_error", exc=str(exc))
 

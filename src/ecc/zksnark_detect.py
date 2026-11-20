@@ -64,10 +64,23 @@ class MixingFlowResult:
     withdrawal_cluster_depth: int
 
 
+def _input_selector(tx: dict) -> str:
+    """The 4-byte call selector as a ``0x``-prefixed lowercase hex string.
+
+    web3 returns ``input`` as HexBytes, not str; slicing that gives bytes that
+    never equal a str selector, so both detectors were always False on live
+    data (MTH-012). Both forms are normalised here.
+    """
+    raw = tx.get("input", "0x")
+    if isinstance(raw, (bytes, bytearray)):
+        raw = "0x" + bytes(raw).hex()
+    return str(raw).lower()[:10]
+
+
 def _is_tornado_deposit(tx: dict) -> bool:
     """Return True if transaction is a Tornado Cash deposit."""
-    to_addr = (tx.get("to") or "").lower()
-    return to_addr in _TORNADO_CONTRACTS and tx.get("input", "0x")[:10] in (
+    to_addr = str(tx.get("to") or "").lower()
+    return to_addr in _TORNADO_CONTRACTS and _input_selector(tx) in (
         "0xb214faa5",  # deposit(bytes32 commitment)
         "0x00",
     )
@@ -75,8 +88,8 @@ def _is_tornado_deposit(tx: dict) -> bool:
 
 def _is_tornado_withdrawal(tx: dict) -> bool:
     """Return True if transaction is a Tornado Cash withdrawal."""
-    to_addr = (tx.get("to") or "").lower()
-    return to_addr in _TORNADO_CONTRACTS and tx.get("input", "0x")[:10] == "0x21a0adb5"
+    to_addr = str(tx.get("to") or "").lower()
+    return to_addr in _TORNADO_CONTRACTS and _input_selector(tx) == "0x21a0adb5"
 
 
 def trace_spend_cluster(
@@ -92,11 +105,10 @@ def trace_spend_cluster(
 
     Returns list of candidate withdrawal transactions.
     """
-    target_value = (
-        int(deposit_tx.get("value", "0x0"), 16)
-        if isinstance(deposit_tx.get("value"), str)
-        else deposit_tx.get("value", 0)
-    )
+    # Each Tornado pool contract has a fixed denomination, so "same pool" is
+    # the same contract address. Withdrawals are relayer calls with value 0,
+    # so matching on transaction value could never succeed (MTH-012).
+    target_pool = str(deposit_tx.get("to") or "").lower()
 
     cluster = []
     visited = {deposit_tx.get("hash", "")}
@@ -111,13 +123,7 @@ def trace_spend_cluster(
                     continue
                 if not _is_tornado_withdrawal(candidate):
                     continue
-                # Amount correlation (same Tornado pool = same denomination)
-                candidate_value = (
-                    int(candidate.get("value", "0x0"), 16)
-                    if isinstance(candidate.get("value"), str)
-                    else candidate.get("value", 0)
-                )
-                if abs(candidate_value - target_value) / max(target_value, 1) < 0.01:
+                if str(candidate.get("to") or "").lower() == target_pool:
                     cluster.append(candidate)
                     visited.add(candidate.get("hash", ""))
                     next_queue.append(candidate)
@@ -136,9 +142,13 @@ def estimate_dark_pool_pressure(cluster: list[dict]) -> float:
 
     Returns [0, 1].
     """
-    if not cluster:
+    return pressure_from_count(len(cluster))
+
+
+def pressure_from_count(n: int) -> float:
+    """Dark pool pressure ∈ [0, 1] from a withdrawal/deposit count."""
+    if n <= 0:
         return 0.0
-    n = len(cluster)
     # Saturation at 50 withdrawals in a window
     return float(min(n / 50.0, 1.0))
 
@@ -204,7 +214,7 @@ class ZkSnarkDetector:
                 total_cluster_size += len(cluster)
                 max_cluster_depth = max(max_cluster_depth, len(cluster))
 
-            pressure = estimate_dark_pool_pressure([{}] * (len(deposit_txs) + total_cluster_size))
+            pressure = pressure_from_count(len(deposit_txs) + total_cluster_size)
             estimated_eth = total_mixed_wei / 1e18
 
             return MixingFlowResult(
