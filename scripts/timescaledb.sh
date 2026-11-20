@@ -1,85 +1,115 @@
 #!/usr/bin/env bash
-# GAP-006: manage the local TimescaleDB container (rootless podman, zero cost).
+# Local TimescaleDB container lifecycle.
 #
-# Usage:
-#   bash scripts/timescaledb.sh up       # create+start (idempotent)
-#   bash scripts/timescaledb.sh down     # stop (data persists in volume)
-#   bash scripts/timescaledb.sh status   # health + connection info
-#   bash scripts/timescaledb.sh destroy  # stop + remove container AND data volume
-#   bash scripts/timescaledb.sh psql     # open a psql shell inside the container
+# tests/test_timescale_storage.py and STORAGE_BACKEND=timescale both expect a
+# TimescaleDB on 127.0.0.1:5433. This script is the local half of that; the
+# other half is the `timescaledb` service in .github/workflows/ci.yml, and the
+# two MUST describe the same database. If they drift, the 92 tests in that
+# module pass against one engine locally and a different one in CI, which is
+# the failure mode nobody attributes to anything.
+# tests/test_timescaledb_script.py asserts the image, credentials, database
+# and port here match that service block.
 #
-# The container binds to 127.0.0.1:5433 only — unreachable from the network.
-# DSN: postgresql://tradebot:tradebot-local@127.0.0.1:5433/tradebot  # pragma: allowlist secret
+# Rootless podman is preferred over docker when both are present: this needs
+# no daemon and no root, and the container is bound to the loopback interface
+# only. The password is a fixed local-only credential, identical to the one in
+# ci.yml and the STORAGE_TIMESCALE_DSN default in src/config.py. It guards a
+# throwaway database that is only reachable from this machine; it is not a
+# secret and must not be treated as one.
 set -euo pipefail
 
-IMAGE="docker.io/timescale/timescaledb:2.17.2-pg17"
-NAME="tradebot-timescaledb"
-VOLUME="tradebot-timescale-data"
-PORT="127.0.0.1:5433:5432"
+# timescale/timescaledb:2.17.2-pg17, digest-pinned exactly as in ci.yml (OPS-011).
+IMAGE="timescale/timescaledb@sha256:3324f81ca7f84cdc2dc4497863b3798ababa8ce130c5b59d73f0b40e3a34148e"
+CONTAINER="tradebot-timescaledb"
+POSTGRES_USER="tradebot"
+POSTGRES_PASSWORD="tradebot-local"
+POSTGRES_DB="tradebot"
+HOST_ADDR="127.0.0.1"
+HOST_PORT="5433"
+DSN="postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${HOST_ADDR}:${HOST_PORT}/${POSTGRES_DB}"
 
-# Prefer podman (rootless); fall back to docker if podman is unavailable.
 if command -v podman >/dev/null 2>&1; then
-    ENGINE=podman
+  ENGINE="podman"
 elif command -v docker >/dev/null 2>&1; then
-    ENGINE=docker
+  ENGINE="docker"
 else
-    echo "ERROR: neither podman nor docker found" >&2
-    exit 1
+  echo "timescaledb: neither podman nor docker is on PATH" >&2
+  exit 127
 fi
 
-cmd="${1:-status}"
+exists() { "$ENGINE" container inspect "$CONTAINER" >/dev/null 2>&1; }
+running() { [ "$("$ENGINE" container inspect -f '{{.State.Running}}' "$CONTAINER" 2>/dev/null)" = "true" ]; }
 
-case "$cmd" in
-    up)
-        if $ENGINE container exists "$NAME" 2>/dev/null || $ENGINE inspect "$NAME" >/dev/null 2>&1; then
-            $ENGINE start "$NAME" >/dev/null
-            echo "started existing container $NAME"
-        else
-            $ENGINE volume create "$VOLUME" >/dev/null 2>&1 || true
-            $ENGINE run -d \
-                --name "$NAME" \
-                --restart unless-stopped \
-                -p "$PORT" \
-                -e POSTGRES_USER=tradebot \
-                -e POSTGRES_PASSWORD=tradebot-local \
-                -e POSTGRES_DB=tradebot \
-                -e TS_TUNE_MEMORY=2GB \
-                -e TS_TUNE_NUM_CPUS=2 \
-                -v "$VOLUME":/var/lib/postgresql/data \
-                --health-cmd "pg_isready -U tradebot -d tradebot" \
-                --health-interval 5s \
-                --health-retries 12 \
-                "$IMAGE" >/dev/null
-            echo "created container $NAME"
-        fi
-        # Wait for readiness (fresh init can take ~10s)
-        for _ in $(seq 1 30); do
-            if $ENGINE exec "$NAME" pg_isready -U tradebot -d tradebot >/dev/null 2>&1; then
-                echo "TimescaleDB ready on 127.0.0.1:5433 (db=tradebot user=tradebot)"
-                exit 0
-            fi
-            sleep 1
-        done
-        echo "ERROR: container started but postgres not ready after 30s" >&2
-        exit 1
-        ;;
-    down)
-        $ENGINE stop "$NAME"
-        ;;
-    status)
-        $ENGINE ps -a --filter "name=$NAME" --format "{{.Names}}  {{.Status}}"
-        $ENGINE exec "$NAME" pg_isready -U tradebot -d tradebot 2>/dev/null || true
-        ;;
-    destroy)
-        $ENGINE rm -f "$NAME" 2>/dev/null || true
-        $ENGINE volume rm "$VOLUME" 2>/dev/null || true
-        echo "removed container and data volume"
-        ;;
-    psql)
-        exec $ENGINE exec -it "$NAME" psql -U tradebot -d tradebot
-        ;;
-    *)
-        echo "usage: $0 {up|down|status|destroy|psql}" >&2
-        exit 2
-        ;;
+# Readiness is asked of the database, not the container: a started container
+# whose postgres is still recovering accepts the TCP connection and refuses
+# the query, which reads as a flaky test rather than as a race here.
+wait_ready() {
+  local attempt
+  for attempt in $(seq 1 60); do
+    if "$ENGINE" exec "$CONTAINER" pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB" >/dev/null 2>&1; then
+      echo "timescaledb: ready on ${HOST_ADDR}:${HOST_PORT} (after ${attempt}s)"
+      return 0
+    fi
+    sleep 1
+  done
+  echo "timescaledb: not ready after 60s -- '$ENGINE logs $CONTAINER' has the reason" >&2
+  return 1
+}
+
+up() {
+  if running; then
+    echo "timescaledb: already running"
+  else
+    if exists; then
+      echo "timescaledb: starting existing container"
+      "$ENGINE" start "$CONTAINER" >/dev/null
+    else
+      echo "timescaledb: creating $CONTAINER from $IMAGE"
+      # -p binds the loopback address explicitly. A bare "5433:5432" publishes
+      # on every interface, which on a laptop on a shared network exposes the
+      # database to it.
+      "$ENGINE" run --detach \
+        --name "$CONTAINER" \
+        --publish "${HOST_ADDR}:${HOST_PORT}:5432" \
+        --env "POSTGRES_USER=${POSTGRES_USER}" \
+        --env "POSTGRES_PASSWORD=${POSTGRES_PASSWORD}" \
+        --env "POSTGRES_DB=${POSTGRES_DB}" \
+        "$IMAGE" >/dev/null
+    fi
+  fi
+  wait_ready
+  echo "timescaledb: export STORAGE_TIMESCALE_DSN=${DSN}"
+}
+
+down() {
+  if exists; then
+    echo "timescaledb: removing $CONTAINER"
+    "$ENGINE" rm --force "$CONTAINER" >/dev/null
+  else
+    echo "timescaledb: nothing to remove"
+  fi
+}
+
+status() {
+  if running; then
+    echo "timescaledb: running on ${HOST_ADDR}:${HOST_PORT} (engine: $ENGINE)"
+  elif exists; then
+    echo "timescaledb: stopped (engine: $ENGINE)"
+    exit 1
+  else
+    echo "timescaledb: no container (engine: $ENGINE)"
+    exit 1
+  fi
+}
+
+case "${1:-}" in
+  up) up ;;
+  down) down ;;
+  status) status ;;
+  logs) "$ENGINE" logs "$CONTAINER" ;;
+  dsn) echo "$DSN" ;;
+  *)
+    echo "usage: bash scripts/timescaledb.sh {up|down|status|logs|dsn}" >&2
+    exit 2
+    ;;
 esac

@@ -4,7 +4,7 @@ PatchTST model head — multivariate OHLCV with patch-based transformer.
 Based on Nie et al. (2023) "A Time Series is Worth 64 Words: Long-term
 Forecasting with Transformers."
 
-Segments the input time series into non-overlapping patches (len=16, stride=8)
+Segments the input time series into non-overlapping patches (len=patch_len, stride=patch_len)
 and applies a 6-layer transformer encoder over the patch sequence.
 
 Input:  [B, C, T] — batch x channels x time (C = OHLCV = 5)
@@ -44,7 +44,7 @@ class PatchTSTHead(nn.Module):
     """
     PatchTST: 6-layer transformer encoder over OHLCV patches.
 
-    patch_len=16, stride=8 (overlapping by half), d_model=64,
+    patch_len=16, non-overlapping (stride=patch_len), d_model=64,
     nhead=4, d_ff=256.
     """
 
@@ -88,7 +88,10 @@ class PatchTSTHead(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """x: [B, C, T] → [B, 128]"""
         patches = self.patch_embed(x)  # [B, n_patches, d_model]
-        patches = patches + self.pe  # positional encoding
+        n = patches.size(1)
+        if n > self.pe.size(1):
+            raise ValueError(f"got {n} patches but positional encoding covers {self.pe.size(1)}")
+        patches = patches + self.pe[:, :n]  # positional encoding
         encoded = self.encoder(patches)  # [B, n_patches, d_model]
         pooled = self.pool(encoded.transpose(1, 2)).squeeze(-1)  # [B, d_model]
         return self.proj(pooled)

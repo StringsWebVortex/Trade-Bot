@@ -27,7 +27,6 @@ from statsmodels.tsa.stattools import coint
 
 from src.strategies.registry import Signal
 
-
 # Entry/exit thresholds — Vidyamurthy (2004) Ch.3 standard z-score bands.
 _ENTRY_Z: float = 2.0
 _EXIT_Z: float = 0.5
@@ -116,8 +115,10 @@ class MeanReversionPairsStrategy:
         z = float(zscore_series.iloc[-1])
         abs_z = abs(z)
 
-        if abs_z < _EXIT_Z:
-            return Signal(direction=0, confidence=0.0, regime_fit=0.5)
+        # Stateless: below the entry band the strategy is flat (no hold-until-exit
+        # state). ``_EXIT_Z`` is kept only as a documented
+        # threshold. The hedge ratio must be estimated on data strictly
+        # before ``bar.window``.
         if abs_z < _ENTRY_Z:
             return Signal(direction=0, confidence=0.0, regime_fit=0.5)
 

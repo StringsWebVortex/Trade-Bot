@@ -12,28 +12,47 @@ Authority:
   - Chan (2013) Algorithmic Trading Ch.8 — live system monitoring
   - Tulchinsky (2019) Finding Alphas — signal health checks
   - López de Prado (2018) AFML Ch.16 — strategy diagnostics
+
+Registry: REL-004, REL-005, REL-007, RES-001 (config/quality_registry.json).
 """
 
 from __future__ import annotations
 
 import asyncio
 import contextlib
+import ctypes
 import gc
+import math
 import time
 from collections.abc import Callable, Coroutine
 from dataclasses import dataclass, field
+from functools import lru_cache
 from typing import Any, Final
 
 import structlog
 
+from src.eventbus import get_event_bus
+from src.resource_limits import MEMORY_CRITICAL_MB, MEMORY_WARN_MB
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
 POLL_INTERVAL_S: Final[float] = 30.0  # health probe cadence
-STALL_THRESHOLD_S: Final[float] = 300.0  # tick stall: 5 min silence → alert
-MEMORY_WARN_MB: Final[float] = 512.0  # RSS warn threshold
-MEMORY_CRITICAL_MB: Final[float] = 1024.0  # RSS critical threshold
+STALL_THRESHOLD_S: Final[float] = 300.0  # tick stall: the shortest silence that alerts
+# A timeframe loop ticks once per bar, so a healthy 15m or 4h loop is silent
+# for 900s or 14400s between ticks: its stall limit is one bar plus this slack.
+TICK_SCHEDULE_GRACE_S: Final[float] = 60.0
 MAX_CONSECUTIVE_FAILURES: Final[int] = 3  # auto-escalate after N failures
+
+_UNIT_SECONDS: Final[dict[str, int]] = {"s": 1, "m": 60, "h": 3600, "d": 86400}
+
+
+def tick_stall_limit_s(timeframe: str) -> float:
+    """Silence that counts as a stall: one bar plus grace, never under STALL_THRESHOLD_S."""
+    unit = _UNIT_SECONDS.get(timeframe[-1:])
+    count = timeframe[:-1]
+    if unit is None or not count.isdigit() or int(count) == 0:
+        return STALL_THRESHOLD_S
+    return max(STALL_THRESHOLD_S, int(count) * unit + TICK_SCHEDULE_GRACE_S)
 
 
 # ---------------------------------------------------------------------------
@@ -99,10 +118,28 @@ class RuntimeMonitor:
     def __init__(self) -> None:
         self._probes: dict[str, Callable[[], Coroutine[Any, Any, dict[str, Any]]]] = {}
         self._tick_sources: dict[str, Callable[[], float]] = {}
+        self._tick_registered_at: dict[str, float] = {}
         self._results: dict[str, ProbeResult] = {}
         self._task: asyncio.Task | None = None
         self._snapshot: HealthSnapshot | None = None
         self._running = False
+        self._dead_tasks: dict[str, str] = {}
+
+    def watch_task(self, task: asyncio.Task) -> None:
+        """Track ``task`` so that dying with an exception is reported as an alert.
+
+        ``asyncio.all_tasks()`` never returns finished tasks, so death can only
+        be observed through a done-callback (AGT-012).
+        """
+
+        def _on_done(t: asyncio.Task) -> None:
+            if t.cancelled():
+                return
+            exc = t.exception()
+            if exc is not None:
+                self._dead_tasks[t.get_name()] = f"{type(exc).__name__}: {exc}"
+
+        task.add_done_callback(_on_done)
 
     # ------------------------------------------------------------------ #
     # Registration API
@@ -118,8 +155,12 @@ class RuntimeMonitor:
         self._results[name] = ProbeResult(name=name, passed=True)
 
     def register_tick_source(self, timeframe: str, ts_getter: Callable[[], float]) -> None:
-        """Register a callable returning the last-tick monotonic timestamp."""
+        """
+        Register a callable returning the last-tick monotonic timestamp, or 0
+        before the first tick -- which is then waited for from this call.
+        """
         self._tick_sources[timeframe] = ts_getter
+        self._tick_registered_at[timeframe] = time.monotonic()
 
     # ------------------------------------------------------------------ #
     # Lifecycle
@@ -138,6 +179,10 @@ class RuntimeMonitor:
             with contextlib.suppress(asyncio.CancelledError):
                 await self._task
         log.info("runtime_monitor.stopped")
+
+    def _prior_failures(self, name: str) -> int:
+        prior = self._results.get(name)
+        return prior.consecutive_failures if prior is not None and not prior.passed else 0
 
     def get_snapshot(self) -> HealthSnapshot | None:
         return self._snapshot
@@ -162,38 +207,72 @@ class RuntimeMonitor:
                 action="monitor_offline — alert only, manual restart required",
             )
 
+    async def _run_probe(self, name: str) -> ProbeResult:
+        """Run one registered probe, converting any failure into a result.
+
+        Returns rather than raises so a gather over all probes cannot let one
+        failure mask another's outcome.
+        """
+        prior = self._results.get(name, ProbeResult(name=name, passed=True))
+        try:
+            result = await asyncio.wait_for(self._probes[name](), timeout=10.0)
+        except TimeoutError:
+            return ProbeResult(
+                name=name,
+                passed=False,
+                detail="timeout_10s",
+                consecutive_failures=prior.consecutive_failures + 1,
+                last_ok_ts=prior.last_ok_ts,
+            )
+        except Exception as exc:
+            log.warning("health_probe.exception", name=name, error=str(exc), exc_info=True)
+            return ProbeResult(
+                name=name,
+                passed=False,
+                detail=str(exc)[:200],
+                consecutive_failures=prior.consecutive_failures + 1,
+                last_ok_ts=prior.last_ok_ts,
+            )
+        return ProbeResult(
+            name=name,
+            passed=True,
+            value=result,
+            consecutive_failures=0,
+            last_ok_ts=time.monotonic(),
+        )
+
     async def _run_all_probes(self) -> None:
         alerts: list[str] = []
 
-        # 1. Registered async probes
-        for name, factory in self._probes.items():
-            prior = self._results.get(name, ProbeResult(name=name, passed=True))
-            try:
-                result = await asyncio.wait_for(factory(), timeout=10.0)
-                pr = ProbeResult(
+        # 1. Registered async probes, concurrently.
+        #
+        # Run sequentially these compounded: every probe carries its own 10s
+        # timeout, so n hung probes cost n * 10s for a single cycle while
+        # POLL_INTERVAL_S assumes a cycle is short. The monitor's own latency
+        # therefore degraded in proportion to how much was broken -- the
+        # snapshot went stalest exactly during the incident it exists to
+        # describe. Concurrently the cycle is bounded by the slowest probe.
+        names = list(self._probes)
+        gathered = await asyncio.gather(
+            *(self._run_probe(name) for name in names),
+            return_exceptions=True,
+        )
+
+        for name, pr in zip(names, gathered, strict=True):
+            if isinstance(pr, BaseException):
+                # _run_probe catches per-probe failures itself; reaching here
+                # means the wrapper broke, which must not lose the probe.
+                log.error(
+                    "runtime_monitor.probe_wrapper_failed",
                     name=name,
-                    passed=True,
-                    value=result,
-                    consecutive_failures=0,
-                    last_ok_ts=time.monotonic(),
+                    error=str(pr),
                 )
-            except TimeoutError:
-                failures = prior.consecutive_failures + 1
+                prior = self._results.get(name, ProbeResult(name=name, passed=True))
                 pr = ProbeResult(
                     name=name,
                     passed=False,
-                    detail="timeout_10s",
-                    consecutive_failures=failures,
-                    last_ok_ts=prior.last_ok_ts,
-                )
-            except Exception as exc:
-                failures = prior.consecutive_failures + 1
-                log.warning("health_probe.exception", name=name, error=str(exc), exc_info=True)
-                pr = ProbeResult(
-                    name=name,
-                    passed=False,
-                    detail=str(exc)[:200],
-                    consecutive_failures=failures,
+                    detail=f"probe_wrapper_failed: {str(pr)[:150]}",
+                    consecutive_failures=prior.consecutive_failures + 1,
                     last_ok_ts=prior.last_ok_ts,
                 )
 
@@ -213,27 +292,52 @@ class RuntimeMonitor:
         now = time.monotonic()
         for tf, getter in self._tick_sources.items():
             try:
-                last_ts = getter()
-                stale_s = now - last_ts
+                last_ts = float(getter())
                 pr_name = f"tick_stall_{tf}"
-                if stale_s > STALL_THRESHOLD_S:
+                limit_s = tick_stall_limit_s(tf)
+                if not math.isfinite(last_ts):
+                    pr = ProbeResult(
+                        name=pr_name,
+                        passed=False,
+                        value=None,
+                        detail="invalid_tick_timestamp",
+                        consecutive_failures=self._prior_failures(pr_name) + 1,
+                    )
+                    log.error("health_probe.invalid_tick_timestamp", timeframe=tf)
+                    alerts.append(f"tick_stall_{tf}: invalid_tick_timestamp")
+                    self._results[pr_name] = pr
+                    continue
+                # Before the first tick the getter returns 0, which is not a
+                # time anything happened: the wait counts from registration.
+                first = last_ts <= 0
+                since = self._tick_registered_at.get(tf, now) if first else last_ts
+                stale_s = max(0.0, now - since)
+                if first:
+                    failed_detail = f"first_tick_not_seen_for_{stale_s:.0f}s"
+                    ok_detail = "awaiting_first_tick"
+                else:
+                    failed_detail, ok_detail = f"no_tick_for_{stale_s:.0f}s", ""
+                if stale_s > limit_s:
                     pr = ProbeResult(
                         name=pr_name,
                         passed=False,
                         value=round(stale_s, 1),
-                        detail=f"no_tick_for_{stale_s:.0f}s",
-                        consecutive_failures=1,
-                        last_ok_ts=last_ts,
+                        detail=failed_detail,
+                        consecutive_failures=self._prior_failures(pr_name) + 1,
+                        last_ok_ts=since,
                     )
                     log.critical(
                         "health_probe.tick_stall",
                         timeframe=tf,
                         stale_s=round(stale_s, 1),
+                        threshold_s=limit_s,
                         action="check_exchange_connection_and_orchestrator",
                     )
                     alerts.append(f"tick_stall_{tf}: {stale_s:.0f}s")
                 else:
-                    pr = ProbeResult(name=pr_name, passed=True, value=round(stale_s, 1))
+                    pr = ProbeResult(
+                        name=pr_name, passed=True, value=round(stale_s, 1), detail=ok_detail
+                    )
                 self._results[pr_name] = pr
             except Exception as exc:
                 log.warning("health_probe.tick_getter_error", tf=tf, error=str(exc), exc_info=True)
@@ -257,12 +361,8 @@ class RuntimeMonitor:
         else:
             self._results[pr_name] = ProbeResult(name=pr_name, passed=True, value=round(mem_mb, 1))
 
-        # 4. Asyncio task death scan
-        dead = [
-            t.get_name()
-            for t in asyncio.all_tasks()
-            if t.done() and not t.cancelled() and t.get_name() not in ("Task-1",)
-        ]
+        # 4. Asyncio task death scan (tasks registered via watch_task)
+        dead = list(self._dead_tasks)
         if dead:
             log.error("health_probe.dead_tasks_detected", tasks=dead)
             alerts.append(f"dead_tasks: {dead}")
@@ -279,6 +379,19 @@ class RuntimeMonitor:
             alerts=alerts,
         )
 
+        # Every completed cycle, not only the ones that changed something.
+        #
+        # This looks like it should be transition-only, and it is not: the
+        # snapshot is the *entire* answer /debug/health gives, and the panel
+        # that replaces that poll has no other source. Publishing on change
+        # alone leaves an operator unable to distinguish "still ok" from
+        # "the monitor died and the last thing it said was ok" -- which is
+        # precisely the state this module exists to make visible. One frame
+        # per POLL_INTERVAL_S is the cheapest possible liveness proof, and
+        # it replaces a 15s poll that re-read this same object twice per
+        # cycle to get the same bytes.
+        get_event_bus().publish("health", self._snapshot.to_dict())
+
         log.debug(
             "runtime_monitor.cycle_complete",
             overall=overall,
@@ -290,7 +403,7 @@ class RuntimeMonitor:
     def _rss_mb() -> float:
         """Read process RSS from /proc/self/status (Linux). Returns 0.0 on failure."""
         try:
-            with open("/proc/self/status") as f:
+            with open("/proc/self/status", encoding="utf-8") as f:
                 for line in f:
                     if line.startswith("VmRSS:"):
                         return float(line.split()[1]) / 1024.0
@@ -307,11 +420,35 @@ class RuntimeMonitor:
 # Module-level singleton
 # ---------------------------------------------------------------------------
 
-_monitor: RuntimeMonitor | None = None
 
-
+@lru_cache(maxsize=1)
 def get_monitor() -> RuntimeMonitor:
-    global _monitor
-    if _monitor is None:
-        _monitor = RuntimeMonitor()
-    return _monitor
+    """Process-wide RuntimeMonitor.
+
+    lru_cache rather than a module global under `global`: the read and the
+    assignment were two steps, so two callers arriving together could both
+    find it unset and both construct one, with the second silently replacing
+    the first. Same idiom as get_settings() in src/config.py, and it gives
+    tests cache_clear() instead of reaching for the global.
+    """
+    return RuntimeMonitor()
+
+
+def release_freed_memory() -> float | None:
+    """
+    Collect garbage, then hand freed heap pages back to the OS.
+
+    Model training allocates and frees hundreds of MiB of temporaries, and
+    glibc keeps freed pages in its arenas: without this the process holds
+    its training peak for the rest of its life although nothing uses those
+    pages. Returns the MiB released, or None where the C library has no
+    malloc_trim (anything but glibc) -- then only the collection ran.
+    """
+    before = RuntimeMonitor._rss_mb()
+    gc.collect()
+    try:
+        trim = ctypes.CDLL(None).malloc_trim
+    except (OSError, AttributeError):
+        return None
+    trim(0)
+    return round(before - RuntimeMonitor._rss_mb(), 1)
