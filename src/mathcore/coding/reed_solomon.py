@@ -4,7 +4,8 @@ Reed-Solomon erasure coding over GF(2^8).
 Owns the ``reed-solomon`` registry entry.
 
 Reed-Solomon adds ``2t`` parity symbols to a message so that any ``t`` erased
-or corrupted symbols can be recovered. It is what lets a sharded backup survive
+symbols can be recovered (erasures only; corrupted symbols at unknown
+positions are not corrected). It is what lets a sharded backup survive
 lost shards, and the same code underlies QR codes and much of storage. This
 module implements the systematic form over GF(2^8) -- the AES field, so the
 arithmetic is shared with :mod:`src.mathcore.fields.binary_field` rather than
@@ -104,6 +105,10 @@ class ReedSolomon:
         if len(received) != self.n:
             raise ValueError(f"received must have {self.n} symbols, got {len(received)}")
         lost = set(erasures)
+        if any(not 0 <= i < self.n for i in lost):
+            raise ValueError(f"erasure indices must be in [0, {self.n})")
+        if any(not 0 <= v <= 255 for v in received):
+            raise ValueError("received symbols must be bytes in [0, 255]")
         survivors = [i for i in range(self.n) if i not in lost]
         if len(survivors) < self.k:
             raise ValueError(
