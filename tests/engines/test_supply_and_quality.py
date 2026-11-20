@@ -3,6 +3,10 @@ Per-coin supply modelling (E-10) and the data quality gate's reject paths.
 
 E-10's ETH and LTC branches and the gate's malformed-input branches were both
 unreached: the existing suites only drive BTC and well-formed rows.
+
+Decides:
+  - INV-008 — A stale market-data sample cannot be treated as current
+  - DATA-001 — Market data failing the quality gate never reaches the signal engine
 """
 
 from __future__ import annotations
@@ -16,7 +20,6 @@ import pytest
 
 from src.data.quality_gate import DataQualityGate
 from src.engines.e10_supply import E10Supply
-
 
 # ---------------------------------------------------------------------------
 # E-10 supply

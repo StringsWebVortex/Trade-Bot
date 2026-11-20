@@ -1,145 +1,107 @@
+# Regenerated after the config purge (#144). Tool configuration only -- the
+# dependency lists live in requirements*.txt, which CI installs directly.
+
 [project]
 name = "trade-bot"
-version = "0.1.0"
-description = "Async algorithmic trading bot — XGBoost + HMM + FastAPI"
-requires-python = ">=3.11"  # CI and local dev both validated on 3.11 (Debt-003/Debt-008 resolved 2026-07-10)
+version = "1.0.0"
+description = "Async algorithmic crypto trading bot with an intelligence layer"
+requires-python = ">=3.11,<3.12"
+readme = "README.md"
+license = { text = "MIT" }
+dynamic = ["dependencies", "optional-dependencies"]
 
-# ─────────────────────────────────────────────────────────────────────────────
-# RUFF — single source of truth for lint + format (replaces black/flake8/isort)
-# All other formatters are disabled in VSCode settings.json
-# ─────────────────────────────────────────────────────────────────────────────
-[tool.ruff]
-target-version  = "py311"
-line-length     = 100
-indent-width    = 4
-src             = ["src", "tests"]
-# .claude carries skill-vendored tooling (crypto-architect's validate_arch.py),
-# versioned with the skill rather than linted as project source.
-exclude         = [".venv", "frontend", "__pycache__", "dist", ".git", ".project-intel", ".claude"]
+[tool.setuptools.dynamic]
+dependencies = { file = ["requirements.txt"] }
+optional-dependencies.dev = { file = ["requirements-dev.txt"] }
+optional-dependencies.extras = { file = ["requirements-optional.txt"] }
 
-[tool.ruff.lint]
-select = [
-    "E",    "W",    # pycodestyle
-    "F",            # pyflakes
-    "I",            # isort
-    "B",            # flake8-bugbear
-    "C4",           # flake8-comprehensions
-    "UP",           # pyupgrade
-    "RUF",          # ruff-specific rules
-    "SIM",          # flake8-simplify
-    "PIE",          # flake8-pie
-    "TID",          # flake8-tidy-imports
-    "PGH",          # pygrep-hooks
-    "FLY",          # flynt
-    "PERF",         # perflint
-    "ASYNC",        # flake8-async (blocks time.sleep in async, etc.)
-]
-ignore = [
-    "E501",    # line-too-long — formatter handles it
-    "B008",    # function call in default arg
-    "B904",    # raise from inside except
-    "B006",    # mutable default arg
-    "SIM108",  # ternary operator
-    "SIM117",  # nested with
-    "RUF012",  # mutable class attrs (dataclass false-positives)
-    "PERF203", # try-except in loop (our retry logic)
-    "PGH003",  # type: ignore without code (ccxt)
-]
-fixable   = ["ALL"]
-unfixable = []
+[tool.setuptools.packages.find]
+include = ["src*", "kg*", "rag_mongo*", "orchestrator*", "common*", "tools*", "review*"]
 
-[tool.ruff.lint.isort]
-known-first-party    = ["src"]
-force-single-line    = false
-lines-after-imports  = 2
-combine-as-imports   = true
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
 
-[tool.ruff.lint.per-file-ignores]
-"tests/*"          = ["S101", "PLR2004", "ANN"]
-"src/api/main.py"  = ["B008"]
-
-[tool.ruff.format]
-# SINGLE authoritative format config — VSCode defaultFormatter = charliermarsh.ruff
-quote-style               = "double"
-indent-style              = "space"
-skip-magic-trailing-comma = false
-line-ending               = "auto"
-docstring-code-format     = true
-
-# ─────────────────────────────────────────────────────────────────────────────
-# MYPY
-# ─────────────────────────────────────────────────────────────────────────────
-[tool.mypy]
-python_version        = "3.11"
-ignore_missing_imports = true
-no_strict_optional    = false
-warn_return_any       = false
-warn_unused_configs   = true
-warn_redundant_casts  = true
-warn_unused_ignores   = false
-exclude               = ["frontend/", ".venv/", "dist/", "\\.claude/"]
-
-# ─────────────────────────────────────────────────────────────────────────────
-# PYTEST
-# ─────────────────────────────────────────────────────────────────────────────
 [tool.pytest.ini_options]
-asyncio_mode  = "auto"
-testpaths     = ["tests"]
-pythonpath    = ["."]
-python_files  = ["test_*.py"]
-python_classes = ["Test*"]
-python_functions = ["test_*"]
-addopts       = "-v --tb=short -q --cov=src --cov-report=term-missing --cov-fail-under=95"
-faulthandler_timeout = 300
+minversion = "8.0"
+testpaths = ["tests"]
+# Tests import as `from src.<pkg> ...`, so the repo root must be importable.
+pythonpath = ["."]
+asyncio_mode = "auto"
+# Pinned rather than left to default: pytest-asyncio deprecates the unset
+# value, and an implicit fixture loop scope is how a fixture ends up
+# holding a loop a later test has already closed.
+asyncio_default_fixture_loop_scope = "function"
+addopts = "-ra --strict-markers --strict-config --cov --cov-branch --cov-report=term-missing --cov-fail-under=99"
+# REG-1707: an exception raised where nobody can catch it (a transport's
+# __del__ after its event loop closed, say) fails the test that leaked it,
+# instead of printing "Event loop is closed" under a passing run.
 filterwarnings = [
-    "ignore::DeprecationWarning",
-    "ignore::PendingDeprecationWarning",
-    "ignore::FutureWarning",
-    "ignore::UserWarning",
+    "error::DeprecationWarning:src.*",
+    "error::pytest.PytestUnraisableExceptionWarning",
 ]
 
-# ─────────────────────────────────────────────────────────────────────────────
-# COVERAGE
-# ─────────────────────────────────────────────────────────────────────────────
 [tool.coverage.run]
-source   = ["src"]
-omit     = ["*/__init__.py", "*/migrations/*", ".venv/*"]
-branch   = true
+branch = true
+# Every first-party package in the repo -- deliberately not "." so the gate
+# can't be satisfied by leaving a whole package unmeasured. crypto-predictor
+# is excluded to match its existing standalone-sub-project status (see
+# requirements-optional.txt and tool.ruff.extend-exclude).
+source = ["src", "kg", "rag_mongo", "orchestrator", "common", "tools", "review"]
 
 [tool.coverage.report]
-show_missing   = true
-skip_covered   = false
-# Global gate — does NOT protect individual high-blast-radius files.
-# Per-file floors are enforced by scripts/check_coverage_floors.py (GAP-020).
-# Run after pytest: python3 scripts/check_coverage_floors.py
-# Floors: src/execution/ ≥75%, src/engine/ ≥60%, runtime_monitor ≥50%
-fail_under     = 95
-exclude_lines  = [
-    "pragma: no cover",
-    "if TYPE_CHECKING:",
+fail_under = 99
+# Two decimal places, so fail_under is compared against the real number.
+# At the default precision of 0, coverage rounds before the comparison and
+# 98.97% passes a gate that says 99 -- pytest-cov even prints "FAIL Required
+# test coverage of 99% not reached" while exiting 0.
+precision = 2
+show_missing = true
+skip_covered = false
+exclude_also = [
+    "if __name__ == .__main__.:",
     "raise NotImplementedError",
-    "\\.\\.\\.",
+    "pragma: no cover",
 ]
 
-# ─────────────────────────────────────────────────────────────────────────────
-# BANDIT
-# ─────────────────────────────────────────────────────────────────────────────
-[tool.bandit]
-targets   = ["src"]
-severity  = "medium"
-confidence = "medium"
-skips     = ["B101", "B311"]   # assert, random (tests + non-crypto use)
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+extend-exclude = ["frontend", "crypto-predictor"]
 
-# ─────────────────────────────────────────────────────────────────────────────
-# PYRIGHT  (Pylance backend — mirrors Pylance VSCode settings)
-# ─────────────────────────────────────────────────────────────────────────────
-[tool.pyright]
-include                 = ["src", "tests"]
-exclude                 = [".venv", "frontend", "dist"]
-pythonVersion           = "3.11"
-typeCheckingMode        = "basic"
-useLibraryCodeForTypes  = true
-reportMissingImports    = "none"
-reportMissingModuleSource = "none"
-reportUnusedCoroutine   = "error"
-reportPossiblyUnbound   = "warning"
+[tool.ruff.lint]
+# The dedicated cleanup pass the previous comment here asked for: UP, B, SIM
+# and I are now on, with the tree brought up to them. B is the one that earns
+# its place -- B905 caught zip() silently truncating an embedding batch.
+# The two trailing codes are listed individually rather than pulling in their
+# whole families: RUF001-003 flag every non-ASCII character and the comments
+# here use arrows and em-dashes throughout, and PLW is mostly style. RUF059
+# catches an unpacked value nobody reads; PLW1510 catches a subprocess whose
+# failure nobody looks at.
+select = ["E", "F", "W", "ASYNC", "I", "UP", "B", "SIM", "RUF059", "PLW1510"]
+ignore = [
+    "E501",  # line length is the formatter's job, not the linter's
+    # Combining nested `with` statements onto one line makes the long
+    # patch stacks in the tests harder to read, not easier, and the
+    # formatter then wraps them into a shape neither rule wants.
+    "SIM117",
+    # A ternary is not always clearer than the if/else it replaces; the two
+    # sites this flags read better as blocks.
+    "SIM108",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["B011"]
+# FastAPI's whole dependency-injection design is a call in an argument
+# default; B008 is not applicable to a router module.
+"src/api/main.py" = ["B008"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.mypy]
+# scripts/__init__.py (added alongside this config) makes mypy treat all scripts
+# as "scripts.<name>" modules, eliminating the duplicate-module errors that mypy
+# would otherwise raise for scripts/agent_control.py and scripts/ci_diagnostics.py.
+# crypto-predictor/ is a standalone sub-project; exclude it entirely.
+exclude = ["^crypto-predictor/"]

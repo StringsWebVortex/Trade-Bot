@@ -1,11 +1,14 @@
-"""Tests for Part II security hardening modules."""
+"""Tests for Part II security hardening modules.
+
+Decides:
+  - SECR-005 — Signed requests reject tampering and replay
+"""
 
 import pytest
 
 from src.security.constant_time import safe_compare, safe_compare_bytes, safe_compare_tokens
 from src.security.credential_vault import CredentialVault
 from src.security.pq_transport import PQTransportStub
-
 
 # ---------------------------------------------------------------------------
 # Constant-time comparisons
