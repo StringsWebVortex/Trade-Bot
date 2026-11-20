@@ -10,6 +10,9 @@ would silently break -- the cap actually dropping lines, the filter running
 Every test drives real subprocesses (echo/seq/printf/sleep) rather than mocking
 Popen, because the timeout path depends on real process-group behaviour. They
 are all sub-second except the two timeout cases, which use a 1s ceiling.
+
+Decides:
+  - SEC-1023 — Command output is redacted before it is truncated
 """
 
 from __future__ import annotations
@@ -24,6 +27,7 @@ from unittest.mock import patch
 import pytest
 
 from common.command_schema import COMMAND_EXEC_SCHEMA
+from common.shell_exec import __file__ as _shell_exec_file
 from common.shell_exec import _cap, _capture, _filter, _should_retry, run
 
 # ---------------------------------------------------------------------------
@@ -178,6 +182,41 @@ class TestCapture:
         ):
             _capture("sleep 30", "stdout", 1)
 
+    def test_new_session_is_requested_without_preexec_fn(self):
+        """The process group must come from start_new_session, not preexec_fn.
+
+        preexec_fn runs Python between fork and exec. That is not
+        async-signal-safe: if any other thread holds a lock at fork time the
+        child can deadlock before exec, and this module is called from
+        FastAPI handlers and asyncio executors, both threaded. The two
+        timeout tests above prove a killable group still exists; this one
+        pins how it is created, because both spellings pass those tests and
+        only one is safe.
+        """
+        import ast
+        from pathlib import Path as _Path
+
+        module = _Path(_shell_exec_file)
+        tree = ast.parse(module.read_text(), filename=str(module))
+
+        popens = [
+            node
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "Popen"
+        ]
+        assert popens, "no subprocess.Popen call found"
+
+        for call in popens:
+            kwargs = {kw.arg for kw in call.keywords}
+            assert "preexec_fn" not in kwargs, (
+                "preexec_fn is unsafe in a threaded process; use start_new_session=True"
+            )
+            assert "start_new_session" in kwargs, (
+                "the timeout path kills a process group, which needs start_new_session=True"
+            )
+
 
 # ---------------------------------------------------------------------------
 # Filters
@@ -328,7 +367,14 @@ class TestRun:
             "exit_code",
             "filtered_output",
             "truncated",
+            "bytes_truncated",
+            "timed_out",
             "attempt_count",
+            "duration_s",
+            "classification",
+            "redactions_applied",
+            "command_sha256",
+            "started_at",
             "error",
         }
 
@@ -392,6 +438,9 @@ class TestRunRetry:
         result = run(
             {
                 "command": f"test -f {flag} && echo ok || (touch {flag} && exit 1)",
+                # touch mutates the filesystem: schema 1.1.0 refuses a
+                # declaration whose classification is weaker than reality.
+                "classification": "mutating",
                 "output_policy": {"max_lines": 5},
                 "retry_policy": {
                     "max_attempts": 2,
@@ -487,6 +536,9 @@ class TestRunOnEmpty:
         result = run(
             {
                 "command": f"test -f {flag} && echo ok || touch {flag}",
+                # touch mutates the filesystem: schema 1.1.0 refuses a
+                # declaration whose classification is weaker than reality.
+                "classification": "mutating",
                 "output_policy": {"max_lines": 5, "on_empty": "error"},
                 "retry_policy": {
                     "max_attempts": 2,
@@ -526,3 +578,21 @@ class TestRunTimeout:
         )
         assert result["attempt_count"] == 2
         assert "timed out" in result["error"]
+
+
+class TestRedactBeforeCap:
+    def test_pem_key_cut_by_line_cap_is_still_masked(self):
+        """DOC-001: redaction runs before truncation, so a cut key leaks nothing."""
+        script = (
+            "printf '%s\\n' '-----BEGIN RSA PRIVATE KEY-----' KEYBODYAAA KEYBODYBBB "
+            "KEYBODYCCC '-----END RSA PRIVATE KEY-----'"
+        )
+        result = run({"command": script, "output_policy": {"max_lines": 3}})
+        assert "KEYBODY" not in result["filtered_output"]
+        assert result["redactions_applied"] >= 1
+
+    def test_unterminated_pem_key_is_masked_to_end(self):
+        from common.command_schema import redact
+
+        masked, count = redact("x\n-----BEGIN PRIVATE KEY-----\nSECRETBODY\n")
+        assert "SECRETBODY" not in masked and count == 1
