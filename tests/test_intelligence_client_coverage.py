@@ -67,9 +67,18 @@ def test_aggregator_init_kwarg_overrides_settings():
     assert agg.cache_ttl_onchain == 600
 
 
-def test_base_url_property():
+async def test_checked_base_pins_the_configured_url(monkeypatch):
+    from src.security import ssrf
+
+    async def _public(_host: str) -> tuple[str, ...]:
+        return ("93.184.216.34",)
+
+    monkeypatch.setattr(ssrf, "_resolve_async", _public)
     agg = _make_agg()
-    assert "glassnode" in agg._base_url
+    base_url, transport = await agg._checked_base()
+    assert base_url == "https://api.glassnode.com/v1/metrics"
+    assert isinstance(transport, ssrf.PinnedTransport)
+    await transport.aclose()
 
 
 # ---------------------------------------------------------------------------

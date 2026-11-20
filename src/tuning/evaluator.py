@@ -3,9 +3,10 @@ Champion-vs-challenger statistical evaluator for the self-tuning subsystem.
 
 Design: docs/SELF_TUNING_DESIGN.md §4 ("Evaluation method").
 
-Uses paired t-tests for continuous metrics evaluated on the same folds,
-and a two-proportion z-test for rate metrics. Pairing removes shared
-market/fold variance instead of treating matched observations as independent.
+Uses the same statistical family already trusted in
+src/risk/performance_drift.py (t-tests for continuous metrics,
+two-proportion z-test for rate metrics) so there is one audited
+significance-testing approach in the codebase, not two competing ones.
 
 This module does not run backtests itself -- it takes pre-computed metric
 samples (per-fold or per-trade values) for champion and challenger and
@@ -22,7 +23,6 @@ import statistics
 from dataclasses import dataclass
 from typing import Final
 
-import numpy as np
 from scipy import stats as scipy_stats
 from scipy.stats import norm, ttest_rel
 
@@ -159,8 +159,19 @@ def deflated_sharpe_ratio(returns: list[float], n_trials: int, benchmark_sr: flo
 
 class ChallengerEvaluator:
     """
-    Compares champion vs. challenger metric samples with a one-sided paired
-    t-test. Both arms must contain the same chronological folds.
+    Compares champion vs. challenger metric samples with a one-sided t-test.
+
+    Every harness builds both arms in the same fold loop, so sample i of the
+    champion and sample i of the challenger come from the same fold. Equal
+    lengths are therefore tested with the paired t-test on the per-fold
+    differences, which removes the fold-to-fold variance both arms share.
+    Unequal sample counts are rejected: only fold-aligned observations
+    can be compared (REG-1711).
+
+    The test is one-sided in the direction of the observed delta:
+    ``alternative="greater"`` decides an improvement and ``alternative="less"``
+    a regression, each at ``_SIGNIFICANCE_ALPHA``. ``p_value`` is the p of the
+    side that was tested.
     """
 
     def compare_metric(
@@ -186,23 +197,14 @@ class ChallengerEvaluator:
         challenger_mean = statistics.mean(challenger_samples)
         delta = challenger_mean - champion_mean
 
-        # Same folds are evaluated under both parameter values. Pairing removes
-        # fold-to-fold market variance and tests the per-fold delta directly.
-        differences = np.asarray(challenger_samples, dtype=float) - np.asarray(
-            champion_samples, dtype=float
-        )
-        if float(np.std(differences, ddof=1)) < 1e-15:
-            # A constant paired delta has no empirical variance estimate.
-            # Treat it as insufficient evidence rather than infinite t.
-            p_value_one_tailed = 1.0
-        else:
-            alternative = "greater" if delta > 0 else "less"
-            test = ttest_rel(challenger_samples, champion_samples, alternative=alternative)
-            p_value_one_tailed = float(test.pvalue)
-            if math.isnan(p_value_one_tailed):
-                p_value_one_tailed = 1.0
+        alternative = "greater" if delta > 0 else "less"
+        result = ttest_rel(challenger_samples, champion_samples, alternative=alternative)
+        p_value = float(result.pvalue)
+        if math.isnan(p_value):
+            # 0/0 from identical arms, or NaN samples: no evidence either way.
+            p_value = 1.0
 
-        significant = p_value_one_tailed < _SIGNIFICANCE_ALPHA
+        significant = p_value < _SIGNIFICANCE_ALPHA
         significant_improvement = significant and delta > 0
         significant_regression = significant and delta < 0
 
@@ -211,7 +213,7 @@ class ChallengerEvaluator:
             champion_mean=champion_mean,
             challenger_mean=challenger_mean,
             delta=delta,
-            p_value=p_value_one_tailed,
+            p_value=p_value,
             significant_improvement=significant_improvement,
             significant_regression=significant_regression,
             challenger_samples=tuple(float(x) for x in challenger_samples),

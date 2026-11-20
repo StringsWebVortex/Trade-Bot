@@ -36,7 +36,7 @@ TESTS = PROJECT_ROOT / "tests"
 # Frozen 2026-11-11. These may be lowered, never raised. Raising one is the
 # specific thing this file exists to prevent, so a diff that does it has to
 # argue for it in the commit message rather than nudging a number.
-SLEEP_BUDGET = 26
+SLEEP_BUDGET = 20
 SUBPROCESS_BUDGET = 13
 
 # `sleep(0)` is a scheduler yield and costs nothing. A sleep of a minute or

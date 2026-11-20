@@ -48,6 +48,7 @@ import structlog
 
 from src.intelligence.providers.base import (
     ExchangeIntelligenceProvider,
+    exchange_stress_score,
     tickers_are_synchronous,
 )
 
@@ -59,10 +60,6 @@ _FR_HISTORY_PERIODS: Final[int] = 90  # 30 days of 8h periods
 _OI_HISTORY_HOURS: Final[int] = 25  # 25 → delta between [0] and [-1]
 # Kline window for taker-flow whale ratio
 _KLINE_LIMIT: Final[int] = 48  # 48 x 15m = 12h window
-# Stress score weights (must sum to 1.0)
-_W_BASIS: Final[float] = 0.35
-_W_FR_Z: Final[float] = 0.40
-_W_OI: Final[float] = 0.25
 # Confidence penalty per missing paid-source field
 _CONFIDENCE_PENALTY: Final[float] = 0.05
 _MISSING_PAID_FIELDS: Final[int] = 8  # fields that need Glassnode/CQ
@@ -474,34 +471,8 @@ class BinanceIntelligenceProvider(ExchangeIntelligenceProvider):
     # Stress score composite
     # ------------------------------------------------------------------
 
-    @staticmethod
-    def _compute_stress_score(
-        basis_bps: float,
-        funding_zscore: float,
-        oi_change_pct: float,
-    ) -> float:
-        """
-        Exchange stress composite [0, 1].
-
-        Components:
-          basis_bps     : extreme positive or negative basis signals fragmentation
-          funding_zscore: high z-score = elevated leverage = stress
-          oi_change_pct : rapid OI drop = forced deleveraging = stress
-
-        All components normalised to [0, 1] before weighting.
-        Higher = more stress.
-        """
-        # Basis: stress from extreme basis in either direction (>50 bps = stressed)
-        basis_stress = min(abs(basis_bps) / 100.0, 1.0)
-
-        # Funding: high z-score → over-leveraged → stress
-        funding_stress = min(abs(funding_zscore) / 3.0, 1.0)
-
-        # OI drop: rapid deleveraging (negative OI change) = forced liquidations
-        oi_stress = min(max(-oi_change_pct, 0.0) / 5.0, 1.0)
-
-        score = _W_BASIS * basis_stress + _W_FR_Z * funding_stress + _W_OI * oi_stress
-        return round(min(max(score, 0.0), 1.0), 4)
+    # Shared formula (base.exchange_stress_score); kept as a class attribute for callers.
+    _compute_stress_score = staticmethod(exchange_stress_score)
 
 
 # ---------------------------------------------------------------------------
