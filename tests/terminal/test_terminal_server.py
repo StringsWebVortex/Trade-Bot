@@ -352,7 +352,7 @@ class TestLifecycle:
 
     async def test_a_second_daemon_is_refused(self, daemon):
         with pytest.raises(DaemonError, match="already running"):
-            await run_daemon(daemon.config, install_signals=False, stop=asyncio.Event())
+            await run_daemon(daemon.config, allow_root=True, install_signals=False, stop=asyncio.Event())
 
     async def test_root_is_refused_unless_allowed(self, config, monkeypatch):
         monkeypatch.setattr(os, "geteuid", lambda: 0)
