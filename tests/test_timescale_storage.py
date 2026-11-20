@@ -4,6 +4,8 @@ container (scripts/timescaledb.sh). A throwaway database is created per test
 session and dropped at teardown; tables are truncated between tests.
 
 Skips the whole module if the container is not reachable.
+
+Decides: RES-014
 """
 
 import asyncio
@@ -28,17 +30,27 @@ from src.data.timescale_storage import (
     open_timescale_storage,
 )
 
-ADMIN_DSN = os.environ.get(
-    "STORAGE_TIMESCALE_DSN",
-    "postgresql://tradebot:tradebot-local@127.0.0.1:5433/tradebot",  # pragma: allowlist secret
+_DSN_FROM_ENV = os.environ.get("STORAGE_TIMESCALE_DSN")
+ADMIN_DSN = (
+    _DSN_FROM_ENV
+    or "postgresql://tradebot:tradebot-local@127.0.0.1:5433/tradebot"  # pragma: allowlist secret
 )
 
 _ALL_TABLES = (
     "bars, trades, regime_snapshots, model_metrics, "
-    "equity_curve, audit_log, intelligence_features_history, missed_trades"
+    "equity_curve, audit_log, intelligence_features_history, missed_trades, "
+    "runtime_desired_state"
 )
 
 _SKIP_MSG = "TimescaleDB container not running — bash scripts/timescaledb.sh up"
+
+# Skipping on any connection error is right on a laptop with no container, and
+# wrong anywhere a TimescaleDB was deliberately provisioned: there the whole
+# suite would evaporate into 92 skips and the storage backend would report green
+# by absence. STORAGE_TIMESCALE_DSN being set is that deliberate provisioning
+# -- CI sets it alongside the service container -- so there an unreachable
+# database is a failure, not a skip.
+_DSN_IS_EXPLICIT = bool(_DSN_FROM_ENV)
 
 
 # ---------------------------------------------------------------------------
@@ -60,7 +72,12 @@ def test_dsn():
 
     try:
         asyncio.run(_admin_execute(f'CREATE DATABASE "{db_name}"'))
-    except (OSError, ConnectionError, asyncpg.PostgresError):
+    except (OSError, ConnectionError, asyncpg.PostgresError) as exc:
+        if _DSN_IS_EXPLICIT:
+            raise RuntimeError(
+                f"STORAGE_TIMESCALE_DSN is set to {ADMIN_DSN!r} but the database "
+                f"is unreachable, so this suite cannot be skipped away: {exc}"
+            ) from exc
         pytest.skip(_SKIP_MSG)
 
     yield ADMIN_DSN.rsplit("/", 1)[0] + "/" + db_name
@@ -228,11 +245,15 @@ class TestInitializeAndClose:
         b = TimescaleBackend(dsn="postgresql://unused@localhost/unused")
         await b.close()  # should not raise
 
+        assert b._pool is None
+
     async def test_close_is_idempotent(self, test_dsn):
         b = TimescaleBackend(dsn=test_dsn)
         await b.initialize()
         await b.close()
         await b.close()  # second close — no-op
+
+        assert b._pool is None
 
     async def test_open_timescale_storage_initializes_and_closes(self, test_dsn):
         async with open_timescale_storage(dsn=test_dsn) as storage:
@@ -446,6 +467,37 @@ class TestTrades:
         rows = await backend.fetch_trades()
         assert rows[0].exit_price == 110.0
         assert rows[0].pnl_usd == 10.0
+
+    async def test_partial_exits_accumulate_pnl_and_fees_before_final_close(self, backend):
+        await backend.insert_trade(make_trade(trade_id="t1"))
+        await backend.record_trade_partial_exit(
+            trade_id="t1", exit_price=105.0, pnl_usd=2.0, fee_usd=0.03
+        )
+        await backend.record_trade_partial_exit(
+            trade_id="t1", exit_price=108.0, pnl_usd=3.0, fee_usd=0.02
+        )
+
+        open_rows = await backend.fetch_trades(open_only=True)
+        assert len(open_rows) == 1
+        assert open_rows[0].exit_ts is None
+        assert open_rows[0].pnl_usd == pytest.approx(5.0)
+        assert open_rows[0].pnl_pct == pytest.approx(0.05)
+        assert open_rows[0].fee_usd == pytest.approx(0.15)
+
+        await backend.update_trade_exit(
+            trade_id="t1",
+            exit_price=110.0,
+            exit_ts=3000,
+            pnl_usd=4.0,
+            pnl_pct=0.04,
+            exit_reason="tp",
+            fee_usd=0.05,
+        )
+        rows = await backend.fetch_trades()
+        assert rows[0].exit_ts == 3000
+        assert rows[0].pnl_usd == pytest.approx(9.0)
+        assert rows[0].pnl_pct == pytest.approx(0.09)
+        assert rows[0].fee_usd == pytest.approx(0.2)
 
     async def test_update_trade_exit_accumulates_fee(self, backend):
         trade = make_trade(trade_id="t1")
@@ -786,6 +838,10 @@ class TestValidateSymbol:
         await backend.upsert_bars([make_bar(symbol="BTC/USDT")])
         await backend.validate_symbol("BTC/USDT")  # should not raise
 
+        # The check reads stored bars: a well-formed symbol with none is refused.
+        with pytest.raises(ValueError, match="Unknown symbol"):
+            await backend.validate_symbol("ETH/USDT")
+
     async def test_invalid_format_raises(self, backend):
         with pytest.raises(ValueError, match="Invalid symbol format"):
             await backend.validate_symbol("not-a-symbol")
@@ -827,6 +883,26 @@ class TestAuditLog:
         await backend.insert_audit_event(event_type="startup", operator="system", details=None)
         health = await backend.health_check()
         assert health["audit_log"] == 1
+
+
+# ---------------------------------------------------------------------------
+# Runtime desired state (migration v9, GOV-071)
+# ---------------------------------------------------------------------------
+
+
+class TestRuntimeDesiredState:
+    async def test_upsert_overwrite_and_clear_round_trip(self, backend):
+        first = {"target_state": "ACTIVE", "requested_by": "op"}
+        await backend.upsert_runtime_desired_state("worker:w", first, 1)
+        await backend.upsert_runtime_desired_state("model:m", {"target_state": "STOPPED"}, 2)
+        newer = {"target_state": "DRAINED", "requested_by": "op"}
+        await backend.upsert_runtime_desired_state("worker:w", newer, 3)
+        assert await backend.fetch_runtime_desired_states() == {
+            "model:m": {"target_state": "STOPPED"},
+            "worker:w": newer,
+        }
+        await backend.upsert_runtime_desired_state("worker:w", None, 4)
+        assert list(await backend.fetch_runtime_desired_states()) == ["model:m"]
 
 
 # ---------------------------------------------------------------------------

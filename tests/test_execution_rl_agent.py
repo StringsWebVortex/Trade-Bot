@@ -11,6 +11,7 @@ import sys
 from unittest.mock import MagicMock, patch
 
 import numpy as np
+import pytest
 
 from src.execution.rl_agent import (
     _N_ACTIONS,
@@ -114,7 +115,7 @@ def test_predict_rule_based_long_on_high_confidence():
 def test_predict_rule_based_short_on_low_confidence():
     with patch.dict(sys.modules, {"stable_baselines3": None}):
         agent = RLExecutionAgent()
-    action, prob = agent.predict([0.2] * 10)
+    action, _prob = agent.predict([0.2] * 10)
     assert action == 2
 
 
@@ -146,7 +147,53 @@ def test_predict_uses_loaded_model_when_available(tmp_path):
         action, prob = agent.predict([0.9] * 10)
 
     assert action == 2
+    # 0.9 is the mean of the confidences passed in, not a constant: see
+    # test_model_confidence_tracks_the_inputs below, which is the case that
+    # tells the two apart.
     assert prob == 0.9
+
+
+def test_model_confidence_tracks_the_inputs(tmp_path):
+    """The model path must not report a confidence it does not have.
+
+    It used to return a hardcoded 0.9 whenever an SB3 model was loaded. The
+    existing test above could not see that, because it passes [0.9] * 10 and
+    the mean of those is also 0.9. This one passes low confidences, where the
+    constant and the real value differ.
+
+    SB3's predict() returns (action, state) and never a probability, so the
+    honest answer is the quality of the inputs the state was built from --
+    the same measure the rule-based fallback already reports.
+    """
+    model_file = tmp_path / "ppo_execution.zip"
+    model_file.write_bytes(b"x")
+    fake_model = MagicMock()
+    fake_model.predict.return_value = (1, None)
+    fake_sb3 = MagicMock()
+    fake_sb3.PPO.load.return_value = fake_model
+
+    with patch.dict(sys.modules, {"stable_baselines3": fake_sb3}):
+        agent = RLExecutionAgent(model_path=tmp_path)
+        action, prob = agent.predict([0.3] * 10)
+
+    assert action == 1
+    assert prob == pytest.approx(0.3)
+
+
+def test_model_confidence_defaults_when_no_inputs(tmp_path):
+    """No horizon confidences means no basis for a number above the neutral 0.5."""
+    model_file = tmp_path / "ppo_execution.zip"
+    model_file.write_bytes(b"x")
+    fake_model = MagicMock()
+    fake_model.predict.return_value = (0, None)
+    fake_sb3 = MagicMock()
+    fake_sb3.PPO.load.return_value = fake_model
+
+    with patch.dict(sys.modules, {"stable_baselines3": fake_sb3}):
+        agent = RLExecutionAgent(model_path=tmp_path)
+        _action, prob = agent.predict([])
+
+    assert prob == pytest.approx(0.5)
 
 
 def test_train_skips_when_sb3_unavailable():
@@ -212,7 +259,7 @@ def test_execution_env_reset_with_no_episodes_does_not_divide_by_zero():
 def test_execution_env_step_returns_reward_and_terminates_after_50():
     with patch.dict(sys.modules, {"gymnasium": None}):
         env = _ExecutionEnv([{"realized_return": 0.10}])
-    obs, reward, done, truncated, info = env.step(1)
+    _obs, reward, done, truncated, _info = env.step(1)
     assert done is False
     assert truncated is False
     assert reward > 0  # long on a positive return, net of fee+impact
