@@ -24,7 +24,6 @@ import sys
 from pathlib import Path
 
 import pytest
-from required_import import require
 
 from src.quality.registry import (
     OVERLAY_DIR,
@@ -33,6 +32,7 @@ from src.quality.registry import (
     load_registry,
     read_registry_document,
 )
+from tests.required_import import require
 
 REPO = Path(__file__).resolve().parents[2]
 SCRIPTS = REPO / ".claude" / "skills" / "quality-engineering" / "scripts"
