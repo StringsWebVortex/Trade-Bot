@@ -12,11 +12,15 @@ Topics (all prefixed with `crypto.`):
   crypto.ecc                         — ECC pipeline output
 
 REDPANDA_BROKERS env var controls broker address (default localhost:9092).
+
+Usage note: RedpandaConsumer must be entered with ``async with`` before it is
+iterated; iterating a consumer that was never started ends silently after a
+short sleep. ``publish_ohlcv`` stamps ``ts`` with wall-clock publish time, not
+the bar time; the bar's own fields follow it.
 """
 
 from __future__ import annotations
 
-import asyncio
 import json
 import os
 import time
@@ -86,6 +90,10 @@ class RedpandaFeeds:
             "timeframe": timeframe,
             **bar,
         }
+        # Wall-clock publish time under its own key: ``**bar`` may legitimately
+        # override ``ts`` with the bar time, so consumers needing publish time
+        # must not read ``ts`` (DAT-020).
+        payload["published_ts"] = int(time.time() * 1000)
         await self._send(topic, payload)
 
     async def publish_orderbook(self, symbol: str, orderbook: dict) -> None:
@@ -154,7 +162,9 @@ class RedpandaConsumer:
 
     async def __anext__(self) -> dict:
         if self._consumer is None:
-            await asyncio.sleep(1)
-            raise StopAsyncIteration
+            raise RuntimeError(
+                "RedpandaConsumer was iterated before 'async with' started it, "
+                "or aiokafka is unavailable; enter it with 'async with' first"
+            )
         msg = await self._consumer.getone()
         return msg.value  # type: ignore[no-any-return]

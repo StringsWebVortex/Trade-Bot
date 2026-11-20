@@ -22,8 +22,10 @@ log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 _ENGINE_ID = "E-09"
 _SLA_SECONDS = 10
 _MODEL_PATH = Path("models/e09_xgb_meta.pkl")
-# E-09 excluded from its own feature set to avoid circular dependency
-_FEATURE_ENGINE_IDS = [f"E-{i:02d}" for i in range(1, 19) if i != 9]
+# E-01..E-08 only: the walk-forward retrain (engine_backtest) can only build
+# these, so slots for E-10..E-18 were always 0 in training but populated live
+# (train/serve skew, STR-08). E-09 is excluded from its own feature set.
+_FEATURE_ENGINE_IDS = [f"E-{i:02d}" for i in range(1, 9)]
 
 
 class E09MlMeta:
