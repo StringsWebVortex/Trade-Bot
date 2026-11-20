@@ -187,9 +187,44 @@ ALTER TABLE regime_snapshots ADD COLUMN agreement_score REAL NOT NULL DEFAULT 1.
         "ALTER TABLE trades ADD COLUMN pre_blend_p_long REAL;\n"
         "ALTER TABLE trades ADD COLUMN ensemble_p_long REAL;",
     ),
+    # v9 -- runtime platform (src/runtime/persistence.py): the desired state of
+    # each runtime component, so an operator's intent survives a restart and
+    # the reconciler compares it with what actually runs. One row per
+    # component; no row means nothing is desired. Change audit reuses
+    # audit_log rather than a second audit table.
+    (
+        9,
+        "add runtime_desired_state for the runtime platform's reconciler",
+        """CREATE TABLE IF NOT EXISTS runtime_desired_state (
+    component_id  TEXT    PRIMARY KEY,
+    desired       TEXT    NOT NULL,
+    updated_ms    INTEGER NOT NULL
+);""",
+    ),
+    (
+        10,
+        "persist V6 unified intelligence decisions with round-trip fields",
+        """ALTER TABLE intelligence_features_history ADD COLUMN direction_v6 INTEGER;
+ALTER TABLE intelligence_features_history ADD COLUMN size_pct_v6 REAL;
+ALTER TABLE intelligence_features_history ADD COLUMN confidence_v6 REAL;
+ALTER TABLE intelligence_features_history ADD COLUMN horizon_idx_v6 INTEGER;
+ALTER TABLE intelligence_features_history ADD COLUMN ecc_anomaly_v6 REAL;
+ALTER TABLE intelligence_features_history ADD COLUMN conflict_v6 INTEGER;
+ALTER TABLE intelligence_features_history ADD COLUMN regime_id_v6 INTEGER;
+ALTER TABLE intelligence_features_history ADD COLUMN agreement_ratio_v6 REAL;
+ALTER TABLE intelligence_features_history ADD COLUMN kyle_lambda_v6 REAL;
+ALTER TABLE intelligence_features_history ADD COLUMN ofi_v6 REAL;
+ALTER TABLE intelligence_features_history ADD COLUMN vpin_v6 REAL;
+ALTER TABLE intelligence_features_history ADD COLUMN expected_return_v6 REAL;
+ALTER TABLE intelligence_features_history ADD COLUMN uncertainty_v6 REAL;
+ALTER TABLE intelligence_features_history ADD COLUMN algo_v6 TEXT;
+ALTER TABLE intelligence_features_history ADD COLUMN horizon_contributions_v6 TEXT;
+ALTER TABLE intelligence_features_history ADD COLUMN model_versions_v6 TEXT;
+ALTER TABLE intelligence_features_history ADD COLUMN freshness_seconds_v6 TEXT;""",
+    ),
 ]
 
-_SCHEMA_VERSION: Final[int] = len(_MIGRATIONS)  # = 8
+_SCHEMA_VERSION: Final[int] = len(_MIGRATIONS)  # = 10
 
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
@@ -201,12 +236,11 @@ log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 _DDL: Final[str] = """
 PRAGMA journal_mode=WAL;
 PRAGMA foreign_keys=ON;
--- Gap-006: synchronous=NORMAL is safe with WAL (data durability is preserved;
--- only the WAL header may be lost on OS crash, not committed data). FULL
--- adds an extra fsync per commit; NORMAL gives 2-4x write throughput benefit
--- with no practical durability loss on modern kernels with battery-backed SSD.
+-- DAT-021: FULL is the connection default so durability of financial writes
+-- does not depend on whether a bulk write ran earlier. _bulk_write_ctx lowers
+-- to NORMAL only for non-financial bulk writes and restores FULL afterwards.
 -- Ref: https://www.sqlite.org/pragma.html#pragma_synchronous
-PRAGMA synchronous=NORMAL;
+PRAGMA synchronous=FULL;
 PRAGMA busy_timeout=5000;
 -- Gap-006: 64MB page cache (~8192 pages x 8KB). Reduces read I/O for
 -- the bars + trades tables during signal generation ticks.
@@ -671,6 +705,66 @@ class EquityRecord:
 # ---------------------------------------------------------------------------
 
 
+# Single definition of the keys store_intelligence_features accepts, shared with
+# the Timescale backend so the two cannot drift (DAT-007).
+INTELLIGENCE_FEATURE_KEYS: Final[frozenset[str]] = frozenset(
+    {
+        "intelligence_exchange_netflow_7d_zscore",
+        "intelligence_whale_buy_sell_ratio",
+        "intelligence_exchange_reserve_ratio",
+        "intelligence_miner_netflow_signal",
+        "intelligence_staking_unlock_risk",
+        "intelligence_entity_exchange_imbalance",
+        "intelligence_binance_funding_rate_pct",
+        "intelligence_liquidation_pressure_24h_zscore",
+        "intelligence_futures_oi_change_pct",
+        "intelligence_liquidation_cascade_risk_usd",
+        "intelligence_btc_dominance_regime",
+        "intelligence_stablecoin_reserve_ratio",
+        "intelligence_network_activity_score",
+        "intelligence_exchange_stress_score",
+        "intelligence_cross_exchange_basis_spread_bps",
+        "intelligence_defi_tvl_7d_change_pct",
+        "intelligence_mvrv_z_score",
+        "intelligence_sopr",
+        "direction_v6",
+        "size_pct_v6",
+        "confidence_v6",
+        "horizon_idx_v6",
+        "ecc_anomaly_v6",
+        "conflict_v6",
+        "regime_id_v6",
+        "agreement_ratio_v6",
+        "kyle_lambda_v6",
+        "ofi_v6",
+        "vpin_v6",
+        "expected_return_v6",
+        "uncertainty_v6",
+        "algo_v6",
+        "horizon_contributions_v6",
+        "model_versions_v6",
+        "freshness_seconds_v6",
+    }
+)
+# V6 columns whose values are stored as text (the rest are numeric).
+INTELLIGENCE_V6_TEXT_KEYS: Final[tuple[str, ...]] = (
+    "algo_v6",
+    "horizon_contributions_v6",
+    "model_versions_v6",
+    "freshness_seconds_v6",
+)
+# V6 numeric columns declared INTEGER in Postgres (SQLite is dynamically typed).
+INTELLIGENCE_V6_INT_KEYS: Final[tuple[str, ...]] = (
+    "direction_v6",
+    "horizon_idx_v6",
+    "conflict_v6",
+    "regime_id_v6",
+)
+INTELLIGENCE_V6_KEYS: Final[tuple[str, ...]] = tuple(
+    sorted(k for k in INTELLIGENCE_FEATURE_KEYS if k.endswith("_v6"))
+)
+
+
 class StorageBackend:
     """
     Async SQLite storage backend.
@@ -765,13 +859,19 @@ class StorageBackend:
                 version=version,
                 description=description,
             )
-            if sql.strip():
-                await conn.executescript(sql)
-            # Bump user_version inside the same transaction context.
-            # user_version PRAGMA cannot be set inside executescript (it's DDL-level),
-            # so we use a raw execute. aiosqlite auto-commits between executescript calls.
-            await conn.execute(f"PRAGMA user_version = {version}")
-            await conn.commit()
+            # One transaction per migration, version bump included (DAT-021).
+            # executescript runs its script in autocommit mode, so without the
+            # explicit BEGIN a statement failing midway left the earlier ones
+            # applied and user_version unbumped: every retry then failed on
+            # "duplicate column". user_version is an ordinary transactional
+            # header write, so it commits or rolls back with the schema change.
+            try:
+                await conn.executescript(
+                    f"BEGIN IMMEDIATE;\n{sql}\nPRAGMA user_version = {version};\nCOMMIT;"
+                )
+            except BaseException:
+                await conn.rollback()
+                raise
 
         self._log.info(
             "storage.migration.complete",
@@ -948,7 +1048,7 @@ class StorageBackend:
             symbol:     Asset symbol, e.g. "BTCUSDT".
             timeframe:  Timeframe string, e.g. "1h".
             bar_ts:     Bar timestamp, Unix ms (matches bars.ts).
-            features:   Dict keyed by the 18 intelligence column names.
+            features:   Dict keyed by supported intelligence_* and V6 columns.
                         Missing keys are stored as NULL (acceptable — coverage
                         check in trainer will flag low-coverage columns).
             confidence: Provider confidence score [0.0, 1.0].
@@ -956,6 +1056,12 @@ class StorageBackend:
         """
         from datetime import UTC
         from datetime import datetime as _dt
+
+        unsupported = set(features) - INTELLIGENCE_FEATURE_KEYS
+        if unsupported:
+            raise ValueError(
+                "unsupported intelligence feature columns: " + ", ".join(sorted(unsupported))
+            )
 
         conn = self._require_conn()
         fetched_at = int(_dt.now(UTC).timestamp() * 1000)
@@ -983,9 +1089,18 @@ class StorageBackend:
                     network_activity_score, exchange_stress_score,
                     cross_exchange_basis_spread_bps,
                     defi_tvl_7d_change_pct, mvrv_z_score, sopr,
-                    confidence, source
+                    confidence, source,
+                    direction_v6, size_pct_v6, confidence_v6, horizon_idx_v6,
+                    ecc_anomaly_v6, conflict_v6, regime_id_v6, agreement_ratio_v6,
+                    kyle_lambda_v6, ofi_v6, vpin_v6, expected_return_v6,
+                    uncertainty_v6, algo_v6, horizon_contributions_v6,
+                    model_versions_v6, freshness_seconds_v6
                 ) VALUES (
-                    ?,?,?,?,  ?,?,?,?,?,?,  ?,?,?,?,  ?,?,?,?,?,  ?,?,?,  ?,?
+                    ?,?,?,?,?,?,?,?,?,?,
+                    ?,?,?,?,?,?,?,?,?,?,
+                    ?,?,?,?,?,?,?,?,?,?,
+                    ?,?,?,?,?,?,?,?,?,?,
+                    ?
                 )
                 """,
                 (
@@ -1013,6 +1128,23 @@ class StorageBackend:
                     _f("intelligence_sopr"),
                     float(confidence),
                     source,
+                    _f("direction_v6"),
+                    _f("size_pct_v6"),
+                    _f("confidence_v6"),
+                    _f("horizon_idx_v6"),
+                    _f("ecc_anomaly_v6"),
+                    _f("conflict_v6"),
+                    _f("regime_id_v6"),
+                    _f("agreement_ratio_v6"),
+                    _f("kyle_lambda_v6"),
+                    _f("ofi_v6"),
+                    _f("vpin_v6"),
+                    _f("expected_return_v6"),
+                    _f("uncertainty_v6"),
+                    features.get("algo_v6"),
+                    features.get("horizon_contributions_v6"),
+                    features.get("model_versions_v6"),
+                    features.get("freshness_seconds_v6"),
                 ),
             )
             await conn.commit()
@@ -1051,7 +1183,12 @@ class StorageBackend:
                    network_activity_score,          exchange_stress_score,
                    cross_exchange_basis_spread_bps,
                    defi_tvl_7d_change_pct,          mvrv_z_score,  sopr,
-                   confidence
+                   confidence,
+                   direction_v6, size_pct_v6, confidence_v6, horizon_idx_v6,
+                   ecc_anomaly_v6, conflict_v6, regime_id_v6, agreement_ratio_v6,
+                   kyle_lambda_v6, ofi_v6, vpin_v6, expected_return_v6,
+                   uncertainty_v6, algo_v6, horizon_contributions_v6,
+                   model_versions_v6, freshness_seconds_v6
             FROM intelligence_features_history
             WHERE symbol=? AND timeframe=? AND bar_ts>=?
             ORDER BY bar_ts ASC
@@ -1085,6 +1222,28 @@ class StorageBackend:
             "mvrv_z_score": "intelligence_mvrv_z_score",
             "sopr": "intelligence_sopr",
             "confidence": "intelligence_confidence",
+            **{
+                name: name
+                for name in (
+                    "direction_v6",
+                    "size_pct_v6",
+                    "confidence_v6",
+                    "horizon_idx_v6",
+                    "ecc_anomaly_v6",
+                    "conflict_v6",
+                    "regime_id_v6",
+                    "agreement_ratio_v6",
+                    "kyle_lambda_v6",
+                    "ofi_v6",
+                    "vpin_v6",
+                    "expected_return_v6",
+                    "uncertainty_v6",
+                    "algo_v6",
+                    "horizon_contributions_v6",
+                    "model_versions_v6",
+                    "freshness_seconds_v6",
+                )
+            },
         }
 
         df = (
@@ -1289,6 +1448,34 @@ class StorageBackend:
             direction=trade.direction,
         )
 
+    async def record_trade_partial_exit(
+        self,
+        trade_id: str,
+        exit_price: float,
+        pnl_usd: float,
+        fee_usd: float,
+    ) -> None:
+        """Persist realised PnL/fees while leaving the trade open."""
+        conn = self._require_conn()
+        async with self._write_ctx():
+            cursor = await conn.execute(
+                """
+                UPDATE trades
+                SET exit_price=?,
+                    pnl_usd=COALESCE(pnl_usd, 0.0)+?,
+                    pnl_pct=(COALESCE(pnl_usd, 0.0)+?)/notional_usd,
+                    fee_usd=fee_usd+?
+                WHERE id=? AND exit_ts IS NULL
+                """,
+                (exit_price, pnl_usd, pnl_usd, fee_usd, trade_id),
+            )
+            await conn.commit()
+        if cursor.rowcount == 0:
+            raise ValueError(
+                f"No open trade found with id={trade_id!r} (already closed or id not found)"
+            )
+        self._log.info("trade.partial_exit_recorded", trade_id=trade_id, pnl_usd=pnl_usd)
+
     async def update_trade_exit(
         self,
         trade_id: str,
@@ -1299,21 +1486,19 @@ class StorageBackend:
         exit_reason: str,
         fee_usd: float,
     ) -> None:
-        """Patch exit fields on an existing trade row."""
+        """Persist the final fill, accumulating any earlier partial fills."""
         conn = self._require_conn()
         async with self._write_ctx():
             cursor = await conn.execute(
                 """
                 UPDATE trades
-                SET exit_price=?, exit_ts=?, pnl_usd=?, pnl_pct=?,
+                SET exit_price=?, exit_ts=?,
+                    pnl_usd=COALESCE(pnl_usd, 0.0)+?,
+                    pnl_pct=(COALESCE(pnl_usd, 0.0)+?)/notional_usd,
                     exit_reason=?, fee_usd=fee_usd+?
                 WHERE id=? AND exit_ts IS NULL
                 """,
-                # SCAN2-002: fee_usd+? intentionally accumulates entry_fee (stored at
-                # insert_trade) + exit_fee_usd (passed here). The parameter is named
-                # exit_fee_usd at the call site to prevent misreading as total fee.
-                # AND exit_ts IS NULL prevents double-exit writes on the same trade.
-                (exit_price, exit_ts, pnl_usd, pnl_pct, exit_reason, fee_usd, trade_id),
+                (exit_price, exit_ts, pnl_usd, pnl_usd, exit_reason, fee_usd, trade_id),
             )
             await conn.commit()
         if cursor.rowcount == 0:
@@ -1343,7 +1528,7 @@ class StorageBackend:
         exist (never blocks the trade path over an audit-trail write).
         """
         conn = self._require_conn()
-        async with self._get_lock():
+        async with self._write_ctx():
             await conn.execute(
                 "UPDATE trades SET ensemble_point_estimate=?, ensemble_blend_weight=? WHERE id=?",
                 (ensemble_point_estimate, ensemble_blend_weight, trade_id),
@@ -1947,6 +2132,41 @@ class StorageBackend:
             operator=operator,
             details=details or {},
         )
+
+    # ------------------------------------------------------------------
+    # Runtime desired state (src/runtime/persistence.py)
+    # ------------------------------------------------------------------
+
+    async def upsert_runtime_desired_state(
+        self, component_id: str, desired: dict[str, Any] | None, updated_ms: int
+    ) -> None:
+        """Store (or, for None, remove) one component's desired state."""
+        conn = self._require_conn()
+        async with self._write_ctx():
+            if desired is None:
+                await conn.execute(
+                    "DELETE FROM runtime_desired_state WHERE component_id = ?", (component_id,)
+                )
+            else:
+                await conn.execute(
+                    """
+                    INSERT INTO runtime_desired_state (component_id, desired, updated_ms)
+                    VALUES (?, ?, ?)
+                    ON CONFLICT(component_id) DO UPDATE SET
+                        desired = excluded.desired, updated_ms = excluded.updated_ms
+                    """,
+                    (component_id, json.dumps(desired, sort_keys=True), updated_ms),
+                )
+            await conn.commit()
+
+    async def fetch_runtime_desired_states(self) -> dict[str, dict[str, Any]]:
+        """Every stored desired state, by component id."""
+        conn = self._require_conn()
+        async with conn.execute(
+            "SELECT component_id, desired FROM runtime_desired_state ORDER BY component_id"
+        ) as cur:
+            rows = await cur.fetchall()
+        return {r["component_id"]: json.loads(r["desired"]) for r in rows}
 
     # ------------------------------------------------------------------
     # Health

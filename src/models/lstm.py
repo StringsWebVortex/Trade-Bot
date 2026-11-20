@@ -1,7 +1,7 @@
 """
 LSTM model head — derivatives slow signal.
 
-2-layer LSTM with attention gate.
+2-layer unidirectional LSTM with attention gate.
 Input:  [B, T, n_features]
 Output: [B, 128]
 """
