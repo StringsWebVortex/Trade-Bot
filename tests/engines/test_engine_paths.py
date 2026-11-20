@@ -210,7 +210,7 @@ class TestE08:
 
         df = make_ohlcv(200)
         e = E08Topology()
-        e._w_dist_history.extend([0.1] * 20)
+        e._w_dist_history["BTC/USDT"].extend([0.1] * 20)
         e._compute_tda = lambda embedding: (99.0, 0.1)  # type: ignore[method-assign]
 
         out = await e.run("BTC/USDT", {"ohlcv": df, "spot": spot_of(df), "e07_direction": 1})
@@ -324,7 +324,7 @@ class TestE09:
         )
         feats = E09MlMeta()._build_features({"E-01": out}, 50_000.0)
 
-        assert feats.shape == (1, 17 * 3)  # 18 engines minus E-09 itself
+        assert feats.shape == (1, 8 * 3)  # E-01..E-08, as built at training time
         assert feats[0, 0] == pytest.approx(0.75)
         assert feats[0, 1] == pytest.approx(1.0)
         assert feats[0, 2] == pytest.approx(0.01)
@@ -489,7 +489,7 @@ class TestE13:
 
         df = make_ohlcv(200)
         e = E13Contagion()
-        e._prev_corr = {"btc_spx": -1.0, "btc_dxy": 1.0}  # far from whatever we compute
+        e._prev_corr["BTC/USDT"] = {"btc_spx": -1.0, "btc_dxy": 1.0}  # far from whatever we compute
 
         out = await e.run("BTC/USDT", {"ohlcv": df, "spot": spot_of(df), "macro": _macro()})
 
@@ -503,7 +503,7 @@ class TestE13:
 
         df = make_ohlcv(200)
         e = E13Contagion()
-        e._prev_corr = {"btc_spx": -1.0, "btc_dxy": 1.0}
+        e._prev_corr["BTC/USDT"] = {"btc_spx": -1.0, "btc_dxy": 1.0}
         macro = _macro()
         macro["spx_ret"] = -0.004
 
