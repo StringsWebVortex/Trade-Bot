@@ -10,16 +10,28 @@ owns.
 
 The fixtures build small registries on a temporary tree so the failure cases can
 be provoked without corrupting the real file.
+
+Decides:
+  - GOV-001 — every production defect yields a permanent regression test
+  - GOV-002 — every security finding yields a permanent SEC-#### test
+  - GOV-005 — requirement-to-test traceability is machine-checked
+  - GOV-038 — verified entry depends on verified or accepted_gap only
+  - GOV-043 — test docstrings name the entries they decide
+  - GOV-046 — declared taxonomy has a user
+  - GOV-059 — the registry holds one entry per requirement
 """
 
 from __future__ import annotations
 
+import ast
 import json
+import re
 from datetime import UTC, date, datetime
 from pathlib import Path
 
 import pytest
 
+import src.quality.registry as registry_module
 from src.quality.registry import (
     DEFAULT_KIND,
     PREFIX_KINDS,
@@ -80,6 +92,11 @@ def entry(**overrides) -> dict:
         "status": "planned",
         "source": "QE-5",
         "planned_in": "PR-002",
+        # Required by the schema since it gained the cross-field rules: an
+        # entry nobody can describe the failure of is one nobody can size the
+        # priority of. Every shipped entry already carried one; this fixture
+        # was the only place that did not.
+        "failure_mode": "The thing is not done on some path, and nothing notices.",
     }
     base.update(overrides)
     return {k: v for k, v in base.items() if v is not None}
@@ -110,7 +127,11 @@ def expect_error(tmp_path: Path, entries: list[dict], fragment: str, **vocab) ->
 def tree(tmp_path: Path) -> Path:
     """A temporary tree with one real test file and one real module."""
     (tmp_path / "tests" / "risk").mkdir(parents=True)
-    (tmp_path / "tests" / "risk" / "test_limits.py").write_text("", encoding="utf-8")
+    (tmp_path / "tests" / "risk" / "test_limits.py").write_text(
+        "class TestCeiling:\n    def test_at_limit(self):\n        pass\n\n"
+        "def test_a():\n    pass\n\ndef test_b():\n    pass\n",
+        encoding="utf-8",
+    )
     (tmp_path / "src" / "risk").mkdir(parents=True)
     (tmp_path / "src" / "risk" / "gates.py").write_text("", encoding="utf-8")
     return tmp_path
@@ -126,6 +147,10 @@ VERIFIED = {
 # ---------------------------------------------------------------------------
 # Loading
 # ---------------------------------------------------------------------------
+
+
+# Mirrors the `source` pattern in config/quality_registry.schema.json.
+_OPS_SOURCE = re.compile(r"^OPS-[0-9]{4}-[0-9]{2}-[0-9]{2}$")
 
 
 class TestLoading:
@@ -219,11 +244,6 @@ class TestVocabularies:
             ],
             "not in the declared test taxonomy",
         )
-
-
-# ---------------------------------------------------------------------------
-# The status contract
-# ---------------------------------------------------------------------------
 
 
 class TestStatusContract:
@@ -403,6 +423,31 @@ class TestFilesystemHonesty:
         ver = Verification(test="tests/risk/test_limits.py", test_type="risk")
         assert ver.node == ""
 
+    def test_an_unparseable_node_selector_is_left_to_other_checks(self, tree):
+        broken = tree / "tests" / "risk" / "test_broken.py"
+        broken.write_text("def test_broken(:\\n", encoding="utf-8")
+        load(
+            tree,
+            [
+                entry(
+                    status="verified",
+                    planned_in=None,
+                    verification=[
+                        {
+                            "test": "tests/risk/test_broken.py::test_broken",
+                            "test_type": "risk",
+                        }
+                    ],
+                )
+            ],
+        )
+
+    def test_dataclass_shape_error_is_rethrown_after_schema_check(self, tmp_path, monkeypatch):
+        path = write_registry(tmp_path, [{}])
+        monkeypatch.setattr(registry_module, "_validate_against_schema", lambda raw: None)
+        with pytest.raises(KeyError, match="id"):
+            load_registry(path=path, root=tmp_path)
+
 
 # ---------------------------------------------------------------------------
 # The dependency graph
@@ -425,6 +470,37 @@ class TestGraph:
 
     def test_a_self_cycle_is_refused(self, tree):
         expect_error(tree, [entry(depends_on=["RISK-001"])], "dependency cycle:")
+
+    def test_verified_entry_depending_on_a_planned_entry_is_refused(self, tree):
+        expect_error(
+            tree,
+            [
+                entry(id="RISK-002"),  # planned
+                {**entry(id="RISK-001", depends_on=["RISK-002"]), **VERIFIED},
+            ],
+            "depends on 'RISK-002'",
+        )
+
+    def test_verified_entry_depending_on_an_accepted_gap_is_allowed(self, tree):
+        # accepted_gap is an explicit, dated waiver, so a verified entry may
+        # rest on it without weakening the ratchet -- the same argument the gap
+        # was accepted on carries through to the parent.
+        load(
+            tree,
+            [
+                entry(
+                    id="RISK-002",
+                    status="accepted_gap",
+                    planned_in=None,
+                    waiver={
+                        "reason": "explicitly deferred, dated in review",
+                        "accepted_by": "reviewer",
+                        "review_by": "2027-01-01",
+                    },
+                ),
+                entry(id="RISK-001", depends_on=["RISK-002"], **VERIFIED),
+            ],
+        )
 
     def test_transitive_dependencies_resolve(self, tree):
         registry = load(
@@ -632,15 +708,67 @@ class TestTheRealRegistry:
         ]
         assert not missing
 
+    def test_every_named_test_names_the_entries_it_decides(self, registry):
+        # GOV-043. The registry points at a test; nothing pointed back. A
+        # reader opening the file could not tell which requirement a failure
+        # breaks, and a test could be rewritten out from under its entry
+        # without anyone noticing -- the traceability only ran one way.
+        #
+        # Python tests only: a .js test carries no module docstring.
+        offenders: list[tuple[str, list[str]]] = []
+        for path in sorted({p for e in registry for p in e.test_paths}):
+            if not path.endswith(".py"):
+                continue
+            file = PROJECT_ROOT / path
+            if not file.exists():
+                continue  # test_every_named_test_exists owns that failure
+            doc = ast.get_docstring(ast.parse(file.read_text(encoding="utf-8"))) or ""
+            unnamed = sorted(e.id for e in registry if path in e.test_paths and e.id not in doc)
+            if unnamed:
+                offenders.append((path, unnamed))
+        assert not offenders, (
+            "these tests are named by entries their docstring never mentions; "
+            "add a 'Decides:' line per id: " + repr(offenders)
+        )
+
     def test_every_owning_module_exists(self, registry):
         missing = [
             (e.id, m) for e in registry for m in e.owning_modules if not (PROJECT_ROOT / m).exists()
         ]
         assert not missing
 
-    def test_the_ten_trading_invariants_are_all_present(self, registry):
+    def test_the_trading_invariants_are_all_present(self, registry):
         found = {e.id for e in registry.by_kind("invariant")}
-        assert found == {f"INV-{n:03d}" for n in range(1, 11)}
+        expected = {f"INV-{n:03d}" for n in range(1, 11)} | {"INV-032", "INV-033"}
+        assert found == expected
+
+    def test_no_declared_test_type_is_unused(self, registry):
+        # A vocabulary term with no user is dead vocabulary: delete it, or give
+        # it its first entry. The other direction -- an entry inventing a type
+        # the taxonomy never declared -- is refused by the loader, which sees
+        # one registry at a time. This direction is a property of ours alone:
+        # the schema requires at least one declared test_type, so a registry of
+        # planned entries, which reference no test, could never satisfy it.
+        used = {v.test_type for e in registry for v in e.verification}
+        assert not sorted(set(registry.test_types) - used)
+
+    def test_no_two_entries_state_the_same_requirement(self, registry):
+        # GOV-059. GOV-046 and GOV-058 were one rule under two ids: the same
+        # title, the same source, the same single deciding test. Nothing here
+        # caught it -- the loader refuses a duplicate id, and two distinct ids
+        # are two requirements as far as it can tell -- and the screen that
+        # let the second one in compared its added LINES against main, where
+        # the wording differed, so line-level absence read as novelty.
+        # A split requirement is worse than a missing one: a fix can satisfy
+        # one entry and leave the other standing, stale and still `verified`.
+        by_title: dict[str, list[str]] = {}
+        for entry in registry:
+            by_title.setdefault(" ".join(entry.title.lower().split()), []).append(entry.id)
+        collisions = {title: ids for title, ids in by_title.items() if len(ids) > 1}
+        assert not collisions, (
+            "one requirement stated by more than one entry; merge them and keep the "
+            "older id: " + repr(collisions)
+        )
 
     def test_every_invariant_is_critical(self, registry):
         # An invariant that is not critical is not an invariant.
@@ -679,8 +807,19 @@ class TestTheRealRegistry:
         today = datetime.now(UTC).date()
         assert not [e.id for e in registry.expired_waivers(today)]
 
-    def test_every_entry_cites_the_source_document(self, registry):
-        assert all(e.source.startswith("QE-") for e in registry)
+    def test_every_entry_cites_a_checkable_origin(self, registry):
+        """
+        An entry names where it came from: a QE section, or a dated directive.
+
+        Most requirements are derived from docs/Quality-Engineering and cite a
+        QE section. A few are imposed directly by the operator and have no QE
+        section to point at; those cite the date they were imposed. What is
+        not allowed either way is free text, so the origin stays checkable.
+        """
+        for entry in registry:
+            assert entry.source.startswith("QE-") or _OPS_SOURCE.match(entry.source), (
+                f"{entry.id} cites an unrecognised source: {entry.source!r}"
+            )
 
     def test_each_declared_subsystem_is_used(self, registry):
         # A vocabulary entry nothing uses is either a gap in the registry or a
