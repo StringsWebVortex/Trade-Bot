@@ -38,13 +38,16 @@ class E04Fourier:
             series = np.log(df["close"].values[-_WINDOW:])
             predicted, explained_var = self._fft_predict(series, spot, self._horizon)
 
-            direction = 1 if predicted > spot * 1.002 else (-1 if predicted < spot * 0.998 else 0)
             confidence = float(np.clip(explained_var, 0.0, 1.0))
 
             coin = symbol.split("/")[0].upper()
-            if coin == "BTC":
-                halving_adj = self._halving_overlay(data.get("block_height", 0))
+            block_height = data.get("block_height", 0) or 0
+            if coin == "BTC" and block_height > 0:
+                halving_adj = self._halving_overlay(block_height)
                 predicted *= 1 + halving_adj * 0.001
+
+            # Direction is derived after every adjustment so it agrees with the price.
+            direction = 1 if predicted > spot * 1.002 else (-1 if predicted < spot * 0.998 else 0)
 
             return EngineOutput(
                 engine_id=_ENGINE_ID,
@@ -63,7 +66,12 @@ class E04Fourier:
     @staticmethod
     def _fft_predict(log_prices: np.ndarray, spot: float, horizon: int) -> tuple[float, float]:
         n = len(log_prices)
-        fft = np.fft.rfft(log_prices - log_prices.mean())
+        # Detrend first: otherwise trend leakage dominates the top bins.
+        t_axis = np.arange(n)
+        slope, intercept = np.polyfit(t_axis, log_prices, 1)
+        trend = slope * t_axis + intercept
+        detrended = log_prices - trend
+        fft = np.fft.rfft(detrended - detrended.mean())
         magnitudes = np.abs(fft)
         # Top-3 dominant frequencies
         top3_idx = np.argsort(magnitudes)[-3:]
@@ -82,8 +90,8 @@ class E04Fourier:
             captured_power += magnitudes[idx] ** 2
 
         explained_var = float(captured_power / (total_power + 1e-12))
-        baseline = log_prices.mean()
-        predicted_log = baseline + reconstruction[n + horizon - 1]
+        trend_at_target = slope * (n + horizon - 1) + intercept
+        predicted_log = trend_at_target + detrended.mean() + reconstruction[n + horizon - 1]
         predicted = float(np.exp(predicted_log))
 
         # Sanity cap: max ±30% move
