@@ -21,7 +21,6 @@ called one at a time, in-conversation.
 
 from __future__ import annotations
 
-import functools
 import inspect
 import logging
 from collections.abc import Callable
@@ -104,11 +103,7 @@ def tool(name: str, orchestratable: bool = False, description: str = ""):
 
     def _wrap(fn: Callable[..., Any]) -> Callable[..., Any]:
         registry.register(name, fn, orchestratable=orchestratable, description=description)
-
-        @functools.wraps(fn)
-        def _inner(*args: Any, **kwargs: Any) -> Any:
-            return fn(*args, **kwargs)
-
-        return _inner
+        # Return fn itself: a sync wrapper hid coroutine functions from introspection.
+        return fn
 
     return _wrap
