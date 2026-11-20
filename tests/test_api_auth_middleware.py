@@ -32,58 +32,50 @@ def _no_ambient_readonly_key(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 class TestValidateCorsConfig:
-    def test_valid_https_origin_passes(self) -> None:
-        validate_cors_config(["https://example.com"], allow_credentials=False)
+    @pytest.mark.parametrize(
+        ("origins", "allow_credentials"),
+        [
+            (["https://example.com"], False),
+            (["http://localhost:3000"], True),
+            (["https://app.example.com", "https://api.example.com"], True),
+            ([], True),
+            (["https://sub.domain.example.co.uk"], False),
+            (["https://api.example.com:8443"], False),
+        ],
+        ids=["https", "http-port", "multiple", "empty", "subdomain", "https-port"],
+    )
+    def test_valid_origins_pass(self, origins: list[str], allow_credentials: bool) -> None:
+        assert validate_cors_config(origins, allow_credentials=allow_credentials) is None
 
-    def test_valid_http_origin_with_port(self) -> None:
-        validate_cors_config(["http://localhost:3000"], allow_credentials=True)
-
-    def test_wildcard_always_raises(self) -> None:
-        # '*' fails the hostname regex regardless of allow_credentials
-        with pytest.raises(RuntimeError, match="does not match"):
-            validate_cors_config(["*"], allow_credentials=False)
-
-    def test_wildcard_with_credentials_raises(self) -> None:
-        with pytest.raises(RuntimeError, match="allow_credentials"):
-            validate_cors_config(["*"], allow_credentials=True)
-
-    def test_null_origin_raises(self) -> None:
-        with pytest.raises(RuntimeError, match="null"):
-            validate_cors_config(["null"], allow_credentials=False)
-
-    def test_null_origin_case_insensitive(self) -> None:
-        with pytest.raises(RuntimeError, match="null"):
-            validate_cors_config(["NULL"], allow_credentials=False)
-
-    def test_bare_ip_raises(self) -> None:
-        with pytest.raises(RuntimeError, match="does not match"):
-            validate_cors_config(["192.168.1.1:8080"], allow_credentials=False)
-
-    def test_schemeless_raises(self) -> None:
-        with pytest.raises(RuntimeError, match="does not match"):
-            validate_cors_config(["example.com"], allow_credentials=False)
-
-    def test_multiple_valid_origins(self) -> None:
-        validate_cors_config(
-            ["https://app.example.com", "https://api.example.com"],
-            allow_credentials=True,
-        )
-
-    def test_empty_origins_list_is_valid(self) -> None:
-        validate_cors_config([], allow_credentials=True)
-
-    def test_origin_with_subdomain(self) -> None:
-        validate_cors_config(["https://sub.domain.example.co.uk"], allow_credentials=False)
-
-    def test_origin_with_port_number(self) -> None:
-        validate_cors_config(["https://api.example.com:8443"], allow_credentials=False)
-
-    def test_mixed_valid_and_invalid_raises_on_first_invalid(self) -> None:
-        with pytest.raises(RuntimeError):
-            validate_cors_config(
-                ["https://good.example.com", "bad-origin"],
-                allow_credentials=False,
-            )
+    @pytest.mark.parametrize(
+        ("origins", "allow_credentials", "match"),
+        [
+            # '*' fails the hostname regex regardless of allow_credentials
+            (["*"], False, "does not match"),
+            (["*"], True, "allow_credentials"),
+            (["null"], False, "null"),
+            (["NULL"], False, "null"),
+            (["192.168.1.1:8080"], False, "does not match"),
+            (["192.168.1.1"], False, "does not match"),
+            (["example.com"], False, "does not match"),
+            (["https://good.example.com", "bad-origin"], False, "bad-origin"),
+        ],
+        ids=[
+            "wildcard",
+            "wildcard-credentials",
+            "null",
+            "null-uppercase",
+            "bare-ip-port",
+            "bare-ip",
+            "schemeless",
+            "first-invalid-of-many",
+        ],
+    )
+    def test_invalid_origins_raise(
+        self, origins: list[str], allow_credentials: bool, match: str
+    ) -> None:
+        with pytest.raises(RuntimeError, match=match):
+            validate_cors_config(origins, allow_credentials=allow_credentials)
 
 
 # ---------------------------------------------------------------------------

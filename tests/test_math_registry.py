@@ -6,6 +6,11 @@ that make it trustworthy rather than the properties that make it parse: that
 it cannot claim code which does not exist, that folklore cannot quietly become
 a live signal, that its dependency graph resolves, and that the documentation
 describing it has not drifted away from it.
+
+Decides:
+  - GOV-044 — math implementations rest on implementations
+  - GOV-045 — every wiring kind is held to the existence check
+  - GOV-056 — implemented math entry names its test
 """
 
 from __future__ import annotations
@@ -140,6 +145,41 @@ class TestIntegrity:
             if entry.status == "implemented":
                 assert len(entry.owners) == 1, entry.id
 
+    def test_a_component_module_of_an_implemented_entry_also_exists(self, registry):
+        """A component carries an owner's obligations, not a weaker version."""
+        for entry in registry:
+            if entry.status != "implemented":
+                continue
+            for component in entry.components:
+                assert (PROJECT_ROOT / component.module).exists(), f"{entry.id}: {component.module}"
+
+    def test_components_never_appear_without_an_owner(self, registry):
+        for entry in registry:
+            if entry.components:
+                assert entry.owners, entry.id
+
+    def test_implementing_modules_is_the_owner_plus_the_components(self, registry):
+        for entry in registry:
+            assert entry.implementing_modules == entry.owners + entry.components
+
+    def test_implemented_by_finds_a_component_that_owned_by_does_not(self, registry):
+        """
+        The question "what am I on the hook for if I change this file?" must
+        reach a component module. ``owned_by`` deliberately does not.
+        """
+        component = "src/mathcore/fields/prime_field.py"
+        owned = {e.id for e in registry.owned_by(component)}
+        implements = {e.id for e in registry.implemented_by(component)}
+        # It owns pseudo-mersenne-primes outright, and is one of two component
+        # modules of finite-fields. Only the second query sees the second role.
+        assert "finite-fields" not in owned
+        assert {"finite-fields", "pseudo-mersenne-primes"} <= implements
+
+    def test_the_owner_is_reachable_through_both_queries(self, registry):
+        owner = "src/mathcore/fields/__init__.py"
+        assert [e.id for e in registry.owned_by(owner)] == ["finite-fields"]
+        assert [e.id for e in registry.implemented_by(owner)] == ["finite-fields"]
+
     def test_planned_and_implemented_entries_declare_wiring(self, registry):
         for entry in registry:
             if entry.status in {"implemented", "planned"}:
@@ -218,6 +258,165 @@ class TestLoaderRejectsDrift:
             load_registry(self._write(tmp_path, raw))
 
 
+class TestSemanticChecksInIsolation:
+    """
+    The rejections the JSON Schema masks.
+
+    load_registry validates structure before semantics, so several checks in
+    _check_semantics can never fire through the public entry point -- the
+    schema rejects the same document first. They are defence in depth: the
+    schema and the semantic pass are separate layers, and a schema relaxed
+    later must not silently take these with it. Exercising them directly is
+    the only way to prove they still work.
+    """
+
+    def raw_with(self, entries: list[dict]) -> dict:
+        return {
+            "domains": ["algebra"],
+            "verdict_definitions": {"load_bearing": "x" * 25, "folklore": "y" * 25},
+            "entries": entries,
+        }
+
+    def entry(self, **overrides) -> dict:
+        base = {
+            "id": "thing",
+            "name": "Thing",
+            "domain": "algebra",
+            "verdict": "load_bearing",
+            "role": "r" * 40,
+            "used_by": ["something"],
+            "repo_relevance": "none",
+            "status": "planned",
+        }
+        base.update(overrides)
+        return base
+
+    def check(self, entries: list[dict]) -> None:
+        from src.mathcore.registry import RegistryEntry, _check_semantics
+
+        raw = self.raw_with(entries)
+        _check_semantics(raw, [RegistryEntry.from_dict(e) for e in entries])
+
+    def test_unknown_verdict_is_rejected(self):
+        entry = self.entry(verdict="vibes")
+        with pytest.raises(RegistryError, match="no definition in verdict_definitions"):
+            self.check([entry])
+
+    def test_implemented_entry_with_no_owner_is_rejected(self):
+        entry = self.entry(status="implemented", wiring=[])
+        with pytest.raises(RegistryError, match="names no owning module"):
+            self.check([entry])
+
+    def test_implemented_entry_with_several_owners_is_rejected(self):
+        entry = self.entry(
+            status="implemented",
+            wiring=[
+                {"module": "src/mathcore/registry.py", "kind": "owner"},
+                {"module": "scripts/generate_math_docs.py", "kind": "owner"},
+            ],
+        )
+        with pytest.raises(RegistryError, match="claims several owners"):
+            self.check([entry])
+
+    def test_folklore_marked_implemented_is_rejected_by_the_semantic_pass(self):
+        # Unreachable through load_registry: the schema forbids this pairing
+        # first. Tested here so the second layer is known to work if the first
+        # is ever relaxed.
+        entry = self.entry(
+            verdict="folklore",
+            status="implemented",
+            wiring=[
+                {"module": "src/mathcore/registry.py", "kind": "owner"},
+                {"module": "tests/test_math_registry.py", "kind": "test"},
+            ],
+        )
+        with pytest.raises(RegistryError, match="folklore"):
+            self.check([entry])
+
+    def test_implemented_entry_without_a_test_wiring_is_refused(self):
+        """
+        An `implemented` entry must name at least one `test`-kind wiring.
+        Without this rule an entry can claim implementation with no file
+        that decides it — exactly the shape that lets a subtle regression
+        arrive with no test failure to name it.
+        """
+        entry = self.entry(
+            status="implemented",
+            wiring=[{"module": "src/mathcore/registry.py", "kind": "owner"}],
+        )
+        with pytest.raises(RegistryError, match="names no test module"):
+            self.check([entry])
+
+    def test_implemented_entry_with_missing_test_file_is_refused(self):
+        entry = self.entry(
+            status="implemented",
+            wiring=[
+                {"module": "src/mathcore/registry.py", "kind": "owner"},
+                {"module": "tests/does_not_exist.py", "kind": "test"},
+            ],
+        )
+        with pytest.raises(RegistryError, match="does not exist"):
+            self.check([entry])
+
+    def test_a_component_without_an_owner_is_refused(self):
+        """
+        A component is part of an implementation, not a substitute for one.
+        Without this check an entry could name implementing modules while
+        owning nothing, which reads as implemented and is accountable to no one.
+
+        Checked on a ``planned`` entry deliberately: an implemented one trips
+        the older "no owning module" rule first, so this guard is what closes
+        the same hole one status earlier, before the entry ever claims to be
+        finished.
+        """
+        entry = self.entry(
+            status="planned",
+            wiring=[{"module": "src/mathcore/registry.py", "kind": "component"}],
+        )
+        with pytest.raises(RegistryError, match="component modules but no owner"):
+            self.check([entry])
+
+    def test_a_consumer_wiring_pointing_at_a_missing_file_is_refused(self):
+        """
+        Owner and component wirings are already checked for existence. A
+        consumer wiring that names a nonexistent file is the same defect
+        with a different label -- a pointer to a file that does not exist
+        is worse than no pointer.
+        """
+        entry = self.entry(
+            wiring=[{"module": "src/does/not/exist.py", "kind": "consumer"}],
+        )
+        with pytest.raises(RegistryError, match="does not exist"):
+            self.check([entry])
+
+    def test_implemented_entry_depending_on_a_planned_entry_is_rejected(self):
+        planned = self.entry(id="planned-dep", status="planned")
+        implemented = self.entry(
+            id="claims-it",
+            status="implemented",
+            depends_on=["planned-dep"],
+            wiring=[
+                {"module": "src/mathcore/registry.py", "kind": "owner"},
+                {"module": "tests/test_math_registry.py", "kind": "test"},
+            ],
+        )
+        with pytest.raises(RegistryError, match="depends on 'planned-dep'"):
+            self.check([planned, implemented])
+
+    def test_implemented_entry_depending_on_a_not_applicable_entry_passes(self):
+        na = self.entry(id="na-dep", status="not_applicable")
+        implemented = self.entry(
+            id="claims-it",
+            status="implemented",
+            depends_on=["na-dep"],
+            wiring=[
+                {"module": "src/mathcore/registry.py", "kind": "owner"},
+                {"module": "tests/test_math_registry.py", "kind": "test"},
+            ],
+        )
+        self.check([na, implemented])
+
+
 class TestQueryApi:
     def test_get_returns_the_entry(self, registry):
         assert registry.get("ntt").name.startswith("Number-theoretic")
@@ -239,6 +438,18 @@ class TestQueryApi:
         dependents = {e.id for e in registry.dependents_of("finite-fields")}
         assert "cyclic-groups-dlp" in dependents
 
+    def test_by_relevance_filters_on_the_repo_relevance_field(self, registry):
+        security = registry.by_relevance("security")
+        assert security, "no security-relevant entries; the filter proves nothing"
+        assert all(e.repo_relevance == "security" for e in security)
+        assert not registry.by_relevance("not-a-relevance")
+
+    def test_consumers_lists_only_consumer_wiring(self, registry):
+        entry = registry.get("elliptic-curves")
+        assert entry.consumers, "expected consumer wiring on this entry"
+        assert all(w.kind == "consumer" for w in entry.consumers)
+        assert all(w.kind == "owner" for w in entry.owners)
+
     def test_owned_by_finds_the_owning_entry(self, registry):
         owned = registry.owned_by("src/mathcore/fields/ntt.py")
         assert {e.id for e in owned} == {"ntt"}
@@ -248,6 +459,21 @@ class TestQueryApi:
         # governance control.
         with pytest.raises(dataclasses.FrozenInstanceError):
             registry.get("ntt").verdict = "folklore"  # type: ignore[misc]
+
+
+class TestDefaultRegistry:
+    def test_returns_a_loaded_registry(self):
+        from src.mathcore.registry import default_registry
+
+        default_registry.cache_clear()
+        assert len(default_registry()) > 0
+
+    def test_is_cached_so_validation_runs_once_per_process(self):
+        from src.mathcore.registry import default_registry
+
+        default_registry.cache_clear()
+        assert default_registry() is default_registry()
+        default_registry.cache_clear()
 
 
 class TestDocumentationIsInSync:
