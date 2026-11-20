@@ -104,7 +104,7 @@
       "properties": {
         "test": {
           "type": "string",
-          "pattern": "^(tests/[A-Za-z0-9_./-]+\\.py(::[A-Za-z0-9_:]+)?|frontend/src/[A-Za-z0-9_./-]+\\.test\\.jsx?)$"
+          "pattern": "^(?!.*(?:^|/)\\.\\.(?:/|$))(tests/[A-Za-z0-9_/-]+\\.py(::[A-Za-z0-9_:]+)?|frontend/src/[A-Za-z0-9_/-]+\\.test\\.jsx?)$"
         },
         "test_type": {
           "type": "string",
