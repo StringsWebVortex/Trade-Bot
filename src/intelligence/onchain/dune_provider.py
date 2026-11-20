@@ -17,14 +17,14 @@ Authority: https://docs.dune.com/api-reference/executions/endpoint/execute-query
 from __future__ import annotations
 
 import asyncio
-import logging
 import math
 import time
 
+import structlog
+
 from src.intelligence.onchain.base import OnChainProvider
 
-
-logger = logging.getLogger(__name__)
+log = structlog.get_logger(__name__)
 
 _BASE = "https://api.dune.com/api/v1"
 
@@ -60,7 +60,7 @@ class DuneProvider(OnChainProvider):
     _RATE = 1.0  # conservative; Dune free tier throttles aggressively
 
     def __init__(self, api_key: str, cache_ttl_s: int = 3600) -> None:
-        super().__init__()
+        super().__init__(cache_ttl_s)
         self._api_key = api_key
         self._CACHE_TTL_S = cache_ttl_s
         self._daily_executions = 0
@@ -143,7 +143,7 @@ class DuneProvider(OnChainProvider):
 
         # Use stale cache if execution budget exhausted
         if not self._budget_remaining():
-            logger.warning("DuneProvider: daily execution budget exhausted (query=%d)", query_id)
+            log.warning("dune_budget_exhausted", query_id=query_id)
             return _extract_rows(results) if results is not None else None
 
         # Execute the query
@@ -166,12 +166,13 @@ class DuneProvider(OnChainProvider):
             status = await self._get(
                 f"{_BASE}/execution/{execution_id}/results",
                 headers=self._auth(),
+                use_cache=False,  # INT-012: never read/write a cached "pending" poll
             )
             if status is not None and status.get("state") == "QUERY_STATE_COMPLETED":
                 return _extract_rows(status)
             await asyncio.sleep(_POLL_INTERVAL_S)
 
-        logger.warning("DuneProvider: poll timeout for query=%d", query_id)
+        log.warning("dune_poll_timeout", query_id=query_id)
         # Fall back to stale cache
         return _extract_rows(results) if results is not None else None
 
@@ -204,7 +205,7 @@ def _results_fresh(results: dict, ttl_s: int) -> bool:
         # Fail closed (treat as stale, forcing a refetch) but log so a
         # persistently malformed timestamp field is visible to operators
         # instead of silently masquerading as "not fresh" forever.
-        logger.warning("dune.results_fresh_check_failed error=%s", str(exc), exc_info=True)
+        log.warning("dune.results_fresh_check_failed", error=str(exc), exc_info=True)
         return False
 
 
