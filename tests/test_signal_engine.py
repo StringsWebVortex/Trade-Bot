@@ -3,11 +3,16 @@ Test coverage for src/engine/signal_engine.py — Debt-005.
 
 Strategy: mock all external dependencies and drive SignalEngine.tick()
 through every major branch.
+
+Decides:
+  - REG-0005 — A test's result never depends on which tests ran before it
+  - REG-1714 — the ensemble receives the realised closed-bar return window
 """
 
 from __future__ import annotations
 
 import asyncio
+import math
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import numpy as np
@@ -15,9 +20,10 @@ import pandas as pd
 import pytest
 from xgboost import XGBClassifier
 
-from src.config import RiskSettings, Timeframe
+from src.config import RiskSettings, Settings, Timeframe
 from src.engine.signal_engine import SignalEngine, SignalResult
 from src.features.pipeline import FEATURE_COLUMNS, FeatureMatrix
+from src.intelligence.ensemble_predictor import EnsemblePrediction
 from src.regime.detector import RegimeDetector, RegimePrediction
 from src.risk.gates import GateResult, GateStatus
 from src.risk.kelly import KellyResult
@@ -142,6 +148,7 @@ _TICK = {
 
 def _fm(n=120, cols=5):
     fm = MagicMock(spec=FeatureMatrix)
+    fm.features_all = None
     # Use real FEATURE_COLUMNS so history_df passes the >=3 column guard in
     # signal_engine (enabling regime detection in tests). Extra synthetic cols
     # appended to reach the requested `cols` count.
@@ -222,16 +229,24 @@ class TestSkipPaths:
 
     @pytest.mark.asyncio
     async def test_last_bar_not_closed(self):
+        """EXR-003: a forming last bar is sliced off, not a reason to skip the tick."""
         e = _make_engine()
         open_bars = _make_bars(n=320, closed=False)
+        seen: list[int] = []
 
         async def _fake_lb():
             return open_bars
 
+        def _capture(bars):
+            seen.append(len(bars))
+            assert bars.index[-1] == open_bars.index[-2]
+            raise RuntimeError("stop here")
+
         e._load_bars = _fake_lb
-        r = await e.tick(**_TICK)
-        assert r.tradeable is False
-        assert r.skip_reason == "last_bar_not_yet_closed"
+        with patch("src.engine.signal_engine.build_feature_matrix", _capture):
+            r = await e.tick(**_TICK)
+        assert r.skip_reason == "feature_matrix_failed"
+        assert seen == [319]
 
     @pytest.mark.asyncio
     async def test_feature_matrix_exception(self):
@@ -698,9 +713,10 @@ class TestEnsembleBlend:
             "filters_failed": [],
             "details": {"hurst": 0.5},
         }
+        bars = _make_bars(n=320)
 
         async def _lb():
-            return _make_bars(n=320)
+            return bars
 
         e._load_bars = _lb
         mock_risk = RiskSettings(ensemble_blend_weight=0.5)
@@ -728,6 +744,11 @@ class TestEnsembleBlend:
         assert r.p_long > 0.55
         assert r.direction == 1
         mock_ensemble.predict_row.assert_called_once()
+        # REG-1714: the sequence members get every realised closed-bar log
+        # return, ending at the last closed bar, not the feature row.
+        passed = mock_ensemble.predict_row.call_args.kwargs["recent_returns"]
+        closes = bars["close"].to_numpy(dtype=float)
+        np.testing.assert_allclose(np.asarray(passed), np.log(closes[1:] / closes[:-1]))
 
     @pytest.mark.asyncio
     async def test_bearish_ensemble_can_flip_direction(self):
@@ -808,6 +829,187 @@ class TestEnsembleBlend:
 
         assert r.p_long == pytest.approx(0.8)  # unchanged -- fails open
         assert r.tradeable is True
+
+
+# ---------------------------------------------------------------------------
+# RiskSettings.ensemble_blend_weight -- EnsemblePredictor blending
+# ---------------------------------------------------------------------------
+
+
+def _ensemble_prediction(point_estimate: float) -> EnsemblePrediction:
+    return EnsemblePrediction(
+        point_estimate=point_estimate,
+        credible_lower=point_estimate - 0.1,
+        credible_upper=point_estimate + 0.1,
+        model_disagreement=0.05,
+        aleatoric_uncertainty=0.03,
+        epistemic_uncertainty=0.02,
+        best_model="xgboost",
+        model_weights={"xgboost": 1.0},
+        individual_predictions={"xgboost": point_estimate},
+    )
+
+
+def _p_ensemble_long(point_estimate: float) -> float:
+    """The ensemble's point estimate as a probability, per the engine's mapping.
+
+    point_estimate is on a log-return scale, not a probability — the engine
+    maps it through tanh of its own signal-to-noise ratio, using the
+    uncertainties _ensemble_prediction stamps above.
+    """
+    sigma = math.sqrt(0.03**2 + 0.02**2)
+    return 0.5 * (1.0 + math.tanh(point_estimate / sigma))
+
+
+class TestEnsembleBlendPersistence:
+    async def _run(
+        self,
+        e,
+        monkeypatch,
+        blend_weight,
+        predict_direction_return=(1, 0.8),
+        pin_blend_weight=True,
+    ):
+        """Drive one tick with `blend_weight` in force.
+
+        `pin_blend_weight` patches effective_risk_settings out, which is what
+        makes each test here independent. Setting e._cfg alone is not enough:
+        effective_risk_settings() overlays any *registered*
+        risk.ensemble_blend_weight on top of the cfg it is handed, so a test
+        that only sets e._cfg silently inherits whatever the process-wide
+        parameter_registry happens to hold. Pass pin_blend_weight=False to
+        exercise that overlay deliberately -- see
+        test_promoted_registry_weight_overrides_static_cfg.
+        """
+        settings = Settings(risk={"ensemble_blend_weight": blend_weight})
+        monkeypatch.setattr(e, "_cfg", settings)
+        if pin_blend_weight:
+            monkeypatch.setattr(
+                "src.engine.signal_engine.effective_risk_settings",
+                lambda base=None: RiskSettings(ensemble_blend_weight=blend_weight),
+            )
+        filter_pass = {
+            "passes": True,
+            "scalar": 1.0,
+            "filters_failed": [],
+            "details": {"hurst": 0.5},
+        }
+        good_bars = _make_bars(n=320)
+
+        async def _lb():
+            return good_bars
+
+        e._load_bars = _lb
+        with (
+            patch("src.engine.signal_engine.build_feature_matrix", return_value=_fm()),
+            patch(
+                "src.engine.signal_engine.build_inference_features",
+                return_value=pd.Series({"f0": 1.0}),
+            ),
+            patch("src.engine.signal_engine.evaluate_all_gates", return_value=_pass_gate()),
+            patch("src.engine.signal_engine.compute_position_size", return_value=_mock_kelly()),
+            patch(
+                "src.engine.signal_engine.get_cognitive_engine",
+                return_value=_mock_cognitive(passed=True),
+            ),
+            patch("src.engine.signal_engine.apply_all_strategy_filters", return_value=filter_pass),
+            patch.object(e._trainer, "predict_direction", return_value=predict_direction_return),
+            patch.object(e._trainer, "predict_meta", return_value=(1, 0.8)),
+        ):
+            return await e.tick(**_TICK)
+
+    @pytest.mark.asyncio
+    async def test_no_predictor_injected_leaves_p_long_unblended(self, monkeypatch):
+        e = _make_engine(ensemble=None)
+        r = await self._run(e, monkeypatch, blend_weight=0.5)
+        assert r.p_long == pytest.approx(0.8)
+        assert r.ensemble_point_estimate is None
+        assert r.ensemble_blend_weight is None
+
+    @pytest.mark.asyncio
+    async def test_zero_blend_weight_ignores_injected_predictor(self, monkeypatch):
+        predictor = MagicMock()
+        predictor.predict_row.return_value = _ensemble_prediction(0.2)
+        e = _make_engine(ensemble=predictor)
+        r = await self._run(e, monkeypatch, blend_weight=0.0)
+        assert r.p_long == pytest.approx(0.8)
+        assert r.ensemble_point_estimate is None
+        predictor.predict_row.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_nonzero_blend_weight_blends_p_long_and_rederives_direction(self, monkeypatch):
+        predictor = MagicMock()
+        predictor.predict_row.return_value = _ensemble_prediction(0.2)
+        e = _make_engine(ensemble=predictor)
+        # raw p_long=0.8 (long), ensemble point estimate 0.2 mapped to a
+        # probability, weight=0.5 -> direction stays long (>=0.5)
+        r = await self._run(e, monkeypatch, blend_weight=0.5, predict_direction_return=(1, 0.8))
+        expected = 0.5 * 0.8 + 0.5 * _p_ensemble_long(0.2)
+        assert r.p_long == pytest.approx(expected)
+        assert r.direction == 1
+        assert r.ensemble_point_estimate == pytest.approx(0.2)
+        assert r.ensemble_blend_weight == pytest.approx(0.5)
+
+    @pytest.mark.asyncio
+    async def test_blend_can_flip_direction(self, monkeypatch):
+        predictor = MagicMock()
+        # A negative point estimate is what disagreement looks like on the
+        # log-return scale the ensemble emits; 0.1 is a *bullish* estimate and
+        # could never flip a long.
+        predictor.predict_row.return_value = _ensemble_prediction(-0.1)
+        e = _make_engine(ensemble=predictor)
+        # raw p_long=0.6 (long), weight=0.8 -> blended below 0.5 -> flips short
+        r = await self._run(e, monkeypatch, blend_weight=0.8, predict_direction_return=(1, 0.6))
+        expected = 0.2 * 0.6 + 0.8 * _p_ensemble_long(-0.1)
+        assert r.p_long == pytest.approx(expected)
+        assert r.p_long < 0.5
+        assert r.direction == 0
+
+    @pytest.mark.asyncio
+    async def test_predictor_exception_falls_back_to_unblended_p_long(self, monkeypatch):
+        predictor = MagicMock()
+        predictor.predict_row.side_effect = RuntimeError("model not fitted")
+        e = _make_engine(ensemble=predictor)
+        r = await self._run(e, monkeypatch, blend_weight=0.5)
+        assert r.p_long == pytest.approx(0.8)
+        assert r.ensemble_point_estimate is None
+
+    @pytest.mark.asyncio
+    async def test_promoted_registry_weight_overrides_static_cfg(self, monkeypatch):
+        """A promoted self-tuned weight beats the static .env-derived value.
+
+        This is the product requirement behind src/tuning/live_overrides.py:
+        effective_risk_settings() overlays a registered
+        risk.ensemble_blend_weight on whatever cfg.risk carries, so a
+        promotion reaches the live signal path without a restart. Every other
+        test in this class patches that seam out so it is not at the mercy of
+        the process-wide registry; this one registers the parameter itself and
+        asserts the overlay is what the engine actually uses.
+        """
+        from src.tuning.registry import TunableParameter, parameter_registry
+
+        parameter_registry.register(
+            TunableParameter(
+                name="risk.ensemble_blend_weight",
+                description="test",
+                floor=0.0,
+                ceiling=1.0,
+                current=0.5,
+                eval_strategy="test",
+            )
+        )
+
+        predictor = MagicMock()
+        predictor.predict_row.return_value = _ensemble_prediction(0.2)
+        e = _make_engine(ensemble=predictor)
+        # cfg says 0.0, the registry says 0.5 -- the registry must win, so the
+        # predictor is consulted and p_long is blended at 0.5 rather than left
+        # at the unblended 0.8 that cfg alone would produce.
+        r = await self._run(e, monkeypatch, blend_weight=0.0, pin_blend_weight=False)
+
+        assert r.p_long == pytest.approx(0.5 * 0.8 + 0.5 * _p_ensemble_long(0.2))
+        assert r.ensemble_blend_weight == pytest.approx(0.5)
+        predictor.predict_row.assert_called_once()
 
 
 # ---------------------------------------------------------------------------
@@ -1048,7 +1250,11 @@ class TestTask010FundingRateWiring:
             patch(
                 "src.engine.signal_engine.evaluate_all_gates",
                 return_value=MagicMock(
-                    passed=True, status=MagicMock(value="ok"), reason="", details={}
+                    passed=True,
+                    status=MagicMock(value="ok"),
+                    reason="",
+                    details={},
+                    size_scalar=1.0,
                 ),
             ),
             patch(
@@ -1116,7 +1322,11 @@ class TestTask010FundingRateWiring:
             patch(
                 "src.engine.signal_engine.evaluate_all_gates",
                 return_value=MagicMock(
-                    passed=True, status=MagicMock(value="ok"), reason="", details={}
+                    passed=True,
+                    status=MagicMock(value="ok"),
+                    reason="",
+                    details={},
+                    size_scalar=1.0,
                 ),
             ),
             patch(
@@ -1181,6 +1391,7 @@ class TestTask010FundingRateWiring:
 
         e._load_bars = _lb
         empty_fm = MagicMock(spec=FeatureMatrix)
+        empty_fm.features_all = None
         empty_fm.features = pd.DataFrame()
         with patch("src.engine.signal_engine.build_feature_matrix", return_value=empty_fm):
             r = await e.tick(**_TICK)
@@ -1624,7 +1835,11 @@ class TestGARCHVolWiring:
             patch(
                 "src.engine.signal_engine.evaluate_all_gates",
                 return_value=MagicMock(
-                    passed=True, status=MagicMock(value="ok"), reason="", details={}
+                    passed=True,
+                    status=MagicMock(value="ok"),
+                    reason="",
+                    details={},
+                    size_scalar=1.0,
                 ),
             ),
             patch(
@@ -1673,6 +1888,7 @@ class TestGARCHVolWiring:
 
         # Feature matrix without garch_vol_forecast column
         fm_no_garch = MagicMock(spec=FeatureMatrix)
+        fm_no_garch.features_all = None
         fm_no_garch.features = pd.DataFrame(
             np.random.rand(120, 5), columns=[f"col_{i}" for i in range(5)]
         )
@@ -1689,7 +1905,11 @@ class TestGARCHVolWiring:
             patch(
                 "src.engine.signal_engine.evaluate_all_gates",
                 return_value=MagicMock(
-                    passed=True, status=MagicMock(value="ok"), reason="", details={}
+                    passed=True,
+                    status=MagicMock(value="ok"),
+                    reason="",
+                    details={},
+                    size_scalar=1.0,
                 ),
             ),
             patch(
@@ -1743,7 +1963,11 @@ class TestGARCHVolWiring:
             patch(
                 "src.engine.signal_engine.evaluate_all_gates",
                 return_value=MagicMock(
-                    passed=True, status=MagicMock(value="ok"), reason="", details={}
+                    passed=True,
+                    status=MagicMock(value="ok"),
+                    reason="",
+                    details={},
+                    size_scalar=1.0,
                 ),
             ),
             patch(

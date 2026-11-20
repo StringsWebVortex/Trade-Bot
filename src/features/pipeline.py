@@ -19,6 +19,8 @@ Authority sources:
   - Chan (2013) Algorithmic Trading — realized vol, ATR momentum
   - Wilder (1978) New Concepts in Technical Trading Systems — ATR
   - Bollerslev (1986) "Generalized Autoregressive Conditional Heteroskedasticity"
+
+Registry: MODL-003, SIG-002 (config/quality_registry.json).
 """
 
 from __future__ import annotations
@@ -33,7 +35,6 @@ import structlog
 from src.config import FeatureSettings
 from src.regime.garch import rolling_garch_forecast
 from src.tuning.live_overrides import effective_feature_settings
-
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
@@ -155,6 +156,9 @@ COL_LABEL: Final[str] = "label"
 _TIME_EXIT_WARN_FRACTION: Final[float] = 0.66
 COL_META_LABEL: Final[str] = "meta_label"
 COL_RETURN: Final[str] = "log_return"
+# INT-001: realised log return from entry (close[t]) to the label's barrier exit
+# (close[t + offset]). Unlike COL_RETURN it lies strictly after the features.
+COL_FORWARD_RETURN: Final[str] = "forward_log_return"
 
 # Required input OHLCV columns
 _REQ_COLS: Final[frozenset[str]] = frozenset({"open", "high", "low", "close", "volume"})
@@ -589,6 +593,14 @@ def triple_barrier_labels_with_offsets(
         offsets[hit_upper | hit_lower] = float(k)
         resolved |= hit_upper | hit_lower
 
+    # DAT-005: a row whose holding window runs past the end of the data and that
+    # has not hit a barrier is unresolved, not a time exit. Leaving it at -1
+    # counted truncated windows as time exits (and kept resolved tail peers
+    # while dropping unresolved ones). Rows that did hit a barrier keep their label.
+    unresolved_tail = valid_mask & ~resolved & ((np.arange(n) + max_holding) >= n)
+    labels[unresolved_tail] = np.nan
+    offsets[unresolved_tail] = np.nan
+
     label_series = pd.Series(labels, index=close.index, dtype=np.float64).rename(COL_LABEL)
     offset_series = pd.Series(offsets, index=close.index, dtype=np.float64)
     return label_series, offset_series
@@ -689,6 +701,10 @@ class FeatureMatrix:
     meta        : meta-label series (aligned to features index)
     daily_vol   : per-bar volatility series (used for barrier width)
     log_returns : log return series (used by trainer for sample weights)
+    forward_returns : realised log return from each bar's close to its label's
+        barrier exit. This, not ``log_returns`` (the return of the bar that has
+        just closed, concurrent with the features), is what a prediction made
+        at that bar earns. None only for matrices built by hand.
     """
 
     features: pd.DataFrame
@@ -699,11 +715,75 @@ class FeatureMatrix:
     daily_vol: pd.Series
     log_returns: pd.Series
     dropped_rows: int = field(default=0)
+    forward_returns: pd.Series | None = None
+    # DAT-001: label-independent features (burn-in NaNs dropped only). Unlike
+    # ``features`` this keeps the newest bars, which cannot have hit a barrier
+    # yet, so live inference and the regime HMM read the latest closed bar.
+    features_all: pd.DataFrame | None = None
 
 
 # ---------------------------------------------------------------------------
 # Full pipeline entry point
 # ---------------------------------------------------------------------------
+
+
+def bar_gap_report(index: pd.Index) -> dict[str, float | int]:
+    """
+    Summarise time gaps in a Unix-ms bar index.
+
+    Every rolling window in this module counts bars, not time, so a gapped
+    series silently changes what those windows mean: a 20-bar volatility
+    estimate can span days instead of hours, and close.shift(1) charges a
+    multi-hour jump as one bar's return, inflating vol and every scalar
+    derived from it. OHLCV gaps are real -- exchange outages, halts,
+    truncated pagination -- so this reports them rather than repairing them,
+    which would fabricate prices that never traded.
+
+    The expected spacing is inferred as the modal diff rather than taken
+    from a timeframe argument, so it stays correct for callers that resample
+    or stitch venues together.
+
+    Returns counts and the observed spacing; an index with fewer than three
+    points has no inferable spacing and reports zero gaps.
+    """
+    empty: dict[str, float | int] = {
+        "expected_ms": 0,
+        "gap_count": 0,
+        "gap_pct": 0.0,
+        "max_gap_ms": 0,
+        "missing_bars": 0,
+    }
+    if len(index) < 3:
+        return empty
+
+    diffs = pd.Series(index.astype("int64")).diff().dropna()
+    expected = int(diffs.mode().iloc[0])
+    if expected <= 0:
+        return empty
+
+    # A half-bar tolerance keeps rounding and exchange timestamp jitter from
+    # registering as gaps, while any genuinely skipped bar clears it.
+    over = diffs[diffs > expected * 1.5]
+    return {
+        "expected_ms": expected,
+        "gap_count": len(over),
+        "gap_pct": round(len(over) / len(diffs) * 100.0, 3),
+        "max_gap_ms": int(over.max()) if len(over) else 0,
+        "missing_bars": int((over // expected - 1).sum()) if len(over) else 0,
+    }
+
+
+def _warn_on_bar_gaps(index: pd.Index) -> None:
+    """Log a warning when the bar index is not contiguous. Sibling of the
+    flat-price check above: both report degraded input without altering it."""
+    report = bar_gap_report(index)
+    if report["gap_count"]:
+        log.warning(
+            "pipeline.bar_gaps_detected",
+            possible_cause="exchange_outage_halt_or_truncated_pagination",
+            action="features_computed_but_rolling_windows_span_more_time_than_expected",
+            **report,
+        )
 
 
 def build_feature_matrix(
@@ -746,6 +826,7 @@ def build_feature_matrix(
         cfg.atr_window,
         cfg.sharpe_window,
         cfg.volume_zscore_window,
+        cfg.garch_window,  # DAT-016: rolling GARCH requires a full fit window
         # VF-016: include the frac-diff weight window so the min-rows guard
         # accounts for the 200-bar NaN burn-in, preventing silent row loss.
         _FRAC_DIFF_MAX_WINDOW,
@@ -771,6 +852,8 @@ def build_feature_matrix(
             possible_cause="exchange_halt_or_stale_data_feed",
             action="features_computed_but_signal_quality_degraded",
         )
+
+    _warn_on_bar_gaps(bars.index)
 
     log_ret = np.log(close / close.shift(1))
 
@@ -843,6 +926,13 @@ def build_feature_matrix(
         daily_vol=daily_vol,
     )
 
+    # INT-001: forward return from entry to the barrier exit, per bar.
+    _pos = np.arange(len(close)) + tb_offsets.to_numpy(dtype=np.float64)
+    _ok = np.isfinite(_pos) & (_pos < len(close))
+    _exit_px = np.full(len(close), np.nan)
+    _exit_px[_ok] = close.to_numpy(dtype=np.float64)[_pos[_ok].astype(np.int64)]
+    fwd_ret = pd.Series(np.log(_exit_px / close.to_numpy(dtype=np.float64)), index=bars.index)
+
     # Barrier calibration check. Labels dominated by the vertical barrier mean
     # the horizontal ones are unreachable inside max_holding, so the clock is
     # doing the labelling and the model is learning drift rather than the
@@ -876,6 +966,7 @@ def build_feature_matrix(
             COL_GARCH_VOL: garch_vol,
             COL_LABEL: tb_labels,
             COL_RETURN: log_ret,
+            COL_FORWARD_RETURN: fwd_ret,
         },
         index=bars.index,
     )
@@ -883,6 +974,8 @@ def build_feature_matrix(
     # Drop rows with NaN in any feature (burn-in) or where label is NaN
     # (tail rows where holding window extends beyond data)
     before = len(feature_df)
+    # DAT-001: keep a label-independent view for inference before filtering.
+    features_all = feature_df.dropna(subset=list(FEATURE_COLUMNS))[list(FEATURE_COLUMNS)]
     feature_df = feature_df.dropna(subset=[*FEATURE_COLUMNS, COL_LABEL])
     dropped = before - len(feature_df)
 
@@ -918,6 +1011,8 @@ def build_feature_matrix(
         daily_vol=daily_vol.reindex(feature_df_dir.index),
         log_returns=feature_df_dir[COL_RETURN],
         dropped_rows=dropped,
+        forward_returns=feature_df_dir[COL_FORWARD_RETURN],
+        features_all=features_all,
     )
 
 
@@ -965,8 +1060,24 @@ def build_inference_features(
     """
     # Fast path — reuse pre-built feature matrix (SCAN2-007)
     if feature_matrix is not None and feature_matrix.features is not None:
-        fm = feature_matrix.features
+        # DAT-001: score the latest closed bar, never the last *labelled* row.
+        fm = (
+            feature_matrix.features_all
+            if feature_matrix.features_all is not None
+            else feature_matrix.features
+        )
         if len(fm) < 1:
+            return None
+        if (
+            feature_matrix.features_all is not None
+            and len(history) > 0
+            and fm.index[-1] != history.index[-1]
+        ):
+            log.warning(
+                "pipeline.inference_stale_row_skip",
+                row_ts=str(fm.index[-1]),
+                last_bar_ts=str(history.index[-1]),
+            )
             return None
         vec = fm.iloc[-1][list(FEATURE_COLUMNS)].astype(np.float64)
         if live_ofi is not None:
