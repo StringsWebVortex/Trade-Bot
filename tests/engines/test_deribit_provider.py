@@ -18,6 +18,7 @@ def _session(responses):
     for body in responses:
         r = AsyncMock()
         r.json = AsyncMock(return_value=body)
+        r.raise_for_status = MagicMock()
         r.__aenter__ = AsyncMock(return_value=r)
         r.__aexit__ = AsyncMock(return_value=False)
         resps.append(r)
