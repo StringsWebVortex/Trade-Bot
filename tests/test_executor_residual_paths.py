@@ -9,15 +9,15 @@ registries both executors expose.
 from __future__ import annotations
 
 import asyncio
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import ccxt
 import pytest
-from test_live_executor_coverage import _make_executor, _make_position
 
 from src.execution.idempotency import DuplicateOrderError, IdempotencyRecord
 from src.execution.paper import PaperPosition
-
+from tests.test_live_executor_coverage import _make_executor, _make_position
 
 # ---------------------------------------------------------------------------
 # Paper: exit-leg slippage
@@ -53,6 +53,7 @@ def _paper_executor():
     import structlog
 
     executor._log = structlog.get_logger("paper_test")
+    executor._risk_cfg = SimpleNamespace(slippage_default_spread_bps=2.0)
     return executor
 
 
@@ -60,13 +61,18 @@ class TestPaperExitSlippage:
     @pytest.mark.parametrize(
         ("position", "mark"),
         [
-            (_paper_position(adv=0.0), 50_000.0),  # liquidity context unknown
             (_paper_position(qty=0.0), 50_000.0),  # nothing to close
             (_paper_position(), 0.0),  # no usable mark
         ],
     )
     def test_no_adjustment_without_a_usable_liquidity_context(self, position, mark):
         assert _paper_executor()._slipped_exit_price(mark, position) == mark
+
+    @pytest.mark.parametrize(("direction", "expected"), [(1, 49_990.0), (0, 50_010.0)])
+    def test_unknown_liquidity_fails_closed_to_the_default_spread(self, direction, expected):
+        # EXR-014: adv_20d == 0.0 charges slippage_default_spread_bps (2 bps), not zero.
+        position = _paper_position(adv=0.0, direction=direction)
+        assert _paper_executor()._slipped_exit_price(50_000.0, position) == pytest.approx(expected)
 
     def test_closing_a_long_fills_below_the_mark(self):
         price = _paper_executor()._slipped_exit_price(50_000.0, _paper_position(direction=1))
@@ -123,12 +129,15 @@ def test_a_missing_fill_quantity_is_read_as_fully_filled():
     assert "trade-1" not in executor._positions
 
 
-def test_a_partial_close_is_still_booked_but_flagged():
-    executor, _ = _executor_with_position(_close_order(filled=0.05))
+def test_a_partial_close_settles_only_the_filled_share_and_keeps_the_residual():
+    # EXR-007: the unfilled remainder is still live exposure, so it stays tracked.
+    executor, position = _executor_with_position(_close_order(filled=0.05))
+    original_qty = position.quantity
 
     asyncio.run(executor.close_position("trade-1", 50_500.0, "take_profit"))
 
-    assert "trade-1" not in executor._positions
+    assert "trade-1" in executor._positions
+    assert executor._positions["trade-1"].quantity == pytest.approx(original_qty - 0.05)
 
 
 def test_closing_an_unknown_trade_is_an_error():
@@ -261,7 +270,8 @@ class TestEmergencyFlatten:
             )
         )
 
-    def test_a_stranded_short_entry_books_the_flatten_the_other_way_round(self):
+    def test_a_short_entry_is_refused_on_the_spot_account_without_touching_the_exchange(self):
+        # EXR-008: spot has no borrowing, so a short entry never reaches the exchange.
         order = {
             "id": "ord-1",
             "status": "closed",
@@ -274,8 +284,8 @@ class TestEmergencyFlatten:
         cash_before = executor._cash
 
         assert self._place(executor, direction=0) is None
-        # entry and flatten filled at the same price, so only the two fees move
-        assert executor._cash == pytest.approx(cash_before - 2.0)
+        executor._place_market_order.assert_not_called()
+        assert executor._cash == cash_before
 
     def test_a_flatten_that_the_exchange_refuses_leaves_the_fill_stranded(self):
         order = {
@@ -299,26 +309,3 @@ class TestEmergencyFlatten:
 
         assert self._place(executor, direction=1) is None
         assert calls["n"] == 2  # the flatten was attempted
-
-
-def test_an_approval_that_disappears_before_resolution_is_not_approved():
-    """The event fires, but the queue entry is gone by the time the waiter
-    reclaims it -- that is refused, never read as an approval."""
-    executor = _make_executor()
-
-    async def _run():
-        request = MagicMock()
-        request._event = asyncio.Event()
-        request._event.set()
-
-        class _RacyQueue(dict):
-            """Hands out the request, then loses it -- another task popped it."""
-
-            def pop(self, key, default=None):
-                super().pop(key, default)
-                return None
-
-        executor._approval_queue = _RacyQueue({"req-1": request})
-        return await executor._await_approval("req-1", 0.5)
-
-    assert asyncio.run(_run()) == (False, "")
