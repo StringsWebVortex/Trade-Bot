@@ -25,7 +25,9 @@ from typing import Any
 
 import pytest
 
-jsonschema = pytest.importorskip("jsonschema")
+from tests.required_import import require
+
+jsonschema = require("jsonschema")
 from jsonschema import Draft7Validator  # noqa: E402
 
 REPO = Path(__file__).resolve().parents[2]
@@ -108,10 +110,12 @@ class TestTheConfigDescribesRealThings:
         assert (REPO / config["registry"]["schema"]).exists()
         assert (REPO / config["registry"]["loader"]).exists()
 
-    def test_the_generated_docs_and_their_generators_exist(self, config):
+    def test_generated_docs_are_rendered_on_demand(self, config):
+        ignored = (REPO / ".gitignore").read_text(encoding="utf-8").splitlines()
         for spec in config["registry"]["generated_docs"]:
-            assert (REPO / spec["doc"]).exists(), spec["doc"]
             assert (REPO / spec["generator"]).exists(), spec["generator"]
+            # GOV-071: generated traceability output is deliberately not tracked.
+            assert f"/{spec['doc']}" in ignored, spec["doc"]
 
     def test_the_id_prefix_map_matches_the_registry_schema(self, config):
         # Two places state the prefix-to-kind rule: this config and the

@@ -2,6 +2,7 @@
 
 Decides:
   - SIG-002 — Feature computation is deterministic and reproducible
+  - REG-1092 — Triple-barrier unresolved tail rows are NaN, not time exits
 """
 
 import numpy as np
@@ -288,7 +289,16 @@ class TestTripleBarrierLabels:
         close = synthetic_bars["close"]
         tb = triple_barrier_labels(close, 2.0, 1.0, 60)
         # Last max_holding bars should have NaN (horizon extends beyond data)
-        assert tb.iloc[-1] == -1.0 or pd.isna(tb.iloc[-1])
+        assert pd.isna(tb.iloc[-1])
+
+    def test_unresolved_tail_is_nan_not_time_exit(self):
+        """DAT-005: unresolved rows whose window runs past the data are NaN."""
+        close = pd.Series(100.0 + np.sin(np.arange(40)) * 0.01)
+        vol = pd.Series([0.5] * 40)  # barriers never hit
+        tb, off = triple_barrier_labels_with_offsets(close, 1.0, 1.0, 10, daily_vol=vol)
+        assert (tb.iloc[:30] == -1.0).all()
+        assert tb.iloc[30:].isna().all()
+        assert off.iloc[30:].isna().all()
 
     def test_renamed(self, synthetic_bars):
         close = synthetic_bars["close"]

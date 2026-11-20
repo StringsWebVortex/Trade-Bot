@@ -1,27 +1,28 @@
-#!/usr/bin/env python3
-"""
-PostToolUse policy stub.
-
-Local tests, builds, lint, security scans, and quality gates are intentionally
-not executed in an agent session. GitHub Actions is the sole validation path.
-The hook remains registered for compatibility, but valid edit events are a
-silent no-op. Malformed hook input fails open so an internal hook issue cannot
-block unrelated work.
-"""
-
-from __future__ import annotations
-
+"""Quality gate hook."""
 import json
+import os
 import sys
+from pathlib import Path
 
 
-def main() -> None:
+def main() -> int:
+    raw = sys.stdin.read()
     try:
-        json.load(sys.stdin)
-    except Exception as exc:  # malformed hook input is not the edit's fault
-        print(f"[quality_gate] degraded, allowing: {exc}", file=sys.stderr)
-    return
+        payload = json.loads(raw)
+    except (json.JSONDecodeError, ValueError):
+        print("quality_gate: degraded — could not parse hook input", file=sys.stderr)
+        return 0
+
+    file_path = payload.get("tool_input", {}).get("file_path", "")
+    if not file_path:
+        return 0
+
+    project_dir = os.environ.get("CLAUDE_PROJECT_DIR", "")
+    if project_dir and not Path(file_path).is_relative_to(Path(project_dir)):
+        return 0
+
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

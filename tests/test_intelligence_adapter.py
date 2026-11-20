@@ -92,6 +92,9 @@ class TestIntelligenceAdapter:
         adapter, _intel, storage = self._make_adapter(signal=sig)
         storage.store_intelligence_features = AsyncMock(side_effect=OSError("db error"))
         self._run(adapter.on_bar("BTC/USDT", "1h", 1000, {"close": 50000.0, "volume": 10.0}))
+
+        # The write was attempted; its failure stayed inside on_bar.
+        storage.store_intelligence_features.assert_awaited_once()
         # Should log warning but not raise
 
     def test_signal_to_features_maps_complete_v6_contract(self) -> None:

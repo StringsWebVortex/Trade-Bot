@@ -337,8 +337,8 @@ def size_position(
     quantity_raw = notional_raw / entry_price
 
     # Quantise to exchange precision
-    decimal_places = int(amount_precision)
-    quantity = _floor_to_precision(quantity_raw, decimal_places)
+    decimal_places = _precision_decimal_places(amount_precision)
+    quantity = _floor_to_amount_precision(quantity_raw, amount_precision)
 
     if quantity <= 0.0:
         log.debug(
@@ -415,8 +415,8 @@ def _apply_notional_cap(
     into the trade record by both executors, so leaving the pre-cap value
     would record a Kelly fraction the position never had.
     """
-    decimal_places = int(amount_precision)
-    capped_qty = _floor_to_precision(notional_cap_usd / entry_price, decimal_places)
+    decimal_places = _precision_decimal_places(amount_precision)
+    capped_qty = _floor_to_amount_precision(notional_cap_usd / entry_price, amount_precision)
 
     if capped_qty <= 0.0:
         # The cap is tighter than one quantisation step. Previously the
@@ -807,6 +807,27 @@ def compute_win_loss_stats(
 # ---------------------------------------------------------------------------
 # Internal utility
 # ---------------------------------------------------------------------------
+
+
+def _precision_decimal_places(amount_precision: float) -> int:
+    """Decimal places implied by *amount_precision* (EXR-016).
+
+    ccxt 4.x reports ``precision.amount`` as a tick size (e.g. 1e-05) for
+    Binance/OKX; values >= 1 are legacy decimal-place counts.
+    """
+    if 0.0 < amount_precision < 1.0:
+        return max(0, int(math.ceil(-math.log10(amount_precision) - 1e-9)))
+    return int(amount_precision)
+
+
+def _floor_to_amount_precision(value: float, amount_precision: float) -> float:
+    """Floor *value* to the exchange amount step (tick size or decimal places)."""
+    if 0.0 < amount_precision < 1.0:
+        if not math.isfinite(value):
+            raise ValueError(f"cannot quantise a non-finite quantity: {value}")
+        step = Decimal(str(amount_precision))
+        return float((Decimal(str(value)) // step) * step)
+    return _floor_to_precision(value, int(amount_precision))
 
 
 def _floor_to_precision(value: float, decimal_places: int) -> float:

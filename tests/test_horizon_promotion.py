@@ -11,6 +11,16 @@ import pytest
 from src.models.horizon_learning import HorizonLearningStore
 from src.models.horizon_mlp import HorizonMLPExpert
 
+_NOW = 1_800_000_000.0
+
+
+@pytest.fixture(autouse=True)
+def _frozen_wall_clock(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The store stamps maturity and promotion rows with time.time(); a fixed
+    clock makes evidence ages exact instead of depending on how long the
+    fixture took to build (audit TSB-07)."""
+    monkeypatch.setattr(time, "time", lambda: _NOW)
+
 
 def _promotion_fixture(tmp_path: Path) -> tuple[HorizonLearningStore, Path, str, str, str]:
     symbol = "BTC/USDT"
@@ -40,7 +50,7 @@ def _promotion_fixture(tmp_path: Path) -> tuple[HorizonLearningStore, Path, str,
     # The production gate requires 100 paired OOS forecasts. The supported
     # 2-minute target matures on the second subsequent one-minute source event.
     # Two unlabeled events mature the final forecast without manufacturing a prediction.
-    base_ts = time.time() - 102 * 60.0 - 600.0
+    base_ts = _NOW - 102 * 60.0 - 600.0
     for index in range(100):
         timestamp = base_ts + 60.0 * index
         close = 100.0 + index
@@ -99,7 +109,7 @@ def _promotion_fixture(tmp_path: Path) -> tuple[HorizonLearningStore, Path, str,
         incumbent_version=incumbent_version,
         minimum_samples=100,
         max_evidence_age_seconds=1000,
-        now=time.time(),
+        now=_NOW,
     )
     assert passing["eligible"]
     return store, root, symbol, candidate_version, incumbent_version
@@ -169,7 +179,7 @@ def test_candidate_evaluation_never_approves_stale_evidence(tmp_path: Path) -> N
         incumbent_version=incumbent_version,
         minimum_samples=100,
         max_evidence_age_seconds=1,
-        now=time.time() + 100.0,
+        now=_NOW + 100.0,
     )
     assert not evaluation["eligible"]
     assert evaluation["outcome"] == "CONTINUE_SHADOW"

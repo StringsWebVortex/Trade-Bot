@@ -20,6 +20,23 @@ import structlog
 log = structlog.get_logger(__name__)
 
 
+def _ensure_column(db: Any, table: str, name: str, sql_type: str) -> None:
+    """Add a missing column safely when concurrent startup migrates the same DB."""
+    columns = {row[1] for row in db.execute(f"PRAGMA table_info({table})")}
+    if name in columns:
+        return
+    try:
+        db.execute(f"ALTER TABLE {table} ADD COLUMN {name} {sql_type}")
+    except sqlite3.OperationalError as exc:
+        if "duplicate column name" not in str(exc).casefold():
+            raise
+        # Another process may have added this column after our initial PRAGMA.
+        # Only suppress the error if a fresh schema read confirms that outcome.
+        columns = {row[1] for row in db.execute(f"PRAGMA table_info({table})")}
+        if name not in columns:
+            raise
+
+
 class HorizonLearningStore:
     """Persist feature snapshots and train only after their horizon matures.
 
@@ -57,7 +74,6 @@ class HorizonLearningStore:
                     error TEXT
                 )"""
             )
-            columns = {row[1] for row in db.execute("PRAGMA table_info(horizon_samples)")}
             for name, sql_type in (
                 ("provider", "TEXT NOT NULL DEFAULT 'unknown'"),
                 ("source_timeframe", "TEXT"),
@@ -76,8 +92,7 @@ class HorizonLearningStore:
                 ("candidate_oos_correct", "INTEGER"),
                 ("candidate_oos_squared_error", "REAL"),
             ):
-                if name not in columns:
-                    db.execute(f"ALTER TABLE horizon_samples ADD COLUMN {name} {sql_type}")
+                _ensure_column(db, "horizon_samples", name, sql_type)
             db.execute(
                 "CREATE INDEX IF NOT EXISTS horizon_samples_due "
                 "ON horizon_samples(symbol, due_ts, outcome)"
@@ -86,9 +101,7 @@ class HorizonLearningStore:
                 "CREATE INDEX IF NOT EXISTS horizon_samples_training "
                 "ON horizon_samples(symbol, trained, matured_at, event_ts)"
             )
-            columns = {row[1] for row in db.execute("PRAGMA table_info(horizon_samples)")}
-            if "trained_at" not in columns:
-                db.execute("ALTER TABLE horizon_samples ADD COLUMN trained_at REAL")
+            _ensure_column(db, "horizon_samples", "trained_at", "REAL")
             db.execute(
                 """CREATE TABLE IF NOT EXISTS horizon_events (
                     event_id TEXT PRIMARY KEY,
@@ -104,7 +117,6 @@ class HorizonLearningStore:
                     regime_id INTEGER
                 )"""
             )
-            event_columns = {row[1] for row in db.execute("PRAGMA table_info(horizon_events)")}
             for name, sql_type in (
                 ("provider", "TEXT NOT NULL DEFAULT 'unknown'"),
                 ("quality", "TEXT NOT NULL DEFAULT 'unverified'"),
@@ -113,8 +125,7 @@ class HorizonLearningStore:
                 ("payload_json", "TEXT NOT NULL DEFAULT '{}'"),
                 ("regime_id", "INTEGER"),
             ):
-                if name not in event_columns:
-                    db.execute(f"ALTER TABLE horizon_events ADD COLUMN {name} {sql_type}")
+                _ensure_column(db, "horizon_events", name, sql_type)
             db.execute(
                 "CREATE INDEX IF NOT EXISTS horizon_events_source_order "
                 "ON horizon_events(symbol, event_ts DESC)"
@@ -332,7 +343,8 @@ class HorizonLearningStore:
                 except Exception as exc:
                     rejected += 1
                     db.execute(
-                        "UPDATE horizon_samples SET error=?, update_duration_ms=? WHERE sample_id=?",
+                        "UPDATE horizon_samples SET trained=-1, error=?, update_duration_ms=? "
+                        "WHERE sample_id=?",  # INT-023: terminal, never re-selected
                         (
                             str(exc)[:500],
                             (time.perf_counter() - update_started) * 1000.0,
@@ -406,6 +418,13 @@ class HorizonLearningStore:
             spec = specs_by_id.get(horizon_id)
             if spec is None or "mlp" not in {str(x).lower() for x in spec.get("models", [])}:
                 rejected += len(samples)
+                # INT-023: terminal state (trained=-1) so these rows leave the
+                # head of the oldest-first queue instead of blocking it forever.
+                with self._lock, self._connect() as db:
+                    db.executemany(
+                        "UPDATE horizon_samples SET trained=-1, error=? WHERE sample_id=?",
+                        [("no mlp expert configured for horizon", row[0]) for row in samples],
+                    )
                 continue
             update_started = time.perf_counter()
             try:
@@ -465,7 +484,8 @@ class HorizonLearningStore:
                 update_duration = (time.perf_counter() - update_started) * 1000.0
                 with self._lock, self._connect() as db:
                     db.executemany(
-                        "UPDATE horizon_samples SET error=?, update_duration_ms=? WHERE sample_id=?",
+                        "UPDATE horizon_samples SET trained=-1, error=?, update_duration_ms=? "
+                        "WHERE sample_id=?",  # INT-023: terminal, never re-selected
                         [(str(exc)[:500], update_duration, row[0]) for row in samples],
                     )
                 log.warning(
@@ -720,7 +740,7 @@ class HorizonLearningStore:
     ) -> None:
         """Atomically point the active model at an evaluated candidate in probation."""
         from src.models.horizon_mlp import HorizonMLPExpert
-        from src.models.provenance import manifest_path_for
+        from src.models.provenance import hash_artifact, manifest_path_for
 
         instrument = hashlib.sha256(symbol.encode()).hexdigest()[:16]
         active_path = model_root / f"h{horizon_id + 1}" / instrument / "mlp.joblib"
@@ -781,7 +801,12 @@ class HorizonLearningStore:
             temp_dir = Path(tempfile.mkdtemp(prefix=".horizon-activate-", dir=versions))
             try:
                 target = temp_dir / active_path.name
-                target.write_bytes(source.read_bytes())
+                # INT-010: copy one read of the artifact, re-verified against
+                # the evaluated version, not a second unverified read.
+                verified = source.read_bytes()
+                if hash_artifact(verified) != candidate_version:
+                    raise ValueError("candidate artifact changed after its evaluation")
+                target.write_bytes(verified)
                 manifest_path_for(target).write_bytes(source_manifest.read_bytes())
                 with suppress(FileExistsError):
                     os.replace(temp_dir, version_dir)
@@ -889,7 +914,7 @@ class HorizonLearningStore:
             query = """SELECT horizon_id, COUNT(*),
                           SUM(CASE WHEN outcome IS NULL THEN 1 ELSE 0 END),
                           SUM(CASE WHEN outcome IS NOT NULL THEN 1 ELSE 0 END),
-                          SUM(trained), MAX(event_ts), MAX(matured_at),
+                          SUM(CASE WHEN trained=1 THEN 1 ELSE 0 END), MAX(event_ts), MAX(matured_at),
                           MAX(trained_at), MAX(error), MAX(update_duration_ms),
                           SUM(CASE WHEN oos_correct IS NOT NULL THEN 1 ELSE 0 END),
                           AVG(oos_correct),

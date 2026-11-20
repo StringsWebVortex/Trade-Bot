@@ -55,14 +55,22 @@ class TestUpdateMetrics:
 
     def test_partial_snapshot_no_error(self):
         """Missing keys must be silently skipped."""
+        update_metrics({"regime_state": 1})
         update_metrics({"signal_score": 0.1})  # only one key — should not raise
+
+        assert signal_score._value.get() == pytest.approx(0.1)
+        # The key the snapshot left out keeps its last value.
+        assert regime_state._value.get() == pytest.approx(1.0)
 
     def test_empty_snapshot_no_error(self):
         update_metrics({})
 
     def test_bad_value_no_propagation(self):
         """Non-numeric value must not raise — swallowed, metric unchanged."""
+        update_metrics({"signal_score": 0.25})
         update_metrics({"signal_score": "bad"})  # type: ignore[arg-type]
+
+        assert signal_score._value.get() == pytest.approx(0.25)
 
     def test_regime_probs_labels(self):
         update_metrics(

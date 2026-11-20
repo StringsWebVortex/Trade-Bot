@@ -1,10 +1,11 @@
 # Integrated terminal, process center, workspace and venue controls
 
-Architecture plan and implementation record. Every "current state" statement
-below was verified against the source at `bbe46cb6` before the design was
-chosen; nothing here is taken from documentation alone.
+Architecture plan and historical implementation record. The baseline below
+was verified against source at `bbe46cb6` before the design was chosen; it is
+not a statement of current repository state. For current behavior, verify the
+present source and tests. Historical design rationale is retained below.
 
-## 1. Current state (verified)
+## 1. Historical baseline at `bbe46cb6` (verified at that snapshot)
 
 | Area | What exists | Evidence |
 |---|---|---|
@@ -55,8 +56,10 @@ the shell with `$?=130`, `exit 3` is reaped as 3.
   cwd = `/proc/<pgid>/cwd`, start time = `/proc/<pgid>/stat`.
 * Exact exit status for interactive commands: bash shell integration (an
   rcfile that sources `~/.bashrc`, then adds `PS0`/`PROMPT_COMMAND` hooks)
-  emits `OSC 133;E;<command>`, `OSC 133;C` (started) and
-  `OSC 133;D;<status>` (finished). Verified on bash 5.3. The working
+  emits `OSC 133;<nonce>;E;<command>`, `OSC 133;<nonce>;C` (started) and
+  `OSC 133;<nonce>;D;<status>` (finished). The nonce is minted per session
+  and the scanner ignores 133 sequences without it, so printed output cannot
+  fake a command or an exit code (SEC-0014). Verified on bash 5.3. The working
   directory is read from `/proc/<pid>/cwd`, not from the shell.
 * Without integration (zsh, fish, `exec`'d shells) commands are still detected
   from the foreground group; their status is reported as **unknown**, never

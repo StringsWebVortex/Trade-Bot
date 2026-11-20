@@ -1,48 +1,41 @@
 # Codex setup for Trade-Bot
 
-This repository supports Codex through the project-scoped .codex/config.toml, root AGENTS.md, repository-local skills, a local plugin marketplace, and the official OpenAI developer-docs MCP server. Codex CLI and the VS Code extension share local Codex configuration. Project settings are applied only after the repository is trusted in the Codex client.
+This repository supports Codex through root AGENTS.md and repository-local skills. Codex CLI and the VS Code extension share local Codex configuration. Project settings are applied only after the repository is trusted in the Codex client.
 
 ## Included configuration
 
 - AGENTS.md: repository engineering contract for Codex; directs the agent to the more detailed existing CLAUDE.md and repository governance.
-- .codex/config.toml: approval-on-request, workspace-write sandbox, live web search, official read-only OpenAI developer documentation MCP, and local plugin enablement.
-- .agents/skills/: reusable repository-specific evidence-first and delivery workflows.
-- .agents/plugins/marketplace.json and plugins/trade-bot-engineering/: a local plugin package with the same core workflow and official OpenAI docs MCP connection.
+- .agents/skills/: reusable repository-specific evidence-first, delivery, implementation, debugging, parallel agent/sub-agent coordination, OpenAI SDK, and evaluation/optimization workflows.
 - .vscode/extensions.json: recommends the official OpenAI ChatGPT/Codex extension alongside the repository's existing extensions.
 
 ## Codex CLI and VS Code
 
 1. Install/update the official Codex CLI only if you intend to use the terminal interface; the VS Code extension can run without a separately installed codex command. Sign in through the supported Codex account flow. Do not place API keys or OAuth tokens in this repository.
 2. Open this repository in VS Code and trust it only if you intend to run its code and project settings. Open the Codex extension, start a new session, and verify that it picks up the repository instructions.
-3. The .codex/config.toml settings are project-scoped. The MCP server is optional (required = false) so a docs-service outage does not prevent coding sessions. Confirm it with the client's MCP/server listing UI or codex mcp list when the CLI is installed.
-4. The workspace-write sandbox allows editing within the project, while approval_policy = on-request keeps approval prompts available. Do not change to unrestricted/danger-full-access to bypass repository controls.
-5. Skills are in .agents/skills/. Invoke them explicitly by name when useful, or let Codex select them from their descriptions.
+3. Skills are in .agents/skills/. Invoke them explicitly by name when useful, or let Codex select them from their descriptions.
 
-## Local plugin marketplace (Codex desktop / supported Work surfaces)
+## OpenAI Cookbook patterns
 
-The repository includes a local marketplace named trade-bot-local with a plugin named trade-bot-engineering. Restart the ChatGPT desktop app after opening the repository marketplace, then open the Plugins Directory, choose the local repository marketplace, and install the plugin. The project config enables the plugin for trusted Codex project sessions. A local marketplace is not the same thing as publishing an administrator-managed workspace plugin.
+See [OPENAI_COOKBOOK_ADOPTION.md](OPENAI_COOKBOOK_ADOPTION.md) for the source-pinned map from relevant Cookbook recipes to Trade-Bot skills and engineering boundaries. We adopt relevant patterns rather than copying the entire Cookbook. In particular, no LLM or OpenAI SDK is inserted into the deterministic trading/risk path by this skills/configuration change.
 
 ## Developer platform / Build with Codex
 
-Repository configuration does not create a developer-platform project, enable API billing, create an API key, or configure account-level Build with Codex features. If you separately build an API-powered Codex integration or use the official Codex GitHub Action, create the needed platform project and secret in the appropriate account UI. Store credentials as local ignored environment values or GitHub Actions secrets (for example, OPENAI_API_KEY); never commit them, put them in .codex/config.toml, or copy them into agent prompts. Codex CLI signed in through ChatGPT does not require this repository to contain an API key.
+Repository configuration does not create a developer-platform project, enable API billing, create an API key, or configure account-level Build with Codex features. If you separately build an API-powered Codex integration or use the official Codex GitHub Action, create the needed platform project and secret in the appropriate account UI. Store credentials as local ignored environment values or GitHub Actions secrets (for example, OPENAI_API_KEY); never commit them or copy them into agent prompts. Codex CLI signed in through ChatGPT does not require this repository to contain an API key.
 
-## Administration: plugins and connections
+## Pull request review and handoff (ChatGPT Codex in GitHub)
 
-A repository cannot change organization/workspace administration settings. An authorized workspace admin must separately review and, if desired, publish the local plugin from the supported Plugins UI, choose its permitted workspace roles, and configure any account-level connections. The bundled OpenAI developer-docs MCP is a public, read-only documentation endpoint and does not require an API key. Do not connect GitHub write access, exchange credentials, or production services merely to enable the repository instructions.
+Claude opens a pull request and then leaves it alone; ChatGPT Codex carries it to merge (GOV-067, CLAUDE.md section 10). The repository side is:
 
-## Verification
+- `AGENTS.md` "Code Review Rules": what Codex code review (and GitHub Copilot code review, which also reads the root `AGENTS.md`) flags as P0/P1.
+- `AGENTS.md` "Pull request handoff": what Codex may and may not do when asked to fix a pull request.
+- `SECURITY.md` "Security review guidelines" and `docs/security/THREAT_MODEL.md`: security review context.
+- `.github/workflows/codex-pr-handoff.yml` with `scripts/codex_pr_handoff.py`: comments `@codex fix ...` when CI, CodeQL, Security or Workflow lint fails on the current head, or when a Codex review leaves inline findings. Once per head, at most five times per pull request, then one notice and nothing more. It does nothing until it is on `main`.
+- `scripts/codex_setup.sh`: the Codex cloud environment setup script.
 
-From the repository root, run:
+One-time setup outside the repository:
 
-    python3 - <<'PY'
-    import json, tomllib
-    from pathlib import Path
-    root = Path.cwd()
-    with (root / '.codex/config.toml').open('rb') as f:
-        tomllib.load(f)
-    for name in ('.agents/plugins/marketplace.json', 'plugins/trade-bot-engineering/plugin.json', 'plugins/trade-bot-engineering/mcp.json'):
-        json.loads((root / name).read_text())
-    print('Codex TOML and plugin JSON syntax: PASS')
-    PY
-
-This validates file syntax and package references, not the live Codex client, plugin installation, MCP connectivity, developer-platform API credentials, or workspace-admin publishing. Verify those in the relevant client/account UI after pushing and checking out the branch.
+1. ChatGPT Codex settings, Code review, this repository: Automatic review on. Optionally turn on Auto security review and point its threat model at `docs/security/THREAT_MODEL.md`.
+2. ChatGPT Codex environment for this repository: set the setup script to `bash scripts/codex_setup.sh`. Add no exchange or production credentials.
+3. Allow the Codex GitHub connector to push to pull request branches in this repository.
+4. Create a fine-grained personal access token for this repository only, with Pull requests and Issues read and write, and store it as the Actions secret `CODEX_HANDOFF_TOKEN`. Codex acts on `@codex` comments from a person with Codex access, so the comments are posted as you. Without the secret the workflow fails and posts nothing.
+5. Arm auto-merge (squash) on each pull request when you accept it. Nothing in this setup merges or arms auto-merge.

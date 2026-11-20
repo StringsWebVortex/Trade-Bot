@@ -27,7 +27,7 @@ import structlog
 
 log = structlog.get_logger(__name__)
 
-_ENABLED = os.environ.get("TRACE_STARTERS", "true").lower() not in ("0", "false")
+_ENABLED = os.environ.get("TRACE_STARTERS", "false").lower() in ("1", "true")
 
 
 def _stack_snippet(max_frames: int = 12) -> str:
@@ -62,13 +62,13 @@ def _install_asyncio_task_factory(loop: asyncio.AbstractEventLoop | None = None)
     with contextlib.suppress(Exception):
         loop.get_task_factory()
 
-    def _task_factory(inner_loop: asyncio.AbstractEventLoop, coro: Any):
+    def _task_factory(inner_loop: asyncio.AbstractEventLoop, coro: Any, **kwargs: Any):
         # Create the task using the default behaviour (preserve origin factory if any)
         try:
-            t = asyncio.Task(coro, loop=inner_loop)
+            t = asyncio.Task(coro, loop=inner_loop, **kwargs)
         except Exception:
             # Fall back to loop.create_task() if Task() signature differs
-            t = inner_loop.create_task(coro)
+            t = inner_loop.create_task(coro, **kwargs)
         # Never raise from instrumentation
         with contextlib.suppress(Exception):
             log.debug(
@@ -129,13 +129,11 @@ def _wrap_multiprocess_start() -> None:
         with contextlib.suppress(Exception):
             # multiprocessing.Process stores target in _target for fork/spawn
             target = getattr(self, "_target", None)
-            args = getattr(self, "_args", None)
             log.info(
                 "instrumentation.process_start",
                 process_name=getattr(self, "name", "<process>"),
                 pid=getattr(self, "pid", None),
                 target=_short_repr(target),
-                args=_short_repr(args),
                 stack=_stack_snippet(),
             )
         return orig(self, *a, **kw)
@@ -150,7 +148,7 @@ def _wrap_multiprocess_start() -> None:
 def install_instrumentation(loop: asyncio.AbstractEventLoop | None = None) -> None:
     """Install all available instrumentation hooks (idempotent).
 
-    By default this is enabled unless TRACE_STARTERS=false in the environment.
+    Disabled by default; set TRACE_STARTERS=true to enable.
     """
     if not _ENABLED:
         log.info("instrumentation.disabled_by_env")

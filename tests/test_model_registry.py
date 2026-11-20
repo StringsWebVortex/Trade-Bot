@@ -79,9 +79,12 @@ def test_evaluate_shadow_not_ready_when_worse_than_live() -> None:
 
 
 def test_promote_shadow_swaps_live_model() -> None:
-    registry = ModelRegistry()
+    registry = ModelRegistry(min_evaluations=10)
     registry.set_live_model("xgb_v1")
     registry.register_shadow("xgb_v2")
+    for _ in range(10):
+        registry.record_shadow_prediction("xgb_v2", 0.9, 1)
+        registry.record_live_prediction_for_comparison("xgb_v2", 0.4, 1)
     registry.promote_shadow("xgb_v2")
     assert registry.live_model_id == "xgb_v2"
     assert "xgb_v2" not in registry.shadow_ids()
