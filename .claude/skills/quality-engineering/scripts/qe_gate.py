@@ -5,12 +5,12 @@ import argparse
 import json
 import sys
 from dataclasses import dataclass, field
+from pathlib import Path
 
 try:
     import jsonschema
 except ImportError:  # the project declares jsonschema; absence is a broken gate runtime
     jsonschema = None
-from pathlib import Path
 
 import qe_registry_refs as refs
 
