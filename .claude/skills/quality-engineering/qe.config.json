@@ -7,6 +7,12 @@
       "why": "Two branches that allocate the same requirement ID produce a merge conflict that cannot be auto-resolved; detecting the collision early costs nothing and prevents wasted review cycles.",
       "command": ".claude/skills/quality-engineering/scripts/qe_gate.py --only gate-registry-collision",
       "blocking": false
+    },
+    {
+      "id": "gate-registry-evidence",
+      "why": "A registry status is only useful while its named test files and dependency links remain real; stale paths and broken dependencies must fail the quality gate.",
+      "command": ".claude/skills/quality-engineering/scripts/qe_gate.py --only gate-registry-evidence",
+      "blocking": true
     }
   ],
   "never": [
