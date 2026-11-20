@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import asyncio
-import time
 
 import numpy as np
+import pandas as pd
+import pytest
 import torch
 import torch.nn as nn
-
 
 # ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -65,21 +65,38 @@ class TestShadowDeployerExtended:
 
         dep = ShadowDeployer(lambda x: 1.0, lambda x: 1.0, shadow_hours=999)
         dep.start()
+        # shadow_hours=999 means the window has not elapsed, and evaluate()
+        # returns None rather than judging the challenger on a partial window.
+        # evaluate() is typed ABResult | None and returns None here, so the
+        # old `result.promoted is False` raised AttributeError on None -- the
+        # assertion contradicted the comment directly above it.
         result = dep.evaluate()
         assert result is None
 
-    def test_evaluate_after_shadow_period(self) -> None:
+    def test_evaluate_after_shadow_period(self, monkeypatch) -> None:
+        from types import SimpleNamespace
+
+        from src.upgrade import shadow_deploy
         from src.upgrade.shadow_deploy import ShadowDeployer
 
-        dep = ShadowDeployer(lambda x: 1.0, lambda x: 1.0, shadow_hours=0.00001)
+        # Drive the monotonic clock rather than sleeping: the window is one
+        # hour and the test moves the clock past it, so the outcome is fixed.
+        clock = SimpleNamespace(now=1000.0)
+        monkeypatch.setattr(shadow_deploy, "time", SimpleNamespace(monotonic=lambda: clock.now))
+
+        dep = ShadowDeployer(lambda x: 1.0, lambda x: 1.0, shadow_hours=1.0)
         dep.start()
-        # Fake returns
-        for _ in range(20):
-            dep.record_return(0.01, incumbent_pred=1.0, challenger_pred=0.5)
-        time.sleep(0.001)  # tiny wait
+        # Incumbent takes no directional bet (flat returns, Sharpe 0). The
+        # challenger earns a steady positive edge with varying returns.
+        for i in range(40):
+            actual = 0.01 if i % 2 == 0 else 0.03
+            dep.record_return(actual, incumbent_pred=0.0, challenger_pred=1.0)
+
+        assert dep.evaluate() is None  # window not yet elapsed
+        clock.now += 3600.0 + 1.0
         result = dep.evaluate()
-        # result may be None if not ready_to_evaluate yet
-        assert result is None or hasattr(result, "promoted")
+        assert result is not None
+        assert result.promoted is True
 
     def test_active_property(self) -> None:
         from src.upgrade.shadow_deploy import ShadowDeployer
@@ -101,12 +118,13 @@ class TestShadowDeployerExtended:
         dep = ShadowDeployer(lambda x: 0, lambda x: 0, shadow_hours=0.001)
         assert not dep.ready_to_evaluate()
 
-    def test_model_without_predict_returns_zero(self) -> None:
+    def test_model_without_predict_fails_closed(self) -> None:
         from src.upgrade.shadow_deploy import ShadowDeployer
 
         dep = ShadowDeployer(42, 42)
         dep.start()
-        assert dep.predict_incumbent(None) == 0.0
+        with pytest.raises(TypeError, match="callable or expose predict"):
+            dep.predict_incumbent(None)
 
 
 # ─── WalkForwardStudy ─────────────────────────────────────────────────────────
@@ -120,7 +138,7 @@ class TestWalkForwardStudy:
             return 1.0
 
         study = WalkForwardStudy("test", dummy_train, data=list(range(100)))
-        assert study.best_params == {}
+        assert study.best_params() == {}
 
     def test_sharpe_computation(self) -> None:
         from src.upgrade.optuna_wf import _sharpe
@@ -137,9 +155,9 @@ class TestWalkForwardStudy:
     def test_wf_params_dataclass(self) -> None:
         from src.upgrade.optuna_wf import WFParams
 
-        p = WFParams(lr_min=1e-4, lr_max=1e-2)
-        assert p.lr_min < p.lr_max
-        assert 32 in p.batch_size_choices
+        p = WFParams(lr_min=1e-4, lr_max=1e-2, dropout_max=0.3)
+        assert p.lr_min == 1e-4
+        assert p.batch_size_choices == (32, 64, 128, 256)
 
     def test_run_short_data_no_crash(self, tmp_path) -> None:
         from src.upgrade.optuna_wf import WalkForwardStudy
@@ -159,7 +177,7 @@ class TestWalkForwardStudy:
             storage_path=tmp_path / "study.db",
         )
         study.run()
-        assert isinstance(study.best_params, dict)
+        assert isinstance(study.best_params(), dict)
 
 
 # ─── ModelRegistry ─────────────────────────────────────────────────────────────
@@ -178,7 +196,7 @@ class TestModelRegistryExtended:
 
         reg = ModelRegistry(tracking_uri=str(tmp_path / "mlruns"))
         model = _MLP2()
-        reg.log_model(model, model_name="test_model", horizon_idx=0, metrics={"sharpe": 1.5})
+        reg.log_model(model, model_name="m", horizon_idx=0, metrics={"sharpe": 1.5})
 
     def test_load_model_missing_returns_none(self, tmp_path) -> None:
         from src.upgrade.registry import ModelRegistry
@@ -331,8 +349,9 @@ class TestNBEATSHeadExtended:
     def test_batch_size_one(self) -> None:
         from src.models.nbeats import NBEATSHead
 
-        model = NBEATSHead(input_size=48)
-        x = torch.randn(1, 48)
+        model = NBEATSHead()
+        # default input_size is 96
+        x = torch.randn(1, 96)
         out = model(x)
         assert out.shape[-1] == 128
 
@@ -458,8 +477,8 @@ class TestGrangerExtended:
         from src.causal.granger import GrangerCausalityDetector
 
         det = GrangerCausalityDetector(window=20, max_lag=2)
-        btc_ret = np.random.randn(30)
-        alt_prices = {"ETH": list(3000 + np.cumsum(np.random.randn(30)))}
+        btc_ret = pd.Series(np.random.randn(30))
+        alt_prices = {"ETH": pd.Series(3000 + np.cumsum(np.random.randn(30)))}
         for _ in range(3):
             det.update(btc_ret, alt_prices)
 
@@ -513,21 +532,27 @@ class TestDoWhySCMExtended:
 
         scm = DoWhySCM()
         data = pd.DataFrame(
-            {"whale_selling": np.random.randn(30), "btc_return": np.random.randn(30)}
+            {
+                "liquidations": np.random.randn(30),
+                "whale_flow": np.random.randn(30),
+                "funding_rate": np.random.randn(30),
+                "sentiment": np.random.randn(30),
+                "price": np.random.randn(30),
+            }
         )
-        signals = scm.causal_signal(data)
-        assert isinstance(signals, dict)
-        assert all(isinstance(v, float) for v in signals.values())
+        signal = scm.causal_signal(data)
+        assert isinstance(signal, dict)
+        assert all(isinstance(v, float) for v in signal.values())
 
 
 # ─── DuckDBStore extended ─────────────────────────────────────────────────────
 
 
 class TestDuckDBStoreExtended:
-    def test_write_multiple_horizon_metrics(self) -> None:
+    def test_write_multiple_horizon_metrics(self, tmp_path) -> None:
         from src.data.duckdb_store import DuckDBStore
 
-        store = DuckDBStore(path=None)
+        store = DuckDBStore(path=tmp_path / "t.duckdb")
         for h in range(10):
             store.write_horizon_metric(
                 horizon_id=h,
@@ -541,10 +566,10 @@ class TestDuckDBStoreExtended:
         assert len(df) >= 1
         store.close()
 
-    def test_write_ecc_multiple(self) -> None:
+    def test_write_ecc_multiple(self, tmp_path) -> None:
         from src.data.duckdb_store import DuckDBStore
 
-        store = DuckDBStore(path=None)
+        store = DuckDBStore(path=tmp_path / "t.duckdb")
         for i in range(5):
             store.write_ecc_signal(
                 {
@@ -560,8 +585,7 @@ class TestDuckDBStoreExtended:
     def test_roundtrip_horizon(self, tmp_path) -> None:
         from src.data.duckdb_store import DuckDBStore
 
-        # Own file: the row-count assertion below must not see other tests' writes.
-        store = DuckDBStore(path=tmp_path / "roundtrip.duckdb")
+        store = DuckDBStore(path=tmp_path / "t.duckdb")
         store.write_horizon_metric(
             horizon_id=3, label="5m", sharpe=2.1, confidence=0.9, direction=-1, drift_detected=True
         )
@@ -596,7 +620,7 @@ class TestMicrostructureExtended:
             kyle_estimator=KyleLambdaEstimator(),
             last_price=50000.0,
             last_trade_volume=100.0,
-            last_trade_side="sell",
+            last_trade_side="buy",
         )
         assert hasattr(ft, "ofi")
         assert hasattr(ft, "vpin")
@@ -666,7 +690,7 @@ class TestTFTExtended:
     def test_grn_forward(self) -> None:
         from src.models.tft import GatedResidualNetwork
 
-        grn = GatedResidualNetwork(input_dim=32, hidden_dim=48, output_dim=64)
+        grn = GatedResidualNetwork(input_dim=32, hidden_dim=64, output_dim=64)
         x = torch.randn(4, 32)
         out = grn(x)
         assert out.shape == (4, 64)
@@ -675,10 +699,10 @@ class TestTFTExtended:
         from src.models.tft import VariableSelectionNetwork
 
         vsn = VariableSelectionNetwork(n_vars=5, hidden_dim=32)
-        # forward expects [B, T, n_vars, hidden_dim]
-        x = torch.randn(2, 3, 5, 32)
+        # forward takes [B, T, n_vars, hidden_dim]
+        x = torch.randn(2, 4, 5, 32)
         out = vsn(x)
-        assert out.shape == (2, 3, 32)
+        assert out.shape == (2, 4, 32)
 
     def test_tft_head_forward(self) -> None:
         from src.models.tft import TFTHead
@@ -778,7 +802,7 @@ class TestRLExecutionAgentExtended:
         agent = RLExecutionAgent(model_path=tmp_path / "no.zip")
         state = RLExecutionState(n_horizons=2)
         for regime_id, pnl in [(0, -0.05), (4, 0.0), (8, 0.05)]:
-            obs = state.build(
+            _obs = state.build(
                 horizon_confidences=[0.7, 0.6],
                 regime_id=regime_id,
                 ecc_features={"cluster_flow_score": 0.3},
@@ -786,7 +810,7 @@ class TestRLExecutionAgentExtended:
                 drawdown=abs(pnl),
                 kyle_lambda=1e-6,
             )
-            action, _meta = agent.predict(obs)
+            action, _prob = agent.predict(horizon_confidences=[0.7, 0.7], regime_id=regime_id)
             assert action in (0, 1, 2, 3)
 
     def test_obs_length_correct(self) -> None:
@@ -796,12 +820,12 @@ class TestRLExecutionAgentExtended:
         for n in [1, 5, 10, 20]:
             state = RLExecutionState(n_horizons=n)
             obs = state.build(
-                horizon_confidences=[0.7, 0.6],
-                regime_id=1,
+                horizon_confidences=[0.8] * n,
+                regime_id=0,
                 ecc_features={},
                 realized_pnl=0.0,
                 drawdown=0.0,
-                kyle_lambda=1e-6,
+                kyle_lambda=0.0,
             )
             assert obs.ndim == 1
             assert obs.shape == (_STATE_DIM,)

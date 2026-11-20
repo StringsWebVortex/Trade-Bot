@@ -37,6 +37,8 @@ explicit-abstention design exists to prevent.
 Authority: Carver (2019) Systematic Trading Ch.11 — diversification reduces
 required size, it does not license more of it; López de Prado (2018) AFML
 Ch.16 on treating heterogeneous strategies as independent evidence.
+
+Registry: PORT-001 (config/quality_registry.json).
 """
 
 from __future__ import annotations
@@ -44,7 +46,6 @@ from __future__ import annotations
 from typing import Protocol, runtime_checkable
 
 import structlog
-
 
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
