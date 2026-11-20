@@ -47,7 +47,7 @@ def parse_event(raw: str) -> dict:
         event = json.loads(raw)
     except json.JSONDecodeError as exc:
         raise HookProtocolError(
-            f"invalid JSON payload at line {exc.lineno}, column {exc.colno}"
+            f"JSONDecodeError: invalid JSON payload at line {exc.lineno}, column {exc.colno}"
         ) from exc
     if not isinstance(event, dict):
         raise HookProtocolError("payload is not a JSON object")
