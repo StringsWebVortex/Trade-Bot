@@ -144,6 +144,7 @@ class ProductionSources:
     scheduler_running: Callable[[], bool]
     api_tasks: Callable[[], Iterable[asyncio.Task[Any]]]
     intel: Callable[[], Any | None] = lambda: None  # src.intel.CryptoIntelligence
+    horizon_models: Any | None = None
     clock_ms: Callable[[], int] = _utc_ms
     # The MLflow listing, refreshed off the event loop (UpgradeListing).
     upgrade_rows: list[dict[str, Any]] = field(default_factory=list)
@@ -219,6 +220,8 @@ def production_discoveries(sources: ProductionSources) -> list[Discovery]:
     if intel is not None:
         rows.append(worker_discovery("intel_horizons", intel.worker_pool))
         rows.extend(upgrade_row_discoveries(sources.upgrade_rows, _impl(intel.upgrade_registry)))
+        if sources.horizon_models is not None:
+            rows.extend(sources.horizon_models.discoveries())
     return rows
 
 
@@ -233,11 +236,14 @@ def production_controllers(sources: ProductionSources) -> dict[ComponentType, Co
         return {} if orchestrator is None else orchestrator.signal_engines()
 
     shadow = ShadowCandidateController(signal_engines)
+    horizon_models = sources.horizon_models
     self_tuning = SelfTuningController(sources.pause, sources.on_pause_change)
     self_tuning_id = make_component_id(ComponentType.TUNING, SELF_TUNING)
 
     def route_model(record: ComponentRecord) -> Controller | None:
         # Only candidates declare STOP; the live slot is observe-only.
+        if record.version.configuration.get("horizon_id") is not None:
+            return horizon_models
         return shadow if "/candidate/" in record.component_id else None
 
     def route_tuning(record: ComponentRecord) -> Controller | None:
@@ -290,6 +296,7 @@ class RuntimeLoop:
         # is noticed too.
         self._known: set[str] = {r.component_id for r in platform.registry.components()}
         self.passes = 0
+        self._step_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="runtime-loop")
 
     def sync_once(self) -> SyncReport:
         registry = self._platform.registry
@@ -355,7 +362,9 @@ class RuntimeLoop:
                 except Exception as exc:
                     log.error("runtime.slow_refresh_failed", error=f"{type(exc).__name__}: {exc}")
             try:
-                self.step()
+                # API-011: discovery reads pointer files and the reconciler can
+                # reach model loads; one pass must not stall the event loop.
+                await asyncio.get_running_loop().run_in_executor(self._step_executor, self.step)
             except Exception as exc:  # the control plane fails; trading does not
                 log.error("runtime.loop_step_failed", error=f"{type(exc).__name__}: {exc}")
             try:

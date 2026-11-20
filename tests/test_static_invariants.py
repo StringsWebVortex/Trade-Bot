@@ -1340,7 +1340,7 @@ def test_if_raise_replacement_passes(invariants, fake_tree) -> None:
 def test_eval_or_exec_in_src_is_flagged(invariants, fake_tree, call) -> None:
     fake_tree("src/mod.py", f"def go(payload):\n    return {call}(payload)\n")
     problems = invariants.check_no_eval_or_exec()
-    assert any(f"{call}() in src/" in p for p in problems)
+    assert any(p.startswith(f"src/mod.py:2: {call}()") for p in problems)
 
 
 def test_getattr_is_not_flagged(invariants, fake_tree) -> None:

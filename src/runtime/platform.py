@@ -2,7 +2,8 @@
 The runtime platform's composition root.
 
 ``build_runtime_platform`` wires one registry, one supervisor set, one change
-manager, one reconciler, one adaptive lifecycle and one decision-trace index
+manager, one reconciler, one adaptive lifecycle (constructed but not yet
+driven by any caller; see ``runtime.adaptive``) and one decision-trace index
 together, with the change audit mirrored onto the event bus and into the
 hash-chained audit trail, and desired state persisted through the storage
 backend when one is given. The API holds exactly one of these; it is the
@@ -52,6 +53,7 @@ class RuntimePlatform:
     traces: DecisionTraceIndex
     persister: DesiredStatePersister | None = None
     audit_persister: AuditPersister | None = None
+    horizon_models: Any | None = None
 
     async def flush(self) -> int:
         """Persist queued desired-state changes and change audit; 0 without a backend."""
@@ -105,6 +107,7 @@ def build_runtime_platform(
     desired_backend: DesiredStateBackend | None = None,
     audit_backend: AuditBackend | None = None,
     policy: RestartPolicy | None = None,
+    horizon_models: Any | None = None,
 ) -> RuntimePlatform:
     registry = RuntimeRegistry()
     registry.add_transition_listener(transition_publisher(bus))
@@ -119,7 +122,12 @@ def build_runtime_platform(
     audit_persister = None if audit_backend is None else AuditPersister(audit_backend)
     if audit_persister is not None:
         sinks.append(audit_persister.enqueue)
-    changes = ChangeManager(registry, supervisors, audit_sinks=sinks)
+    changes = ChangeManager(
+        registry,
+        supervisors,
+        audit_sinks=sinks,
+        horizon_models=horizon_models,
+    )
     persister = None
     if desired_backend is not None:
         persister = DesiredStatePersister(desired_backend)
@@ -133,4 +141,5 @@ def build_runtime_platform(
         traces=DecisionTraceIndex(),
         persister=persister,
         audit_persister=audit_persister,
+        horizon_models=horizon_models,
     )

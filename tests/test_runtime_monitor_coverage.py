@@ -1,12 +1,21 @@
 """Tests for src/diagnostics/runtime_monitor.py (27% → target 80%+).
 
 Decides:
+  - REG-1221 -- see config/quality_registry.json
   - REL-004 — Automatic halt triggers are machine-enforced
+
+  - REG-0028 — regression coverage for the recorded behavior.
+
+Decides:
+  - REG-1492 — Tick-stall failures accumulate toward escalation
+
+Decides: REG-1229
 """
 
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -15,7 +24,6 @@ import pytest
 from src.diagnostics.runtime_monitor import (
     MEMORY_CRITICAL_MB,
     MEMORY_WARN_MB,
-    STALL_THRESHOLD_S,
     TICK_SCHEDULE_GRACE_S,
     HealthSnapshot,
     ProbeResult,
@@ -215,9 +223,10 @@ async def test_run_all_probes_timeout():
 @pytest.mark.asyncio
 async def test_run_all_probes_tick_stall():
     m = RuntimeMonitor()
-    stale_ts = time.monotonic() - STALL_THRESHOLD_S - 100
-    m.register_tick_source("5m", lambda: stale_ts)
-    await m._run_all_probes()
+    # Freeze the monitor clock so CI load cannot move the timestamp boundary.
+    with patch("src.diagnostics.runtime_monitor.time.monotonic", return_value=1000.0):
+        m.register_tick_source("5m", lambda: 100.0)
+        await m._run_all_probes()
     snap = m.get_snapshot()
     assert any("tick_stall" in a for a in snap.alerts)
 
@@ -239,23 +248,6 @@ async def test_initially_unseen_four_hour_tick_is_pending_not_stale():
     assert result.passed is True
     assert result.detail == "awaiting_first_tick"
     assert not any("tick_stall_4h" in alert for alert in m.get_snapshot().alerts)
-
-
-@pytest.mark.asyncio
-async def test_first_tick_grace_restarts_when_timeframe_loop_activates():
-    m = RuntimeMonitor()
-    with patch("src.diagnostics.runtime_monitor.time.monotonic", return_value=100.0):
-        m.register_tick_source("1m", lambda: 0.0)
-    # Simulate a lengthy initial-model-training phase before the loop starts.
-    with patch("src.diagnostics.runtime_monitor.time.monotonic", return_value=10_000.0):
-        m.mark_tick_source_active("1m")
-    with patch("src.diagnostics.runtime_monitor.time.monotonic", return_value=10_005.0):
-        await m._run_all_probes()
-
-    result = m._results["tick_stall_1m"]
-    assert result.passed is True
-    assert result.detail == "awaiting_first_tick"
-    assert result.value == 5.0
 
 
 @pytest.mark.asyncio
@@ -281,6 +273,17 @@ async def test_fifteen_minute_tick_is_not_stale_after_only_five_minutes():
 
 
 @pytest.mark.asyncio
+async def test_non_finite_tick_timestamp_is_immediately_unhealthy():
+    m = RuntimeMonitor()
+    m.register_tick_source("4h", lambda: float("nan"))
+    await m._run_all_probes()
+    result = m._results["tick_stall_4h"]
+    assert result.passed is False
+    assert result.detail == "invalid_tick_timestamp"
+    assert result.value is None
+
+
+@pytest.mark.asyncio
 async def test_run_all_probes_tick_getter_exception():
     m = RuntimeMonitor()
     m.register_tick_source("bad", lambda: 1 / 0)
@@ -300,24 +303,45 @@ async def test_non_finite_tick_timestamp_is_immediately_unhealthy():
 
 @pytest.mark.asyncio
 async def test_run_all_probes_detects_dead_tasks():
-    """A completed, non-cancelled asyncio task lingering in the event loop
-    (other than the harness's own "Task-1") must be flagged as an alert.
-    asyncio.all_tasks() normally excludes finished tasks by the time a test
-    can observe them, so this mocks it directly rather than relying on a
-    real (unreliable) completion race."""
+    """A watched task that dies with an exception is flagged (AGT-012).
+    asyncio.all_tasks() never contains finished tasks, so death is observed
+    through the done-callback registered by watch_task."""
     m = RuntimeMonitor()
 
-    dead_task = MagicMock()
-    dead_task.done.return_value = True
-    dead_task.cancelled.return_value = False
-    dead_task.get_name.return_value = "leaked-worker"
+    async def boom() -> None:
+        raise RuntimeError("worker crashed")
 
-    with patch("asyncio.all_tasks", return_value={dead_task}):
-        await m._run_all_probes()
+    task = asyncio.create_task(boom(), name="leaked-worker")
+    m.watch_task(task)
+    with contextlib.suppress(RuntimeError):
+        await task
+    await m._run_all_probes()
 
     snap = m.get_snapshot()
     assert snap is not None
-    assert any("dead_tasks" in a for a in snap.alerts)
+    assert any("dead_tasks" in a and "leaked-worker" in a for a in snap.alerts)
+
+
+@pytest.mark.asyncio
+async def test_watch_task_ignores_cancelled_and_clean_tasks():
+    m = RuntimeMonitor()
+
+    async def ok() -> None:
+        return None
+
+    async def forever() -> None:
+        await asyncio.sleep(60)
+
+    done = asyncio.create_task(ok())
+    hung = asyncio.create_task(forever())
+    m.watch_task(done)
+    m.watch_task(hung)
+    await done
+    hung.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await hung
+    await m._run_all_probes()
+    assert not any("dead_tasks" in a for a in m.get_snapshot().alerts)
 
 
 @pytest.mark.asyncio
@@ -423,3 +447,39 @@ def test_get_monitor_returns_singleton():
     m2 = get_monitor()
     assert m1 is m2
     assert isinstance(m1, RuntimeMonitor)
+
+
+@pytest.mark.asyncio
+async def test_engine_background_task_helper_registers_task_with_runtime_monitor(monkeypatch):
+    from src.engine import orchestrator as engine_orchestrator
+
+    watched = []
+    monkeypatch.setattr(
+        engine_orchestrator,
+        "get_monitor",
+        lambda: MagicMock(watch_task=watched.append),
+    )
+
+    async def work():
+        return None
+
+    task = asyncio.create_task(work(), name="engine-background-test")
+    try:
+        assert engine_orchestrator._watch_background_task(task) is task
+        assert watched == [task]
+    finally:
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+
+
+@pytest.mark.asyncio
+async def test_tick_stall_failures_accumulate_for_escalation():
+    """AGT-013: a persistent stall must count up, not reset to 1 every cycle."""
+    m = RuntimeMonitor()
+    with patch("src.diagnostics.runtime_monitor.time.monotonic", return_value=1000.0):
+        m.register_tick_source("5m", lambda: 100.0)
+        await m._run_all_probes()
+        await m._run_all_probes()
+        await m._run_all_probes()
+    assert m._results["tick_stall_5m"].consecutive_failures == 3

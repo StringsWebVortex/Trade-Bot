@@ -76,7 +76,8 @@ moves only through the tuning runner's promotion. A shadow model declares
 
 Every write needs a trade-authorizing API key, the `CHANGE_RUNTIME`
 permission, and the operator second factor (`operator`, `operator_secret`,
-SEC-007). `actor_kind` is `human` (default) or `ai`.
+SEC-007). `actor_kind` is optional, `human` or `ai`; who the caller is comes
+from the operator credential, not from the body (see "Operator identity").
 
 | Route | Effect |
 |---|---|
@@ -85,7 +86,7 @@ SEC-007). `actor_kind` is `human` (default) or `ai`.
 | `GET /runtime/dependencies` | edges, start order, cycle, issues |
 | `GET /runtime/changes`, `GET /runtime/changes/{id}` | change records with their audit |
 | `GET /runtime/traces[?limit=]`, `GET /runtime/traces/{trace_id}` | decision traces |
-| `GET /runtime/agent` | Claude session task manifests and the branch-audit ledger (read-only) |
+| `GET /runtime/agent` | Claude session task manifests and the branch-audit ledger; changes nothing, but needs `CHANGE_RUNTIME`, so a read-only key gets 403 (SEC-0015) |
 | `POST /runtime/changes` | request a change: `component_id`, `action`, `reason`, optional `target_version`, `target_implementation`, `target_configuration`, `expected_version` |
 | `POST /runtime/changes/{id}/{approve,execute,promote,rollback,cancel}` | decide an open change |
 | `POST /runtime/components/{id}/{pause,resume,drain,stop,deactivate,quarantine,rollback,start}` | shorthand for a request on one component |
@@ -104,9 +105,39 @@ Classification decides what happens next:
 | `FORBIDDEN` | the table, the capabilities or an unmet dependency refuse it | read the reasons; nothing to approve |
 
 An AI actor can request changes and execute approved ones; it can never
-approve, record a stage result or promote. Whoever holds `OPERATOR_SECRET` is
-treated as the human operator, so that secret must never be given to an
-automated client.
+approve, record a stage result or promote.
+
+### Operator identity (SEC-0016)
+
+Set `OPERATOR_CREDENTIALS` to give every operator their own secret, so the
+name and kind on a change come from the credential and an AI client cannot
+claim to be human. It is a JSON object, one entry per operator:
+
+```
+OPERATOR_CREDENTIALS={"alice": {"kind": "human", "secret_sha256": "<hex>"}, "agent": {"kind": "ai", "secret_sha256": "<hex>"}}
+```
+
+* `secret_sha256` is the SHA-256 of the operator's secret, 64 lowercase hex
+  characters: `s=$(openssl rand -hex 32); printf %s "$s" | sha256sum`. The
+  operator sends `s` as `operator_secret`; the server stores only the hash.
+* The secret alone picks the operator. `operator` in the body must equal that
+  operator's name and `actor_kind`, when sent, must equal its kind, otherwise
+  the call is refused with 403. A wrong secret is 401.
+* A malformed value, two operators sharing one secret, or an `ai` entry whose
+  secret is `OPERATOR_SECRET` makes every runtime write answer 503 until it is
+  fixed.
+* While it is set, `OPERATOR_SECRET` no longer authorises runtime writes. To
+  keep one secret for both, give the human entry the hash of
+  `OPERATOR_SECRET`. The other operator endpoints (`/controls`,
+  `/execution-mode`, venues, ...) still use `OPERATOR_SECRET`, which stays
+  required at startup and must never be given to an automated client.
+* Approval needs a human credential but not a second person: a solo human
+  operator approves their own requests.
+
+Without `OPERATOR_CREDENTIALS` the earlier single-operator model applies:
+whoever holds `OPERATOR_SECRET` is the human operator, the body's `operator`
+is recorded as sent, and `actor_kind: "ai"` can only lower that to an AI
+actor. That secret must never be given to an automated client.
 
 One open change per component; a request carrying `expected_version` is
 refused once the component has moved (stale version).
@@ -183,9 +214,69 @@ signal gate. The same run record is each engine's health in the registry
   stay queued in order and are written by the next flush (every mutating
   `/runtime` call flushes).
 * **Platform build failure** -- trading starts anyway; every `/runtime` route
-  answers 503 (`api.runtime_platform_unavailable` in the log).
+  answers 503 (`api.runtime_platform_unavailable` in the log) and `GET
+  /readyz` stays 503 with phase `degraded`: stored operator intents are not
+  being enforced.
 * **Agent interruption, compaction, stop before commit/push** -- see the
   agent execution protocol (Stop, PreCompact and SessionStart hooks).
+
+## Startup and readiness
+
+`uv run python -m src.api` (host, port and reload from `API_HOST`,
+`API_PORT`, `API_RELOAD`) runs the lifespan in `src/api/main.py`, and uvicorn
+opens the port only when the lifespan yields. The lifespan therefore does
+only what is bounded: settings and secrets, strategy registration, storage,
+`Orchestrator.startup(defer_warm_up=True)` (executor, runtime monitor,
+pipeline self-test), the security controls, the stored execution mode, the
+runtime platform (restore desired state, first reconcile) and the background
+tasks. Then `_state.ready` is set and the server listens.
+
+The model warm-up -- history for every active timeframe, the model fits,
+the signal engines -- runs first thing in the orchestrator's `run()` task.
+The loops that need no model (position monitor, midnight reset, allocation
+rebalance, order-book stream) start before it, so open positions are guarded
+while models train; the timeframe loops start only after it, so nothing
+ticks without its engine. `stop()` ends a warm-up in progress; a warm-up
+that fails starts no timeframe loop and says why.
+
+Before this, the lifespan awaited the whole warm-up: a cold PAPER start
+measured on 2026-10-11 kept port 8000 closed for 27.7 minutes (REG-0026).
+
+| Layer | Where | True when |
+|---|---|---|
+| liveness | `GET /livez` | the process answers; constant, touches nothing |
+| API | `/readyz` `components.api` | the lifespan finished (above) |
+| runtime platform | `components.runtime_platform` | built; `unavailable` otherwise, which is never ready |
+| models | `components.models` | per timeframe: `pending` -> `bootstrapping` -> `queued` -> `training` -> `trained` -> `ready`, or `unavailable` / `failed` with the reason |
+| trading loops | `components.trading_loops` | the timeframe loops started; per timeframe tick count, first tick, age of the last tick |
+
+`GET /readyz` (API key; `src/api/readiness.py`) answers 200 only when every
+layer is up, and 503 otherwise with `phase` (`starting`, `warming_up`,
+`degraded`, `failed`, `stopping`) and `reasons`. A first tick is reported,
+not required: a 4h timeframe's first tick can be hours away. The dashboard
+shows the phase and reasons, or why it cannot ask (unreachable API, rejected
+key, an API without `/readyz`).
+
+* **History on restart.** A store whose newest bar is inside the training
+  window (2000 bars) refreshes the window plus a day instead of the full
+  90-day bootstrap -- every bar training reads is still re-downloaded, the
+  gap since the last bar is closed, and an empty or stale store still takes
+  the full bootstrap.
+* **Tick stalls.** A timeframe loop registers its stall probe when it starts.
+  Until the first tick the wait counts from then, and the limit is one bar
+  plus 60s (never under 300s), so a healthy 15m or 4h loop is not a stall.
+* **Memory.** After the warm-up the process collects garbage and returns
+  freed heap pages to the OS (`malloc_trim` on glibc), logged as
+  `orchestrator.warm_up_complete released_mb=...`. The optional LSTM ensemble
+  member loads the native Torch runtime only when it is fitted; when the
+  configured critical RSS limit cannot cover the conservative runtime/tensor
+  reserve, it is skipped with `lstm_skipped_memory_budget` and the remaining
+  ensemble members are reported as a degraded ensemble. Core direction/meta
+  training and deterministic risk gates are not bypassed.
+* **Preflight.** `python3 scripts/startup_preflight.py` starts the API in
+  PAPER mode with exchange credentials blanked and a one-off API key, and
+  reports listening, readiness phases, first tick, peak RSS against
+  `MEMORY_CRITICAL_MB` and a graceful shutdown as one JSON line.
 
 ## Known limitations
 
@@ -203,3 +294,34 @@ signal gate. The same run record is each engine's health in the registry
   comes from adapters and controller probes.
 * A probe has no timeout of its own; a controller whose probe can hang must
   bound it.
+
+
+### Controlled startup preflight evidence (2026-10-11)
+
+On implementation commit `e8162a3377a6ed90b015c85e1a82eb1d754412b6`, the isolated PAPER-mode preflight passed with a clean tracked worktree: API bind 6.0 s, API and Runtime Platform ready 6.1 s, all three timeframe models ready 253.6 s, first 1m tick 256.0 s, peak process-tree RSS 543 MiB against the unchanged 1,024 MiB critical limit, and graceful shutdown in 3.7 s (exit 0, not forced). The XGBoost runtime resource profile was 300 estimators/depth 4/one worker; configured 500/depth 6 settings were preserved. All live credentials were blanked and the preflight used isolated SQLite and model-artifact copies with PAPER mode and live orders disabled.
+
+The short preflight explicitly requires the 1m first tick; the 15m and 4h loops were active but had not yet emitted a first tick at the 260.4-second snapshot. One public OKX instruments request exhausted retries without preventing readiness; OKX health itself remains unverified by this run. See `INTEGRATION_AUDIT.md` for the complete machine-generated summary and limits.
+
+### Repeat preflight against the final runtime implementation (2026-10-11)
+
+A second controlled PAPER-mode run against runtime implementation commit `c307752a90837a614cbca725b2ff26b41650a13f` passed with a clean tracked worktree. It used isolated SQLite/model-artifact snapshots, blank exchange and optional-service credentials, loopback port `18181`, `live_orders_enabled=false`, and the unchanged 1,024 MiB critical limit. API bind/API readiness/Runtime Platform readiness were each 14.1 s; all 1m/15m/4h models were ready at 414.0 s; the first healthy 1m tick was 427.2 s; reconciliation passes were 84; peak process-tree RSS was 553.5 MiB; total elapsed was 431.5 s; shutdown exited 0 in 3.4 s without force. The effective XGBoost profile remained 300 estimators/depth 4/one worker and the configured 500/depth 6 values were unchanged.
+
+The preflight passed without a readiness failure or memory-limit breach. Only the 1m first tick was required and observed; the 15m/4h loop tick counters were still zero at the snapshot, so their first ticks are not claimed as verified. One public OKX instruments request exhausted retries without blocking readiness; OKX endpoint health remains unverified. The machine-generated summary also confirmed PAPER mode, no inherited exchange credentials, isolated storage, and live orders disabled.
+
+
+## Full-timeframe PAPER acceptance procedure
+
+The default preflight requires the first `1m` tick because a `15m` or `4h` loop deliberately waits for the next UTC-aligned bar close. To make an acceptance run account for every configured timeframe, run this command on the exact commit under review:
+
+```bash
+python3 scripts/startup_preflight.py \
+  --timeout 1800 \
+  --tick-timeout 15000 \
+  --require-tick 1m \
+  --require-tick 15m \
+  --require-tick 4h
+```
+
+This is an operational PAPER preflight, not a substitute for CI. It blanks exchange and optional-service credentials, disables live orders, snapshots configured storage/model artifacts into a disposable directory, and stops the API gracefully. The JSON report is SHA-bound and explicitly lists `required_timeframes`, `missing_required_timeframes`, each observed `first_tick_s`, API/runtime/model readiness, peak RSS, and shutdown status. A pass requires every requested tick and clean shutdown; a model-ready response alone does not count as a tick. The 4-hour first tick can require waiting for the next UTC-aligned 4-hour boundary after model warm-up, so the extended timeout is intentional. Repeat the command after the first process has fully exited to check clean-restart behavior; retain both reports with their source SHAs. Do not infer a pass from older measurements or a green frontend build.
+
+The Chromium dashboard suite separately exercises visible readiness, populated operational panels, whole-page scrolling, drag/drop persistence, keyboard resize/move, hide/restore navigation across a remount, terminal-session creation/resizing, and process-center inspect/terminate interactions. Its API and terminal provider are deterministic fixtures; it validates browser interactions, not a live API-to-terminal deployment. Backend readiness, process lifecycle, and graceful API shutdown remain covered by their owning Python tests and the isolated PAPER preflight.

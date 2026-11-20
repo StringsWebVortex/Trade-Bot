@@ -16,8 +16,11 @@ Policy:
 * LIVE_SAFE changes need only an authorised requester: taking risk off must
   never wait for a person.
 * Everything else waits for approval by a human holding the approver role.
-  An AI actor can request but never approve, and never approves its own
-  change by being the requester.
+  An AI actor can request but never approve. The kind is only as true as
+  the caller that builds the Actor: the API takes it from the operator's
+  credential (src/api/runtime_control.py, SEC-0016). Approval does not
+  require a second person, so a solo human operator can approve their own
+  request.
 * SHADOW_REQUIRED and CANARY_REQUIRED changes execute only once a passed
   stage result is recorded for them.
 * One open change per component: a second request is rejected, so two
@@ -33,10 +36,12 @@ from __future__ import annotations
 
 import threading
 import uuid
-from collections.abc import Callable, Iterable
+from collections import deque
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from enum import StrEnum
+from types import MappingProxyType
 from typing import Any
 
 import structlog
@@ -107,28 +112,36 @@ TERMINAL: frozenset[ChangeStatus] = frozenset(
     }
 )
 
-STAGE_FOR: dict[ChangeClass, str] = {
-    ChangeClass.SHADOW_REQUIRED: "shadow",
-    ChangeClass.CANARY_REQUIRED: "canary",
-}
+STAGE_FOR: Mapping[ChangeClass, str] = MappingProxyType(
+    {
+        ChangeClass.SHADOW_REQUIRED: "shadow",
+        ChangeClass.CANARY_REQUIRED: "canary",
+    }
+)
 
 REJECTED_CLASSES: frozenset[ChangeClass] = frozenset(
     {ChangeClass.FORBIDDEN, ChangeClass.DRAIN_REQUIRED, ChangeClass.RESTART_REQUIRED}
 )
 
 # The action that undoes each action, where one exists.
-INVERSE: dict[LifecycleAction, LifecycleAction] = {
-    A.ACTIVATE: A.DEACTIVATE,
-    A.DEACTIVATE: A.ACTIVATE,
-    A.PAUSE: A.RESUME,
-    A.RESUME: A.PAUSE,
-    A.START: A.STOP,
-    A.REPLACE: A.ROLLBACK,
-}
+INVERSE: Mapping[LifecycleAction, LifecycleAction] = MappingProxyType(
+    {
+        A.ACTIVATE: A.DEACTIVATE,
+        A.DEACTIVATE: A.ACTIVATE,
+        A.PAUSE: A.RESUME,
+        A.RESUME: A.PAUSE,
+        A.START: A.STOP,
+        A.REPLACE: A.ROLLBACK,
+    }
+)
 
 
 class ChangeError(RuntimeError):
     """The request cannot move in the way asked."""
+
+
+class RuntimeLifecycleUnavailableError(ChangeError):
+    """A lifecycle-specific runtime dependency is unavailable for this change."""
 
 
 class UnauthorizedError(ChangeError):
@@ -234,6 +247,15 @@ def _utc_now() -> datetime:
     return datetime.now(UTC)
 
 
+# In-memory bounds (audit API-021). The persisted audit_log is the full
+# history; these keep the process from growing with every request. Only
+# changes that never executed (rejected, cancelled) are forgotten: an executed
+# change stays, so its change id can never be replayed as a new request.
+_AUDIT_LIMIT = 10_000
+_UNEXECUTED_LIMIT = 1_000
+_UNEXECUTED: frozenset[ChangeStatus] = frozenset({ChangeStatus.REJECTED, ChangeStatus.CANCELLED})
+
+
 class ChangeManager:
     def __init__(
         self,
@@ -242,14 +264,16 @@ class ChangeManager:
         *,
         clock: Callable[[], datetime] = _utc_now,
         audit_sinks: Iterable[AuditSink] = (),
+        horizon_models: Any | None = None,
     ) -> None:
         self._registry = registry
         self._supervisors = supervisors
         self._clock = clock
         self._sinks = list(audit_sinks)
+        self._horizon_models = horizon_models
         self._lock = threading.RLock()
         self._changes: dict[str, ChangeRecord] = {}
-        self._audit: list[AuditEntry] = []
+        self._audit: deque[AuditEntry] = deque(maxlen=_AUDIT_LIMIT)
         # Desired state before each executed change, restored on rollback.
         self._previous_desired: dict[str, DesiredState | None] = {}
 
@@ -534,6 +558,96 @@ class ChangeManager:
                 raise UnauthorizedError(f"{actor.name} cannot promote")
             return self._observe(change, actor, final=True)
 
+    def decide_lifecycle(
+        self,
+        change_id: str,
+        verb: str,
+        actor: Actor,
+        *,
+        reason: str = "",
+        system_actor: Actor,
+    ) -> ChangeRecord:
+        """Apply a control decision and its domain lifecycle through this manager.
+
+        The API must not reach into the registry or horizon lifecycle service
+        directly. Keeping the decision, approval, stage, execution, promotion,
+        and associated failure boundary here ensures every state change passes
+        through the same audited ChangeManager path.
+        """
+        if verb == "approve":
+            pending = self.get(change_id)
+            component = self._registry.find(pending.request.component_id)
+            if component is None:
+                raise ChangeError(f"unknown component {pending.request.component_id}")
+            is_horizon_model = component.version.configuration.get("horizon_id") is not None
+            horizon_lifecycle = self._horizon_models
+            if (
+                is_horizon_model
+                and pending.classification is ChangeClass.SHADOW_REQUIRED
+                and horizon_lifecycle is None
+            ):
+                raise RuntimeLifecycleUnavailableError("horizon model lifecycle is unavailable")
+            # API-013: one lock across approve -> shadow check -> stage ->
+            # execute (the lock is re-entrant), so no other thread observes a
+            # half-decided change, and a failed shadow check ends the change
+            # instead of stranding it APPROVED -- non-terminal, blocking every
+            # later request on the component.
+            with self._lock:
+                result = self.approve(change_id, actor)
+                if is_horizon_model and result.classification is ChangeClass.SHADOW_REQUIRED:
+                    # The adapter was checked and captured before approval.
+                    # ChangeManager classification is unchanged by approve().
+                    try:
+                        detail = horizon_lifecycle.record_shadow_stage(component)
+                    except Exception as exc:
+                        self._move(
+                            self.get(change_id),
+                            ChangeStatus.FAILED,
+                            system_actor.name,
+                            "shadow_check_failed",
+                            result=str(exc),
+                        )
+                        raise
+                    self.record_stage(
+                        change_id,
+                        stage="shadow",
+                        passed=True,
+                        detail=detail,
+                        actor=system_actor,
+                    )
+                    return self.execute(change_id, system_actor)
+                if result.classification not in STAGE_FOR:
+                    return self.execute(change_id, actor)
+                return result
+
+        if verb == "execute":
+            return self.execute(change_id, actor)
+
+        if verb == "promote":
+            current = self.get(change_id)
+            component = self._registry.find(current.request.component_id)
+            if component is None:
+                raise ChangeError(f"unknown component {current.request.component_id}")
+            is_horizon_model = component.version.configuration.get("horizon_id") is not None
+            horizon_lifecycle = self._horizon_models
+            if is_horizon_model and horizon_lifecycle is None:
+                raise RuntimeLifecycleUnavailableError("horizon model lifecycle is unavailable")
+            result = (
+                current
+                if is_horizon_model and current.status is ChangeStatus.PROMOTED
+                else self.promote(change_id, actor)
+            )
+            if result.status is ChangeStatus.PROMOTED and is_horizon_model:
+                # The adapter was checked before promote() could mutate state.
+                horizon_lifecycle.complete_promotion(component)
+            return result
+
+        if verb == "rollback":
+            return self.rollback(change_id, actor, reason or "operator rollback")
+        if verb == "cancel":
+            return self.cancel(change_id, actor)
+        raise ChangeError(f"unknown decision {verb!r}")
+
     def rollback(self, change_id: str, actor: Actor, reason: str) -> ChangeRecord:
         with self._lock:
             change = self._expect(change_id, ChangeStatus.EXECUTED)
@@ -644,6 +758,7 @@ class ChangeManager:
         self._audit_entry(
             change, f"submitted:{status.value}", request.actor.name, "; ".join(reasons)
         )
+        self._forget_unexecuted()
         return change
 
     def _move(
@@ -653,7 +768,15 @@ class ChangeManager:
         self._changes[change.change_id] = updated
         detail = str(changes.get("result") or changes.get("rollback") or status.value)
         self._audit_entry(updated, event, actor, detail)
+        self._forget_unexecuted()
         return updated
+
+    def _forget_unexecuted(self) -> None:
+        """Drop the oldest rejected/cancelled changes beyond the in-memory bound."""
+        unexecuted = [cid for cid, c in self._changes.items() if c.status in _UNEXECUTED]
+        for change_id in unexecuted[: max(0, len(unexecuted) - _UNEXECUTED_LIMIT)]:
+            del self._changes[change_id]
+            self._previous_desired.pop(change_id, None)
 
     def _audit_entry(self, change: ChangeRecord, event: str, actor: str, detail: str) -> None:
         self._append_audit(change.change_id, change.request.component_id, event, actor, detail)

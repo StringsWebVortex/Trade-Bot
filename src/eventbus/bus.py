@@ -279,6 +279,8 @@ class EventBus:
 
     def __init__(self, maxlen: int = DEFAULT_MAXLEN) -> None:
         self._subscribers: set[Subscription] = set()
+        # Drops of subscribers already detached, so total_dropped is monotonic.
+        self._dropped_detached = 0
         self._maxlen = maxlen
         self.published = 0
         self.unknown_topic_drops = 0
@@ -289,8 +291,14 @@ class EventBus:
 
     @property
     def total_dropped(self) -> int:
-        """Drops across every live subscriber -- what the heartbeat reports."""
-        return sum(sub.dropped for sub in self._subscribers)
+        """Drops across live and detached subscribers -- what the heartbeat reports."""
+        return self._dropped_detached + sum(sub.dropped for sub in self._subscribers)
+
+    def _remove_subscriber(self, sub: Subscription) -> None:
+        """Unregister ``sub``, folding its drop count into the bus total once."""
+        if sub in self._subscribers:
+            self._subscribers.discard(sub)
+            self._dropped_detached += sub.dropped
 
     def publish(
         self,
@@ -348,7 +356,7 @@ class EventBus:
             raise ValueError(f"unknown topic(s): {', '.join(sorted(unknown))}")
 
         sub = Subscription(topics=wanted, maxlen=self._maxlen)
-        sub._unsubscribe = self._subscribers.discard
+        sub._unsubscribe = self._remove_subscriber
         self._subscribers.add(sub)
         return sub
 

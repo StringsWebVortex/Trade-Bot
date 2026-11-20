@@ -22,6 +22,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from src.agent_control.store import default_state_dir
+
 ROOT = Path(os.environ.get("CLAUDE_PROJECT_DIR", Path(__file__).resolve().parents[2])).resolve()
 MAX_EVENTS = 200
 REPEAT_LIMIT = 3
@@ -52,7 +54,7 @@ def _git_common_dir() -> Path:
 
 
 def state_path() -> Path:
-    return _git_common_dir() / "agent-control" / "reliability.json"
+    return default_state_dir(_git_common_dir()) / "reliability.json"
 
 
 @contextlib.contextmanager
@@ -67,15 +69,42 @@ def _locked() -> Iterator[Path]:
             fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
 
+class ReliabilityStateError(RuntimeError):
+    """The reliability file exists but cannot be trusted (AGT-007): fail closed."""
+
+
+def _quarantine(path: Path) -> None:
+    backup = path.with_suffix(".corrupt")
+    if backup.exists():
+        stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S%f")
+        backup = path.with_name(f"{path.name}.corrupt.{stamp}")
+        collision = 0
+        while backup.exists():
+            collision += 1
+            backup = path.with_name(f"{path.name}.corrupt.{stamp}.{collision}")
+    with contextlib.suppress(OSError):
+        path.replace(backup)
+
+
 def _load(path: Path) -> dict[str, Any]:
     if not path.exists():
         return {"version": 1, "events": [], "ci": {}}
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return {"version": 1, "events": [], "ci": {}}
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        _quarantine(path)
+        raise ReliabilityStateError(f"reliability state {path} is unreadable: {exc}") from exc
     if not isinstance(data, dict):
-        return {"version": 1, "events": [], "ci": {}}
+        _quarantine(path)
+        raise ReliabilityStateError(f"reliability state {path} is not an object")
+    events = data.get("events", [])
+    ci = data.get("ci", {})
+    if not isinstance(events, list) or any(not isinstance(event, dict) for event in events):
+        _quarantine(path)
+        raise ReliabilityStateError(f"reliability state {path} has invalid events")
+    if not isinstance(ci, dict) or any(not isinstance(record, dict) for record in ci.values()):
+        _quarantine(path)
+        raise ReliabilityStateError(f"reliability state {path} has invalid CI records")
     data.setdefault("version", 1)
     data.setdefault("events", [])
     data.setdefault("ci", {})
@@ -206,7 +235,7 @@ def record_ci_verdict(
                     event["resolved_at"] = _now()
         else:
             fp = fingerprint(
-                "ci", pr, ",".join(record["failed_checks"]), re.sub(r"\\s+", " ", notice)
+                "ci", pr, ",".join(record["failed_checks"]), re.sub(r"\s+", " ", notice)
             )
             previous = [event for event in data["events"] if event.get("fingerprint") == fp]
             data["events"].append(
@@ -230,14 +259,14 @@ def record_ci_verdict(
 
 def record_ci_from_notice(*, sha: str, pr: int, notice: str) -> dict[str, Any]:
     lower = notice.lower()
-    if "all checks green" in lower:
+    if "workflow succeeded" in lower or "all checks green" in lower:
         return record_ci_verdict(sha=sha, pr=pr, status="green", notice=notice)
-    if "no verdict" in lower or "still running" in lower:
+    if "still running" in lower:
         return record_ci_verdict(sha=sha, pr=pr, status="pending", notice=notice)
     failed = [
         f"{match.group(1)} / {match.group(2)}"
         for match in re.finditer(
-            r"^\*\*(.+?) / (.+?)\*\* — (?:failure|cancelled|timed_out|neutral|action_required|stale|no verdict)",
+            r"^\*\*(.+?) / (.+?)\*\* — (?:failure|cancelled|timed_out|neutral|skipped|action_required|stale|no verdict)",
             notice,
             re.MULTILINE,
         )
@@ -261,13 +290,18 @@ def gate(
         return ReliabilityResult(True)
     if not head_sha:
         return ReliabilityResult(False, ("reliability: HEAD unavailable",))
-    with _locked() as path:
-        data = _load(path)
+    try:
+        with _locked() as path:
+            data = _load(path)
+    except ReliabilityStateError as exc:
+        return ReliabilityResult(False, (f"reliability: {exc}",))
     ci = data.get("ci", {}).get(head_sha)
     if not ci:
         return ReliabilityResult(
             False,
-            (f"reliability: no CI verdict for HEAD {head_sha[:12]}; run local_checks.py prepare",),
+            (
+                f"reliability: no CI verdict for HEAD {head_sha[:12]}; run ./scripts/prfail --pr <PR_NUMBER>",
+            ),
         )
     if ci.get("status") != "green":
         return ReliabilityResult(
@@ -281,7 +315,7 @@ def gate(
         event
         for event in data.get("events", [])
         if event.get("status") == "repeat"
-        and event.get("task_id") == task_id
+        and (event.get("task_id") == task_id or event.get("kind") == "ci")
         and event.get("head_sha") == head_sha
     ]
     if repeats:
@@ -289,6 +323,23 @@ def gate(
             False, ("reliability: repeated failure remains unresolved at HEAD",)
         )
     return ReliabilityResult(True)
+
+
+def ci_is_green(sha: str | None) -> bool:
+    """True only when a ``scripts/prfail`` verdict recorded in the reliability
+    store says CI is green for exactly ``sha`` (AGT-003: agent attestation alone is not proof)."""
+    if not sha:
+        return False
+    try:
+        with _locked() as path:
+            data = _load(path)
+    except ReliabilityStateError:
+        return False
+    ci = data.get("ci")
+    if not isinstance(ci, dict):
+        return False
+    verdict = ci.get(sha)
+    return isinstance(verdict, dict) and verdict.get("status") == "green"
 
 
 def snapshot() -> dict[str, Any]:
