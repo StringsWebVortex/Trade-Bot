@@ -17,3 +17,8 @@ python .claude/skills/quality-engineering/scripts/qe_gate.py --plan path/to/chan
 The plan must use the Draft 7 schema at `schemas/change_plan.schema.json`. It requires a bounded summary, a declared change class, one or more requirement references, at least one decisive test with a `decides` statement, and a concrete failure mode. Optional blast-radius and rollback fields make operational impact explicit. Unknown fields and unqualified test paths are rejected.
 
 A `defect_fix` plan must include a new `REG-NNNN` requirement. Do not claim verification merely because a test is named: the test must actually run and pass before the registry status is changed to `verified`.
+
+
+## Registry evidence audit
+
+Run the read-only traceability audit with `python .claude/skills/quality-engineering/scripts/qe_evidence.py`. It validates registry schema, unique IDs, safe and existing test paths, dependency references, and dependency cycles. The `gate-registry-evidence` gate runs the same audit as a blocking check. A passing audit proves references resolve; it does not prove the tests executed or passed. CI execution evidence remains authoritative.
