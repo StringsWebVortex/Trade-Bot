@@ -38,6 +38,8 @@ from dataclasses import dataclass, field
 
 import structlog
 
+from src.mathcore.curves.secp256k1 import parse_point
+
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
 # Distinct r values held for nonce-reuse detection. Each entry is an int
@@ -115,11 +117,23 @@ def extract_ecdsa_signatures(raw_tx_hex: str) -> list[tuple[int, int, bytes, str
                         r, s = parsed
                         # Try to find 33-byte compressed pubkey after the sig
                         pubkey_offset = i + 2 + total_len + 1  # skip sighash byte
+                        # In P2PKH scriptSig and P2WPKH witness the pubkey is
+                        # preceded by a 0x21 (33-byte) push opcode; skip it.
+                        if pubkey_offset < len(raw) and raw[pubkey_offset] == 0x21:
+                            pubkey_offset += 1
                         if pubkey_offset + 33 <= len(raw) and raw[pubkey_offset] in (0x02, 0x03):
                             pubkey = raw[pubkey_offset : pubkey_offset + 33]
-                            results.append((r, s, pubkey, txid))
-                            i = pubkey_offset + 33
-                            continue
+                            # A 0x02/0x03 prefix and the right length are not a
+                            # public key. Roughly half of all 32-byte strings
+                            # have no point on secp256k1, so an unchecked match
+                            # here is close to a coin flip -- and every stage
+                            # downstream treats what comes out of this function
+                            # as a real key. On-curve checking belongs at this
+                            # boundary, not deeper in.
+                            if parse_point(pubkey) is not None:
+                                results.append((r, s, pubkey, txid))
+                                i = pubkey_offset + 33
+                                continue
             i += 1
     except Exception as exc:
         log.debug("ecdsa_parse_error", exc=str(exc))
@@ -219,6 +233,11 @@ class ECDSAScanner:
                     self._evicted_r += 1
             if registry_entry:
                 for s_prev, _pk_prev, txid_prev, z_prev in registry_entry:
+                    # The same transaction seen again (re-broadcast, reorg,
+                    # overlapping feeds) matches itself on r and s. That is
+                    # not a reused nonce across two signatures (MTH-002).
+                    if txid_prev == txid and s_prev == s:
+                        continue
                     # Same r value = same nonce k used → potential private key recovery
                     privkey = _extract_privkey_from_nonce_reuse(r, s, s_prev, z, z_prev)
                     weakness = ECDSAWeakness(
@@ -241,7 +260,10 @@ class ECDSAScanner:
             # thousands of times is itself the weakness and is reported on
             # the second sighting; retaining every later one adds no
             # detection and is the shape a spam stream would exploit.
-            if len(registry_entry) < _MAX_SIGS_PER_R:
+            already_seen = any(
+                txid_prev == txid and s_prev == s for s_prev, _pk, txid_prev, _z in registry_entry
+            )
+            if not already_seen and len(registry_entry) < _MAX_SIGS_PER_R:
                 registry_entry.append((s, pubkey_hex, txid, z))
 
         return found
@@ -252,11 +274,3 @@ class ECDSAScanner:
         if not self._weaknesses:
             return 0.0
         return float(max(w.risk_score for w in self._weaknesses))
-
-    def clear_old_entries(self, max_registry_size: int = 100_000) -> None:
-        """Prune r-registry to prevent unbounded memory growth."""
-        if len(self._r_registry) > max_registry_size:
-            # Remove oldest 10% of entries
-            keys = list(self._r_registry.keys())
-            for k in keys[: len(keys) // 10]:
-                del self._r_registry[k]

@@ -31,12 +31,20 @@ __all__ = [
 ]
 
 
+_TRIAL_DIVISION_LIMIT = 1 << 24
+
+
 def _largest_prime_factor(n: int) -> int:
     """The largest prime factor of ``n``, by trial division. Small ``n`` only."""
     largest = 1
     d = 2
     remaining = n
     while d * d <= remaining:
+        if d > _TRIAL_DIVISION_LIMIT:
+            raise ValueError(
+                "group_order has no prime factor below 2^24 and is too large to factor "
+                "by trial division; use factorization.factorize"
+            )
         while remaining % d == 0:
             largest = d
             remaining //= d
@@ -85,8 +93,9 @@ def nfs_cost_bits(modulus_bits: int) -> float:
 
     Evaluates ``L_n[1/3, c]`` with ``c = (64/9)^(1/3)`` and converts the
     operation count to bits (``log2``). This is the curve that makes RSA-2048
-    give roughly 112-bit security and RSA-3072 roughly 128-bit, matching NIST
-    SP 800-57 -- and it is why RSA keys dwarf elliptic-curve keys at the same
+    give roughly 112-bit security (NIST SP 800-57) and RSA-3072 roughly
+    128-bit; this bare formula omits o(1) terms and evaluates to about 117 bits
+    for 2048 -- and it is why RSA keys dwarf elliptic-curve keys at the same
     security. An estimate of asymptotic cost, not a promise about a specific
     modulus. Not constant time.
     """
