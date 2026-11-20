@@ -6,34 +6,49 @@
 # requirements-dev.txt. Target interpreter: Python 3.11 (.python-version).
 
 # --- async I/O and HTTP -----------------------------------------------------
-aiohttp>=3.9,<4.0
+aiohttp>=3.14.3,<4.0
 httpx>=0.27,<1.0
-requests>=2.32,<3.0
-websockets>=12.0,<16.0
+requests>=2.34.2,<3.0
+# CVE-2026-97687/97688/97689 are fixed in 2.8.0 (SEC-0006). Declared directly
+# so the floor holds whatever pulls urllib3 in transitively.
+urllib3>=2.8.0,<3.0
+# 13.0 is the first release with websockets.asyncio.server, which the terminal
+# service's loopback listener uses (src/terminal/server.py); 12.x lacks it.
+websockets>=17.2,<18.0
 
 # --- API surface ------------------------------------------------------------
-fastapi>=0.115,<1.0
+fastapi>=0.142.2,<1.0
 uvicorn>=0.30,<1.0
-pydantic>=2.7,<3.0
-pydantic-settings>=2.3,<3.0
+pydantic>=2.13.5,<3.0
+pydantic-settings>=2.15.0,<3.0
 
 # --- storage ----------------------------------------------------------------
-aiosqlite>=0.20,<1.0
+aiosqlite>=0.22.1,<1.0
 asyncpg>=0.29,<1.0
-duckdb>=1.0,<2.0
-pymongo>=4.9,<5.0
+duckdb>=2.0.0,<3.0
+pymongo>=4.18.2,<5.0
+# Pins the CA bundle pymongo verifies Atlas against; a bare CI runner's
+# system trust store cannot verify the Atlas chain (opaque SSL handshake error).
+certifi>=2026.7.22
 
 # --- exchange / market data -------------------------------------------------
-ccxt>=4.3,<5.0
+# <4.5.65: every ccxt from 4.5.65 to the latest (4.5.85) pins
+# certifi==2026.6.17 exactly, which cannot satisfy the certifi>=2026.7.22
+# floor above, and 4.5.65 through 4.5.84 also pin urllib3==2.7.0, which
+# pip-audit flags (SEC-0006). 4.5.85 does move to urllib3==2.8.0, but its
+# certifi pin still leaves no common solution, so the whole range is
+# uninstallable, not just the urllib3 part of it. Lift the cap once a ccxt
+# release allows certifi>=2026.7.22 and urllib3>=2.8.0 -- both, not either.
+ccxt>=4.3,<4.5.65
 
 # --- numerics and modelling -------------------------------------------------
-numpy>=1.26,<3.0
-pandas>=2.2,<3.0
-scipy>=1.13,<2.0
-scikit-learn>=1.9.0,<2.0
+numpy>=2.4.6,<3.0
+pandas>=3.0.6,<4.0
+scipy>=1.17.1,<2.0
+scikit-learn>=1.9.1,<2.0
 statsmodels>=0.15,<1.0   # 0.15 removed grangercausalitytests(verbose=)
-networkx>=3.3,<4.0
-joblib>=1.4,<2.0
+networkx>=3.6.1,<4.0
+joblib>=1.6.0,<2.0
 
 # Implicit dependency, not an import: pandas.read_parquet/to_parquet need a
 # parquet engine, and src/data/{orderbook_stream,exchange_flow_provider,
@@ -45,8 +60,8 @@ pyarrow>=16.0,<24.0
 # --- ops --------------------------------------------------------------------
 cryptography>=50.0.1,<51.0
 prometheus-client>=0.20,<1.0
-structlog>=24.1,<26.0
-python-dotenv>=1.0,<2.0
+structlog>=26.1.0,<27.0
+python-dotenv>=1.2.4,<2.0
 PyYAML>=6.0,<7.0
 
 # --- hard imports at module scope -------------------------------------------
@@ -59,8 +74,23 @@ PyYAML>=6.0,<7.0
 #   torch                 src/fusion/*, src/models/bert_head.py -- and
 #                         tests/test_meta_network_loss.py imports it at module
 #                         scope, so pytest needs it at collection time.
-xgboost>=2.0,<4.0
-hmmlearn>=0.3,<1.0
-optuna>=3.6,<5.0
-sentence-transformers>=3.0,<6.0
-torch>=2.3,<3.0
+xgboost>=3.2.0,<4.0
+hmmlearn>=0.3.3,<1.0
+optuna>=5.0.0,<6.0
+sentence-transformers>=6.1.0,<7.0
+torch>=2.14.0,<3.0
+
+jsonschema>=4.0,<5.0
+
+# Transitive, pinned up for a vulnerability rather than for a feature.
+# msgpack arrives through the ML stack; GHSA-6v7p-g79w-8964 is an
+# out-of-bounds read in Unpacker, fixed in 1.2.1, and the container scan
+# blocks a release on it. Listing a transitive dependency in the direct
+# manifest is the honest way to raise its floor -- the alternative is an
+# ignore file that outlives the reason it was added.
+msgpack>=1.2.2
+# filelock arrives through torch and huggingface-hub; CVE-2026-112940 is an
+# arbitrary file overwrite through insecure lock-file reopening, fixed in
+# 4.2.1, and the container scan blocks on it (SEC-0012). Every dependent here
+# accepts 4.x; 4.2.1 needs Python 3.11, which .python-version and the image use.
+filelock>=4.2.1

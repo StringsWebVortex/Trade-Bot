@@ -19,6 +19,8 @@ Authority:
   - López de Prado (2018) AFML Ch.3-4 signal construction
   - Hamilton (1989) regime gate
   - Kelly (1956) position sizing
+
+Registry: DATA-001, INV-008, MODL-002, SIG-001 (config/quality_registry.json).
 """
 
 from __future__ import annotations
@@ -32,16 +34,18 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Final, cast
 
+import numpy as np
 import pandas as pd
 import structlog
 from xgboost import XGBClassifier
 
-from src.api.metrics import regime_ensemble_failure_total
-from src.config import REGIME_VOLATILE, TIMEFRAME_SECONDS, Timeframe, get_settings
+from src.config import REGIME_VOLATILE, TIMEFRAME_SECONDS, Settings, Timeframe, get_settings
 from src.data.fetcher import MarketDataFetcher
+from src.data.quality_gate import DataQualityGate, FreshnessBudget
 from src.data.storage import AnyStorageBackend, ModelMetricsRecord
 from src.diagnostics.audit_trail import get_audit_trail
 from src.diagnostics.decision_log_writer import StructuralChangeRecord, append_to_decision_log
+from src.diagnostics.metrics import regime_ensemble_failure_total
 from src.diagnostics.signal_debugger import get_degradation_tracker, get_drift_monitor
 from src.diagnostics.trade_auditor import AuditRecord, get_auditor
 from src.features.pipeline import (
@@ -80,6 +84,7 @@ from src.risk.macro_exposure_budget import (
     apply_macro_budget_to_kelly_fraction,
 )
 from src.risk.slippage import SlippageModel
+from src.risk.state_persistence import state_file
 from src.strategies.filters import apply_all_strategy_filters, ewm_trend_signal, mtf_trend_aligned
 from src.strategies.position_sizing import (
     CARVER_FORECAST_SCALAR,
@@ -87,7 +92,6 @@ from src.strategies.position_sizing import (
     recommend_position_notional,
 )
 from src.tuning.live_overrides import effective_risk_settings
-
 
 # Module-level adapter singleton -- stateless, safe to reuse across ticks.
 _PROB_ADAPTER = _ProbAdapter()
@@ -276,6 +280,10 @@ class SignalEngine:
         self._direction_model = direction_model
         self._meta_model = meta_model
         self._trainer = trainer
+        # DATA-001: one gate instance per engine. Stateless, so sharing one
+        # would work too, but a per-engine instance keeps a future
+        # per-symbol budget a one-line change rather than a refactor.
+        self._quality_gate = DataQualityGate()
         # Diversified prediction ensemble (ARIMA/XGBoost/LSTM/GP/TreeEnsemble),
         # trained by ModelTrainer.train_ensemble() alongside direction/meta.
         # None until the orchestrator's first retrain cycle produces one --
@@ -292,6 +300,13 @@ class SignalEngine:
         # same resolved bar would be learned repeatedly and the SGD model
         # would overweight whichever bar happened to sit at the boundary.
         self._last_online_learn_ts: int | None = None
+        # EXR-016/017: exchange filters, injected by the orchestrator once
+        # loaded. Defaults match compute_position_size's own.
+        self._symbol_precision: dict[str, float] = {
+            "amount_precision": 8.0,
+            "min_amount": 0.0,
+            "min_cost": 0.0,
+        }
         # Column order the online learner was fitted on. The live inference
         # vector carries extra intelligence columns that the historical
         # feature matrix does not, so blending has to project onto this list
@@ -303,7 +318,6 @@ class SignalEngine:
         # with. Bounded: only recent bars can still have an unresolved barrier,
         # so anything older is dead weight.
         self._p_long_by_bar: OrderedDict[int, float] = OrderedDict()
-        self._cfg = get_settings()
         self._model_lock = asyncio.Lock()  # protects model hot-swap (fix #14)
         # v4 regime ensemble (observability only — never gates trades, see
         # tick()): a per-engine BOCPD instance must persist its run-length
@@ -319,7 +333,8 @@ class SignalEngine:
         # recovery. One instance per engine, driven by this engine's own
         # capital_usd stream each tick — see tick() gate 0.
         self._capital_floor = CapitalPreservationFloor(
-            max_drawdown_pct=self._cfg.risk.capital_preservation_max_drawdown_pct
+            max_drawdown_pct=self._cfg.risk.capital_preservation_max_drawdown_pct,
+            state_path=state_file(f"capital_floor_{symbol}_{timeframe.value}"),
         )
         # v4 shadow-mode promotion. One registry per engine, i.e. per
         # (symbol, timeframe) — deliberately not model_registry's process-wide
@@ -341,6 +356,37 @@ class SignalEngine:
     # ------------------------------------------------------------------
     # Atomic model swap — called by orchestrator after retraining (fix #14)
     # ------------------------------------------------------------------
+
+    # Class-level default so the pin exists before any __init__ runs and
+    # no constructor has to know about it. Instances read live until one
+    # is assigned.
+    _cfg_pinned: Settings | None = None
+
+    @property
+    def _cfg(self) -> Settings:
+        """
+        The settings in force now, not the ones present at construction.
+
+        Captured in __init__ this was the one place a live override could not
+        reach: every other read in src/ calls get_settings() at use time, so a
+        value the operator changed took effect everywhere except here, and only
+        a restart realigned them. A property leaves all 14 existing reads
+        untouched while making each of them current.
+        """
+        return self._cfg_pinned if self._cfg_pinned is not None else get_settings()
+
+    @_cfg.setter
+    def _cfg(self, value: Settings) -> None:
+        """
+        Pin this instance to one Settings object, overriding the live read.
+
+        Injection is how the suite hands an engine a fake configuration, and
+        turning the attribute into a read-only property broke 64 tests that
+        assign here. A pinned instance is deliberately not live: the caller
+        asked for that exact object. Nothing in src/ assigns it, so the
+        running bot stays live.
+        """
+        self._cfg_pinned = value
 
     async def swap_models(
         self,
@@ -397,6 +443,42 @@ class SignalEngine:
             self._shadow = bundle
             self._registry.register_shadow(bundle.model_id)
         self._log.info("signal_engine.shadow_registered", model_id=bundle.model_id)
+
+    @property
+    def live_model_id(self) -> str | None:
+        """The model trading now (read-only; the runtime platform's view)."""
+        return self._registry.live_model_id
+
+    @property
+    def shadow_model_id(self) -> str | None:
+        """The candidate under shadow evaluation, if any."""
+        return None if self._shadow is None else self._shadow.model_id
+
+    def shadow_evaluations(self) -> int:
+        """Resolved shadow predictions so far; 0 without a shadow."""
+        model_id = self.shadow_model_id
+        if model_id is None or model_id not in self._registry.shadow_ids():
+            return 0
+        return self._registry.evaluation_count(model_id)
+
+    def discard_shadow_now(self, reason: str) -> bool:
+        """
+        Drop the shadow candidate on request -- the runtime platform's STOP on
+        a shadow model. A shadow never influences trading, so discarding one
+        only means it can no longer promote itself.
+
+        Synchronous because the runtime controller cannot await: it runs on
+        the event-loop thread inside a change-manager call, so no coroutine
+        can interleave between the lock check and the discard. A tick holding
+        the model lock is mid-evaluation; refuse rather than mutate under it.
+        False when there was no shadow to drop.
+        """
+        if self._model_lock.locked():
+            raise RuntimeError("the model lock is held; retry after the tick")
+        if self._shadow is None:
+            return False
+        self._discard_shadow_locked(reason)
+        return True
 
     def _discard_shadow_locked(self, reason: str) -> None:
         """Drops the current shadow. Caller must hold `self._model_lock`."""
@@ -588,6 +670,12 @@ class SignalEngine:
     # Main tick — called by orchestrator on every bar close
     # ------------------------------------------------------------------
 
+    def set_symbol_precision(self, precision: dict[str, float]) -> None:
+        """Install the exchange filters used by every sizing/rescale call (EXR-016)."""
+        for key in self._symbol_precision:
+            if precision.get(key) is not None:
+                self._symbol_precision[key] = float(precision[key])
+
     async def tick(
         self,
         capital_usd: float,
@@ -656,7 +744,32 @@ class SignalEngine:
         now_ms = int(datetime.now(tz=UTC).timestamp() * 1000)
         last_bar_ts_ms = int(bars.index[-1])
         if now_ms - last_bar_ts_ms < tf_ms:
-            return self._skip("last_bar_not_yet_closed")
+            # EXR-003: slice off the forming bar and trade on the last closed
+            # one instead of skipping the tick.
+            bars = bars.iloc[:-1]
+            if len(bars) < _MIN_BARS_FOR_SIGNAL:
+                return self._skip("insufficient_bars")
+
+        # DATA-001 / INV-008: the data-quality gate, wired.
+        #
+        # DataQualityGate has existed since the CAT-1 providers work and was
+        # covered by its own tests, but no module in src/ ever called it --
+        # the checks ran in the test suite and nowhere else, so "market data
+        # failing the quality gate never reaches the signal engine" was not
+        # true of the running system. This is the call that makes it true.
+        #
+        # The budget is derived from the timeframe rather than taken from the
+        # five-minute realtime default: the newest *closed* bar on a 15-minute
+        # timeframe is always at least fifteen minutes old, so the default
+        # would reject every well-formed frame. Three bars, not two, because
+        # the closed-bar check above has already let one full interval elapse.
+        _quality = self._quality_gate.check_bars(
+            bars,
+            budget=FreshnessBudget.for_timeframe(tf_ms / 1000.0, bars=3.0),
+        )
+        if not _quality.passed:
+            self._log.warning("signal.data_quality_reject", reason=_quality.reason)
+            return self._skip(f"data_quality:{_quality.reason}")
 
         # Resolve the previous tick's prediction now that a new bar has
         # closed — realized direction is the move between the last two
@@ -673,7 +786,12 @@ class SignalEngine:
         )
         if len(bars) >= 2:
             _actual_direction = 1 if bars["close"].iloc[-1] > bars["close"].iloc[-2] else 0
-            get_degradation_tracker(_tf_key).resolve_last(_actual_direction)
+            _tracker = get_degradation_tracker(_tf_key)
+            _tracker.resolve_last(_actual_direction)
+            # Resolving an outcome is the only thing that can move live
+            # accuracy, so a verdict flip can only happen here. Published on
+            # the flip, not on the numbers -- see publish_if_changed().
+            _tracker.publish_if_changed()
 
         # 3-5. Build feature matrix once — reused for inference vec AND regime history.
         # SCAN2-007: prior code called build_feature_matrix + build_inference_features
@@ -786,9 +904,10 @@ class SignalEngine:
             return self._skip("insufficient_features_with_ofi")
 
         # Extract GARCH vol early so it can feed both Kelly sizing and SignalContext.
+        _gv_src = fm.features_all if fm.features_all is not None else fm.features
         _garch_vol_early = (
-            float(fm.features[COL_GARCH_VOL].iloc[-1])
-            if COL_GARCH_VOL in fm.features.columns and fm.features[COL_GARCH_VOL].iloc[-1] > 0
+            float(_gv_src[COL_GARCH_VOL].iloc[-1])
+            if COL_GARCH_VOL in _gv_src.columns and _gv_src[COL_GARCH_VOL].iloc[-1] > 0
             else 0.0
         )
 
@@ -796,13 +915,21 @@ class SignalEngine:
         _drift_mon = get_drift_monitor()
         for feat_name, feat_val in vec.items():
             _drift_mon.push(str(feat_name), float(feat_val))
+        # The buffers just changed, so this is the only moment the drifted set
+        # can have changed. Publishing here rather than from a timer is what
+        # makes the panel event-time: a 30s poll of /debug/drift re-ran the KS
+        # test twice per bar to be told the same thing both times.
+        _drift_mon.publish_if_changed()
 
         # Regime history DataFrame — full feature matrix (>=50 rows required)
         history_df: pd.DataFrame | None = None
-        if len(fm.features) >= 50:
-            cols = [c for c in FEATURE_COLUMNS if c in fm.features.columns]
+        # DAT-001: contiguous, label-independent history (not the gapped
+        # labelled frame, which drops time exits and the newest bars).
+        _hist_src = fm.features_all if fm.features_all is not None else fm.features
+        if len(_hist_src) >= 50:
+            cols = [c for c in FEATURE_COLUMNS if c in _hist_src.columns]
             if len(cols) >= 3:
-                history_df = fm.features[cols]
+                history_df = _hist_src[cols]
 
         # 6. Direction prediction — read models under lock (fix #14)
         async with self._model_lock:
@@ -891,7 +1018,12 @@ class SignalEngine:
         _ensemble_p_long: float | None = None
         if ensemble is not None and _ensemble_blend_weight > 0.0:
             try:
-                _ens_pred = ensemble.predict_row(vec)
+                # REG-1714: ARIMA and the LSTM forecast from the realised
+                # closed-bar log returns (the pipeline's log_ret convention),
+                # not from the feature row. The last bar is closed (H-16).
+                _closes = bars["close"].astype(float)
+                _recent_returns = np.log(_closes / _closes.shift(1)).iloc[1:]
+                _ens_pred = ensemble.predict_row(vec, recent_returns=_recent_returns)
                 _ensemble_point_estimate = _ens_pred.point_estimate
                 _total_uncertainty = math.sqrt(
                     _ens_pred.aleatoric_uncertainty**2 + _ens_pred.epistemic_uncertainty**2
@@ -1044,6 +1176,7 @@ class SignalEngine:
             correlation_scalar=combined_scalar,
             garch_vol_scalar=_garch_vol_scalar,
             notional_cap_usd=_notional_cap_usd,
+            **self._symbol_precision,
         )
 
         notional = kelly_result.notional_usd if kelly_result is not None else 0.0
@@ -1247,6 +1380,7 @@ class SignalEngine:
                 kelly_result,
                 gate_result.size_scalar,
                 kelly_result.entry_price,
+                **self._symbol_precision,
             )
             if _scaled is None:
                 _emit_audit("skipped", "advisory_scalar_below_minimum", kelly_result, gate_result)
@@ -1475,27 +1609,24 @@ class SignalEngine:
             )
         # Apply cognitive engine's adjusted size (may be reduced by WARN results)
         if _cog_decision.adjusted_size_fraction < kelly_result.adjusted_fraction:
-            from dataclasses import replace as _dc_replace2
-
-            kelly_result = _dc_replace2(
+            # EXR-017: requantise to the exchange step and re-check minimums.
+            _cog_scaled = apply_size_scalar(
                 kelly_result,
-                notional_usd=round(
-                    kelly_result.notional_usd
-                    * (
+                max(
+                    min(
                         _cog_decision.adjusted_size_fraction
-                        / max(kelly_result.adjusted_fraction, 1e-9)
+                        / max(kelly_result.adjusted_fraction, 1e-9),
+                        1.0,
                     ),
-                    4,
+                    1e-9,
                 ),
-                quantity=round(
-                    kelly_result.quantity
-                    * (
-                        _cog_decision.adjusted_size_fraction
-                        / max(kelly_result.adjusted_fraction, 1e-9)
-                    ),
-                    8,
-                ),
+                kelly_result.entry_price,
+                **self._symbol_precision,
             )
+            if _cog_scaled is None:
+                _emit_audit("skipped", "cognitive_scalar_below_minimum", kelly_result, gate_result)
+                return self._skip("cognitive_scalar_below_minimum")
+            kelly_result = _cog_scaled
         # ─────────────────────────────────────────────────────────────────────
 
         _emit_audit("opened", "", kelly_result, gate_result)

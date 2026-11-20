@@ -9,7 +9,12 @@ MVRV  — Market Value to Realised Value ratio: spot market cap / realised cap.
         > 1 means average holder is in profit; < 1 means average holder at loss.
 
 Requires: local bitcoind with txindex=1 and JSON-RPC accessible at BTC_RPC_URL.
-Falls back gracefully (returns 0.0 for each) when node is unavailable.
+
+Unavailable values are NaN, never a plausible-looking constant. SOPR needs a
+price-at-block-height database this project does not have, so it is NaN
+always; when the node is unreachable all three are NaN. See REG-0008 -- the
+previous behaviour returned 1.0/50.0/1.0, which a consumer could not tell
+apart from a measurement.
 """
 
 from __future__ import annotations
@@ -20,8 +25,11 @@ from typing import Any
 
 import structlog
 
-
 log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
+
+# Unavailable on-chain values are NaN (REG-0008), matching the NaN convention
+# in build_inference_features and the GAP-015 fix in intelligence/metrics.py.
+_NAN = float("nan")
 
 _RPC_URL = os.environ.get("BTC_RPC_URL", "http://127.0.0.1:8332")
 _RPC_USER = os.environ.get("BTC_RPC_USER", "crypto")
@@ -54,14 +62,16 @@ class BitcoinRPCClient:
         from src.features._rpc_auth import basic_auth_header
 
         payload = {"jsonrpc": "1.0", "id": method, "method": method, "params": params or []}
-        async with aiohttp.ClientSession() as sess:
-            async with sess.post(
+        async with (
+            aiohttp.ClientSession() as sess,
+            sess.post(
                 self._url,
                 json=payload,
                 headers=basic_auth_header(*self._auth),
                 timeout=aiohttp.ClientTimeout(total=10),
-            ) as resp:
-                data = await resp.json(content_type=None)
+            ) as resp,
+        ):
+            data = await resp.json(content_type=None)
         if data.get("error"):
             raise RuntimeError(f"RPC error: {data['error']}")
         return data["result"]
@@ -89,22 +99,25 @@ class OnChainFeatureExtractor:
     """
     Computes SOPR, NVT, and MVRV from local Bitcoin node data.
 
-    SOPR: for each UTXO spent in the latest block, compute (spend_price / creation_price).
-          Approximate using block statistics when full UTXO history is unavailable.
-    NVT:  market_cap_usd / (block_tx_volume_btc * spot_price_usd).
-    MVRV: spot_market_cap / realised_cap; realised cap estimated from UTXO age distribution.
+    SOPR: unimplemented -- always NaN. It needs each spent UTXO's creation-block
+          price, and no price-at-block-height source is wired in (REG-0008).
+    NVT:  market_cap_usd / (block_tx_volume_btc * spot_price_usd). Computed.
+    MVRV: unavailable -- always NaN. It needs the chain-wide realised cap (UTXO
+          set with creation prices); node-wallet ``listunspent`` is not that
+          (DAT-004).
     """
 
     def __init__(self, rpc: BitcoinRPCClient | None = None) -> None:
         self._rpc = rpc or BitcoinRPCClient()
-        self._realised_cap_cache: float = 0.0
 
     async def compute(self, spot_price_usd: float, market_cap_usd: float) -> OnChainFeatures:
         try:
             return await self._compute_from_node(spot_price_usd, market_cap_usd)
         except Exception as exc:
             log.warning("onchain_rpc_failed", exc=str(exc))
-            return OnChainFeatures(sopr=1.0, nvt=50.0, mvrv=1.0)
+            # REG-0008: NaN, not 1.0/50.0/1.0. A node outage must not be
+            # indistinguishable from a neutral on-chain reading.
+            return OnChainFeatures(sopr=_NAN, nvt=_NAN, mvrv=_NAN)
 
     async def _compute_from_node(
         self, spot_price_usd: float, market_cap_usd: float
@@ -115,39 +128,43 @@ class OnChainFeatureExtractor:
 
         total_out_btc = float(stats.get("total_out", 0)) / 1e8  # satoshis → BTC
 
-        # SOPR approximation: ratio of current price to 30-day avg.
-        # Without full UTXO creation-price history, we use a proxy:
-        # mean(recent_prices) / spot is a good lower bound.
-        # A proper implementation requires a UTXO database with timestamps.
-        sopr = self._approximate_sopr(spot_price_usd)
+        # SOPR is not computed here and is not approximated: it needs each
+        # spent UTXO's creation-block price, which requires a
+        # price-at-block-height database this project does not have.
+        sopr = self._sopr_unimplemented()
 
         # NVT: market_cap / on-chain tx value (USD)
         daily_tx_volume_usd = total_out_btc * spot_price_usd * 144  # blocks/day estimate
         nvt = market_cap_usd / max(daily_tx_volume_usd, 1.0)
 
-        # MVRV: market_cap / realised_cap
-        utxos = await self._rpc.list_unspent()
-        realised_cap = self._estimate_realised_cap(utxos, spot_price_usd)
-        self._realised_cap_cache = realised_cap
-        mvrv = market_cap_usd / max(realised_cap, 1.0)
+        # MVRV needs the chain-wide realised cap (every UTXO at its creation
+        # price). listunspent only sees the node wallet, so there is no valid
+        # source here: NaN (DAT-004).
+        mvrv = self._mvrv_unavailable()
 
         return OnChainFeatures(sopr=sopr, nvt=nvt, mvrv=mvrv)
 
-    def _approximate_sopr(self, spot_price_usd: float) -> float:
+    def _sopr_unimplemented(self) -> float:
         """
-        SOPR proxy: returns value near 1.0 as a baseline.
-        A full implementation would compare each spent UTXO's creation-block price
-        against the spend-block price. Requires a price-at-block-height database.
-        Here we return 1.0 ± small perturbation based on price momentum.
-        """
-        return 1.0
+        SOPR is unimplemented and reports itself as such: always NaN.
 
-    def _estimate_realised_cap(self, utxos: list[dict], spot_price_usd: float) -> float:
+        A real SOPR compares each spent UTXO's creation-block price against its
+        spend-block price, which needs a price-at-block-height database. Until
+        one is wired in there is no input from which SOPR can be derived, so
+        there is nothing to approximate -- a constant here would vary with
+        nothing and be indistinguishable from a measurement that happened to
+        sit at 1.0 (REG-0008, and the same fabricated-completion-state bug as
+        GAP-015 in src/intelligence/metrics.py).
         """
-        Realised cap = sum(value_btc * price_at_creation) for all UTXOs.
-        Approximation: use spot_price * total_btc as upper bound; age-discount applies.
+        return _NAN
+
+    def _mvrv_unavailable(self) -> float:
         """
-        if not utxos:
-            return spot_price_usd * 21_000_000 * 0.5  # rough mid-point
-        total_btc = sum(float(u.get("amount", 0)) for u in utxos)
-        return total_btc * spot_price_usd
+        MVRV is unavailable and reports itself as such: always NaN.
+
+        Realised cap is the sum over the whole UTXO set of value x price at
+        creation. ``listunspent`` returns only the node wallet's UTXOs, and no
+        UTXO-set snapshot with creation prices is wired in, so any figure built
+        here would be wallet balance x spot -- arbitrary, not a bound (DAT-004).
+        """
+        return _NAN

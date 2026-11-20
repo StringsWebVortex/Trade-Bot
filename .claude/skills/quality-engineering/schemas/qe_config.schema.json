@@ -1,0 +1,59 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["version", "name", "gates", "never", "registry"],
+  "additionalProperties": false,
+  "properties": {
+    "version": {"type": "string"},
+    "name": {"type": "string"},
+    "gates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "why", "command", "blocking"],
+        "properties": {
+          "id": {"type": "string"},
+          "why": {"type": "string", "minLength": 30},
+          "command": {"type": "string"},
+          "blocking": {"type": "boolean"},
+          "optional_if_missing": {"type": "boolean"}
+        }
+      }
+    },
+    "never": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["rule", "why"],
+        "properties": {
+          "rule": {"type": "string"},
+          "why": {"type": "string", "minLength": 30}
+        }
+      }
+    },
+    "registry": {
+      "type": "object",
+      "required": ["path", "schema", "loader", "generated_docs", "id_prefixes"],
+      "properties": {
+        "path": {"type": "string"},
+        "schema": {"type": "string"},
+        "loader": {"type": "string"},
+        "generated_docs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["generator", "doc"],
+            "properties": {
+              "generator": {"type": "string"},
+              "doc": {"type": "string"}
+            }
+          }
+        },
+        "id_prefixes": {
+          "type": "object",
+          "additionalProperties": {"type": "string"}
+        }
+      }
+    }
+  }
+}
