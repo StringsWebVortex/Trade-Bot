@@ -61,6 +61,7 @@ def audit(root: Path, registry_rel: str = DEFAULT_REGISTRY,
         ))
     else:
         try:
+            jsonschema.Draft7Validator.check_schema(schema)
             validator = jsonschema.Draft7Validator(schema)
             errors = sorted(
                 validator.iter_errors(raw),
