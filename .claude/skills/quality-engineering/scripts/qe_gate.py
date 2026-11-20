@@ -13,6 +13,7 @@ except ImportError:  # the project declares jsonschema; absence is a broken gate
     jsonschema = None
 
 import qe_registry_refs as refs
+import qe_evidence
 
 _REPO = Path(__file__).resolve().parents[4]
 _SKILL = Path(__file__).resolve().parents[1]
@@ -44,6 +45,24 @@ def _read_registry_entries(registry_path: str) -> list[dict]:
         return doc.get("entries", [])
     except (FileNotFoundError, json.JSONDecodeError):
         return []
+
+
+@_register("gate-registry-evidence")
+def gate_registry_evidence(config: dict) -> GateResult:
+    """Validate registry structure and on-disk test/dependency references."""
+    registry_cfg = config.get("registry", {})
+    report = qe_evidence.audit(_REPO, registry_cfg.get("path", "config/quality_registry.json"),
+                               registry_cfg.get("schema", "config/quality_registry.schema.json"))
+    findings = [
+        f"{item['code']}: {item.get('entry_id', '')} {item['message']}".strip()
+        for item in report["findings"]
+    ]
+    return GateResult(
+        passed=report["passed"],
+        blocking=True,
+        findings=findings,
+        detail=f"{report['entry_count']} registry entries; {len(findings)} finding(s)",
+    )
 
 
 @_register("gate-registry-collision")
