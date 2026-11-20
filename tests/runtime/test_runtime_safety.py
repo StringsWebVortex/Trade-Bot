@@ -4,8 +4,13 @@ rather than in production:
 
 * src/runtime imports nothing from execution, nothing that sets the
   execution mode, and no risk gate;
-* the only kill-switch use is reading it (is_registered / is_enabled /
-  disabled_reason) -- never re_enable or a manual toggle;
+* the kill switch is read (is_registered / is_enabled / disabled_reason)
+  and pulled only one way: ``disable``, by the QUARANTINE controller in
+  controllers.py -- a risk reduction. Nothing in the runtime re-enables a
+  strategy; only the gauntlet does;
+* the subsystem levers the production controllers pull (``disable``,
+  ``discard_shadow_now``, ``set_paused_now``) are called from controllers.py
+  and nowhere else in the runtime or its API;
 * no model enters the live slot except through ShadowModelController, which
   calls evaluate_shadow before promote_shadow; set_live_model is never called;
 * tuning parameters are never written (update_current), and no strategy is
@@ -15,11 +20,12 @@ rather than in production:
   manager, the reconciler and read-only registry calls -- never a
   supervisor or a controller.
 
-Decides: RES-019"""
+Decides: RES-019, RES-022"""
 
 from __future__ import annotations
 
 import ast
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -88,6 +94,16 @@ def test_no_code_is_executed_or_patched(name: str) -> None:
     assert "importlib" not in _imports(TREES[name])
 
 
+CONTROLLER_LEVERS = {"disable", "discard_shadow_now", "set_paused_now"}
+
+
+def test_subsystem_levers_are_pulled_only_by_the_controllers() -> None:
+    callers = {
+        name: sorted(_attribute_calls(tree) & CONTROLLER_LEVERS) for name, tree in TREES.items()
+    }
+    assert {n: c for n, c in callers.items() if c} == {"controllers.py": sorted(CONTROLLER_LEVERS)}
+
+
 def test_promotion_is_gated_by_the_model_registrys_evaluation() -> None:
     callers = [n for n, t in TREES.items() if "promote_shadow" in _attribute_calls(t)]
     assert callers == ["supervisor.py"]
@@ -117,3 +133,208 @@ def test_the_api_reaches_runtime_only_through_the_change_manager() -> None:
     stray = {c for c in chains if not c.startswith(allowed_prefixes) and c not in allowed_registry}
     assert not stray, f"runtime_control reaches {sorted(stray)}"
     assert not any(c.startswith(("supervisors.", "registry.apply")) for c in chains)
+
+
+def test_change_manager_owns_horizon_shadow_activation_and_promotion() -> None:
+    from dataclasses import replace
+
+    from src.runtime.changes import ChangeRequest, ChangeStatus
+    from src.runtime.contracts import ComponentType, LifecycleAction, LifecycleState
+
+    from ._support import HUMAN, REQUESTER, SYSTEM, build_platform, spec, version
+
+    class HorizonLifecycle:
+        def __init__(self):
+            self.staged: list[str] = []
+            self.completed: list[str] = []
+
+        def record_shadow_stage(self, component):
+            self.staged.append(component.component_id)
+            return '{"eligible": true, "evaluation_id": "paired-evidence"}'
+
+        def complete_promotion(self, component):
+            self.completed.append(component.component_id)
+
+    platform = build_platform()
+    component_spec = replace(
+        spec("horizon", ComponentType.MODEL),
+        version=version("1", horizon_id=0),
+    )
+    platform.registry.register(component_spec, observed_state=LifecycleState.STANDBY)
+    lifecycle = HorizonLifecycle()
+    platform.changes._horizon_models = lifecycle
+    change = platform.changes.submit(
+        ChangeRequest(
+            component_id="model:horizon",
+            action=LifecycleAction.ACTIVATE,
+            actor=REQUESTER,
+            reason="promote evaluated horizon",
+        )
+    )
+
+    executed = platform.changes.decide_lifecycle(
+        change.change_id, "approve", HUMAN, system_actor=SYSTEM
+    )
+    assert executed.status is ChangeStatus.EXECUTED
+    assert lifecycle.staged == ["model:horizon"]
+    assert platform.changes.audit_log(change.change_id)
+
+    promoted = platform.changes.decide_lifecycle(
+        change.change_id, "promote", HUMAN, system_actor=SYSTEM
+    )
+    assert promoted.status is ChangeStatus.PROMOTED
+    assert lifecycle.completed == ["model:horizon"]
+
+
+def test_change_manager_refuses_horizon_approval_without_lifecycle_service() -> None:
+    from src.runtime.changes import (
+        ChangeError,
+        ChangeRequest,
+        RuntimeLifecycleUnavailableError,
+    )
+    from src.runtime.contracts import ComponentType, LifecycleAction, LifecycleState
+
+    from ._support import HUMAN, REQUESTER, SYSTEM, build_platform, spec, version
+
+    platform = build_platform()
+    component_spec = replace(
+        spec("horizon", ComponentType.MODEL),
+        version=version("1", horizon_id=0),
+    )
+    platform.registry.register(component_spec, observed_state=LifecycleState.STANDBY)
+    change = platform.changes.submit(
+        ChangeRequest(
+            component_id="model:horizon",
+            action=LifecycleAction.ACTIVATE,
+            actor=REQUESTER,
+            reason="promote evaluated horizon",
+        )
+    )
+    with pytest.raises(RuntimeLifecycleUnavailableError, match="lifecycle is unavailable"):
+        platform.changes.decide_lifecycle(change.change_id, "approve", HUMAN, system_actor=SYSTEM)
+    # The refusal happens before approval is committed, so retry cannot find a
+    # half-approved change with no available evaluator.
+    assert platform.changes.get(change.change_id).status.value == "AWAITING_APPROVAL"
+
+    class HorizonLifecycle:
+        def record_shadow_stage(self, component):
+            return "fresh paired evidence"
+
+        def complete_promotion(self, component):
+            return None
+
+    platform.changes._horizon_models = HorizonLifecycle()
+    executed = platform.changes.decide_lifecycle(
+        change.change_id, "approve", HUMAN, system_actor=SYSTEM
+    )
+    assert executed.status.value == "EXECUTED"
+    platform.changes._horizon_models = None
+    with pytest.raises(RuntimeLifecycleUnavailableError, match="lifecycle is unavailable"):
+        platform.changes.decide_lifecycle(change.change_id, "promote", HUMAN, system_actor=SYSTEM)
+    assert platform.changes.get(change.change_id).status.value == "EXECUTED"
+
+    platform.changes._horizon_models = HorizonLifecycle()
+
+    def missing_component(_component_id):
+        return None
+
+    platform.changes._registry.find = missing_component
+    with pytest.raises(ChangeError, match="unknown component"):
+        platform.changes.decide_lifecycle(change.change_id, "approve", HUMAN, system_actor=SYSTEM)
+    assert platform.changes.get(change.change_id).status.value == "EXECUTED"
+
+
+def test_change_manager_routes_simple_decisions_and_refuses_unknown_verbs() -> None:
+    from src.runtime.changes import ChangeError, ChangeRequest, ChangeStatus
+    from src.runtime.contracts import LifecycleAction, LifecycleState
+
+    from ._support import HUMAN, REQUESTER, SYSTEM, build_platform, spec
+
+    platform = build_platform()
+    platform.registry.register(spec("worker"), observed_state=LifecycleState.STOPPED)
+    change = platform.changes.submit(
+        ChangeRequest(
+            component_id="worker:worker",
+            action=LifecycleAction.START,
+            actor=REQUESTER,
+            reason="start worker under supervision",
+        )
+    )
+    executed = platform.changes.decide_lifecycle(
+        change.change_id, "approve", HUMAN, system_actor=SYSTEM
+    )
+    assert executed.status is ChangeStatus.EXECUTED
+    promoted = platform.changes.decide_lifecycle(
+        change.change_id, "promote", HUMAN, system_actor=SYSTEM
+    )
+    assert promoted.status is ChangeStatus.PROMOTED
+
+    second = platform.changes.submit(
+        ChangeRequest(
+            component_id="worker:worker",
+            action=LifecycleAction.DRAIN,
+            actor=REQUESTER,
+            reason="drain worker",
+        )
+    )
+    cancelled = platform.changes.decide_lifecycle(
+        second.change_id, "cancel", REQUESTER, system_actor=SYSTEM
+    )
+    assert cancelled.status is ChangeStatus.CANCELLED
+    with pytest.raises(ChangeError, match="unknown decision"):
+        platform.changes.decide_lifecycle(second.change_id, "delete", HUMAN, system_actor=SYSTEM)
+
+
+def test_change_manager_routes_execute_rollback_and_non_horizon_model_stage() -> None:
+    from src.runtime.changes import ChangeRequest, ChangeStatus
+    from src.runtime.contracts import ComponentType, LifecycleAction, LifecycleState
+
+    from ._support import HUMAN, REQUESTER, SYSTEM, build_platform, spec
+
+    platform = build_platform()
+    platform.registry.register(spec("drainable"), observed_state=LifecycleState.STANDBY)
+    drain = platform.changes.submit(
+        ChangeRequest(
+            component_id="worker:drainable",
+            action=LifecycleAction.DRAIN,
+            actor=REQUESTER,
+            reason="reduce worker exposure",
+        )
+    )
+    drained = platform.changes.decide_lifecycle(
+        drain.change_id, "execute", REQUESTER, system_actor=SYSTEM
+    )
+    assert drained.status is ChangeStatus.PROMOTED
+
+    platform.registry.register(spec("restartable"), observed_state=LifecycleState.STOPPED)
+    start = platform.changes.submit(
+        ChangeRequest(
+            component_id="worker:restartable",
+            action=LifecycleAction.START,
+            actor=REQUESTER,
+            reason="start under supervision",
+        )
+    )
+    executed = platform.changes.decide_lifecycle(
+        start.change_id, "approve", HUMAN, system_actor=SYSTEM
+    )
+    assert executed.status is ChangeStatus.EXECUTED
+    rolled_back = platform.changes.decide_lifecycle(
+        start.change_id, "rollback", REQUESTER, reason="operator rollback", system_actor=SYSTEM
+    )
+    assert rolled_back.status is ChangeStatus.ROLLED_BACK
+
+    model_spec = spec("external-shadow", ComponentType.MODEL)
+    platform.registry.register(model_spec, observed_state=LifecycleState.STANDBY)
+    model_change = platform.changes.submit(
+        ChangeRequest(
+            component_id="model:external-shadow",
+            action=LifecycleAction.ACTIVATE,
+            actor=REQUESTER,
+            reason="model has an externally managed shadow stage",
+        )
+    )
+    approved = platform.changes.decide_lifecycle(
+        model_change.change_id, "approve", HUMAN, system_actor=SYSTEM
+    )
+    assert approved.status is ChangeStatus.APPROVED

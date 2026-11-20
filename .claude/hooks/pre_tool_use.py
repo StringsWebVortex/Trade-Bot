@@ -1,328 +1,293 @@
-#!/usr/bin/env python3
-"""Universal PreToolUse safety, observation and boundary-self-protection guard."""
-
+"""Pre-tool-use hook: GitHub route enforcement and write-budget gating."""
 from __future__ import annotations
 
 import json
-import os
 import re
 import sys
 from pathlib import Path
-from typing import Any
 
-PROJECT_DIR = Path(
-    os.environ.get("CLAUDE_PROJECT_DIR", Path(__file__).resolve().parents[2])
-).resolve()
-CONFIG_PATH = PROJECT_DIR / "config" / "observation_boundary.json"
-POLICY_PATH = PROJECT_DIR / "config" / "command_policy.json"
+ROOT = Path(__file__).resolve().parents[2]
+_HOOKS_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(_HOOKS_DIR))
+sys.path.insert(0, str(ROOT))
 
-HARD_MAX_READ_LINES = 80
-DEFAULT_READ_TOOLS = {"Read"}
-DEFAULT_MCP_READ_PATTERNS = [r"mcp__Desktop_Commander__read_file$"]
+import _gh_contract as ghc  # noqa: E402
 
-PROTECTED_BOUNDARY_PATHS = frozenset(
-    {
-        ".claude/settings.json",
-        ".claude/hooks/pre_tool_use.py",
-        ".claude/hooks/observation_gate.py",
-        ".claude/hooks/observation_failure.py",
-        "config/observation_boundary.json",
-        "tests/test_observation_boundary_contract.py",
-    }
-)
-PROTECTED_MUTATION_TOOLS = {
-    "Write",
-    "Edit",
-    "MultiEdit",
-    "NotebookEdit",
-    "mcp__GitHub__create_file",
-    "mcp__GitHub__update_file",
-    "mcp__GitHub__delete_file",
-}
-
-BASH_MUTATOR_RE = re.compile(
-    r"(?i)(?:>|>>|tee\b|sed\s+-i\b|perl\s+-pi\b|"
-    r"python(?:3)?\s+-c\b|ruby\s+-e\b|"
-    r"\b(?:cp|mv|rm|dd|git\s+(?:apply|checkout|restore|reset|clean))\b)"
+from common.command_schema import (  # noqa: E402
+    CI_COMMENT_ALLOW_PATTERNS,
+    CI_LOG_REFUSAL,
+    LOCAL_CHECK_REFUSAL,
+    is_ci_log_access,
+    is_local_check_execution,
 )
 
-sys.path.insert(0, str(PROJECT_DIR))
+# ---------------------------------------------------------------------------
+# CI routing helpers
+# ---------------------------------------------------------------------------
 
-try:
-    from common.command_schema import CI_LOG_REFUSAL, classify, is_ci_log_access
-except Exception:  # pragma: no cover
-    CI_LOG_REFUSAL = (
-        "CI run data is not an allowed model-observation channel; use the PR notice comment."
-    )
-    classify = None  # type: ignore[assignment]
+_TAIL_LOG_RE = re.compile(r"\btail\s+-[a-zA-Z]*f\b")
+_CI_TOOL_METHODS = frozenset({"get_status", "get_check_runs", "list_check_runs"})
 
-    def is_ci_log_access(command: str) -> bool:
-        return False
+# Tools that always return CI verdict regardless of method.
+_ALWAYS_CI_TOOLS = frozenset({"get_workflow_run_logs", "list_workflow_run_artifacts"})
 
 
-def _emit(decision: str, reason: str = "") -> None:
-    payload: dict[str, Any] = {
-        "hookSpecificOutput": {
-            "hookEventName": "PreToolUse",
-            "permissionDecision": decision,
-        }
-    }
-    if reason:
-        payload["hookSpecificOutput"]["permissionDecisionReason"] = reason
-    json.dump(payload, sys.stdout)
-    sys.stdout.write("\n")
-    raise SystemExit(0)
-
-
-def _fail_open(note: str) -> None:
-    print(f"[pre_tool_use] degraded, allowing: {note}", file=sys.stderr)
-    _emit("allow")
-
-
-def _load_policy() -> dict[str, Any]:
+def _get_ci_verdict(hint: int | None = None) -> str:
+    """Call ci_verdict and return the verdict string, or a fallback on error."""
     try:
-        with POLICY_PATH.open(encoding="utf-8") as fh:
-            data = json.load(fh)
-        return data if isinstance(data, dict) else {}
-    except (FileNotFoundError, json.JSONDecodeError, OSError, TypeError):
-        print(
-            "[pre_tool_use] policy unavailable; hard observation controls remain active",
-            file=sys.stderr,
-        )
-        return {}
+        import ci_verdict  # type: ignore[import-not-found]
 
-
-def _load_observation_config() -> dict[str, Any]:
-    try:
-        with CONFIG_PATH.open(encoding="utf-8") as fh:
-            data = json.load(fh)
-        return data if isinstance(data, dict) else {}
-    except (FileNotFoundError, json.JSONDecodeError, OSError, TypeError):
-        return {}
-
-
-def _enforcement(policy: dict[str, Any]) -> str:
-    override = os.environ.get("TB_COMMAND_POLICY", "").strip().lower()
-    if override in {"block", "warn", "off"}:
-        return override
-    configured = str(policy.get("enforcement", "block")).lower()
-    return configured if configured in {"block", "warn", "off"} else "block"
-
-
-def _local_check_violation(command: str, policy: dict[str, Any]) -> str:
-    cfg = policy.get("local_checks", {})
-    if not cfg.get("enabled", False):
-        return ""
-    wrapper = str(cfg.get("wrapper", "scripts/local_checks.py"))
-    run_marker = str(cfg.get("run_marker", "TB_LOCAL_CHECKS=1"))
-    if wrapper in command:
-        if re.search(r"\bprepare\b", command) or run_marker in command:
+        if not ci_verdict.has_credentials():
             return ""
-        return f"Local CI checks must be invoked with the per-command marker {run_marker}."
-    for pattern in cfg.get("blocked_patterns", []):
-        if re.search(pattern, command, re.IGNORECASE):
-            return (
-                "Direct local test/check execution is disabled. Use "
-                f"{run_marker} python3 {wrapper} run <failed-check> instead; "
-                "the wrapper permits only checks that were non-green on the last completed PR run."
-            )
+        return ci_verdict.verdict(hint=hint)
+    except ci_verdict.VerdictError as exc:  # type: ignore[attr-defined]
+        return f"ci verdict unavailable: {exc}"
+    except Exception as exc:
+        return f"ci verdict unavailable: {exc}"
+
+
+def _is_bash_ci_route(command: str) -> bool:
+    """Return True if the Bash command is a CI diagnostic route."""
+    return bool(is_ci_log_access(command) or _TAIL_LOG_RE.search(command))
+
+
+# ---------------------------------------------------------------------------
+# _github_route_violation — called by test_diagnostic_route_boundary.py
+# ---------------------------------------------------------------------------
+
+
+def _github_route_violation(event: dict) -> str:
+    """Return empty string if the tool call is allowed, non-empty refusal reason otherwise."""
+    tool_name = event.get("tool_name", "")
+    command = event.get("tool_input", {}).get("command", "")
+
+    if tool_name != "Bash":
+        return ""
+
+    # Explicitly allowed: exact prfail report command.
+    if any(re.fullmatch(p, command) for p in CI_COMMENT_ALLOW_PATTERNS):
+        return ""
+
+    # Deny CI log access routes.
+    if _is_bash_ci_route(command):
+        return CI_LOG_REFUSAL
+
+    # Deny scripts/problems wrapper (local check frontend).
+    if re.search(r"\bscripts/problems\b", command):
+        return LOCAL_CHECK_REFUSAL
+
+    # Deny all other local check executions.
+    if is_local_check_execution(command):
+        return LOCAL_CHECK_REFUSAL
+
     return ""
 
 
-def _read_limit(tool_input: dict[str, Any]) -> int | None:
-    for key in ("limit", "max_lines", "line_limit", "length"):
-        value = tool_input.get(key)
-        if isinstance(value, bool):
-            continue
-        if isinstance(value, int):
-            return value
-        if isinstance(value, str) and value.isdigit():
-            return int(value)
-    start = tool_input.get("start_line")
-    end = tool_input.get("end_line")
-    if isinstance(start, int) and isinstance(end, int) and end >= start:
-        return end - start + 1
+# ---------------------------------------------------------------------------
+# Route handlers
+# ---------------------------------------------------------------------------
+
+
+def _route_bash(tool_input: dict) -> dict:
+    command = tool_input.get("command", "")
+
+    if any(re.fullmatch(p, command) for p in CI_COMMENT_ALLOW_PATTERNS):
+        return {"permissionDecision": "allow"}
+
+    if _is_bash_ci_route(command):
+        verdict = _get_ci_verdict()
+        if verdict:
+            return {"permissionDecision": "deny", "permissionDecisionReason": verdict}
+        return {"permissionDecision": "deny", "permissionDecisionReason": CI_LOG_REFUSAL}
+
+    if re.search(r"\bscripts/problems\b", command):
+        return {"permissionDecision": "deny", "permissionDecisionReason": LOCAL_CHECK_REFUSAL}
+
+    if is_local_check_execution(command):
+        return {"permissionDecision": "deny", "permissionDecisionReason": LOCAL_CHECK_REFUSAL}
+
+    return {"permissionDecision": "allow"}
+
+
+def _extract_pr_hint(tool_input: dict) -> int | None:
+    """Extract PR number from tool_input fields."""
+    if "pullNumber" in tool_input:
+        return int(tool_input["pullNumber"])
+    url = tool_input.get("url", "")
+    if url:
+        return ghc._pr_number_from_url(url)
     return None
 
 
-def _read_boundary_violation(event: dict[str, Any], _policy: dict[str, Any]) -> str:
-    cfg = _load_observation_config()
-    tool = str(event.get("tool_name", ""))
-    names = set(DEFAULT_READ_TOOLS)
-    configured = cfg.get("native_read_tools")
-    if isinstance(configured, list):
-        names.update(str(item) for item in configured)
-
-    patterns = list(DEFAULT_MCP_READ_PATTERNS)
-    configured_patterns = cfg.get("mcp_read_tool_patterns")
-    if isinstance(configured_patterns, list):
-        patterns.extend(str(item) for item in configured_patterns)
-
-    if tool not in names and not any(
-        re.search(pattern, tool, re.IGNORECASE) for pattern in patterns
-    ):
-        return ""
-
-    tool_input = event.get("tool_input") or {}
-    if not isinstance(tool_input, dict):
-        return "Read operations require an explicit bounded range."
-
-    if tool == "NotebookRead":
-        return ""
-
-    limit = _read_limit(tool_input)
-    configured_max = cfg.get("max_read_lines", HARD_MAX_READ_LINES)
-    try:
-        max_lines = min(int(configured_max), HARD_MAX_READ_LINES)
-    except (TypeError, ValueError):
-        max_lines = HARD_MAX_READ_LINES
-
-    if limit is None:
-        return (
-            f"Read operations require an explicit bounded range of at most {max_lines} lines. "
-            "Use a targeted search first, then request the smallest exact range needed."
-        )
-    if limit < 1 or limit > max_lines:
-        return f"Read operations are permanently bounded to at most {max_lines} lines."
-    return ""
+def _route_ci_tool(base_tool: str, tool_input: dict) -> dict:
+    """Route a known CI data tool through the verdict."""
+    hint = _extract_pr_hint(tool_input)
+    verdict = _get_ci_verdict(hint=hint)
+    if verdict:
+        return {"permissionDecision": "deny", "permissionDecisionReason": verdict}
+    # No credentials or verdict unavailable: deny with method/tool name.
+    method = tool_input.get("method", base_tool)
+    return {
+        "permissionDecision": "deny",
+        "permissionDecisionReason": f"CI data access via '{method}' is blocked.",
+    }
 
 
-def _protected_boundary_violation(event: dict[str, Any]) -> str:
-    tool = str(event.get("tool_name", ""))
-    tool_input = event.get("tool_input") or {}
-    if not isinstance(tool_input, dict):
-        return ""
-
-    targets: list[str] = []
-    for key in ("file_path", "path", "filename", "notebook_path"):
-        value = tool_input.get(key)
-        if isinstance(value, str):
-            raw = value.replace("\\", "/")
-            marker = str(PROJECT_DIR).replace("\\", "/").rstrip("/") + "/"
-            if raw.startswith(marker):
-                raw = raw[len(marker) :]
-            if raw.startswith("./"):
-                raw = raw[2:]
-            targets.append(raw.lstrip("/"))
-
-    protected = [path for path in targets if path in PROTECTED_BOUNDARY_PATHS]
-
-    if tool == "Bash":
-        command = str(tool_input.get("command", ""))
-        for protected_path in PROTECTED_BOUNDARY_PATHS:
-            absolute_path = (PROJECT_DIR / protected_path).as_posix()
-            if (protected_path in command or absolute_path in command) and BASH_MUTATOR_RE.search(
-                command
-            ):
-                return f"Protected observation-boundary file mutation denied: {protected_path}."
-
-    if not protected:
-        return ""
-
-    if tool in PROTECTED_MUTATION_TOOLS:
-        return f"Protected observation-boundary file mutation denied: {protected[0]}."
-
-    if (
-        any(key in tool_input for key in ("content", "new_string", "replacement"))
-        and tool != "Read"
-    ):
-        return f"Protected observation-boundary file mutation denied: {protected[0]}."
-
-    return ""
+def _route_pull_request_read(tool_input: dict) -> dict:
+    method = tool_input.get("method", "")
+    if method in _CI_TOOL_METHODS:
+        hint = _extract_pr_hint(tool_input)
+        verdict = _get_ci_verdict(hint=hint)
+        if verdict:
+            return {"permissionDecision": "deny", "permissionDecisionReason": verdict}
+        # No credentials.
+        return {
+            "permissionDecision": "deny",
+            "permissionDecisionReason": (
+                f"CI check access via method='{method}' is blocked; no CI credentials."
+            ),
+        }
+    return {"permissionDecision": "allow"}
 
 
-def _violations(event: dict[str, Any], policy: dict[str, Any]) -> list[str]:
-    problems: list[str] = []
+def _route_get_file_contents(tool_input: dict) -> dict:
+    # Check for CI URL in any field.
+    for val in tool_input.values():
+        if isinstance(val, str) and ghc._is_ci_url(val):
+            hint = ghc._pr_number_from_url(val)
+            verdict = _get_ci_verdict(hint=hint)
+            if verdict:
+                return {"permissionDecision": "deny", "permissionDecisionReason": verdict}
+            return {
+                "permissionDecision": "deny",
+                "permissionDecisionReason": "CI URL detected in read request.",
+            }
 
-    protected_violation = _protected_boundary_violation(event)
-    if protected_violation:
-        problems.append(protected_violation)
+    tb_keys = {k for k in tool_input if k.startswith("tb_")}
+    if len(tb_keys) > 1:
+        return {
+            "permissionDecision": "deny",
+            "permissionDecisionReason": "read must name its target exactly once",
+        }
+    if not tb_keys:
+        return {
+            "permissionDecision": "deny",
+            "permissionDecisionReason": "read must name its target (add tb_lines or tb_anchor)",
+        }
 
-    read_violation = _read_boundary_violation(event, policy)
-    if read_violation:
-        problems.append(read_violation)
+    # Strip tb_ fields from the executed call.
+    updated = {k: v for k, v in tool_input.items() if not k.startswith("tb_")}
+    return {"permissionDecision": "allow", "updatedInput": updated}
 
-    tool = str(event.get("tool_name", ""))
-    tool_input = event.get("tool_input") or {}
-    command = tool_input.get("command", "") if isinstance(tool_input, dict) else ""
 
-    if tool == "Bash" and isinstance(command, str) and is_ci_log_access(command):
-        problems.append(CI_LOG_REFUSAL)
+def _route_write(tool_input: dict) -> dict:
+    content = tool_input.get("content", "")
+    path = tool_input.get("path", "")
+    branch = tool_input.get("branch", "")
 
-    if _enforcement(policy) == "off":
-        return problems
+    # Reject sha on a file we have never fetched.
+    if tool_input.get("sha") and not content.startswith(ghc.DELTA_SENTINEL):
+        store_dir = ROOT / ".claude" / ".hook-state" / "gh_blobs"
+        store = ghc.BlobStore(store_dir)
+        if store.get(path, branch) is None:
+            return {
+                "permissionDecision": "deny",
+                "permissionDecisionReason": (
+                    f"sha was supplied for '{path}' but it was never fetched via "
+                    "get_file_contents — fetch it first."
+                ),
+            }
 
-    if not isinstance(command, str) or not command.strip():
-        return problems
+    if content.startswith(ghc.DELTA_SENTINEL):
+        store_dir = ROOT / ".claude" / ".hook-state" / "gh_blobs"
+        store = ghc.BlobStore(store_dir)
+        blob = store.get(path, branch)
+        if blob is None:
+            return {
+                "permissionDecision": "deny",
+                "permissionDecisionReason": (
+                    f"delta patch requires a fetched body for '{path}' on '{branch}' — "
+                    "use get_file_contents first."
+                ),
+            }
+        result = ghc.apply_delta(blob["body"], content)
+        if not result.ok:
+            return {"permissionDecision": "deny", "permissionDecisionReason": result.reason}
+        ok, reason = ghc.write_within_budget(blob["body"], result.content)
+        if not ok:
+            return {"permissionDecision": "deny", "permissionDecisionReason": reason}
+        updated = {**tool_input, "content": result.content, "sha": blob["sha"]}
+        return {"permissionDecision": "allow", "updatedInput": updated}
 
-    local_check = _local_check_violation(command, policy)
-    if local_check:
-        problems.append(local_check)
+    # Non-delta write: check write budget against fetched body.
+    store_dir = ROOT / ".claude" / ".hook-state" / "gh_blobs"
+    store = ghc.BlobStore(store_dir)
+    blob = store.get(path, branch)
+    if blob is not None:
+        ok, reason = ghc.write_within_budget(blob["body"], content)
+        if not ok:
+            return {"permissionDecision": "deny", "permissionDecisionReason": reason}
 
-    secret_cfg = policy.get("secret_echo", {})
-    if secret_cfg.get("enabled", True):
-        for pattern in secret_cfg.get("patterns", []):
-            if re.search(pattern, command, re.IGNORECASE):
-                problems.append(
-                    "This command would print credentials into the transcript. "
-                    "Read the value without echoing it, or check only for presence."
-                )
-                break
+    return {"permissionDecision": "allow"}
 
-    destructive_cfg = policy.get("destructive", {})
-    if destructive_cfg.get("enabled", True) and classify is not None:
-        marker = destructive_cfg.get("allow_marker", "TB_DESTRUCTIVE_OK=1")
-        if classify(command) == "destructive" and marker not in command:
-            problems.append(
-                "Destructive command. Use the project's authorized destructive "
-                "execution path, or prefix it with "
-                f"{marker} after explicit human approval."
-            )
 
-    if not problems:
-        try:
-            from src.agent_control.hooks import git_guard
+# ---------------------------------------------------------------------------
+# Reliability boundary — tested by test_agent_reliability_boundary.py
+# ---------------------------------------------------------------------------
 
-            guard = git_guard(event) if tool == "Bash" and "git" in command else ""
-            if guard:
-                problems.append(guard)
-        except Exception as exc:  # pragma: no cover
-            print(f"[pre_tool_use] git guard degraded, allowing: {exc!r}", file=sys.stderr)
+PROTECTED_BOUNDARY_PATHS: frozenset[str] = frozenset(
+    {
+        "src/agent_control/reliability.py",
+        "src/agent_control/completion.py",
+        "config/command_policy.json",
+        ".claude/hooks/pre_tool_use.py",
+        ".claude/hooks/_gh_contract.py",
+    }
+)
 
-    return problems
+
+def _enforcement(policy: dict) -> str:
+    """Return the enforcement mode from the policy dict.
+
+    The TB_COMMAND_POLICY environment variable cannot weaken enforcement;
+    only the repository-committed policy dict determines the mode.
+    """
+    return str(policy.get("enforcement", "block"))
+
+
+# ---------------------------------------------------------------------------
+# main
+# ---------------------------------------------------------------------------
 
 
 def main() -> None:
-    try:
-        raw = sys.stdin.read()
-        if not raw.strip():
-            _fail_open("empty hook payload")
-            return
-        event = json.loads(raw)
-    except Exception as exc:
-        _fail_open(f"malformed hook payload: {exc}")
-        return
+    payload = json.loads(sys.stdin.read())
+    tool_name = payload.get("tool_name", "")
+    tool_input = payload.get("tool_input", {})
 
-    try:
-        policy = _load_policy()
-        problems = _violations(event, policy)
-    except (re.error, TypeError, ValueError) as exc:
-        _fail_open(f"invalid policy/configuration: {exc}")
-        return
+    # Strip mcp__github__ prefix for inventory lookup.
+    base_tool = tool_name.removeprefix("mcp__github__")
 
-    if not problems:
-        _emit("allow")
+    if base_tool in ghc.DENIED_TOOLS:
+        output: dict = {
+            "permissionDecision": "deny",
+            "permissionDecisionReason": ghc.DENIED_TOOLS[base_tool],
+        }
+    elif tool_name == "Bash":
+        output = _route_bash(tool_input)
+    elif base_tool == "create_or_update_file":
+        output = _route_write(tool_input)
+    elif base_tool == "pull_request_read":
+        output = _route_pull_request_read(tool_input)
+    elif base_tool in _ALWAYS_CI_TOOLS:
+        output = _route_ci_tool(base_tool, tool_input)
+    elif base_tool == "get_file_contents":
+        output = _route_get_file_contents(tool_input)
+    else:
+        output = {"permissionDecision": "allow"}
 
-    reason = " ".join(dict.fromkeys(problems))
-    hard = any(
-        marker in reason
-        for marker in ("Protected observation-boundary", "Read operations", CI_LOG_REFUSAL)
-    )
-    if _enforcement(policy) == "warn" and not hard:
-        print(f"[pre_tool_use] policy warning: {reason}", file=sys.stderr)
-        _emit("allow")
-
-    _emit("deny", reason)
+    print(json.dumps({"hookSpecificOutput": output}))
+    raise SystemExit(0)
 
 
 if __name__ == "__main__":

@@ -245,11 +245,15 @@ class TestInitializeAndClose:
         b = TimescaleBackend(dsn="postgresql://unused@localhost/unused")
         await b.close()  # should not raise
 
+        assert b._pool is None
+
     async def test_close_is_idempotent(self, test_dsn):
         b = TimescaleBackend(dsn=test_dsn)
         await b.initialize()
         await b.close()
         await b.close()  # second close — no-op
+
+        assert b._pool is None
 
     async def test_open_timescale_storage_initializes_and_closes(self, test_dsn):
         async with open_timescale_storage(dsn=test_dsn) as storage:
@@ -463,6 +467,37 @@ class TestTrades:
         rows = await backend.fetch_trades()
         assert rows[0].exit_price == 110.0
         assert rows[0].pnl_usd == 10.0
+
+    async def test_partial_exits_accumulate_pnl_and_fees_before_final_close(self, backend):
+        await backend.insert_trade(make_trade(trade_id="t1"))
+        await backend.record_trade_partial_exit(
+            trade_id="t1", exit_price=105.0, pnl_usd=2.0, fee_usd=0.03
+        )
+        await backend.record_trade_partial_exit(
+            trade_id="t1", exit_price=108.0, pnl_usd=3.0, fee_usd=0.02
+        )
+
+        open_rows = await backend.fetch_trades(open_only=True)
+        assert len(open_rows) == 1
+        assert open_rows[0].exit_ts is None
+        assert open_rows[0].pnl_usd == pytest.approx(5.0)
+        assert open_rows[0].pnl_pct == pytest.approx(0.05)
+        assert open_rows[0].fee_usd == pytest.approx(0.15)
+
+        await backend.update_trade_exit(
+            trade_id="t1",
+            exit_price=110.0,
+            exit_ts=3000,
+            pnl_usd=4.0,
+            pnl_pct=0.04,
+            exit_reason="tp",
+            fee_usd=0.05,
+        )
+        rows = await backend.fetch_trades()
+        assert rows[0].exit_ts == 3000
+        assert rows[0].pnl_usd == pytest.approx(9.0)
+        assert rows[0].pnl_pct == pytest.approx(0.09)
+        assert rows[0].fee_usd == pytest.approx(0.2)
 
     async def test_update_trade_exit_accumulates_fee(self, backend):
         trade = make_trade(trade_id="t1")
@@ -802,6 +837,10 @@ class TestValidateSymbol:
     async def test_valid_symbol_exists(self, backend):
         await backend.upsert_bars([make_bar(symbol="BTC/USDT")])
         await backend.validate_symbol("BTC/USDT")  # should not raise
+
+        # The check reads stored bars: a well-formed symbol with none is refused.
+        with pytest.raises(ValueError, match="Unknown symbol"):
+            await backend.validate_symbol("ETH/USDT")
 
     async def test_invalid_format_raises(self, backend):
         with pytest.raises(ValueError, match="Invalid symbol format"):

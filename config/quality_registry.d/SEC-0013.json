@@ -1,0 +1,22 @@
+{
+  "id": "SEC-0013",
+  "kind": "security_regression",
+  "title": "ApiSigner.from_env refuses to run without a configured signing key",
+  "statement": "ApiSigner.from_env raises ValueError when API_SIGNING_KEY_B64 (or the named variable) is unset or empty, instead of generating an ephemeral Ed25519 key. An ephemeral key is only made by calling ApiSigner() explicitly.",
+  "criticality": "medium",
+  "subsystem": "security",
+  "status": "verified",
+  "source": "OPS-2026-10-28",
+  "failure_mode": "With the signing key unset, from_env silently generated a fresh key, so a misconfigured signer produced signatures no peer could verify instead of failing at startup. Two tests asserted the fallback as intended behaviour, so the suite protected the defect; they now assert the refusal.",
+  "owning_modules": [
+    "src/security/api_signer.py"
+  ],
+  "verification": [
+    {
+      "test": "tests/test_api_signer_audit.py",
+      "test_type": "regression"
+    }
+  ],
+  "depends_on": [],
+  "notes": "Audit API-017. layer: test-suite"
+}

@@ -1,19 +1,24 @@
 /**
  * RES-018 — the runtime panel offers only what the change manager accepts and
  * shows desired/actual gaps, transitions and trace outcomes as served.
+ * SEC-0015 — a read-only key's 403 on the agent ledgers reads as a missing
+ * operator key, not a rejected one.
  */
 import { describe, expect, it } from 'vitest';
 
 import {
   HEALTH_COLOR,
   STATE_COLOR,
+  agentLedgersProblemText,
   changeRequestBody,
   countPairs,
   decisionsFor,
   describeTrace,
   describeTransition,
   desiredActualGaps,
+  runtimeProblemText,
 } from './runtimeModel.js';
+import { apiProblem } from '../../hooks/useApi.js';
 
 describe('decisionsFor', () => {
   it.each([
@@ -139,5 +144,26 @@ describe('palette and counts', () => {
   it('sorts count pairs', () => {
     expect(countPairs({ worker: 2, model: 1 })).toEqual(['model: 1', 'worker: 2']);
     expect(countPairs(null)).toEqual([]);
+  });
+
+  // RES-025: no data is never shown as "no components" -- each cause reads
+  // as itself, with the server's detail when it gave one.
+  it('says why there is no runtime data', () => {
+    const notStarted = { ...apiProblem(503), detail: 'Runtime platform not started.' };
+    expect(runtimeProblemText(notStarted)).toContain('Runtime platform not started');
+    expect(runtimeProblemText(notStarted)).toContain('/readyz');
+    const rejected = { ...apiProblem(401), detail: 'Invalid API key' };
+    expect(runtimeProblemText(rejected)).toContain('VITE_API_READONLY_KEY');
+    expect(runtimeProblemText(rejected)).toContain('(Invalid API key)');
+    const unreachable = { ...apiProblem(0), detail: null };
+    expect(runtimeProblemText(unreachable)).toBe(apiProblem(0).message);
+  });
+
+  it('says a read-only key cannot read the agent ledgers', () => {
+    const forbidden = { ...apiProblem(403), detail: 'role read_only lacks change_runtime' };
+    expect(agentLedgersProblemText(forbidden)).toContain('operator key');
+    expect(agentLedgersProblemText(forbidden)).not.toContain('VITE_API_KEY');
+    const notStarted = { ...apiProblem(503), detail: null };
+    expect(agentLedgersProblemText(notStarted)).toBe(runtimeProblemText(notStarted));
   });
 });
