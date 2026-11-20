@@ -8,6 +8,8 @@ row-count assertions depend on whatever previous runs left behind.
 `_DB_PATH` is read from `DUCKDB_PATH` at import time, so this must run
 before any test imports `src.data.duckdb_store` — a `tests/conftest.py`
 module body is imported first, which is why this is not a fixture.
+
+Registry: REG-0005, REG-0009 (config/quality_registry.json).
 """
 
 from __future__ import annotations
@@ -20,8 +22,52 @@ from urllib.parse import urlparse
 
 import pytest
 
-_TMP_DB_DIR = Path(tempfile.mkdtemp(prefix="trade-bot-tests-duckdb-"))
-os.environ.setdefault("DUCKDB_PATH", str(_TMP_DB_DIR / "crypto_intel.duckdb"))
+# REG-0009: one path per *process*, not per run. Under xdist the controller
+# imports this module first, so the DUCKDB_PATH it sets is inherited by every
+# worker it spawns -- and `setdefault` then finds the variable already present
+# and leaves each worker pointing at the controller's single file. DuckDB takes
+# an exclusive lock, so the first worker to open it wins and the rest die with
+# "Conflicting lock is held". It is invisible without `-n`, which is why it
+# survived until the suite was sharded and parallelised.
+_XDIST_WORKER = os.environ.get("PYTEST_XDIST_WORKER")
+_TMP_DB_DIR = Path(tempfile.mkdtemp(prefix=f"trade-bot-tests-duckdb-{_XDIST_WORKER or 'main'}-"))
+if _XDIST_WORKER:
+    # A worker always gets its own file, even when the controller exported one.
+    os.environ["DUCKDB_PATH"] = str(_TMP_DB_DIR / "crypto_intel.duckdb")
+else:
+    os.environ.setdefault("DUCKDB_PATH", str(_TMP_DB_DIR / "crypto_intel.duckdb"))
+
+
+# ---------------------------------------------------------------------------
+# pandas' Arrow extension types must be registered before any sys.modules patch.
+# ---------------------------------------------------------------------------
+#
+# `unittest.mock.patch.dict("sys.modules", ...)` -- which several tests use to
+# inject a fake `yfinance` -- restores sys.modules *wholesale* on exit, so any
+# module first imported inside the block is evicted. pandas registers its
+# `pandas.period` Arrow extension type lazily, on the first `to_parquet()`
+# call, and remembers that it did so in a module-level flag. If that first call
+# happens inside such a block, the module is dropped, re-imported later with
+# the flag reset, and the second registration raises
+# `pyarrow.lib.ArrowKeyError: A type extension with name pandas.period already
+# defined` -- taking out whichever test happened to run next.
+#
+# Whether that ever happened depended purely on collection order, so it was
+# invisible until the suite was split into shards and the parquet tests landed
+# in a shard where nothing had warmed the import. Doing one throwaway write
+# here, at import time, makes the order irrelevant.
+def _warm_parquet_extension_types() -> None:
+    import io
+
+    try:
+        import pandas as _pd
+
+        _pd.DataFrame([{"warmup": 1}]).to_parquet(io.BytesIO(), index=False)
+    except Exception:  # pragma: no cover - no parquet engine installed
+        pass
+
+
+_warm_parquet_extension_types()
 
 
 def settings_double():
@@ -217,6 +263,65 @@ def passing_gate_ctx(risk_cfg):
     return _make
 
 
+@pytest.fixture
+def healthy_security_controls():
+    """Declare API-008's security controls up for the duration of a test.
+
+    CONTROL_HEALTH starts degraded and only `lifespan` marks it healthy, so a
+    TestClient harness that never runs lifespan gets 503 from every gated
+    endpoint -- before the auth, validation or routing logic a test is
+    actually about. Request this fixture in those tests.
+
+    Deliberately not autouse: the fail-closed default is the behaviour under
+    test in tests/api/test_fail_closed_controls.py, and a global override
+    would quietly delete that guarantee everywhere. The reset afterwards
+    matters for the same reason -- leaving the process-wide registry healthy
+    would hide a real fail-closed regression in whatever runs next.
+    """
+    from src.api.fail_closed import CONTROL_HEALTH, mark_all_healthy
+
+    mark_all_healthy()
+    yield CONTROL_HEALTH
+    CONTROL_HEALTH.reset()
+
+
+@pytest.fixture(autouse=True)
+def _isolate_parameter_registry():
+    """Snapshot and restore the process-wide self-tuning registry.
+
+    `parameter_registry` is a singleton and nothing in production ever
+    unregisters: AutoTuningScheduler.start() registers at startup and the
+    process exits with those registrations in place. Inside one test process
+    that is a leak -- any test that calls start() (tests/test_residual_gaps_batch2.py
+    does) leaves risk.ensemble_blend_weight registered, and
+    src/tuning/live_overrides.py then overlays it on top of whatever cfg.risk
+    a *later* test passes. The later test still asserts on its own config and
+    silently gets the leaked value instead.
+
+    Sequentially that stayed hidden because the polluting file happened to
+    sort after its victims; under pytest-xdist, which assigns tests to workers
+    in no particular order, it surfaced as three failures in
+    TestEnsembleBlendPersistence. Restoring the registry per test makes the
+    ordering irrelevant.
+    """
+    from src.tuning.registry import parameter_registry
+
+    with parameter_registry._lock:
+        saved = dict(parameter_registry._params)
+    yield
+    with parameter_registry._lock:
+        parameter_registry._params.clear()
+        parameter_registry._params.update(saved)
+
+
+@pytest.fixture(autouse=True)
+def _isolate_risk_state_dir(tmp_path, monkeypatch):
+    """EXR-013: capital-floor and kill-switch state files go to a per-test dir,
+    so a halt persisted by one test can never be restored by another."""
+    monkeypatch.setenv("RISK_STATE_DIR", str(tmp_path / "risk_state"))
+    yield
+
+
 @pytest.fixture(autouse=True)
 def _clear_mongo_client_caches():
     import kg.db
@@ -227,3 +332,27 @@ def _clear_mongo_client_caches():
     yield
     kg.db._client_for.cache_clear()
     rag_mongo.db._client_for.cache_clear()
+
+
+@pytest.fixture(autouse=True)
+def _reset_operator_secret_lockout():
+    """SEC-1015: reset the process-global secret lockout budget around each test."""
+    from src.api.operator_secret import reset_failures
+
+    reset_failures()
+    yield
+    reset_failures()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _no_unraisable_at_session_end():
+    """REG-1707: fail if async-resource finalizers raise at session shutdown."""
+    from tests.regression.unraisable import collect_unraisable
+
+    yield
+    caught = collect_unraisable()
+    if caught:
+        raise AssertionError(
+            "exceptions raised by finalizers at session end: "
+            + "; ".join(f"{u.object!r}: {u.exc_value!r}" for u in caught)
+        )

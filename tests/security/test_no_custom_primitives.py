@@ -119,11 +119,38 @@ class TestTheMathcoreDistinction:
     the line is, so neither side drifts into the other.
     """
 
+    # The two places mathcore may be reached from src/security, and the reason
+    # each is not a custom primitive. Anything not named here fails, so adding
+    # a third use is a decision someone makes in this file, in a diff, rather
+    # than by writing an import.
+    #
+    # This allowlist replaces an earlier per-module ban that named the
+    # key-handling modules and forbade the import outright. That rule could
+    # not express `api_signer`'s audit use -- a second, from-scratch
+    # verification of an already-produced signature -- so the rule became the
+    # allowlist plus the structural tests below, which cover every module in
+    # the package rather than five of them.
+    MATHCORE_USES = {
+        "src/security/api_signer.py": (
+            "audit_signer() verifies an already-produced signature a second time "
+            "under the from-scratch Ed25519, to prove it is canonical and not "
+            "merely acceptable to the signer's own verifier. It produces no "
+            "signature and is on no request path."
+        ),
+        "src/security/pq_transport.py": (
+            "validate_parameters() checks an inert ML-KEM-768 stub's constants "
+            "against FIPS 203. The stub cannot encapsulate, so no ciphertext "
+            "depends on mathcore."
+        ),
+    }
+
     def test_mathcore_is_not_in_the_security_path(self):
-        # If a security module imported mathcore, the registry's "no custom
-        # primitives" claim and the mathcore roadmap would be the same claim,
-        # and one of them would be wrong.
-        importers = [
+        # The claim is that no security module performs production cryptography
+        # with this project's own implementations -- not that the name never
+        # appears. Reading mathcore to *check* a vetted library's output is the
+        # opposite of a custom primitive, so the rule is what the import does,
+        # not that it exists. An unlisted importer still fails.
+        importers = {
             p.relative_to(REPO).as_posix()
             for p in security_modules()
             if re.search(
@@ -131,8 +158,55 @@ class TestTheMathcoreDistinction:
                 p.read_text(encoding="utf-8"),
                 re.M,
             )
-        ]
-        assert importers == []
+        }
+        assert importers <= set(self.MATHCORE_USES), sorted(importers - set(self.MATHCORE_USES))
+
+    def test_every_permitted_mathcore_use_is_function_local(self):
+        # A module-level import makes mathcore part of the module's ordinary
+        # operation. Confining it inside the one function that audits or
+        # validates is what keeps it off the signing path, and is the
+        # structural difference between the permitted uses and the banned one.
+        for module in self.MATHCORE_USES:
+            source = (REPO / module).read_text(encoding="utf-8")
+            top_level = re.findall(r"^(?:from|import) src\.mathcore", source, re.M)
+            assert top_level == [], module
+
+    def test_the_permitted_modules_still_sign_with_the_vetted_library(self):
+        # The allowlist buys a second opinion, never a replacement. If
+        # api_signer ever stopped calling the audited library, the "audit"
+        # would be this project checking its own arithmetic against itself.
+        source = (SECURITY / "api_signer.py").read_text(encoding="utf-8")
+        assert "cryptography" in source or "nacl" in source
+
+    def test_a_module_that_uses_mathcore_says_why(self):
+        # The permission is not unconditional. A security module reaching into
+        # mathcore has to explain itself in the file, because the next reader
+        # needs to be able to tell parameter validation from a hand-rolled
+        # cipher without reading the whole call graph.
+        for path in security_modules():
+            source = path.read_text(encoding="utf-8")
+            if not re.search(r"^\s*from src\.mathcore|^\s*import src\.mathcore", source, re.M):
+                continue
+            # Any docstring in the file, or a comment. Not just the module
+            # docstring: an explanation sitting beside the import, in the
+            # docstring of the function that uses it, is where a reader
+            # tracing the call will actually look.
+            tree = ast.parse(source)
+            docstrings = [
+                ast.get_docstring(node) or ""
+                for node in ast.walk(tree)
+                if isinstance(
+                    node, ast.Module | ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef
+                )
+            ]
+            explained = any("mathcore" in doc for doc in docstrings) or re.search(
+                r"#[^\n]*mathcore", source
+            )
+            assert explained, (
+                f"{path.name} imports mathcore with no explanation. Say in a "
+                "docstring or a comment what it is used for, so the next reader "
+                "can tell parameter validation from a hand-rolled primitive."
+            )
 
     def test_the_registry_records_the_pq_posture_where_it_belongs(self):
         # pq_transport is the module that reasons about post-quantum posture;

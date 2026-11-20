@@ -3,7 +3,10 @@
 
 Walks every first-party source/doc file tracked by git and runs the
 extract -> resolve -> assemble pipeline (kg.ingest.ingest_document) on each,
-replacing the graph's contents with the result. Unlike scripts/ingest_repo.py
+replacing the graph's contents with the result. Every node and edge the run
+writes is stamped with its run id, and the ones it did not write are deleted
+only after every file has been processed (audit OPS-009): a run that dies
+partway leaves the previous graph in place rather than an empty one. Unlike scripts/ingest_repo.py
 (RAG, local embeddings, free), each file here costs two `claude -p`
 subprocess calls (haiku extract + sonnet resolve) -- run deliberately, not
 on a schedule.
@@ -14,6 +17,7 @@ from __future__ import annotations
 import subprocess
 import sys
 import time
+import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
@@ -41,7 +45,7 @@ def tracked_files() -> list[str]:
     return [line for line in out.stdout.splitlines() if line]
 
 
-def ingest_one(path: str) -> tuple[str, dict]:
+def ingest_one(path: str, run_id: str | None = None) -> tuple[str, dict]:
     try:
         with open(path, encoding="utf-8") as f:
             text = f.read()
@@ -50,7 +54,7 @@ def ingest_one(path: str) -> tuple[str, dict]:
     if not text.strip():
         return path, {"skipped": "empty"}
     try:
-        return path, ingest_document(text, source=path)
+        return path, ingest_document(text, source=path, run_id=run_id)
     except Exception as exc:  # noqa: BLE001 - one bad file must not abort the run
         return path, {"error": str(exc)}
 
@@ -61,9 +65,7 @@ def main() -> None:
 
     nodes_col = get_nodes_collection()
     edges_col = get_edges_collection()
-    dn = nodes_col.delete_many({}).deleted_count
-    de = edges_col.delete_many({}).deleted_count
-    print(f"Cleared {dn} stale nodes, {de} stale edges.")
+    run_id = uuid.uuid4().hex
 
     t0 = time.time()
     done = 0
@@ -71,7 +73,7 @@ def main() -> None:
     total_triples = total_nodes = total_edges = 0
 
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as ex:
-        futures = {ex.submit(ingest_one, p): p for p in files}
+        futures = {ex.submit(ingest_one, p, run_id): p for p in files}
         for fut in as_completed(futures):
             path, result = fut.result()
             done += 1
@@ -88,6 +90,11 @@ def main() -> None:
                     f"(errors so far: {len(errors)}, {elapsed:.0f}s elapsed)",
                     file=sys.stderr,
                 )
+
+    stale = {"run_id": {"$ne": run_id}}
+    dn = nodes_col.delete_many(stale).deleted_count
+    de = edges_col.delete_many(stale).deleted_count
+    print(f"Cleared {dn} stale nodes, {de} stale edges.")
 
     elapsed = time.time() - t0
     print(f"Processed {done} files in {elapsed:.1f}s.")

@@ -12,10 +12,10 @@ from unittest.mock import MagicMock, patch
 
 import pandas as pd
 import pytest
-from test_signal_engine import _TICK, _fm, _make_bars, _make_engine
-from test_signal_engine_residual_paths import _full_path
 
 from src.config import Timeframe
+from tests.test_signal_engine import _TICK, _fm, _make_bars, _make_engine
+from tests.test_signal_engine_residual_paths import _full_path
 
 
 def _engine_with(bars):
