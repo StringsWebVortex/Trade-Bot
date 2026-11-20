@@ -12,6 +12,8 @@ Implementation follows AFML Ch.10 (López de Prado 2018):
 
 All sizing functions are pure (no I/O, no side effects) so they are
 trivially testable and reusable across paper and live executors.
+
+Registry: DATA-004, DATA-005, INV-001, RISK-003 (config/quality_registry.json).
 """
 
 from __future__ import annotations
@@ -335,8 +337,8 @@ def size_position(
     quantity_raw = notional_raw / entry_price
 
     # Quantise to exchange precision
-    decimal_places = int(amount_precision)
-    quantity = _floor_to_precision(quantity_raw, decimal_places)
+    decimal_places = _precision_decimal_places(amount_precision)
+    quantity = _floor_to_amount_precision(quantity_raw, amount_precision)
 
     if quantity <= 0.0:
         log.debug(
@@ -413,8 +415,8 @@ def _apply_notional_cap(
     into the trade record by both executors, so leaving the pre-cap value
     would record a Kelly fraction the position never had.
     """
-    decimal_places = int(amount_precision)
-    capped_qty = _floor_to_precision(notional_cap_usd / entry_price, decimal_places)
+    decimal_places = _precision_decimal_places(amount_precision)
+    capped_qty = _floor_to_amount_precision(notional_cap_usd / entry_price, amount_precision)
 
     if capped_qty <= 0.0:
         # The cap is tighter than one quantisation step. Previously the
@@ -807,6 +809,27 @@ def compute_win_loss_stats(
 # ---------------------------------------------------------------------------
 
 
+def _precision_decimal_places(amount_precision: float) -> int:
+    """Decimal places implied by *amount_precision* (EXR-016).
+
+    ccxt 4.x reports ``precision.amount`` as a tick size (e.g. 1e-05) for
+    Binance/OKX; values >= 1 are legacy decimal-place counts.
+    """
+    if 0.0 < amount_precision < 1.0:
+        return max(0, int(math.ceil(-math.log10(amount_precision) - 1e-9)))
+    return int(amount_precision)
+
+
+def _floor_to_amount_precision(value: float, amount_precision: float) -> float:
+    """Floor *value* to the exchange amount step (tick size or decimal places)."""
+    if 0.0 < amount_precision < 1.0:
+        if not math.isfinite(value):
+            raise ValueError(f"cannot quantise a non-finite quantity: {value}")
+        step = Decimal(str(amount_precision))
+        return float((Decimal(str(value)) // step) * step)
+    return _floor_to_precision(value, int(amount_precision))
+
+
 def _floor_to_precision(value: float, decimal_places: int) -> float:
     """
     Floor value to decimal_places using Decimal arithmetic.
@@ -826,5 +849,14 @@ def _floor_to_precision(value: float, decimal_places: int) -> float:
     """
     if decimal_places < 0:
         raise ValueError(f"decimal_places must be >= 0, got {decimal_places}")
+    # DATA-004. `Decimal(str(nan))` is `Decimal('NaN')`, and quantizing it
+    # returns NaN rather than raising -- so without this a non-finite quantity
+    # came out the other side still non-finite, wearing the authority of a
+    # value that had been "quantised to exchange precision". An infinity does
+    # raise InvalidOperation, which means the two cases behaved differently
+    # for no reason a caller could act on. Both are refused here, in the same
+    # way, with the same message.
+    if not math.isfinite(value):
+        raise ValueError(f"cannot quantise a non-finite quantity: {value}")
     q = Decimal(10) ** -decimal_places
     return float(Decimal(str(value)).quantize(q, rounding=ROUND_DOWN))

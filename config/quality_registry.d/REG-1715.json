@@ -1,0 +1,24 @@
+{
+  "id": "REG-1715",
+  "kind": "regression",
+  "title": "The orchestrator fills the measured execution cost for the carry and arbitrage families",
+  "statement": "When an enabled family declares InputNeed.COST (basis trade, funding carry, cross-exchange), Orchestrator._build_portfolio_inputs sets PortfolioInputs.execution_cost from measurements only: the per-leg fee from this symbol's recent closed trades in the timeframe's trading mode (both legs' fee over both legs' notional, at least MIN_FEE_SAMPLES trades, cached for _COST_FEE_TTL_S), half the quoted width of the live order book, and SlippageModel's calibrated square-root impact for the largest cost-family capital fraction of the executor's equity against the daily volume of the last 20 completed bars. If any of these cannot be measured (too few closed trades, a one-sided, crossed or unavailable book, too few bars, no equity, no executor, a failed read) the cost stays None and the families abstain; no configured or published number replaces it.",
+  "criticality": "high",
+  "subsystem": "signal",
+  "status": "verified",
+  "source": "OPS-2026-10-28",
+  "failure_mode": "REG-1704 made the three families abstain without a measured cost, but nothing in production ever filled PortfolioInputs.execution_cost, so they could never trade and no test noticed: the strategy tests built the cost by hand and the orchestrator tests never asserted it. The deciding test drives _build_portfolio_inputs with stub storage, book and executor and checks each component and each fail-closed case.",
+  "owning_modules": [
+    "src/engine/orchestrator.py",
+    "src/engine/strategy_portfolio.py",
+    "src/risk/execution_cost.py"
+  ],
+  "verification": [
+    {
+      "test": "tests/test_orchestrator_execution_cost.py",
+      "test_type": "regression"
+    }
+  ],
+  "depends_on": ["REG-1704"],
+  "notes": "Audit STR-21 part 2. layer: test-suite"
+}
