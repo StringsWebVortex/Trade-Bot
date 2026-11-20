@@ -1,4 +1,8 @@
-"""Tests for the v4 Bayesian online changepoint detector."""
+"""Tests for the v4 Bayesian online changepoint detector.
+
+Decides:
+  - REG-1090 — BOCPD changepoint probability responds to a mean shift
+"""
 
 from __future__ import annotations
 
@@ -72,9 +76,48 @@ def test_changepoint_probability_property_matches_last_update() -> None:
     assert detector.changepoint_probability == p
 
 
-def test_first_observation_changepoint_probability_matches_hazard_rate() -> None:
-    # With no history, every hypothesis shares the same predictive
-    # likelihood for x, so cp mass reduces to the hazard-rate prior itself.
+def test_first_observation_is_not_a_changepoint_signal() -> None:
+    # Warm-up is not a changepoint: the expected run length grows as expected.
     detector = BayesianOnlineChangepointDetector(hazard_rate=1.0 / 250.0)
-    p = detector.update(1.0)
-    assert p == pytest.approx(1.0 / 250.0, rel=0.05)
+    assert detector.update(1.0) < 0.05
+
+
+def test_mean_shift_raises_changepoint_probability_well_above_hazard() -> None:
+    # DAT-003: P(r=0) is identically the hazard rate; the reported signal
+    # must respond to a step change in the mean.
+    hazard = 1.0 / 250.0
+    rng = random.Random(7)
+    detector = BayesianOnlineChangepointDetector(hazard_rate=hazard)
+    pre = [detector.update(rng.gauss(0, 0.5)) for _ in range(80)]
+    post = [detector.update(rng.gauss(20, 0.5)) for _ in range(15)]
+    assert max(pre[20:]) < 0.5
+    assert max(post) > 0.5
+    assert max(post) > 50 * hazard
+
+
+def test_zero_mass_hypothesis_survives_pruning() -> None:
+    rng = random.Random(8)
+    detector = BayesianOnlineChangepointDetector()
+    for _ in range(600):
+        detector.update(rng.gauss(0, 1))
+    assert any(h.run_length == 0 for h in detector._hypotheses)
+
+
+def test_zero_mass_hypothesis_is_restored_when_pruning_would_drop_it() -> None:
+    # Make 200 growth hypotheses more probable individually than the new
+    # changepoint hypothesis so top-200 pruning must explicitly restore r=0.
+    detector = BayesianOnlineChangepointDetector(hazard_rate=1e-12)
+    hypothesis_type = type(detector._hypotheses[0])
+    detector._hypotheses = [
+        hypothesis_type(
+            run_length=i + 1,
+            log_prob=-math.log(200),
+            mean=0.0,
+            m2=1.0,
+            n=2,
+        )
+        for i in range(200)
+    ]
+
+    detector.update(0.0)
+    assert any(h.run_length == 0 for h in detector._hypotheses)
