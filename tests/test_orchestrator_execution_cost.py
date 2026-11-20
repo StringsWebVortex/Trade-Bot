@@ -17,13 +17,13 @@ from dataclasses import dataclass
 
 import pytest
 import structlog
-from conftest import settings_double
 
 from src.config import StrategyPortfolioSettings, Timeframe, TradingMode
 from src.engine.orchestrator import _COST_FEE_TTL_S, Orchestrator
 from src.engine.strategy_portfolio import required_inputs
 from src.risk.execution_cost import closed_trade_fills
 from src.risk.slippage import SlippageModel
+from tests.conftest import settings_double
 
 _COST_NEEDS = required_inputs(["basis_trade_v1"])
 
