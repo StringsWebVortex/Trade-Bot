@@ -1,12 +1,21 @@
 {
   "python.testing.pytestEnabled": true,
   "python.testing.unittestEnabled": false,
-  "python.analysis.typeCheckingMode": "basic",
+  "python.analysis.typeCheckingMode": "strict",
   "ruff.nativeServer": true,
   "ruff.organizeImports": true,
   "github-actions.workflows.pinnedGitHubAction": "warning",
   "python-envs.defaultEnvManager": "ms-python.python:system",
   "editor.wrapOnEscapedLineFeeds": true,
   "editor.wordWrap": "on",
-  "chat.editor.wordWrap": "on"
+  "chat.editor.wordWrap": "on",
+  "python.analysis.languageServerMode": "full",
+  "[python]": {
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": "charliermarsh.ruff",
+    "editor.codeActionsOnSave": {
+      "source.fixAll.ruff": "explicit",
+      "source.organizeImports.ruff": "explicit"
+    }
+  }
 }
